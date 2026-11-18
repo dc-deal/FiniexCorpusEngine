@@ -30,6 +30,7 @@ function withALicensedWork(): IssueList {
     knowledge_bases: [{ value: 'free', count: 2 }, { value: 'licensed', count: 1 }],
     states: [{ value: 'issue', count: 1 }, { value: 'blocked', count: 2 }],
     people: [],
+    reviews: [],
     categories: [],
     rows: [...free.rows, {
       knowledge_base: 'licensed',
@@ -96,7 +97,7 @@ describe('IssuesView', () => {
   it('marks a page a person judged beside its state, counts it in its state\'s chip, and narrows to it in one click (166.a)', async () => {
     const list = anIssueList()
     const accepted = list.rows.find(row => row.check.state === 'issue')!
-    accepted.person = { standing: 'accepted', reason: 'the judge miscounted', note: 'eleven T-accounts, as printed' }
+    accepted.person = { standing: 'accepted', reason: 'the judge miscounted', note: 'eleven T-accounts, as printed', by_a_person: true }
     list.states = list.states.map(count => (count.value === 'issue' ? { ...count, accepted: 1, rejected: 0 } : count))
     list.people = [{ value: 'accepted', count: 1 }]
     vi.mocked(getIssues).mockResolvedValue(list)
@@ -190,7 +191,7 @@ describe('IssuesView', () => {
   })
 
   it('says so when no page needs a look', async () => {
-    vi.mocked(getIssues).mockResolvedValue({ knowledge_bases: [], states: [], people: [], categories: [], rows: [] })
+    vi.mocked(getIssues).mockResolvedValue({ knowledge_bases: [], states: [], people: [], reviews: [], categories: [], rows: [] })
     const view = mountView()
     await flushPromises()
     expect(view.text()).toContain('No page needs a look.')
@@ -200,7 +201,7 @@ describe('IssuesView', () => {
     const list = anIssueList()
     const [blocked, judged] = list.rows
     list.rows = [{ ...blocked, listed_state: 'blocked' },
-      { ...judged, listed_state: 'decided_by_a_person', person: { standing: 'noted', reason: 'looked at by hand' } }]
+      { ...judged, listed_state: 'decided_by_a_person', person: { standing: 'noted', reason: 'looked at by hand', by_a_person: true } }]
     list.states = [{ value: 'decided_by_a_person', count: 1, accepted: 0, rejected: 0, noted: 1 }, { value: 'blocked', count: 1 }]
     vi.mocked(getIssues).mockResolvedValue(list)
     const view = mountView()
@@ -224,9 +225,43 @@ describe('IssuesView', () => {
     expect(listed(view)).toEqual([`free/${KELLY}/9`])
   })
 
+  it('folds a page an automated review settled apart from a person\'s, and never counts it as a person\'s (Q.a, 18 Nov)', async () => {
+    // the operator's 2.a: "a person is always manual"; a session's verdict on the operator's delegation settles the page as the
+    // core serves it, but in a bucket and a facet of its own
+    const list = anIssueList()
+    const [blocked, judged] = list.rows
+    list.rows = [{ ...blocked, listed_state: 'blocked' },
+      { ...judged, listed_state: 'decided_by_an_automated_review',
+        person: { standing: 'accepted', reason: 'the judge\'s finding contradicts its own evidence', by_a_person: false,
+          given_by: 'claude-opus-5-5 session, delegated by the operator (17 Nov)' } }]
+    list.states = [{ value: 'decided_by_an_automated_review', count: 1, accepted: 0, rejected: 0, noted: 0 }, { value: 'blocked', count: 1 }]
+    list.reviews = [{ value: 'accepted', count: 1 }]
+    vi.mocked(getIssues).mockResolvedValue(list)
+    const view = mountView()
+    await flushPromises()
+    expect(view.find('[data-part="decided"]').exists()).toBe(false)
+    const fold = view.find('[data-part="reviewed"]')
+    expect(fold.find('summary').text()).toBe("Decided by an automated review · 1 page, the check's state kept in each")
+    expect(fold.find(`tr[data-page="free/${KELLY}/9"] .state-mark`).classes()).toContain('quiet')
+    // the row's mark is a machine's, never a person's glyph, and its card says whose it is
+    const mark = fold.find(`tr[data-page="free/${KELLY}/9"] .person-standing`)
+    expect(mark.find('[data-icon="review"]').exists()).toBe(true)
+    expect(mark.find('[data-icon="person-accepted"]').exists()).toBe(false)
+    // the bucket's chip, its own glyph and word; no "A person" facet, an "Automated review" one
+    const chip = view.find('[data-facet="state"] [data-value="decided_by_an_automated_review"]')
+    expect(chip.find('.state-word').text()).toBe('decided by an automated review')
+    expect(chip.find('[data-icon="status-reviewed"]').exists()).toBe(true)
+    expect(view.find('[data-facet="person"]').exists()).toBe(false)
+    expect(view.find('[data-facet="review"] .line-label').text()).toBe('Automated review:')
+    // narrowed to what the review accepted, only its page stands
+    await view.find('[data-facet="review"] [data-value="accepted"]').trigger('click')
+    await flushPromises()
+    expect(listed(view)).toEqual([`free/${KELLY}/9`])
+  })
+
   it('says no page needs a look when every listed page is settled, and keeps them in the fold', async () => {
     const list = anIssueList()
-    list.rows = list.rows.map(row => ({ ...row, listed_state: 'decided_by_a_person', person: { standing: 'accepted' as const } }))
+    list.rows = list.rows.map(row => ({ ...row, listed_state: 'decided_by_a_person', person: { standing: 'accepted' as const, by_a_person: true } }))
     vi.mocked(getIssues).mockResolvedValue(list)
     const view = mountView()
     await flushPromises()

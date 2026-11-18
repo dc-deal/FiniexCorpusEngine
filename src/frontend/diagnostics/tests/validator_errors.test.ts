@@ -121,4 +121,21 @@ describe('the page view\'s errors and its numbered raw text (228.a)', () => {
     expect(looked.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? ''))
       .toEqual(['', '', '', 'error-looked', 'error-looked', 'error-looked'])
   })
+
+  it('marks the fault\'s own line strongest where page/1.4 names it, the block around it tinted', async () => {
+    // invented: the block opens on line 4, the fault the validator names stands on line 5
+    const exact = anError({ said: 'block b01 (line 4): HTML in prose on line 5 (use the inline marks)', line: 4, lines: [4, 6], at_line: 5 })
+    vi.mocked(getPage).mockReset().mockResolvedValue(aPageDetail({
+      raw: RAW,
+      reading: { front: {}, blocks: [aBlock({ id: 'b01' })], warnings: [], errors: [exact.said], error_places: [exact] },
+    }))
+    const view = mountView()
+    await flushPromises()
+    await view.find('[data-part="parse-errors"] li [data-part="show-raw"]').trigger('click')
+    await flushPromises()
+    expect(view.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? ''))
+      .toEqual(['', '', '', 'error-block', 'error-named', 'error-block'])
+    // "show raw" opens the text at the fault's own line
+    expect(view.find('pre.raw .raw-line.marked').attributes('data-line')).toBe('5')
+  })
 })

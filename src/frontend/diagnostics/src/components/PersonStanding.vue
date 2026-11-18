@@ -2,6 +2,7 @@
 import AppIcon from '@/components/base/AppIcon.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
 import { sayTime } from '@/human_time'
+import { verdictLabel } from '@/person_words'
 import type { PersonMark } from '@/types/api/page_types'
 
 /**
@@ -17,12 +18,12 @@ defineProps<{
 <template>
   <HoverCard
     v-if="mark"
-    title="A person's verdict"
+    :title="verdictLabel(mark)"
     :rows="[{ label: 'verdict', value: mark.standing }, { label: 'reason', value: mark.reason }, { label: 'note', value: mark.note },
             { label: 'given by', value: mark.given_by }, { label: 'given', value: mark.given_at ? sayTime(mark.given_at).text : null }]"
   >
     <span class="person-standing" :class="mark.standing" :data-person="mark.standing">
-      <AppIcon :name="`person-${mark.standing}`" />
+      <AppIcon :name="mark.by_a_person === false ? 'review' : `person-${mark.standing}`" />
       <span class="person-word">{{ mark.standing }}</span>
     </span>
   </HoverCard>

@@ -74,4 +74,10 @@ function toggle(key: string, value: string): void {
   flex-wrap: wrap;
   max-width: 100%;
 }
+
+/* and a state's own words wrap too, where one alone is wider than the column ("decided by an automated review", 18 Nov):
+   a state's mark keeps its words on one line everywhere else */
+.facet .app-button :deep(.state-mark) {
+  white-space: normal;
+}
 </style>

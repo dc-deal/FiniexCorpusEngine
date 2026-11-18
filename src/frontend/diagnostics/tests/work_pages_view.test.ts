@@ -211,7 +211,7 @@ describe('WorkPagesView', () => {
     const pages = [aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 9, check: aCheck({ state: 'issue' }) })]
     vi.mocked(getWorkPages).mockResolvedValue({
       ...aWorkPages(pages),
-      summary: { pages: 2, states: [{ value: 'ok', count: 1 }, { value: 'issue', count: 1 }], routes: [], people: [], categories: [] },
+      summary: { pages: 2, states: [{ value: 'ok', count: 1 }, { value: 'issue', count: 1 }], routes: [], people: [], reviews: [], categories: [] },
     })
     const view = mountView()
     await flushPromises()

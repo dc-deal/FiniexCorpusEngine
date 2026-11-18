@@ -8,7 +8,7 @@ import RouteWhy from '@/components/RouteWhy.vue'
 import CategoryMark from '@/components/CategoryMark.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import StateMark from '@/components/StateMark.vue'
-import { DECIDED } from '@/listed_state'
+import { isDecided } from '@/listed_state'
 import type { PageRow } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
@@ -73,7 +73,7 @@ function classChange(row: PageRow): string {
         <td class="printed">{{ row.printed_label ?? '' }}</td>
         <!-- beside the judge's state a person's standing verdict (166.a) and a page's category where it is not content
              (172.a), wrapping beneath it where the column is narrow; one line, since a template drops a space at a break -->
-        <td class="state-cell"><StateMark :state="row.check.state" :quiet="row.listed_state === DECIDED" /> <PersonStanding :mark="row.person" /> <CategoryMark :category="row.category" :said="row.category_said" :kind="row.page_kind" /></td>
+        <td class="state-cell"><StateMark :state="row.check.state" :quiet="isDecided(row.listed_state)" /> <PersonStanding :mark="row.person" /> <CategoryMark :category="row.category" :said="row.category_said" :kind="row.page_kind" /></td>
         <td><ReasonList :reasons="row.check.reasons" /></td>
         <td class="why"><RouteWhy :row="row" /></td>
         <td>{{ classChange(row) }}</td>

@@ -21,6 +21,7 @@ import PersonTally from '@/components/PersonTally.vue'
 import StateMark from '@/components/StateMark.vue'
 import { queryValues } from '@/address_query'
 import { CHAPTER_MARKS, unitKey } from '@/chapter_marks'
+import { standingOf } from '@/listed_state'
 import { categoryOf } from '@/page_category'
 import { pageCount } from '@/page_count'
 import { useOpenUnitsStore } from '@/stores/open_units_store'
@@ -61,9 +62,10 @@ watch(() => [props.kb, props.work] as const, ([kb, work]) => {
 
 // A link may choose the filter: the shelf's "39 blocked" opens the work with `?route=<that route>`, so exactly the
 // pages it counted stand here. Set again whenever the address changes, also for the same work.
-watch(() => [props.kb, props.work, address.query.state, address.query.person, address.query.category, address.query.route] as const, () => {
+watch(() => [props.kb, props.work, address.query.state, address.query.person, address.query.review, address.query.category,
+  address.query.route] as const, () => {
   const chosen: FacetSelection = {}
-  for (const key of ['state', 'person', 'category', 'route']) {
+  for (const key of ['state', 'person', 'review', 'category', 'route']) {
     const values = queryValues(address.query, key)
     if (values.length) chosen[key] = values
   }
@@ -80,6 +82,8 @@ const facets = computed<Facet[]>(() => shown.value?.summary ? [
   { key: 'state', label: 'State', values: shown.value.summary.states },
   // a person's standing verdict (166.a), where a person judged any of the work's pages
   ...(shown.value.summary.people?.length ? [{ key: 'person', label: 'A person', values: shown.value.summary.people }] : []),
+  // an automated review's, beside it and never counted as a person's (the operator's 2.a, 18 Nov)
+  ...(shown.value.summary.reviews?.length ? [{ key: 'review', label: 'Automated review', values: shown.value.summary.reviews }] : []),
   // what kind of page (172.a): every category shown, none chosen, so a click narrows; a work of one category has no choice
   ...((shown.value.summary.categories?.length ?? 0) > 1 ? [{ key: 'category', label: 'Category', values: shown.value.summary.categories }] : []),
 ] : [])
@@ -102,8 +106,8 @@ function kept(key: string, value: string): boolean {
 }
 
 const rows = computed<PageRow[]>(() => (shown.value?.pages ?? [])
-  .filter(row => kept('state', row.listed_state ?? row.check.state) && kept('person', row.person?.standing ?? '') && kept('category', categoryOf(row))
-    && kept('route', row.route)))
+  .filter(row => kept('state', row.listed_state ?? row.check.state) && kept('person', standingOf(row.person, true))
+    && kept('review', standingOf(row.person, false)) && kept('category', categoryOf(row)) && kept('route', row.route)))
 const filtering = computed(() => Object.values(selection.value).some(chosen => chosen.length > 0))
 
 const outline = computed<OutlineUnit[]>(() => shown.value?.outline ?? [])
@@ -194,7 +198,8 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
           <FacetBar v-model="selection" :facets="facets" :label-chars="10">
             <template #value="{ facet, value }">
               <StateMark v-if="facet.key === 'state'" :state="value" />
-              <PersonStanding v-else-if="facet.key === 'person'" :mark="{ standing: value as 'accepted' | 'rejected' | 'noted' }" />
+              <PersonStanding v-else-if="facet.key === 'person' || facet.key === 'review'"
+                              :mark="{ standing: value as 'accepted' | 'rejected' | 'noted', by_a_person: facet.key === 'person' }" />
               <template v-else>{{ value }}</template>
             </template>
             <template #after="{ facet, value }">

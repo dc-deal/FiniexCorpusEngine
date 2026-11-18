@@ -29,6 +29,8 @@ const LOOKS: Record<string, Look> = {
   not_yet_checked: { icon: 'status-unknown', role: 'warning' },
   // the lists' own bucket (211.a): a page to look at that a person settled; quiet, as nothing waits on it
   decided_by_a_person: { icon: 'status-decided', role: 'quiet' },
+  // the same settled by an automated review (Q.a, 18 Nov), never counted as a person's
+  decided_by_an_automated_review: { icon: 'status-reviewed', role: 'quiet' },
 }
 
 const look = computed<Look>(() => LOOKS[props.state] ?? { icon: 'status-unknown', role: 'warning' })

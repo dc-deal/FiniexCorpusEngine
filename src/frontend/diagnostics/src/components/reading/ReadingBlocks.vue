@@ -9,7 +9,7 @@ import PersonVerdictList from '@/components/PersonVerdictList.vue'
 import InlineSegments from '@/components/reading/InlineSegments.vue'
 import ReadingTable from '@/components/reading/ReadingTable.vue'
 import MathTex from '@/components/reading/MathTex.vue'
-import { lookedSaid } from '@/person_words'
+import { correctionLabel, lookedSaid } from '@/person_words'
 import type { ReadingBlock, ReadingError, StandingCorrection } from '@/types/api/page_types'
 
 /**
@@ -185,7 +185,7 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
       </div>
       <!-- a person's correction first, as the block's content (229.a): a table's as a table, any other as its text -->
       <div v-if="block.correction" class="standing-correction" data-part="standing-correction">
-        <p class="correction-said"><span class="part-label">Manual correction by a person</span><span class="correction-given" data-part="correction-given">{{ givenSaid(block.correction) }}<HumanTime v-if="block.correction.given_at" :at="block.correction.given_at" /></span></p>
+        <p class="correction-said"><span class="part-label">{{ correctionLabel(block.correction) }}</span><span class="correction-given" data-part="correction-given">{{ givenSaid(block.correction) }}<HumanTime v-if="block.correction.given_at" :at="block.correction.given_at" /></span></p>
         <ReadingTable v-if="block.correction.rows" class="person-correction" data-part="correction-content" :rows="block.correction.rows" />
         <p v-else class="person-correction correction-text" data-part="correction-content">{{ block.correction.text }}</p>
         <p class="part-label as-read-said" data-part="as-read-said">{{ hasBody(block) ? 'The reading, as the reader wrote it:' : 'The reading holds no text for this block.' }}</p>
@@ -235,7 +235,7 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
           </p>
           <!-- beneath, set in as a finding's evidence is: the way to its line, and who has looked -->
           <p v-if="error.line || error.looked" class="error-after">
-            <AppButton v-if="error.line" variant="link" data-part="show-raw" @click="emit('raw', error.line)">{{ `show raw, line ${error.line}` }}</AppButton>{{ error.line && error.looked ? ' · ' : '' }}<span
+            <AppButton v-if="error.line" variant="link" data-part="show-raw" @click="emit('raw', error.at_line ?? error.line)">{{ `show raw, line ${error.at_line ?? error.line}` }}</AppButton>{{ error.line && error.looked ? ' · ' : '' }}<span
               v-if="error.looked" class="error-looked" data-part="error-looked">{{ lookedSaid(error) }}</span>
           </p>
         </li>

@@ -15,6 +15,7 @@ const FILTERS: Record<string, string> = {
   knowledge_base: 'knowledge base',
   state: 'state',
   person: 'a person',
+  review: 'an automated review',
   category: 'category',
   route: 'route',
   integrity: 'reading file',

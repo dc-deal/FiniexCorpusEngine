@@ -53,7 +53,7 @@ describe('SourcesView', () => {
 
   it('says each work\'s structure by its format\'s model, and an HTML work opens its outline (4.a, 6.a)', async () => {
     vi.mocked(getWorks).mockResolvedValue([
-      aWork({ readings: { pages: 629, states: [{ value: 'ok', count: 629 }], routes: [], people: [], categories: [] } }),
+      aWork({ readings: { pages: 629, states: [{ value: 'ok', count: 629 }], routes: [], people: [], reviews: [], categories: [] } }),
       aWork({ id: 'wikipedia_trading_set', title: 'Wikipedia articles', format: 'html', year: null, sections: 130, chunks: 263 }),
       aWork({ id: 'kleppmann_accounting_for_computer_scientists', format: 'html', structure_why_not: 'No search index on this machine yet' }),
     ])
@@ -76,7 +76,7 @@ describe('SourcesView', () => {
 
   it('opens the page list of a work read page by page, and shows its states', async () => {
     vi.mocked(getWorks).mockResolvedValue([
-      aWork({ readings: { pages: 15, states: [{ value: 'ok', count: 12 }, { value: 'blocked', count: 3 }], routes: [], people: [], categories: [] } }),
+      aWork({ readings: { pages: 15, states: [{ value: 'ok', count: 12 }, { value: 'blocked', count: 3 }], routes: [], people: [], reviews: [], categories: [] } }),
       aWork({ id: 'wikipedia_trading_set', title: 'Kelly criterion', year: null }),
     ])
     const view = mountView()
@@ -100,7 +100,7 @@ describe('SourcesView', () => {
       licence: null,
       format: null,
       shelf: null,
-      readings: { pages: 2, states: [{ value: 'ok', count: 2 }], routes: [], people: [], categories: [] },
+      readings: { pages: 2, states: [{ value: 'ok', count: 2 }], routes: [], people: [], reviews: [], categories: [] },
     })
     vi.mocked(getWorks).mockResolvedValue([aWork(), licensed])
     const view = mountView()

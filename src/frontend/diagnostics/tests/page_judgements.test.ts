@@ -36,7 +36,7 @@ function aJudgedPage(overrides: Partial<PageDetail> = {}): PageDetail {
       judge: { model: 'claude-sonnet-5-5', provider: 'anthropic', mode: 'batch', cost_usd: 0.0069, version: 'judge/1' },
     }),
     reading: { front: {}, blocks: [aBlock({ id: 'b01', findings: [VOID_FINDING],
-      people: [{ reading_key: 'r1', applies: true, block: 'b01', verdict: 'accept', reason_text: 'the judge quotes the same word twice' }] })],
+      people: [{ reading_key: 'r1', applies: true, block: 'b01', verdict: 'accept', reason_text: 'the judge quotes the same word twice', by_a_person: true }] })],
     errors: [], warnings: [], error_places: [] },
     attempts: [
       { ...reading, reading_key: 'r0', number: 1, attempt: 0, check: { state: 'ok', verdict: 'bad', outcome: 'ok', reasons: [], came_from: 'an earlier check' },
@@ -48,8 +48,8 @@ function aJudgedPage(overrides: Partial<PageDetail> = {}): PageDetail {
         aJudgement({ version: 'judge/3', version_state: 'prototype', counts: false, verdict: 'ok', outcome: 'ok', judge_outcome: 'ok', findings: [] }),
       ] },
     ],
-    human: [{ reading_key: 'r1', applies: true, block: 'b01', verdict: 'accept', reason_text: 'the judge quotes the same word twice' },
-      { reading_key: 'r0', applies: false, block: null, verdict: 'note', reason_text: 'looked at the first reading' }],
+    human: [{ reading_key: 'r1', applies: true, block: 'b01', verdict: 'accept', reason_text: 'the judge quotes the same word twice', by_a_person: true },
+      { reading_key: 'r0', applies: false, block: null, verdict: 'note', reason_text: 'looked at the first reading', by_a_person: true }],
     ...overrides,
   })
 }
@@ -259,7 +259,7 @@ describe('PageView, the check in stages and its judges (146.a, 147.a)', () => {
     block.people = [{ ...block.people[0], ...given, verdict: 'note', note: 'read from the chart', correction: 'the crossing around 2012',
       judge_assessment: 'right_for_a_wrong_reason', judge_assessment_text: "the judge's verdict is right, but its own evidence is not" }]
     // the correction that stands, as the API chooses it
-    block.correction = { text: 'the crossing around 2012', rows: null, ...given }
+    block.correction = { text: 'the crossing around 2012', rows: null, by_a_person: true, ...given }
     vi.mocked(getPage).mockResolvedValue(page)
     const view = mountView()
     await flushPromises()
@@ -292,7 +292,7 @@ describe('PageView, the check in stages and its judges (146.a, 147.a)', () => {
     const earlier = { ...block.people[0], verdict: 'note', correction: 'the crossing about 2010', given_at: '2026-11-09T10:00:00+00:00' }
     const latest = { ...block.people[0], verdict: 'note', correction: 'the crossing around 2012', given_at: '2026-11-10T19:58:18+00:00' }
     block.people = [earlier, latest]
-    block.correction = { text: latest.correction, rows: null, given_by: null, given_at: latest.given_at }
+    block.correction = { text: latest.correction, rows: null, given_by: null, given_at: latest.given_at, by_a_person: true }
     vi.mocked(getPage).mockResolvedValue(page)
     const view = mountView()
     await flushPromises()

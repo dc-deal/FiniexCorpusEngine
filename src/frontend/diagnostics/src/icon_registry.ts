@@ -15,6 +15,7 @@ import {
   IconMenu2,
   IconPlayerStop,
   IconQuote,
+  IconRobot,
   IconShieldCheck,
   IconUserCheck,
   IconUserEdit,
@@ -37,6 +38,8 @@ export const ICONS = {
   'status-unknown': IconAlertTriangle,
   // a page a person settled (211.a): counted apart from the issues, never as fine, a decision's drawing
   'status-decided': IconGavel,
+  // a page an automated review settled (Q.a, 18 Nov): apart from a person's, a machine's drawing
+  'status-reviewed': IconRobot,
   // a finding of the judge, beside its kind and severity
   'finding': IconFlag,
   // the text the search and the chat quote for a page, beside the reading as parsed and as stored
@@ -54,6 +57,8 @@ export const ICONS = {
   'person-accepted': IconUserCheck,
   'person-rejected': IconUserX,
   'person-noted': IconUserEdit,
+  // an automated review's standing verdict, never a person's (the operator's 2.a, 18 Nov), always said in words too
+  'review': IconRobot,
   // the view shows a recalled judgement, not the standing state (181.a), always with the words "Recalled:"
   'recalled': IconHistory,
   // a person checked the page and no re-read happens without a reason (191.a), always said in words too

@@ -26,7 +26,7 @@ BASES: tuple[KnowledgeBase, ...] = ('free', 'licensed')
 RUNS_SHOWN = 8
 # The sections, in the order they stand: their title and the field of a page each one counts.
 SECTIONS = (('How the text is made', 'route'), ('State', 'state'), ("A person's verdict", 'person'),
-            ('Page category', 'category'),
+            ("An automated review's verdict", 'review'), ('Page category', 'category'),
             ('Is the reading what was checked', 'integrity'),
             ('Why judged, or why not', 'why_judged'), ("The judge's verdicts", 'verdict'), ('Reasons a page carries', 'reason'))
 # Which model did what (the operator's 17.a): the pages each one worked on, and what that work cost.
@@ -138,7 +138,9 @@ def values_of(field: str, row: dict, export: Path | None = None) -> list[str]:
     if field == 'category':  # what kind of page it is (172.a)
         return [category_of(row)]
     if field == 'person':  # a person's standing verdict on the reading shown (166.a)
-        return [mark.standing] if (mark := person_mark(row)) else []
+        return [mark.standing] if (mark := person_mark(row)) and mark.by_a_person else []
+    if field == 'review':  # an automated review's, never counted as a person's (the operator's 2.a, 18 Nov)
+        return [mark.standing] if (mark := person_mark(row)) and not mark.by_a_person else []
     if field == 'why_judged':
         return [check.why_judged]
     if field == 'verdict':
@@ -248,7 +250,7 @@ def overview(bases: dict[str, Readings], search: Search, public_only: bool) -> O
     return Overview(bases=headlines, models=models, sections=sections, search=searched)
 
 
-FILTERS = ('knowledge_base', 'state', 'person', 'category', 'route', 'integrity', 'why_judged', 'verdict', 'reason', 'reader',
+FILTERS = ('knowledge_base', 'state', 'person', 'review', 'category', 'route', 'integrity', 'why_judged', 'verdict', 'reason', 'reader',
            'judge', 'provider')
 
 

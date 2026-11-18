@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import HumanTime from '@/components/base/HumanTime.vue'
-import { STANDING } from '@/person_words'
+import { STANDING, verdictLabel } from '@/person_words'
 import type { PersonVerdict } from '@/types/api/page_types'
 
 /**
@@ -40,7 +40,7 @@ function partsOf(person: PersonVerdict): { part: string, text: string, at?: stri
   <ul class="people ruled">
     <li v-for="(person, at) in people" :key="at" :class="[person.verdict, { earlier: !person.applies, archived: person.archived }]" :data-person="at">
       <p class="person-line">
-        <span class="part-label">A person's verdict:</span>{{ ' ' }}<span class="person-verdict">{{ STANDING[person.verdict] ?? person.verdict }}</span><span
+        <span class="part-label">{{ `${verdictLabel(person)}:` }}</span>{{ ' ' }}<span class="person-verdict">{{ STANDING[person.verdict] ?? person.verdict }}</span><span
           v-for="one in partsOf(person)" :key="one.part" :class="one.part">{{ `${PARTED}${one.text}` }}<HumanTime v-if="one.at" :at="one.at" /></span>
       </p>
       <!-- the note a line of its own beneath, as beneath a block: a long one never breaks the verdict's line -->

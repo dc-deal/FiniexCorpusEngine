@@ -1275,6 +1275,11 @@ export interface components {
              */
             people: components["schemas"]["Count"][];
             /**
+             * Reviews
+             * @default []
+             */
+            reviews: components["schemas"]["Count"][];
+            /**
              * Categories
              * @default []
              */
@@ -1681,6 +1686,11 @@ export interface components {
             given_by?: string | null;
             /** Given At */
             given_at?: string | null;
+            /**
+             * By A Person
+             * @default true
+             */
+            by_a_person: boolean;
         };
         /**
          * PersonVerdict
@@ -1725,6 +1735,11 @@ export interface components {
             archived?: boolean | null;
             /** Archived At */
             archived_at?: string | null;
+            /**
+             * By A Person
+             * @default true
+             */
+            by_a_person: boolean;
         };
         /** PreviewRequest */
         PreviewRequest: {
@@ -1884,10 +1899,14 @@ export interface components {
             line?: number | null;
             /** Lines */
             lines?: number[] | null;
+            /** At Line */
+            at_line?: number | null;
             /** Looked */
             looked?: string | null;
             /** Looked At */
             looked_at?: ("block" | "page") | null;
+            /** Looked By A Person */
+            looked_by_a_person?: boolean | null;
             /**
              * Corrected
              * @default false
@@ -2385,6 +2404,11 @@ export interface components {
             given_by?: string | null;
             /** Given At */
             given_at?: string | null;
+            /**
+             * By A Person
+             * @default true
+             */
+            by_a_person: boolean;
         };
         /**
          * StateCount
@@ -2652,6 +2676,11 @@ export interface components {
              * @default []
              */
             people: components["schemas"]["Count"][];
+            /**
+             * Reviews
+             * @default []
+             */
+            reviews: components["schemas"]["Count"][];
             /**
              * Categories
              * @default []
@@ -3069,6 +3098,7 @@ export interface operations {
                 knowledge_base?: ("free" | "licensed") | null;
                 state?: string | null;
                 person?: string | null;
+                review?: string | null;
                 category?: string | null;
                 route?: string | null;
                 why_judged?: string | null;

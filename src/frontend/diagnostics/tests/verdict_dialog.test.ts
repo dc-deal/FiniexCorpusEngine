@@ -41,7 +41,7 @@ const CELLS = [[{ segments: [{ kind: 'text' as const, content: 'p' }], header: t
 
 function aPersonVerdict(overrides: Partial<PersonVerdict>): PersonVerdict {
   return { reading_key: 'r1', applies: true, block: 'b02', verdict: 'reject', reason: 'reading_wrong', reason_text: 'the reading does not say what the page prints',
-    note: null, given_by: 'maintainer', given_at: '2026-11-10T22:03:55+00:00', ...overrides }
+    note: null, given_by: 'maintainer', given_at: '2026-11-10T22:03:55+00:00', by_a_person: true, ...overrides }
 }
 
 function aDraft(overrides: Partial<VerdictDraft> = {}): VerdictDraft {
@@ -78,7 +78,7 @@ describe('the verdict dialog\'s rules (213.b, 224.b)', () => {
     expect(prefillOf(aBlock({ body: GRID }))).toBe(GRID)
     // the API says which correction stands (229.a); a person's verdicts on the block do not decide it here
     const people = [aPersonVerdict({ correction: '<table><tr><td>first</td></tr></table>' })]
-    const standing = { text: '<table><tr><td>latest</td></tr></table>', rows: null, given_by: 'maintainer', given_at: '2026-11-12T18:10:20+00:00' }
+    const standing = { text: '<table><tr><td>latest</td></tr></table>', rows: null, given_by: 'maintainer', given_at: '2026-11-12T18:10:20+00:00', by_a_person: true }
     expect(prefillOf(aBlock({ body: GRID, people, correction: standing }))).toBe('<table><tr><td>latest</td></tr></table>')
   })
 

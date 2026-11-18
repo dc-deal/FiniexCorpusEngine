@@ -696,6 +696,22 @@
             }
           },
           {
+            "name": "review",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Review"
+            }
+          },
+          {
             "name": "category",
             "in": "query",
             "required": false,
@@ -3552,6 +3568,14 @@
             "title": "People",
             "default": []
           },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "type": "array",
+            "title": "Reviews",
+            "default": []
+          },
           "categories": {
             "items": {
               "$ref": "#/components/schemas/Count"
@@ -4986,6 +5010,11 @@
               }
             ],
             "title": "Given At"
+          },
+          "by_a_person": {
+            "type": "boolean",
+            "title": "By A Person",
+            "default": true
           }
         },
         "type": "object",
@@ -5176,6 +5205,11 @@
               }
             ],
             "title": "Archived At"
+          },
+          "by_a_person": {
+            "type": "boolean",
+            "title": "By A Person",
+            "default": true
           }
         },
         "type": "object",
@@ -5663,6 +5697,17 @@
             ],
             "title": "Lines"
           },
+          "at_line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Line"
+          },
           "looked": {
             "anyOf": [
               {
@@ -5688,6 +5733,17 @@
               }
             ],
             "title": "Looked At"
+          },
+          "looked_by_a_person": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Looked By A Person"
           },
           "corrected": {
             "type": "boolean",
@@ -7214,6 +7270,11 @@
               }
             ],
             "title": "Given At"
+          },
+          "by_a_person": {
+            "type": "boolean",
+            "title": "By A Person",
+            "default": true
           }
         },
         "type": "object",
@@ -8021,6 +8082,14 @@
             },
             "type": "array",
             "title": "People",
+            "default": []
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "type": "array",
+            "title": "Reviews",
             "default": []
           },
           "categories": {

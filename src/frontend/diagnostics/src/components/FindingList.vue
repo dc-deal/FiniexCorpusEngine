@@ -2,7 +2,7 @@
 import AppIcon from '@/components/base/AppIcon.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
 import ReadingTable from '@/components/reading/ReadingTable.vue'
-import { STANDING } from '@/person_words'
+import { assessmentLabel, correctionLabel, STANDING, verdictLabel } from '@/person_words'
 import type { Finding, PersonVerdict, StandingCorrection } from '@/types/api/page_types'
 
 /**
@@ -65,7 +65,7 @@ function reasonOf(person: PersonVerdict): string {
       <!-- a verdict on the page as a whole speaks for a finding whose block no verdict names (the operator on finance p. 408); one run
            of text, its parting dot bound to the word before it, so a long reason never begins a line with the dot -->
       <p class="voice flow" data-voice="person">
-        <span class="part-label">{{ person.block ? "A person's verdict:" : "A person's verdict on the page:" }}</span>{{ ' ' }}<span
+        <span class="part-label">{{ `${verdictLabel(person, !person.block)}:` }}</span>{{ ' ' }}<span
           class="person-standing">{{ STANDING[person.verdict] ?? person.verdict }}</span><span
           v-if="reasonOf(person)" class="person-part">{{ ` · ${reasonOf(person)}` }}</span>
       </p>
@@ -78,7 +78,7 @@ function reasonOf(person: PersonVerdict): string {
            served changes: the quoted text stays the reader's -->
       <template v-if="person.correction && !standsAbove(person)">
         <p class="voice" data-voice="correction">
-          <span class="part-label">{{ standing ? 'An earlier manual correction by a person:' : 'Manual correction by a person:' }}</span>
+          <span class="part-label">{{ `${correctionLabel(person, Boolean(standing))}:` }}</span>
         </p>
         <!-- a table block's correction as a table (204.a), its cells the core's table parser gave the API, as a reading's
              are; any other correction as the text it is -->
@@ -88,7 +88,7 @@ function reasonOf(person: PersonVerdict): string {
       <p v-if="person.judge_assessment_text || person.judge_assessment" class="voice" data-voice="assessment">
         <!-- the judge the person rated, by name where the API knows it: beside a prototype's finding, the one they rated is
              another judge's (line 1's check-along on finance p. 119: judge/1's false alarm under judge/4's finding) -->
-        <span class="part-label">{{ person.assessed ? `A person's assessment of ${person.assessed}:` : "A person's assessment of the judge:" }}</span>
+        <span class="part-label">{{ `${assessmentLabel(person, person.assessed)}:` }}</span>
         <span class="assessment" :data-assessment="person.judge_assessment">{{ person.judge_assessment_text || person.judge_assessment }}</span>
       </p>
     </li>

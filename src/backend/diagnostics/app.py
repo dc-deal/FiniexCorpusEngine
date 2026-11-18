@@ -227,12 +227,14 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
 
     @app.get('/api/pages')
     def list_pages_across(knowledge_base: readings.KnowledgeBase | None = None, state: str | None = None,
-                          person: str | None = None, category: str | None = None, route: str | None = None,
+                          person: str | None = None, review: str | None = None, category: str | None = None,
+                          route: str | None = None,
                           why_judged: str | None = None, verdict: str | None = None,
                           reason: str | None = None, reader: str | None = None, judge: str | None = None,
                           provider: str | None = None, integrity: str | None = None) -> overview.PageList:
         """The pages behind a figure of the overview: every page served that matches every filter given."""
-        given = {'knowledge_base': knowledge_base, 'state': state, 'person': person, 'category': category, 'route': route,
+        given = {'knowledge_base': knowledge_base, 'state': state, 'person': person, 'review': review, 'category': category,
+                 'route': route,
                  'why_judged': why_judged, 'verdict': verdict, 'reason': reason, 'reader': reader, 'judge': judge,
                  'provider': provider, 'integrity': integrity}
         return overview.pages(bases, {name: value for name, value in given.items() if value is not None})

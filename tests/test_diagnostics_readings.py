@@ -531,6 +531,37 @@ def test_each_reading_says_why_it_stands_and_what_it_cost_a_session_reading_none
 
 
 @pytest.mark.readings
+def test_an_automated_reviews_verdict_is_never_a_persons_and_settles_a_page_in_a_bucket_of_its_own(tmp_path):
+    # the operator's 2.a and 3.a (18 Nov): "a person is always manual". A verdict a session gave on the operator's delegation
+    # names the session; the core serves the page by it but never protects it, and the view never calls it a person's
+    row = copy.deepcopy(next(row for row in kelly_rows() if row.get('attempts')))
+    row['check'] = {**row['check'], 'state': 'issue', 'reasons': ['judge: bad']}
+    row.update(route='vision reading (claude-sonnet-5-5, page/1, validator page/1.4): an automated review (delegated by the '
+                     "operator) accepted the reading: the judge's finding contradicts its own evidence",
+               route_level='noted', protected=False)
+    review = {'reading_key': row['reading_key'], 'applies': True, 'block': None, 'verdict': 'accept',
+              'reason': 'judge_contradicts_itself', 'given_by': 'claude-opus-5-5 session, delegated by the operator (17 Nov)',
+              'given_at': '2026-11-17T20:00:00+00:00'}
+    row['human'] = [review]  # as an export of before 18 Nov writes it: no `by_a_person`, the giver says it
+    corpus = a_corpus(tmp_path, [row])
+    page = corpus.page(KELLY, row['pdf_page'], 'Kelly')
+    assert page.person.by_a_person is False and page.human[0].by_a_person is False
+    assert page.listed_state == readings.DECIDED_BY_REVIEW and page.protected is False
+    assert page.said == 'Served: an automated review (delegated by the operator) accepted the reading.'
+    summary = corpus.pages('free', KELLY, 'Kelly').summary
+    assert [(count.value, count.count) for count in summary.reviews] == [('accepted', 1)] and summary.people == []
+    bucket = next(count for count in summary.states if count.value == readings.DECIDED_BY_REVIEW)
+    assert (bucket.count, bucket.accepted) == (1, 0)
+    issues = readings.issues({'free': corpus})
+    assert [(count.value, count.count) for count in issues.reviews] == [('accepted', 1)] and issues.people == []
+    # the same verdict given by a person stands as a person's, and the export says it protects the page
+    row['human'] = [{**review, 'given_by': 'maintainer', 'by_a_person': True}]
+    row['protected'] = True
+    page = a_corpus(tmp_path / 'person', [row]).page(KELLY, row['pdf_page'], 'Kelly')
+    assert page.person.by_a_person and page.listed_state == readings.DECIDED and page.protected is True
+
+
+@pytest.mark.readings
 def test_a_page_carries_its_three_stages_its_judgements_and_a_persons_verdict(tmp_path):
     """146.a, 147.a: stage 2's report and the judge with its version on the page alone; a void finding marked and the
     judge's own outcome beside the one that counts; each reading's judgements, a prototype's and one asked again among
@@ -1060,6 +1091,11 @@ def test_an_error_on_a_block_carries_the_blocks_lines_from_its_opening_fence_to_
     assert [one.lines for one in placed] == [[4, 7], None, None]
     # without the raw text no span is claimed
     assert readings.errors_placed(['block b01 (line 4): x'], [], [])[0].lines is None
+    # page/1.4 names the fault's own line after the problem's name; an error without one keeps None
+    exact = readings.errors_placed(['block b01 (line 4): LaTeX command outside math on line 6: \\HL',
+                                    'block b01 (line 4): HTML in prose on line 5 (use the inline marks: [8]{.sup})',
+                                    'line 2: attributes not parseable'], [], [], raw)
+    assert [(one.line, one.lines, one.at_line) for one in exact] == [(4, [4, 7], 6), (4, [4, 7], 5), (2, None, None)]
 
 
 @pytest.mark.readings

@@ -13,7 +13,7 @@ import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
-import { DECIDED } from '@/listed_state'
+import { isDecided } from '@/listed_state'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import CategoryMark from '@/components/CategoryMark.vue'
 import DataTable from '@/components/base/DataTable.vue'
@@ -34,7 +34,7 @@ import { usePageStore } from '@/stores/page_store'
 import { useSettingsStore } from '@/stores/settings_store'
 import { useVerdictStore } from '@/stores/verdict_store'
 import { useViewName } from '@/view_name'
-import { lookedSaid } from '@/person_words'
+import { lookedSaid, verdictBy } from '@/person_words'
 import { readingCost, usd } from '@/cost_format'
 import type { Attempt, Judgement, PersonVerdict } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
@@ -168,7 +168,7 @@ const readingChanged = computed(() => !!shown.value && shown.value.integrity in 
 // a person's accept or reject decides what is served (the API's `person`, as the core's `human_standing` decides), and any
 // verdict settles a page the check listed to look at (`listed_state`, 211.a): then their line comes first and the check's
 // state recedes, kept and named as the check's; a note on a page the check passed changes nothing, so the state keeps its place
-const personDecides = computed(() => shown.value?.listed_state === DECIDED
+const personDecides = computed(() => isDecided(shown.value?.listed_state)
   || shown.value?.person?.standing === 'accepted' || shown.value?.person?.standing === 'rejected')
 const headOrder = computed(() => (personDecides.value ? ['person', 'state'] : ['state', 'person']))
 // What the pipeline did stands in the Reading History; what was tried beside it stands in the Lab below, labelled, never
@@ -311,17 +311,20 @@ const rawText = ref<HTMLElement | null>(null)
 const rawLines = computed(() => (analysisRaw.value ?? '').split('\n'))
 // The lines a validator's error names, marked as a compiler marks them (line 1's A.a, 18 Nov): the whole block the API says
 // it names (`lines`), since the validator names the line a block opens on while what it found may stand lines below, and
-// the named line strongest. An error a person has looked at marks its lines quietly, as its entry above recedes; where
-// two errors meet on a line, the stronger mark stands.
+// the fault's own line strongest: the one page/1.4 names in its message (`at_line`), else the line the error names. An
+// error a person has looked at marks its lines quietly, as its entry above recedes; where two errors meet on a line, the
+// stronger mark stands.
 type LineMark = 'error-looked' | 'error-block' | 'error-named'
 const LINE_MARK_RANK: Record<LineMark, number> = { 'error-looked': 0, 'error-block': 1, 'error-named': 2 }
 const errorLines = computed(() => {
   const marks = new Map<number, LineMark>()
   for (const error of analysisReading.value?.error_places ?? []) {
     if (!error.line) continue
+    const exact = error.at_line ?? error.line
     const [first = error.line, last = first] = error.lines ?? []
-    for (let line = first; line <= last; line++) {
-      const kind: LineMark = error.looked ? 'error-looked' : line === error.line ? 'error-named' : 'error-block'
+    const named = new Set([...Array.from({ length: last - first + 1 }, (_, at) => first + at), exact])
+    for (const line of named) {
+      const kind: LineMark = error.looked ? 'error-looked' : line === exact ? 'error-named' : 'error-block'
       const had = marks.get(line)
       if (!had || LINE_MARK_RANK[kind] > LINE_MARK_RANK[had]) marks.set(line, kind)
     }
@@ -447,7 +450,7 @@ watch(box, async () => {
                 <IntegrityMark :state="shown.integrity" />: {{ INTEGRITY_SAYS[shown.integrity] }}
               </span>
             </LabelledLine>
-            <LabelledLine v-else-if="shown.person || shown.protected" label="A person">
+            <LabelledLine v-else-if="shown.person || shown.protected" :label="verdictBy(shown.person)">
               <PersonStanding :mark="shown.person" />
               <!-- a person checked the page: no re-read without a reason (191.a) -->
               <span v-if="shown.protected" class="protected" data-part="protected"><AppIcon name="protected" /> protected</span>
@@ -743,7 +746,7 @@ watch(box, async () => {
                 </LabelledLine>
               </LabelledLines>
             </dd>
-            <dt>A person</dt>
+            <dt>{{ shown.human.length && shown.human.every(person => person.by_a_person === false) ? verdictBy(shown.human[0]) : 'A person' }}</dt>
             <dd data-stage="person">
               <PersonVerdictList v-if="shown.human.length" :people="shown.human" names-blocks />
               <span v-else class="secondary">no person has judged this page</span>
@@ -839,7 +842,7 @@ watch(box, async () => {
                 <AppIcon name="status-error" />
                 <span class="error-said">{{ error.said }}</span>
                 <AppButton v-if="error.block" variant="link" data-part="error-block" @click="showBlock(error.block)">{{ error.block }}</AppButton>
-                <AppButton v-if="error.line" variant="link" data-part="show-raw" @click="showRaw(error.line)">show raw</AppButton>
+                <AppButton v-if="error.line" variant="link" data-part="show-raw" @click="showRaw(error.at_line ?? error.line)">show raw</AppButton>
                 <span v-if="error.looked" class="error-looked" data-part="error-looked">{{ `· ${lookedSaid(error)}` }}</span>
               </li>
             </ul>

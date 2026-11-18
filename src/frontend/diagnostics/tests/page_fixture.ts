@@ -41,7 +41,7 @@ export function aWorkPages(pages: PageRow[]): WorkPages {
     knowledge_base: 'free',
     source_id: KELLY,
     title: 'Kelly criterion paper',
-    summary: { pages: pages.length, states: [{ value: 'ok', count: pages.length }], routes: [{ value: VISION_ROUTE, count: pages.length }], people: [], categories: [] },
+    summary: { pages: pages.length, states: [{ value: 'ok', count: pages.length }], routes: [{ value: VISION_ROUTE, count: pages.length }], people: [], reviews: [], categories: [] },
     // no route table unless a test asks for one, so a test of the page list counts its rows alone
     routes: [],
     route_levels: [],
@@ -74,7 +74,7 @@ export function anOutlinedWork(): WorkPages {
       aPageRow({ pdf_page: 6, units: ['u003', 'u004'] }),
       aPageRow({ pdf_page: 9, units: ['u005'] }),
     ]),
-    summary: { pages: 6, states: [ok(5), { value: 'issue', count: 1 }], routes: [{ value: VISION_ROUTE, count: 6 }], people: [], categories: [] },
+    summary: { pages: 6, states: [ok(5), { value: 'issue', count: 1 }], routes: [{ value: VISION_ROUTE, count: 6 }], people: [], reviews: [], categories: [] },
     outline: [
       // the last figure each unit's own pages: those whose text is its own, outside every unit beneath it
       aUnit('u001', '1 Introduction', null, 2, 2, 1, [ok(1)], 1),
@@ -83,7 +83,7 @@ export function anOutlinedWork(): WorkPages {
       aUnit('u004', '3 Many assets', null, 6, 8, 1, [ok(1)], 1),
       aUnit('u005', 'References', null, 9, 9, 1, [ok(1)], 1, false),
     ],
-    outside_outline: { pages: 1, states: [ok(1)], routes: [{ value: VISION_ROUTE, count: 1 }], people: [], categories: [] },
+    outside_outline: { pages: 1, states: [ok(1)], routes: [{ value: VISION_ROUTE, count: 1 }], people: [], reviews: [], categories: [] },
   }
 }
 
@@ -153,6 +153,7 @@ export function anIssueList(): IssueList {
     knowledge_bases: [{ value: 'free', count: 2 }],
     states: [{ value: 'issue', count: 1 }, { value: 'blocked', count: 1 }],
     people: [],
+    reviews: [],
     categories: [],
     rows: [
       {

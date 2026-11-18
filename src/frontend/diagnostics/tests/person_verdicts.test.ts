@@ -7,7 +7,7 @@ import type { PersonVerdict } from '@/types/api/page_types'
 // invented: a person's verdicts as the export gives them since 191.a
 function aVerdict(overrides: Partial<PersonVerdict>): PersonVerdict {
   return { reading_key: 'r1', applies: true, block: 'b05', verdict: 'accept', reason: 'other', reason_text: 'another reason, said in the note',
-    note: 'all values match the text layer', given_by: 'maintainer', given_at: '2026-11-10T22:03:55+00:00', ...overrides }
+    note: 'all values match the text layer', given_by: 'maintainer', given_at: '2026-11-10T22:03:55+00:00', by_a_person: true, ...overrides }
 }
 
 const FINDING = { kind: 'wrong_value', block: 'b10', severity: 'major', evidence: 'a value', void: false }

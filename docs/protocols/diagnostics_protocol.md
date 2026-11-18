@@ -672,3 +672,11 @@ The record of how the diagnostics frontend came about, mistakes included.
   A screenshot showed what was: the stroke inside the box lay on the first and last glyphs. **Mistake:** a screenshot
   script given `/free/...` from Git Bash found no page, its path rewritten into Git's own folder, as this file warned on
   5 Nov; run from PowerShell it worked.
+- **page/1.4's exact line and an automated review** (line 1's handoff of 18 Nov, after d58533f and 505b7fd). One
+  question went to line 1 before building: where a page a delegated review settled is listed. The answer, Q.a: its own
+  bucket, as the core serves the page by the review but nothing a person decided may count as a person's. **Found on
+  the way:** two browser checks went red with the change and were the checks' own: one counted the Issues' grids as a
+  fixed three, the other expected "show raw" at the block's opening line, where accounting p. 398's error now names its
+  fault's own line (29, the block opening at 26); and at 390 px the Issues scrolled sideways by 15 px, since a state's
+  mark keeps its words on one line and "decided by an automated review" alone was wider than the column. Inside a facet
+  toggle the state's words now wrap.

@@ -1496,3 +1496,22 @@ and of the raw marks; a browser check of the stroke outside the box (shown faili
 b13's block marked on accounting p. 338; 298 unit tests, 75 checks in the browser (two skipped on today's data), 1,403
 Python tests. `npm audit --omit=dev` reports a new advisory on `picomatch` (every version), which reaches the list
 through the build tools of Vite and vue-router and is not in the bundle; its only offered fix downgrades vue-router to 4.
+
+**A fault's own line, and an automated review told apart from a person (18 Nov).** Two things line 1's core now
+exports. The validator page/1.4 names, for three of its errors, the page line the fault stands on, after the problem's
+name ("LaTeX command outside math on line 28: …" in a block that opens on line 26); `ReadingError.at_line` carries it,
+and the raw view marks that line strongest inside the block's tint, and "show raw" opens the text there. And a verdict a
+Claude Code session gave on the operator's delegation is now an automated review's, never a person's (the operator's
+2.a and 3.a: "a person is always manual"): every verdict carries `by_a_person`, by the core's own rule
+(`served_readings.by_a_person`), and the view names it so wherever it stands: "Automated review:" in the page head with
+a machine's glyph instead of a person's, beside a block, in the history and the details, "Correction by an automated
+review", and who looked at a validator's error. "Protected" is the export's alone, and only a person's verdict protects.
+A page the check listed to look at that an automated review settled leaves the open Issues, as the core serves it so,
+but in a bucket and a fold of its own, "Decided by an automated review" below "Decided by a person" (line 1's choice Q.a),
+and the counts keep it apart: a facet "Automated review" beside "A person" in the Issues and a work's pages, and a section
+"An automated review's verdict" in the overview, whose counts open their pages. **Measured:** Python tests of the exact
+line, of a delegated verdict in an older export said by its giver, its bucket, its counts and the head's sentence, and of
+a person's verdict standing as before; unit tests of the wording, the Issues' fold and facet, the page head and the raw
+mark; a browser check on Regulation NMS 600 p. 4, the free base's one delegated accept. A state's word in a facet now
+wraps where it alone is wider than a phone's column. 304 unit tests, 76 checks in the browser (two skipped on today's
+data), 1,418 Python tests.

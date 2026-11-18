@@ -406,7 +406,7 @@ describe('PageView', () => {
   })
 
   it('puts a person who settled the page before the check, which recedes, and says the why only where the API gives it', async () => {
-    const person = { standing: 'accepted' as const, reason: 'every value checked', note: 'every value checked by hand',
+    const person = { standing: 'accepted' as const, by_a_person: true, reason: 'every value checked', note: 'every value checked by hand',
       given_by: 'maintainer', given_at: '2026-11-10T20:00:00+00:00' }
     const issue = aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }] })
     vi.mocked(getPage)
@@ -489,6 +489,20 @@ describe('PageView', () => {
     // the first reading, which no check reached: the validator's message says why it is malformed all the same
     expect(rows[2].find('[data-part="attempt-reasons"]').exists()).toBe(false)
     expect(rows[2].findAll('[data-part="format-error"]').map(error => error.text())).toEqual(malformed)
+  })
+
+  it('names an automated review\'s verdict so in the head, and says protected only where the export does (18 Nov)', async () => {
+    const review = { standing: 'accepted' as const, by_a_person: false, reason: 'the judge\'s finding contradicts its own evidence',
+      note: null, given_by: 'claude-opus-5-5 session, delegated by the operator (17 Nov)', given_at: '2026-11-17T20:00:00+00:00' }
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ check: aCheck({ state: 'issue' }), person: review, protected: false,
+      listed_state: 'decided_by_an_automated_review' }))
+    const view = mountView()
+    await flushPromises()
+    const labels = view.findAll('[data-part="page-facts"] .line-label').map(label => label.text())
+    expect(labels).toContain('Automated review:')
+    expect(labels).not.toContain('A person:')
+    expect(view.find('[data-label="Automated review"] [data-icon="review"]').exists()).toBe(true)
+    expect(view.find('[data-part="protected"]').exists()).toBe(false)
   })
 
   it('says in the line when the reading file is no longer what was checked, and nothing while it is', async () => {

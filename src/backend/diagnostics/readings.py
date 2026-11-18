@@ -18,10 +18,10 @@ from collections import Counter
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pymupdf
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.configuration import data_paths
 from backend.conversion.checks import integrity
@@ -63,6 +63,7 @@ class WorkReadings(BaseModel):
     states: list[StateCount]
     routes: list[Count]
     people: list[Count] = []  # the pages a person's standing verdict marks, by `PersonMark.standing`
+    reviews: list[Count] = []  # the pages an automated review's standing verdict marks, by its standing, never a person's
     categories: list[Count] = []  # the pages by category (172.a), content first, `NOT_NAMED` where no reading named it
 
 
@@ -162,6 +163,17 @@ class PersonVerdict(BaseModel):
     # given before the page's latest reset (191.a): shown, greyed, never applying; `archived_at` is that reset's time
     archived: bool | None = None
     archived_at: str | None = None
+    # a person's own verdict, or an automated review's, given by a session on the operator's delegation (the operator,
+    # 18 Nov: "a person is always manual"): the view names it so wherever it stands, and only a person's protects a page.
+    # By the core's own rule (`served_readings.by_a_person`), so an export written before says it by the giver alone
+    by_a_person: bool = True
+
+    @model_validator(mode='before')
+    @classmethod
+    def whose(cls, given: Any) -> Any:
+        if isinstance(given, dict) and given.get('by_a_person') is None:
+            return {**given, 'by_a_person': served_readings.by_a_person(given)}
+        return given
 
 
 class PageReset(BaseModel):
@@ -192,10 +204,12 @@ class PersonMark(BaseModel):
     note: str | None = None
     given_by: str | None = None
     given_at: str | None = None
+    by_a_person: bool = True  # False for an automated review's verdict (`PersonVerdict.by_a_person`)
 
 
 def person_mark(row: dict) -> PersonMark | None:
-    """A page's person mark, or None where no verdict of a person applies to its reading."""
+    """A page's person mark, or None where no verdict applies to its reading. It stands for an automated review's verdict
+    too, as the core serves by it, and says whose it is (`by_a_person`)."""
     verdict = served_readings.human_standing(row)
     if verdict is not None:
         standing = 'accepted' if verdict['verdict'] == 'accept' else 'rejected'
@@ -205,7 +219,8 @@ def person_mark(row: dict) -> PersonMark | None:
             return None
         verdict, standing = notes[-1], 'noted'
     return PersonMark(standing=standing, reason=person_reason(verdict), note=verdict.get('note'),
-                      given_by=verdict.get('given_by'), given_at=verdict.get('given_at'))
+                      given_by=verdict.get('given_by'), given_at=verdict.get('given_at'),
+                      by_a_person=served_readings.by_a_person(verdict))
 
 
 class StatePages(BaseModel):
@@ -350,6 +365,7 @@ class StandingCorrection(BaseModel):
     rows: list[list[Cell]] | None = None  # a table block's correction as cells (204.a); None for any other
     given_by: str | None = None
     given_at: str | None = None
+    by_a_person: bool = True  # False where an automated review gave it (`PersonVerdict.by_a_person`)
 
 
 class Block(BaseModel):
@@ -392,8 +408,13 @@ class ReadingError(BaseModel):
     # the first and last line of the block it names, from its opening fence to its closing one (`block_lines`); None for
     # an error that names a line alone, or no place
     lines: list[int] | None = None
+    # the page line the fault itself stands on, where the validator names it in its message (page/1.4: "LaTeX command
+    # outside math on line 28: …" in a block that opens on line 26); None where it names only the block's place
+    at_line: int | None = None
     looked: str | None = None
     looked_at: Literal['block', 'page'] | None = None
+    # whether the verdict that looked is a person's own or an automated review's (`PersonVerdict.by_a_person`)
+    looked_by_a_person: bool | None = None
     corrected: bool = False
 
 
@@ -640,6 +661,7 @@ class IssueList(BaseModel):
     knowledge_bases: list[Count]
     states: list[StateCount]
     people: list[Count] = []  # the listed pages a person's standing verdict marks, by its standing
+    reviews: list[Count] = []  # the listed pages an automated review's standing verdict marks, by its standing
     categories: list[Count] = []  # the listed pages by category (172.a)
     rows: list[IssueRow]
 
@@ -658,17 +680,20 @@ UNCHECKED = 'not_yet_checked'
 # A page the check lists as one to look at, on which a person's verdict stands (decision 211.a, the operator: "I would like to take pages judged by a person out of the issues"): it is counted and listed in a bucket of its own, no longer as an issue,
 # as the served route and the core's shelf already follow the person. Its check state stays in its record, never hidden.
 DECIDED = 'decided_by_a_person'
+# The same where an automated review's verdict stands (Q.a, 18 Nov, on the operator's 2.a: "a person is always manual"): the
+# core serves the page by it, so it leaves the open Issues, but it is counted and folded apart, never as a person's.
+DECIDED_BY_REVIEW = 'decided_by_an_automated_review'
 
 
 # The order states are counted in wherever they stand side by side, so a column of chapter heads reads alike: fine first,
-# then what is not known, then what a person settled, then what to look at. A state the core adds later follows, in the
-# order it appears.
-STATE_ORDER = ('ok', 'ok_unjudged', UNCHECKED, DECIDED, 'blocked', 'issue', 'stopped')
+# then what is not known, then what a person settled, then what a review settled, then what to look at. A state the core
+# adds later follows, in the order it appears.
+STATE_ORDER = ('ok', 'ok_unjudged', UNCHECKED, DECIDED, DECIDED_BY_REVIEW, 'blocked', 'issue', 'stopped')
 
 # The counts of a chapter that open their pages (225.a): what a person should look at, and what a person decided, whose
 # verdict is worth seeing again (accounting p. 398 left the issues for this bucket on 12 Nov); a fine count, and one not
 # yet checked, stay figures
-OPENED_BY_A_COUNT = (DECIDED, *LISTED_AS_ISSUE)
+OPENED_BY_A_COUNT = (DECIDED, DECIDED_BY_REVIEW, *LISTED_AS_ISSUE)
 
 
 def state_of(row: dict) -> str:
@@ -679,25 +704,30 @@ def listed_state(row: dict) -> str:
     """The state a list counts and narrows a page by (211.a): its check's state, or `DECIDED` where that state is one to look
     at and a person's verdict stands on the reading shown. "Stands" as the page's person mark says it, by the core's own
     rule (`served_readings.human_standing`, else an applying note): a verdict a reset archived, or one given on another
-    reading, applies to none, so such a page is an issue again."""
+    reading, applies to none, so such a page is an issue again. Where the verdict is an automated review's, the bucket is
+    `DECIDED_BY_REVIEW`."""
     state = state_of(row)
-    return DECIDED if state in LISTED_AS_ISSUE and person_mark(row) is not None else state
+    mark = person_mark(row) if state in LISTED_AS_ISSUE else None
+    return state if mark is None else DECIDED if mark.by_a_person else DECIDED_BY_REVIEW
 
 
 def counted_states(rows: list[dict]) -> list[StateCount]:
     """Each listed state of the rows once with its count, in `STATE_ORDER`, and how many of its pages a person's standing
-    verdict accepted, rejected or noted (166.a, 211.a)."""
+    verdict accepted, rejected or noted (166.a, 211.a); an automated review's never counts as a person's."""
     rank = {state: at for at, state in enumerate(STATE_ORDER)}
-    standings = Counter((listed_state(row), mark.standing) for row in rows if (mark := person_mark(row)) is not None)
+    standings = Counter((listed_state(row), mark.standing) for row in rows
+                        if (mark := person_mark(row)) is not None and mark.by_a_person)
     return sorted((StateCount(value=count.value, count=count.count, accepted=standings[(count.value, 'accepted')],
                               rejected=standings[(count.value, 'rejected')], noted=standings[(count.value, 'noted')])
                    for count in counted([listed_state(row) for row in rows])),
                   key=lambda count: rank.get(count.value, len(rank)))
 
 
-def counted_people(rows: list[dict]) -> list[Count]:
-    """The rows a person's standing verdict marks, by its standing: accepted, rejected, noted, in that order."""
-    standings = Counter(mark.standing for row in rows if (mark := person_mark(row)) is not None)
+def counted_people(rows: list[dict], by_a_person: bool = True) -> list[Count]:
+    """The rows a person's standing verdict marks, by its standing: accepted, rejected, noted, in that order; with
+    `by_a_person` False, the rows an automated review's marks."""
+    standings = Counter(mark.standing for row in rows
+                        if (mark := person_mark(row)) is not None and mark.by_a_person == by_a_person)
     return [Count(value=standing, count=standings[standing]) for standing in ('accepted', 'rejected', 'noted') if standings[standing]]
 
 
@@ -748,7 +778,8 @@ def readings_of(rows: list[dict]) -> WorkReadings | None:
     if not rows:
         return None
     return WorkReadings(pages=len(rows), states=counted_states(rows), routes=counted([row['route'] for row in rows]),
-                        people=counted_people(rows), categories=counted_categories(rows))
+                        people=counted_people(rows), reviews=counted_people(rows, by_a_person=False),
+                        categories=counted_categories(rows))
 
 
 SECOND_READER = f'{served_readings.READING_ROUTE}, second reader'
@@ -910,7 +941,7 @@ def said_of(row: dict, errors: list[str]) -> str | None:
         if faults:
             why += f", the one shown here with {faults}" if len(attempts) > 1 else f", with {faults}"
     if row.get('route_level') != 'fallback':
-        if why.startswith('a person '):
+        if why.startswith(('a person ', 'an automated review ')):
             return f"Served: {why.split(':', 1)[0]}."
         judged = any(reason.startswith('judge:') for reason in check['reasons'])
         return f"Served despite the judge's findings: {why}." if judged else f'Served with a note: {why}.'
@@ -1096,7 +1127,8 @@ def with_corrections(blocks: list[Block]) -> list[Block]:
         person = latest_standing(block.people, lambda one: bool(one.correction))
         if person:
             block.correction = StandingCorrection(text=person.correction, rows=person.correction_rows,
-                                                  given_by=person.given_by, given_at=person.given_at)
+                                                  given_by=person.given_by, given_at=person.given_at,
+                                                  by_a_person=person.by_a_person)
     return blocks
 
 
@@ -1110,6 +1142,8 @@ def latest_standing(people: list[PersonVerdict], chosen=lambda person: True) -> 
 
 # "block b04 (line 26): HTML in prose ..." or "line 86: attributes not parseable: ...", as page_contract writes its errors
 ERROR_PLACE = re.compile(r'(?:block (?P<block>\S+) \(line (?P<line>\d+)\)|line (?P<only>\d+)): (?P<message>.*)', re.S)
+# the fault's own line in the message, as page/1.4 names it: "LaTeX command outside math on line 28: \HL"
+AT_LINE = re.compile(r'\bon line (\d+)\b')
 
 
 def block_lines(raw: str, line: int) -> list[int]:
@@ -1130,7 +1164,8 @@ def errors_placed(errors: list[str], blocks: list[Block], people: list[PersonVer
     """The validator's errors, each parted into the block and the line it names (228.a), and whether a person has looked: the
     latest verdict that applies to the block, else to the page as a whole, and whether a correction stands for the block.
     An error that names no place is kept whole, its message the error itself. An error on a block carries the block's
-    lines in the raw text, so the raw view marks them as a compiler marks an error."""
+    lines in the raw text, so the raw view marks them as a compiler marks an error, and the fault's own line where the
+    validator names it (page/1.4)."""
     corrected = {block.id for block in blocks if block.correction}
     whole = latest_standing(people, lambda person: person.block is None)
     placed = []
@@ -1138,11 +1173,14 @@ def errors_placed(errors: list[str], blocks: list[Block], people: list[PersonVer
         found = ERROR_PLACE.fullmatch(error)
         block = found['block'] if found and found['block'] != '?' else None
         line = int(found['line'] or found['only']) if found else None
+        at_line = AT_LINE.search(found['message'] if found else error)
         on_block = latest_standing(people, lambda person: person.block == block) if block else None
         looked = on_block or whole
         placed.append(ReadingError(said=error, message=found['message'] if found else error, block=block, line=line,
                                    lines=block_lines(raw, line) if found and found['line'] and raw else None,
+                                   at_line=int(at_line[1]) if at_line else None,
                                    looked=looked.verdict if looked else None,
+                                   looked_by_a_person=looked.by_a_person if looked else None,
                                    looked_at=('block' if on_block else 'page') if looked else None,
                                    corrected=block in corrected))
     return placed
@@ -1242,6 +1280,7 @@ def issues(bases: dict[str, 'Readings']) -> IssueList:
         knowledge_bases=counted([row['knowledge_base'] for _, row in listed]),
         states=counted_states([row for _, row in listed]),
         people=counted_people([row for _, row in listed]),
+        reviews=counted_people([row for _, row in listed], by_a_person=False),
         categories=counted_categories([row for _, row in listed]),
         rows=[issue_row(store, row) for store, row in listed])
 

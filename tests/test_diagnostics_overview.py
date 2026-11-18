@@ -227,11 +227,20 @@ def test_the_overview_says_whether_each_reading_is_what_was_checked(no_runs):
 def test_a_persons_verdicts_are_counted_by_their_standing_and_open_their_pages(no_runs):
     client = TestClient(create_app(public_only=True), base_url=LOCAL)
     _, sections = answer_of(client)
-    marks = [mark.standing for row in readings.Readings().rows() if (mark := readings.person_mark(row))]
+    all_marks = [mark for row in readings.Readings().rows() if (mark := readings.person_mark(row))]
+    marks = [mark.standing for mark in all_marks if mark.by_a_person]
     counted = {row['value']: row['free'] for row in sections["A person's verdict"]['rows']}
     assert counted == {standing: marks.count(standing) for standing in set(marks)} and counted.get('accepted')
     listed = client.get('/api/pages', params={'person': 'accepted'}).json()['rows']
     assert len(listed) == counted['accepted'] and all(row['person']['standing'] == 'accepted' for row in listed)
+    assert all(row['person']['by_a_person'] for row in listed)
+    # an automated review's verdicts in a section of their own, never a person's (the operator's 2.a, 18 Nov)
+    reviews = [mark.standing for mark in all_marks if not mark.by_a_person]
+    counted = {row['value']: row['free'] for row in sections["An automated review's verdict"]['rows']}
+    assert counted == {standing: reviews.count(standing) for standing in set(reviews)}
+    for standing in counted:
+        listed = client.get('/api/pages', params={'review': standing}).json()['rows']
+        assert len(listed) == counted[standing] and not any(row['person']['by_a_person'] for row in listed)
 
 
 @pytest.mark.readings

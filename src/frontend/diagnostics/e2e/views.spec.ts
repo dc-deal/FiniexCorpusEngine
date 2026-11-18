@@ -1807,11 +1807,15 @@ test('a page that is not content says its category beside its state, and the lis
   await page.goto('/#/issues')
   await settled(page)
   const apart = page.locator('[data-part="apart"] tbody tr[data-page]')
-  await expect(apart).toHaveCount(issues.filter(row => row.apart && row.listed_state !== 'decided_by_a_person').length)
+  const SETTLED = ['decided_by_a_person', 'decided_by_an_automated_review']
+  await expect(apart).toHaveCount(issues.filter(row => row.apart && !SETTLED.includes(row.listed_state ?? '')).length)
   await expect(page.locator('[data-part="apart"] h2')).toContainText('Not content: noted, not repaired')
-  // every list stands in one grid, the settled pages' fold opened: their State, Reasons and Why columns start at one x
-  const lists = 2 + (issues.some(row => row.listed_state === 'decided_by_a_person') ? 1 : 0)
-  if (lists === 3) await page.locator('[data-part="decided"] > summary').click()
+  // every list stands in one grid, the settled pages' folds opened, a person's and an automated review's: their State,
+  // Reasons and Why columns start at one x
+  const folds = [['decided_by_a_person', 'decided'], ['decided_by_an_automated_review', 'reviewed']]
+    .filter(([state]) => issues.some(row => row.listed_state === state))
+  for (const [, part] of folds) await page.locator(`[data-part="${part}"] > summary`).click()
+  const lists = 2 + folds.length
   for (const column of [2, 3, 4]) {
     const at = await page.locator(`.grouped-rows thead th:nth-child(${column})`).evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().left))
     expect(at).toHaveLength(lists)
@@ -1925,7 +1929,8 @@ test('the raw reading is shown as text, exactly as stored', async ({ page }) => 
 // gutter the copied text leaves out
 test('a validator\'s error stands on its block, muted once a person looked, and opens the raw text at its numbered line', async ({ page, request }) => {
   const ACCOUNTING = 'openstax_principles_of_accounting_v1'
-  type Placed = { said: string, message: string, block: string | null, line: number | null, looked: string | null, corrected: boolean }
+  type Placed = { said: string, message: string, block: string | null, line: number | null, at_line?: number | null, looked: string | null,
+    corrected: boolean }
   type Detail = { raw: string, reading: { error_places: Placed[] } }
   const colour = (selector: string) => page.locator(selector).first().evaluate(element => getComputedStyle(element).color)
   const p398 = await (await request.get(`/api/free/works/${ACCOUNTING}/pages/398`)).json() as Detail
@@ -1944,12 +1949,14 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   await expect(listed.locator('[data-part="error-looked"]')).toContainText('a person noted')
   await page.locator('[data-part="parse-errors"]').screenshot({ path: `${SHOTS}/errors_listed.png` })
   await onBlock.locator('[data-part="show-raw"]').click()
+  // the raw text opens at the fault's own line where page/1.4 names it in its message, else at the line the block opens on
+  const at = b04!.at_line ?? b04!.line
   const marked = page.locator('pre.raw .raw-line.marked')
-  await expect(marked).toHaveAttribute('data-line', String(b04!.line))
-  await expect(marked).toContainText('#b04')
+  await expect(marked).toHaveAttribute('data-line', String(at))
+  await expect(page.locator(`pre.raw .raw-line[data-line="${b04!.line}"]`)).toContainText('#b04')
   await expect(marked).toBeInViewport()
   // the gutter's number is the line's, and none of it is text: the pre holds the reading as stored, a selection copies it
-  expect(await marked.evaluate(line => getComputedStyle(line, '::before').content)).toBe(`"${b04!.line}"`)
+  expect(await marked.evaluate(line => getComputedStyle(line, '::before').content)).toBe(`"${at}"`)
   expect(await page.locator('pre.raw').evaluate(pre => pre.textContent)).toBe(p398.raw)
   const copied = await page.locator('pre.raw').evaluate(pre => {
     const range = document.createRange()
@@ -1979,7 +1986,7 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   // as a compiler marks an error (line 1's A.a, 18 Nov): b13's whole block from its opening fence to its closing one, the
   // named line strongest and in the error's colour, and the line named alone; nothing else
   const [first, last] = (b13 as Placed & { lines: number[] }).lines
-  const named = page.locator(`pre.raw .raw-line[data-line="${b13!.line}"]`)
+  const named = page.locator(`pre.raw .raw-line[data-line="${b13!.at_line ?? b13!.line}"]`)
   await expect(named).toHaveAttribute('data-error-line', 'error-named')
   await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveAttribute('data-error-line', 'error-block')
   await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveText(/^:::\s*$/)
@@ -2253,4 +2260,24 @@ test('the shelf shows every work, and a reason opens the work\'s pages on exactl
   await settled(page)
   await asTable(page)
   await expect(page.locator('tbody tr[data-page]')).toHaveCount(pages.filter(item => item.route === reason.route).length)
+})
+
+test('an automated review\'s verdict is named so, never a person\'s, and settles its page in a fold of its own (18 Nov)', async ({ page, request }) => {
+  // the operator's 2.a and 3.a: "a person is always manual"; Regulation NMS 600 p. 4 holds the free base's one delegated accept
+  const NMS = 'sec_regulation_nms_rule_600_2025'
+  type Detail = { person: { by_a_person: boolean } | null, protected: boolean | null, listed_state: string | null }
+  const detail = await (await request.get(`/api/free/works/${NMS}/pages/4`)).json() as Detail
+  test.skip(!detail.person || detail.person.by_a_person, 'Regulation NMS 600 p. 4 holds no automated review today')
+  await page.goto(`/#/free/sources/${NMS}/page/4`)
+  await settled(page)
+  const facts = page.locator('[data-part="page-facts"]')
+  await expect(facts.locator('[data-label="Automated review"] [data-icon="review"]')).toBeVisible()
+  await expect(facts.locator('[data-label="A person"]')).toHaveCount(0)
+  await expect(page.locator('[data-part="protected"]')).toHaveCount(detail.protected ? 1 : 0)
+  await facts.screenshot({ path: `${SHOTS}/page_automated_review.png` })
+  if (detail.listed_state !== 'decided_by_an_automated_review') return
+  await page.goto('/#/issues')
+  await settled(page)
+  await expect(page.locator(`[data-part="reviewed"] tr[data-page="free/${NMS}/4"]`)).toHaveCount(1)
+  await expect(page.locator(`[data-part="decided"] tr[data-page="free/${NMS}/4"]`)).toHaveCount(0)
 })
