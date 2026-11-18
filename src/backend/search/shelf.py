@@ -19,10 +19,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from backend.configuration import data_paths
-from backend.conversion.store.served_readings import text_layer_why
+from backend.conversion.store.served_readings import TEXT_LAYER_WHY, text_layer_why
 
 SHELF = 'shelf.json'  # in each knowledge base's store reports
-REASONS = ('blocked', 'refused', 'malformed', 'no_page', 'issue', 'stopped')
+# Every reason the serving rule knows, so none is dropped from the counts: a fixed list of six left the pages a person or an
+# automated review rejected out of every total (18 Nov).
+REASONS = tuple(TEXT_LAYER_WHY)
+OTHER = ('rejected', 'rejected_by_review', 'unchecked', 'reset', 'unread')  # the table's last reasons column
 NOTHING_TO_QUOTE = 'nothing to quote on the page (an index, a picture)'
 NO_NUMBERS = 'the legacy text has no PDF page numbers, so its readings cannot be matched page by page'
 BESIDE_LEGACY = 'a stand-in file beside the legacy text of its work, which stands'
@@ -220,8 +223,8 @@ def _cell(value) -> str:
 
 def table(shelves: dict[str, dict]) -> str:
     """The shelf as one Markdown table for a person, with each base's totals under it."""
-    lines = ['| base | work | file | pages | planned | passed | % | blocked/refused | judge issue | malformed | served | '
-             'from readings | note |', '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|']
+    lines = ['| base | work | file | pages | planned | passed | % | blocked/refused | judge issue | malformed | rejected/other | '
+             'served | from readings | note |', '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|']
     for name, shelf in shelves.items():
         for row in shelf['works']:
             lost = row['not_passed']
@@ -233,7 +236,8 @@ def table(shelves: dict[str, dict]) -> str:
                          f"{_cell(row['planned'])} | {_cell(row['passed'])} | {share} | "
                          f"{_cell(lost.get('blocked', 0) + lost.get('refused', 0))} | "
                          f"{_cell(lost.get('issue', 0) + lost.get('stopped', 0))} | "
-                         f"{_cell(lost.get('malformed', 0) + lost.get('no_page', 0))} | {_cell(row['served']['pages'])} | "
+                         f"{_cell(lost.get('malformed', 0) + lost.get('no_page', 0))} | "
+                         f"{_cell(sum(lost.get(reason, 0) for reason in OTHER))} | {_cell(row['served']['pages'])} | "
                          f"{_cell(row['served']['from_readings'])} | {why or '–'} |")
     for name, shelf in shelves.items():
         total = shelf['totals']
@@ -243,6 +247,9 @@ def table(shelves: dict[str, dict]) -> str:
                       f"{total.get('blocked', 0) + total.get('refused', 0):,} blocked or refused, "
                       f"{total.get('issue', 0) + total.get('stopped', 0):,} judge issues, "
                       f"{total.get('malformed', 0) + total.get('no_page', 0):,} malformed, "
+                      f"{total.get('rejected', 0):,} rejected by a person, "
+                      f"{total.get('rejected_by_review', 0):,} by an automated review, "
+                      f"{sum(total.get(reason, 0) for reason in ('unchecked', 'reset', 'unread')):,} unchecked or reset, "
                       f"{total.get('unplaced', 0):,} passed but not served."]
     return '\n'.join(lines)
 

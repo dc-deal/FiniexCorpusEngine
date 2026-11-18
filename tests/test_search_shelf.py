@@ -25,6 +25,16 @@ def test_a_work_counts_what_was_planned_what_passed_why_the_rest_did_not_and_wha
     assert row['unplaced'] == {} and row['held'] is None and row['not_served'] is None
 
 
+def test_every_reason_the_serving_rule_knows_is_counted(monkeypatch):
+    # 18 Nov: a fixed list of six left the pages a person or an automated review rejected out of every total
+    from backend.conversion.store.served_readings import TEXT_LAYER_WHY
+
+    monkeypatch.setattr(shelf, 'text_layer_why', lambda row: row['why'])
+    counts = shelf.reading_counts({1: {'why': 'rejected_by_review'}, 2: {'why': 'rejected'}, 3: {'why': None}})
+    assert counts == {'read': 3, 'passed': 1, 'not_passed': {'rejected': 1, 'rejected_by_review': 1}}
+    assert set(shelf.REASONS) == set(TEXT_LAYER_WHY)
+
+
 def test_a_passed_reading_the_search_cannot_serve_says_why(tmp_path, monkeypatch):
     rows = licensed_shelf(tmp_path, monkeypatch)
     assert rows['key-c']['unplaced'] == {shelf.NO_NUMBERS: 1} and rows['key-c']['served']['from_readings'] == 0
