@@ -8,6 +8,7 @@ import shutil
 
 import pytest
 
+from backend.conversion.store import served_readings
 from backend.diagnostics import readings
 
 KELLY = 'carta_conversano_kelly_criterion_2020'  # a free paper of 15 pages whose PDF is tracked
@@ -16,6 +17,27 @@ store = readings.Readings()
 
 def kelly_rows():
     return store.rows_of(KELLY)
+
+
+def a_blocked_row() -> dict:
+    """A Kelly page as the export writes one the provider blocked, invented from a page it read: the second reader fills the
+    blocked pages one by one (18 Nov: p. 360 of accounting), and a test that needs one must not wait for one to remain."""
+    row = copy.deepcopy(next(row for row in kelly_rows() if row.get('text_file') and row['check']['state'] == 'ok'))
+    row.update(text_file=None, text_sha256=None, route=served_readings.TEXT_LAYER_WHY['blocked'], route_level='fallback',
+               class_when_collected='errored', class_now='errored', error_type='invalid_request_error',
+               error_message='Output blocked by content filtering policy', attempts=[], chosen=None,
+               check={'state': 'blocked', 'reasons': ['errored'], 'judged': False, 'verdict': None, 'judge': None,
+                      'why_judged': 'not judged: the reading failed'})
+    return row
+
+
+def a_live_row(matches, what: str) -> dict:
+    """A free page in the state a test needs, from the export as it stands; the test skips where none is left, as the
+    corpus improves (18 Nov: the free export's last blocked and malformed pages are being read again)."""
+    found = next((row for row in store.rows() if matches(row)), None)
+    if found is None:
+        pytest.skip(f'the free export holds no {what} today')
+    return found
 
 
 def a_corpus(tmp_path, rows, knowledge_base='free', **work_fields):
@@ -242,7 +264,7 @@ def test_a_finding_stands_with_the_block_it_names_and_the_rest_with_the_page(tmp
 
 @pytest.mark.readings
 def test_a_page_without_a_reading_keeps_all_its_findings_on_the_page(tmp_path):
-    blocked = copy.deepcopy(next(row for row in kelly_rows() if not row.get('text_file')))
+    blocked = a_blocked_row()
     blocked['check']['verdict'] = {'verdict': 'bad', 'outcome': 'issue', 'findings': [
         {'kind': 'omission', 'block': 'b01', 'severity': 'major', 'evidence': None}]}
     page = a_corpus(tmp_path, [blocked]).page(KELLY, blocked['pdf_page'], 'Kelly')
@@ -250,9 +272,9 @@ def test_a_page_without_a_reading_keeps_all_its_findings_on_the_page(tmp_path):
 
 
 @pytest.mark.readings
-def test_a_page_carries_its_printed_label_and_the_providers_sentence():
-    blocked = next(row for row in kelly_rows() if row['check']['state'] == 'blocked')
-    page = store.page(KELLY, blocked['pdf_page'], 'Kelly')
+def test_a_page_carries_its_printed_label_and_the_providers_sentence(tmp_path):
+    blocked = a_blocked_row()
+    page = a_corpus(tmp_path, [blocked]).page(KELLY, blocked['pdf_page'], 'Kelly')
     assert page.trace.error_message and page.trace.error_message == blocked['error_message']
     assert store.page(KELLY, 7, 'Kelly').printed_label == store.row(KELLY, 7)['printed_label']
 
@@ -348,7 +370,8 @@ def test_every_page_of_the_free_export_not_plainly_ok_says_so_in_a_sentence_and_
         if said and row['route_level'] == 'fallback':
             assert said.startswith('Not served: ') and said.endswith("the PDF's text layer is served instead.")
     # and the page view carries it, with the faults of the reading shown, for a page that stayed malformed
-    malformed = next(row for row in store.rows() if 'format: malformed' in row['check']['reasons'] and row.get('text_file'))
+    malformed = a_live_row(lambda row: 'format: malformed' in row['check']['reasons'] and row.get('text_file'),
+                           'page that stayed malformed')
     page = store.page(malformed['source_id'], malformed['pdf_page'], 'a work')
     assert page.said == readings.said_of(malformed, page.reading.errors) and 'the one shown here with' in page.said
 
@@ -363,18 +386,18 @@ def test_a_page_whose_export_lists_no_attempts_says_none_rather_than_none_bought
 
 
 @pytest.mark.readings
-def test_a_page_says_whether_its_text_layer_is_served_instead_of_its_reading():
-    blocked = next(row for row in kelly_rows() if row['check']['state'] == 'blocked')
+def test_a_page_says_whether_its_text_layer_is_served_instead_of_its_reading(tmp_path):
+    blocked = a_blocked_row()
     served = next(row for row in kelly_rows() if row['check']['state'] in ('ok', 'ok_unjudged'))
-    assert store.page(KELLY, blocked['pdf_page'], 'Kelly').from_text_layer is True
+    assert a_corpus(tmp_path, [blocked]).page(KELLY, blocked['pdf_page'], 'Kelly').from_text_layer is True
     assert store.page(KELLY, served['pdf_page'], 'Kelly').from_text_layer is False  # its reading is what is quoted
 
 
 @pytest.mark.corpus
 @pytest.mark.readings
 def test_a_blocked_page_has_its_original_but_no_reading():
-    blocked = next(row for row in kelly_rows() if row['check']['state'] == 'blocked')
-    page = store.page(KELLY, blocked['pdf_page'], 'Kelly')
+    blocked = a_live_row(lambda row: row['check']['state'] == 'blocked', 'blocked page')
+    page = store.page(blocked['source_id'], blocked['pdf_page'], 'a work')
     assert page.reading is None and page.raw is None
     assert page.image.available
 
@@ -419,7 +442,7 @@ def test_the_issues_list_exactly_the_pages_a_person_should_look_at():
 
 @pytest.mark.readings
 def test_the_issues_of_two_knowledge_bases_are_ordered_by_base_and_each_names_its_own(tmp_path):
-    blocked = next(row for row in kelly_rows() if row['check']['state'] == 'blocked')
+    blocked = a_blocked_row()
     licensed = a_corpus(tmp_path, [{**copy.deepcopy(blocked), 'knowledge_base': 'licensed'}], knowledge_base='licensed')
     listed = readings.issues({'licensed': licensed, 'free': store})
     # by base within the content and within the pages apart from it, which follow (172.a)
@@ -1130,9 +1153,11 @@ def test_a_chapters_count_to_look_at_carries_its_pages_and_a_fine_count_none():
         assert all(state.value in readings.OPENED_BY_A_COUNT and len(state.pages) == counts[state.value] for state in unit.state_pages)
         assert {state.value for state in unit.state_pages} == {value for value in counts if value in readings.OPENED_BY_A_COUNT}
         assert all(state.pages == sorted(state.pages) for state in unit.state_pages)
-    chapter = next(unit for unit in work.outline if unit.level == 1 and unit.title.startswith('Chapter 6'))
-    pages = {state.value: state.pages for state in chapter.state_pages}
-    assert pages.get('blocked') == [360] and 398 in pages.get(readings.DECIDED, []) + pages.get('issue', [])
+    # and each page a count opens is in the state the count names, as the page list says it (p. 360 of chapter 6, pinned
+    # here as blocked until 18 Nov, was read by the second reader that night)
+    listed = {row.pdf_page: row.listed_state for row in work.pages}
+    opened = [(state.value, page) for unit in work.outline for state in unit.state_pages for page in state.pages]
+    assert all(listed[page] == value for value, page in opened)
     assert any(not unit.state_pages for unit in work.outline if unit.level == 1)
 
 
