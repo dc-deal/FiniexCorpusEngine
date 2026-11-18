@@ -31,3 +31,9 @@ def test_the_configured_folders_come_from_the_app_config():
     assert data_paths.DATA == data_paths.ROOT / paths.data and data_paths.INDEX == data_paths.ROOT / paths.index
     assert data_paths.LICENSED_ARCHIVE == data_paths.ROOT / paths.originals / 'licensed'
     assert data_paths.FREE_WORKING == data_paths.ROOT / paths.working / 'free' and data_paths.LOGS == data_paths.ROOT / paths.logs
+
+
+def test_the_licensed_catalog_lies_in_the_local_working_folder():
+    # N1.a (18 Nov): licensed titles and authors, local only; `_work/` is git-ignored as a whole (251.a)
+    assert data_paths.LICENSED_CATALOG == data_paths.LICENSED_WORKING / 'catalog.json'
+    assert data_paths.LICENSED_WORKING.parent == data_paths.WORKING

@@ -34,6 +34,10 @@ LICENSED_ARCHIVE = ORIGINALS / 'licensed'  # the licensed PDFs and EPUBs with th
 WORKING = _MANAGER.resolve(_PATHS.working)
 FREE_WORKING = WORKING / 'free'
 LICENSED_WORKING = WORKING / 'licensed'
+# The licensed works' catalog (title, authors, publisher, year, format, shelf, licence), the free catalog's fields, written
+# from each file's own title and copyright pages (the operator's N1.a, 18 Nov). Local and git-ignored like everything under
+# `_work/`: a licensed title never stands in a tracked file (251.a). A view not run with --public-only shows it.
+LICENSED_CATALOG = LICENSED_WORKING / 'catalog.json'
 INDEX = _MANAGER.resolve(_PATHS.index)
 LOGS = _MANAGER.resolve(_PATHS.logs)
 
