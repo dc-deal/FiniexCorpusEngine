@@ -2312,9 +2312,15 @@ test('the sources table fits the window at 1,280 and 2,000 px, its last column i
     year: 2001, edition: '12th', licence: 'private copy (licensed)', format: 'epub', shelf: 'trading_finance',
     notes: 'stand-in file; re-typeset copy; printed pages differ', readings: null, sections: null, chunks: null,
     structure_why_not: null, not_read: 'not read page by page' }
+  // and a work of many authors whose states have the longest words a state has (the operator's second finding, 18 Nov:
+  // cells ran into their neighbours, "trading_financ|e", "5th editio|n")
+  const crowded = { ...long, id: 'another_invented_work', title: 'Another Invented Work', edition: '5th', format: 'pdf', not_read: null,
+    authors: 'Author One, Author Two, Author Three, Author Four, Author Five, Author Six, Author Seven (eds.)',
+    readings: { pages: 461, states: [{ value: 'ok_unjudged', count: 14 }, { value: 'decided_by_an_automated_review', count: 3 },
+      { value: 'issue', count: 9, served: 9 }], routes: [], people: [], reviews: [], categories: [] } }
   await page.route('**/api/works', async route => {
     const response = await route.fetch()
-    await route.fulfill({ response, json: [...await response.json() as object[], long] })
+    await route.fulfill({ response, json: [...await response.json() as object[], long, crowded] })
   })
   for (const width of [1280, 2000]) {
     await page.setViewportSize({ width, height: 900 })
@@ -2323,6 +2329,34 @@ test('the sources table fits the window at 1,280 and 2,000 px, its last column i
     const last = (await page.locator('table.works thead th').last().boundingBox())!
     expect(last.x + last.width, `the last column at ${width} px`).toBeLessThanOrEqual(width)
     expect(await page.locator('.data-scroll').evaluate(box => box.scrollWidth <= box.clientWidth), `a hidden scroll at ${width} px`).toBe(true)
+    const faults = await page.locator('table.works').evaluate(table => {
+      const found: string[] = []
+      // the fixed columns, whose words are never split: knowledge base, structure, year, format, topic, licence
+      const FIXED = new Set([1, 2, 5, 6, 7, 8])
+      for (const row of table.querySelectorAll('tbody tr')) {
+        [...row.children].forEach((cell, column) => {
+          const box = cell.getBoundingClientRect()
+          const inner = box.right - parseFloat(getComputedStyle(cell).paddingRight)
+          const contents = document.createRange()
+          contents.selectNodeContents(cell)
+          for (const rect of contents.getClientRects()) {
+            if (rect.width && (rect.right > inner + 0.5 || rect.left < box.left - 0.5)) found.push(`${row.getAttribute('data-work')} column ${column} runs out`)
+          }
+          if (!FIXED.has(column)) return
+          const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            for (const word of node.textContent!.matchAll(/\S+/g)) {
+              const range = document.createRange()
+              range.setStart(node, word.index!)
+              range.setEnd(node, word.index! + word[0].length)
+              if (range.getClientRects().length > 1) found.push(`${row.getAttribute('data-work')} column ${column} splits "${word[0]}"`)
+            }
+          }
+        })
+      }
+      return [...new Set(found)]
+    })
+    expect(faults, `cells at ${width} px`).toEqual([])
   }
   await page.screenshot({ path: `${SHOTS}/sources_fit.png` })
 })

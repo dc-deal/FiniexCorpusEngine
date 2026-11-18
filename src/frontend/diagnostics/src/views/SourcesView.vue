@@ -16,9 +16,12 @@ import { useSourceStore } from '@/stores/source_store'
  * list; an HTML work its sections by heading and their chunks, and opens its outline (the operator's 6.a).
  */
 const store = useSourceStore()
-// Work and Authors share what the fixed columns leave; the rest are as wide as their longest word needs
-const COLUMNS = [{}, { width: '11ch' }, { width: '24ch' }, {}, { width: '16ch' }, { width: '9ch' }, { width: '7ch' },
-  { width: '17ch' }, { width: '14ch' }]
+// Work, Authors and Publisher share what the fixed columns leave. A fixed column is as wide as its longest word and its
+// gap to the next (`--space-md`, the cells' right padding): "licensed" with its glyph, "12th edition", "trading_finance",
+// "(licensed)"; so none of their words is ever split, and nothing runs into the next cell (the operator, 18 Nov: the
+// knowledge base ran into the structure, "trading_financ|e", "5th editio|n")
+const fixed = (width: string) => ({ width: `calc(${width} + var(--space-md))` })
+const COLUMNS = [{}, fixed('11ch'), fixed('26ch'), {}, {}, fixed('12ch'), fixed('5ch'), fixed('16ch'), fixed('16ch')]
 const { works, error, loaded } = storeToRefs(store)
 
 onMounted(() => {
@@ -54,7 +57,7 @@ onMounted(() => {
       </template>
       <tbody>
         <tr v-for="work in works" :key="`${work.knowledge_base}/${work.id}`" :data-work="work.id" :data-kb="work.knowledge_base">
-          <td>
+          <td class="shared">
             <RouterLink
               v-if="work.readings"
               class="work-title"
@@ -100,8 +103,8 @@ onMounted(() => {
             <!-- a licensed catalog entry the export holds no pages of (O1.a), in the API's words, until the core reads it -->
             <span v-else-if="work.not_read" class="page-count" data-part="not-read">{{ work.not_read }}</span>
           </td>
-          <td>{{ work.authors }}</td>
-          <td>{{ work.publisher }}</td>
+          <td class="shared">{{ work.authors }}</td>
+          <td class="shared">{{ work.publisher }}</td>
           <!-- a licensed copy's edition beside its year, where the catalog names one (N1.a) -->
           <td>{{ work.year }}<span v-if="work.edition" class="edition" data-part="edition">{{ `${work.year ? ' · ' : ''}${work.edition} edition` }}</span></td>
           <td>{{ work.format }}</td>
@@ -129,10 +132,14 @@ onMounted(() => {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* a fixed column's head and cells wrap rather than push the table past the content width */
+/* every cell wraps at its words, never past its column; only the three shared columns may split a word too long for any
+   line, a fixed column being as wide as its longest word */
 .works th,
 .works td {
   white-space: normal;
+}
+
+.works td.shared {
   overflow-wrap: break-word;
 }
 

@@ -700,3 +700,11 @@ The record of how the diagnostics frontend came about, mistakes included.
   them, as anything of an EPUB must not reach a model provider; the browser check measured sizes and load states only.
   **Found on the way:** one image the core marks inline stands taller than six lines, a picture inside a paragraph; it
   keeps its size, since capping inline images would shrink formulas.
+- **The sources table, again** (the operator's second look at 2,000 px, 18 Nov). The fit of the same day had given its
+  narrow columns widths in `ch` that ignored the cells' right padding, and the state marks and the knowledge base's mark
+  never wrap: so the structure cell ran into the authors (29 cells, up to 256 px of content in 179), the knowledge base
+  touched the structure, and "trading_finance" and "edition" split mid-word. **Mistake:** the first check measured only
+  the table against the window, not a cell against its neighbour. Now each fixed column is its longest word plus the gap
+  (`calc(<n>ch + var(--space-md))`), a state's words wrap inside the structure cell, and only the work, authors and
+  publisher may split a word longer than a line, which the ids alone are. The browser check now holds every cell's
+  content inside its box and every word of a fixed column whole, over two invented rows; shown red on the table as it was.

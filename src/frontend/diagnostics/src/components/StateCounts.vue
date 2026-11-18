@@ -28,6 +28,13 @@ defineProps<{
 
 .state-count {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: var(--space-xs);
+}
+
+/* a state's own words wrap where the cell is narrower than them ("decided by an automated review"), as in a facet toggle:
+   the mark keeps them on one line everywhere else (the operator, 18 Nov: they ran into the next column) */
+.state-count :deep(.state-mark) {
+  white-space: normal;
 }
 </style>
