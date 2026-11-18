@@ -208,6 +208,8 @@ def prepare(args) -> list[str]:
             continue
         folder = session_folder(args.knowledge_base) / (f"{page['work']}__p{page['pdf_page']:04d}"
                                                          + (f"__a{entry['attempt']}" if entry['attempt'] else ''))
+        if (folder / 'entry.json').exists():
+            continue  # prepared before and not stored yet: another session is reading it (two at a time, 18 Nov night)
         folder.mkdir(parents=True, exist_ok=True)
         (folder / 'page.png').write_bytes(image.png)
         (folder / 'instructions.md').write_text(
