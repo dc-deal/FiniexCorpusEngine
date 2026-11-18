@@ -133,7 +133,8 @@ stayed malformed after its format retry may be read in a Claude Code session, as
 not measurable by an API ledger and says so. A page a provider's filter blocked or a reader refused is never read this way,
 since that would pass the same model's safeguard by another door. A reader that answered with prose instead of a page counts
 as having refused: every such answer read on 18 November declined the page as a published book's text, so `no_page` in a page's
-history keeps it out too. A page the session read stays in the cell's list whatever came of it, so the cell's report keeps
+history keeps it out too; the second reader of another company takes such a page as it takes a refused one (63.a). A page the
+session read stays in the cell's list whatever came of it, so the cell's report keeps
 its check; a served page that left the list would have lost its state and fallen back to its text layer, as the second
 reader's chosen pages once did.
 

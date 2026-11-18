@@ -42,15 +42,20 @@ FORM = 'markdown'
 RESOLUTION = 'hi'
 MAX_TOKENS = 16000
 TIMEOUT_SECONDS = 600
-KEY_CAP_USD = 28.0  # of the course key's 33: about 5 stay for the capstone's own runs (build, measurements, the chat demo)
+# The course key's own limit (33 USD): no reserve of our own any more (the operator, 18 Nov: "wir brauchen keine limits mehr";
+# should the key run dry before 23 Nov, the router moves to Anthropic early). Until then 28 kept 5 for the capstone's runs.
+KEY_CAP_USD = 33.0
 IMAGE_TOKENS_ESTIMATE = 3000  # providers count image tokens differently; above what the three candidates charge for a page
 PILOT_SEED = 'second reader pilot'
 # What the default reader did, by the text-layer reason of `served_readings`, and for which of these reasons each knowledge
 # base lets a second reader read a page (decision 63.a for the free one).
+# A default reading that found no page declined it in prose (18 Nov: five of five), so it is a refusal for the second reader
+# too (G1.a, the operator, 18 Nov).
 DEVIATIONS = {'blocked': 'anthropic blocked the page (content filter)',
               'refused': 'the default reader declined the page',
+              'no_page': 'the default reader declined the page in prose, with no page',
               'malformed': 'the default reading stayed malformed after its one format retry'}
-REASONS = {'free': ('blocked', 'refused', 'malformed'), 'licensed': ('blocked', 'refused')}
+REASONS = {'free': ('blocked', 'refused', 'no_page', 'malformed'), 'licensed': ('blocked', 'refused', 'no_page')}
 REASON_OF = {text: reason for reason, text in DEVIATIONS.items()}  # a second reading's deviation back to its reason
 STOP_REASONS = {'stop': 'end_turn', 'length': 'max_tokens', 'content_filter': 'refusal'}  # OpenAI's words in Claude's
 

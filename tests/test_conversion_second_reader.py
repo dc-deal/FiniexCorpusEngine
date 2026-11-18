@@ -121,8 +121,10 @@ def test_a_second_reading_has_its_own_key_and_no_claude_parameter_in_it():
 
 
 def test_free_pages_get_a_second_reader_when_malformed_and_licensed_ones_only_when_blocked_or_declined():
-    assert set(second_reader.REASONS['free']) == {'blocked', 'refused', 'malformed'}
-    assert set(second_reader.REASONS['licensed']) == {'blocked', 'refused'}
+    # a page the default reader answered in prose, with no page, declined it (G1.a, 18 Nov)
+    assert set(second_reader.REASONS['free']) == {'blocked', 'refused', 'no_page', 'malformed'}
+    assert set(second_reader.REASONS['licensed']) == {'blocked', 'refused', 'no_page'}
+    assert second_reader.REASON_OF[second_reader.DEVIATIONS['no_page']] == 'no_page'
 
 
 def test_every_page_of_a_second_reader_s_cell_goes_to_the_judge(cell, tmp_path):
