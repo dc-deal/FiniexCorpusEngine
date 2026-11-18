@@ -67,6 +67,12 @@ def test_every_count_opens_exactly_the_pages_it_counts(no_runs):
             assert len(listed['rows']) == row['free'], (section['title'], row['value'])
 
 
+def known_sum(costs) -> float | None:
+    """What `overview.add` makes of costs: None while none is known, else the sum of the known ones."""
+    known = [cost for cost in costs if cost is not None]
+    return sum(known) if known else None
+
+
 def test_each_model_counts_the_pages_it_worked_on_and_what_all_its_work_on_them_cost(no_runs):
     client = TestClient(create_app(public_only=True), base_url=LOCAL)
     models = {section['title']: section for section in client.get('/api/overview').json()['models']}
@@ -76,17 +82,21 @@ def test_each_model_counts_the_pages_it_worked_on_and_what_all_its_work_on_them_
     for found in models['Readings by model']['rows']:
         mine = [(row, attempt) for row, attempt in attempts if overview.reader_of(attempt) == found['value']]
         assert found['free'] == len({(row['work'], row['pdf_page']) for row, _ in mine}), found['value']
-        assert found['free_usd'] == pytest.approx(sum(attempt['cost_usd'] for _, attempt in mine), abs=1e-3)
+        # a reading read in a Claude Code session has no cost an API ledger holds (280.a): a model whose every reading
+        # was read so is not measurable, None, never 0
+        cost = known_sum(attempt['cost_usd'] for _, attempt in mine)
+        assert found['free_usd'] == (None if cost is None else pytest.approx(cost, abs=1e-3)), found['value']
         assert found['licensed'] is None and found['licensed_usd'] is None  # not served
-    assert sum(found['free_usd'] for found in models['Judgements by model']['rows']) == pytest.approx(
-        sum(judge['cost_usd'] for _, judge in judged), abs=1e-3)
+    assert sum(found['free_usd'] or 0 for found in models['Judgements by model']['rows']) == pytest.approx(
+        known_sum(judge['cost_usd'] for _, judge in judged) or 0, abs=1e-3)
     # a provider is paid for its readings and its judgements alike
     providers = {found['value']: found['free_usd'] for found in models['By provider, readings and judgements']['rows']}
-    assert sum(providers.values()) == pytest.approx(sum(attempt['cost_usd'] for _, attempt in attempts)
-                                                    + sum(judge['cost_usd'] for _, judge in judged), abs=1e-3)
+    assert sum(cost or 0 for cost in providers.values()) == pytest.approx(
+        (known_sum(attempt['cost_usd'] for _, attempt in attempts) or 0) + (known_sum(judge['cost_usd'] for _, judge in judged) or 0),
+        abs=1e-3)
     # the headline's cost is what the provider box adds up to
     free = next(base for base in client.get('/api/overview').json()['bases'] if base['knowledge_base'] == 'free')
-    assert free['cost_usd'] == pytest.approx(sum(providers.values()), abs=1e-3)
+    assert free['cost_usd'] == pytest.approx(sum(cost or 0 for cost in providers.values()), abs=1e-3)
     for section in models.values():
         assert section['linked']
         for found in section['rows'][:2]:

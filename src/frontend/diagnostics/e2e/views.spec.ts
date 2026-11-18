@@ -1808,14 +1808,18 @@ test('a page that is not content says its category beside its state, and the lis
   await settled(page)
   const apart = page.locator('[data-part="apart"] tbody tr[data-page]')
   const SETTLED = ['decided_by_a_person', 'decided_by_an_automated_review']
-  await expect(apart).toHaveCount(issues.filter(row => row.apart && !SETTLED.includes(row.listed_state ?? '')).length)
-  await expect(page.locator('[data-part="apart"] h2')).toContainText('Not content: noted, not repaired')
+  const open = issues.filter(row => !SETTLED.includes(row.listed_state ?? ''))
+  const apartCount = open.filter(row => row.apart).length
+  await expect(apart).toHaveCount(apartCount)
+  // the heading only where such a page waits: on 18 Nov the last one, accounting p. 338, got a valid reading
+  await expect(page.locator('[data-part="apart"] h2')).toHaveCount(apartCount ? 1 : 0)
+  if (apartCount) await expect(page.locator('[data-part="apart"] h2')).toContainText('Not content: noted, not repaired')
   // every list stands in one grid, the settled pages' folds opened, a person's and an automated review's: their State,
   // Reasons and Why columns start at one x
   const folds = [['decided_by_a_person', 'decided'], ['decided_by_an_automated_review', 'reviewed']]
     .filter(([state]) => issues.some(row => row.listed_state === state))
   for (const [, part] of folds) await page.locator(`[data-part="${part}"] > summary`).click()
-  const lists = 2 + folds.length
+  const lists = (open.some(row => !row.apart) ? 1 : 0) + (apartCount ? 1 : 0) + folds.length
   for (const column of [2, 3, 4]) {
     const at = await page.locator(`.grouped-rows thead th:nth-child(${column})`).evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().left))
     expect(at).toHaveLength(lists)
@@ -1955,6 +1959,14 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   await expect(marked).toHaveAttribute('data-line', String(at))
   await expect(page.locator(`pre.raw .raw-line[data-line="${b04!.line}"]`)).toContainText('#b04')
   await expect(marked).toBeInViewport()
+  // every line an error names, marked as the API spans it (its block, from the opening fence to the closing one), here
+  // quietly, as a person has looked at b04's error; the core's own data, where the unit tests invent theirs
+  const spanned = new Set((p398.reading.error_places as (Placed & { lines?: number[] | null })[]).flatMap(error => {
+    const [from, to] = error.lines ?? (error.line ? [error.line, error.line] : [1, 0])
+    return [...Array.from({ length: to - from + 1 }, (_, step) => from + step), ...(error.at_line ? [error.at_line] : [])]
+  }))
+  await expect(page.locator('pre.raw [data-error-line]')).toHaveCount(spanned.size)
+  await expect(page.locator(`pre.raw .raw-line[data-line="${at}"]`)).toHaveAttribute('data-error-line', 'error-looked')
   // the gutter's number is the line's, and none of it is text: the pre holds the reading as stored, a selection copies it
   expect(await marked.evaluate(line => getComputedStyle(line, '::before').content)).toBe(`"${at}"`)
   expect(await page.locator('pre.raw').evaluate(pre => pre.textContent)).toBe(p398.raw)
@@ -1968,11 +1980,20 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   })
   expect(copied.replace(/\n+$/, '')).toBe(p398.raw.replace(/\n+$/, ''))
   await page.locator('pre.raw').screenshot({ path: `${SHOTS}/raw_numbered.png` })
+})
 
-  // p. 338: an error that names only a line, and one on b13 that nobody looked at, red
+test('a validator\'s error nobody looked at stands red, on its block and in the raw text as a compiler marks it', async ({ page, request }) => {
+  // accounting p. 338 as read until 18 Nov, when a valid direct reading replaced it: skipped while no free page holds such
+  // errors; the unit tests hold the marks on an invented reading
+  const ACCOUNTING = 'openstax_principles_of_accounting_v1'
+  type Placed = { said: string, message: string, block: string | null, line: number | null, at_line?: number | null, looked: string | null,
+    corrected: boolean }
+  type Detail = { raw: string, reading: { error_places: Placed[] } | null }
+  const colour = (selector: string) => page.locator(selector).first().evaluate(element => getComputedStyle(element).color)
   const p338 = await (await request.get(`/api/free/works/${ACCOUNTING}/pages/338`)).json() as Detail
-  const lineOnly = p338.reading.error_places.find(error => !error.block && error.line)
-  const b13 = p338.reading.error_places.find(error => error.block === 'b13')
+  test.skip(!p338.reading, 'accounting p. 338 has no reading today')
+  const lineOnly = p338.reading!.error_places.find(error => !error.block && error.line)
+  const b13 = p338.reading!.error_places.find(error => error.block === 'b13')
   test.skip(!lineOnly || !b13 || Boolean(b13.looked), 'accounting p. 338 holds no such errors today')
   await page.goto(`/#/free/sources/${ACCOUNTING}/page/338`)
   await settled(page)
@@ -1991,7 +2012,7 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveAttribute('data-error-line', 'error-block')
   await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveText(/^:::\s*$/)
   expect(first).toBe(b13!.line)
-  const marked338 = new Set((p338.reading.error_places as (Placed & { lines: number[] | null })[]).flatMap(error => {
+  const marked338 = new Set((p338.reading!.error_places as (Placed & { lines: number[] | null })[]).flatMap(error => {
     const [from, to] = error.lines ?? (error.line ? [error.line, error.line] : [1, 0])
     return Array.from({ length: to - from + 1 }, (_, at) => from + at)
   }))

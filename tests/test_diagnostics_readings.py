@@ -1099,16 +1099,24 @@ def test_an_error_on_a_block_carries_the_blocks_lines_from_its_opening_fence_to_
 
 
 @pytest.mark.readings
-def test_a_page_gives_its_errors_parted_and_the_raw_lines_they_name():
-    # accounting p. 338, as tracked: line 86 is the attribute line the parser refuses, line 101 b13's empty body
-    page = store.page('openstax_principles_of_accounting_v1', 338, 'Accounting')
+def test_a_page_gives_its_errors_parted_and_the_raw_lines_they_name(tmp_path):
+    # invented over a free page's reading, so no re-read of a real page moves it (accounting p. 338, pinned here until 18 Nov,
+    # got a valid direct reading that day): a line of text outside any block, which names a line alone, and a table block
+    # with no box and no body, whose errors name the block and the line it opens on
+    row = copy.deepcopy(next(row for row in kelly_rows() if row.get('text_file')))
+    corpus = a_corpus(tmp_path, [row])
+    stored = tmp_path / 'readings' / row['text_file']
+    text = stored.read_bytes().decode('utf-8').rstrip('\n')
+    stored.write_bytes(f'{text}\nwritten outside any block\n::: {{#b99 .table}}\n:::\n'.encode('utf-8'))
+    page = corpus.page(KELLY, row['pdf_page'], 'Kelly')
     lines = page.raw.split('\n')
-    placed = {one.line: one for one in page.reading.error_places}
-    assert placed[86].block is None and lines[85].startswith(':::') and 'bbox=' in lines[85]
-    assert placed[101].block == 'b13' and lines[100].startswith('::: {#b13')
-    # b13's error marks b13 whole in the raw view: from its opening fence to its closing one
-    first, last = placed[101].lines
-    assert first == 101 and last > first and lines[last - 1].strip() == ':::'
+    outside, opens = lines.index('written outside any block') + 1, lines.index('::: {#b99 .table}') + 1
+    placed = {(one.line, one.block) for one in page.reading.error_places}
+    assert (outside, None) in placed and (opens, 'b99') in placed
+    # b99's errors mark b99 whole in the raw view: from its opening fence to its closing one
+    spans = {tuple(one.lines) for one in page.reading.error_places if one.block == 'b99'}
+    assert spans == {(opens, opens + 1)} and lines[opens].strip() == ':::'
+    assert [one.lines for one in page.reading.error_places if one.block is None and one.line] == [None]
     assert [one.said for one in page.reading.error_places] == page.reading.errors
 
 
