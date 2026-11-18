@@ -1544,3 +1544,24 @@ served count; unit tests of the not-read row and the served tally; a browser che
 inside a 1,280 and a 2,000 px window with an invented row of the longest fields (shown failing first against the old
 build); with the real licensed rows the table is 1,408 px in a 1,408 px box at 2,000 px. 307 unit tests, 77 checks in
 the browser (three skipped on today's data), 1,429 Python tests.
+
+**The licensed EPUB works (decision 123.a, the operator's P1.a, 18 Nov).** The core cuts a licensed EPUB into sections at
+its headings and the librarian serves them as pages `s1`, `s2`, … (route "epub, parsed by section"); the view shows such a
+work as it shows a free HTML work. `#/licensed/epub/<work key>` holds its outline by heading, the HTML works' own outline
+component opening the EPUB's section route, or every section in a table with its characters and images; and
+`#/licensed/epub/<work key>/s12` one section, the label a search hit names, with its heading path, its place in the EPUB
+and its text, each image where its mark stood: inline in its line, as a formula most often stands, or a block of its own,
+on a light ground, since a formula image is most often black on a transparent one. An image is read from the EPUB's own
+zip by its path, only a path one of its sections names, with its content type from its extension; nothing is extracted.
+The marks the provenance list records are stripped as the librarian strips them. Cutting all ten EPUBs takes about 20 s,
+so each is cut once and kept while its file is unchanged, the app's warm-up cuts them ahead, and the sources list never
+waits: it counts an EPUB's sections where it is cut, and says it is being counted where it is not. In the sources list
+an EPUB the librarian serves leaves "not read page by page" and opens its view, by the librarian's key, which for a
+legacy work differs from the catalog's id. Nothing of it under --public-only; no EPUB text, image or title in a test or
+the build, and none was screenshot: an image of it would reach a model provider. **Measured:** Python tests over the
+invented EPUB the core's own tests build (outline, labels equal to the librarian's pages, parts in order, a stripped
+line, images by path and nothing else of the zip, the list's count before and after the cut, and that a public-only app
+reaches none of it); unit tests of the outline's links, the section's runs and images and the list's row; on this
+machine, measured without any text or image leaving the browser: ten works, every image loaded, none past a 1,400 or a
+390 px window, an inline formula on its line, no console error. 310 unit tests, 77 checks in the browser (three skipped
+on today's data), 1,442 Python tests.

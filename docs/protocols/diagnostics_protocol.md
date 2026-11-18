@@ -693,3 +693,10 @@ The record of how the diagnostics frontend came about, mistakes included.
   proposed a state of its own; a state is the core's word, so the view keeps it and says beside it how many of its pages
   are served, a count the API makes as it makes a person's tally. **Mistake:** the served count read `row['route']`, and
   a test's minimal rows have none; a row without a route now counts as not served.
+- **P1.a, the licensed EPUB works** (line 1's handoff, 18 Nov). **Mistake caught by the suite:** the app tests over the
+  invented licensed export listed the real licensed EPUBs of this machine, since `epub_works.epubs` reads the archive
+  wherever the licensed base is served; an autouse fixture now hands those tests no EPUB, and the EPUB tests hand in the
+  core's invented one. **Not looked at:** the view's pages with licensed text or images, by screenshot or by reading
+  them, as anything of an EPUB must not reach a model provider; the browser check measured sizes and load states only.
+  **Found on the way:** one image the core marks inline stands taller than six lines, a picture inside a paragraph; it
+  keeps its size, since capping inline images would shrink formulas.

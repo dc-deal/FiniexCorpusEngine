@@ -63,6 +63,13 @@ onMounted(() => {
               {{ work.title }}
             </RouterLink>
             <RouterLink
+              v-else-if="work.epub_key"
+              class="work-title"
+              :to="{ name: 'epub-work', params: { kb: work.knowledge_base, work: work.epub_key } }"
+            >
+              {{ work.title }}
+            </RouterLink>
+            <RouterLink
               v-else-if="work.format === 'html'"
               class="work-title"
               :to="{ name: 'html-work', params: { kb: work.knowledge_base, work: work.id } }"
@@ -80,6 +87,10 @@ onMounted(() => {
               <span class="page-count">{{ pageCount(work.readings.pages) }} · read and judged</span>
               <StateCounts :counts="work.readings.states" />
             </template>
+            <!-- a licensed EPUB by its sections (123.a), or why they are not counted yet, in the API's words -->
+            <span v-else-if="work.epub_key" class="page-count" data-part="epub-sections">
+              {{ typeof work.sections === 'number' ? `${work.sections.toLocaleString('en')} sections by heading` : work.structure_why_not }}
+            </span>
             <span v-else-if="typeof work.sections === 'number' && typeof work.chunks === 'number'" class="page-count">
               {{ work.sections.toLocaleString('en') }} sections by heading · {{ work.chunks.toLocaleString('en') }} chunks
             </span>

@@ -12,8 +12,15 @@ from pydantic import ValidationError
 from backend.conversion.store import served_readings
 from backend.diagnostics import __main__ as start
 from backend.diagnostics import app as app_module
-from backend.diagnostics import build, readings, sources
+from backend.diagnostics import build, epub_works, readings, sources
 from backend.diagnostics.app import app, create_app
+
+@pytest.fixture(autouse=True)
+def no_licensed_epubs(monkeypatch):
+    """The licensed EPUBs of this machine stay out of every test here: an app over the invented licensed export lists no EPUB
+    work (123.a), so no test reads a real licensed file. The EPUB tests hand in an invented one."""
+    monkeypatch.setattr(epub_works, 'epubs', lambda: {})
+
 
 # TestClient's own host, "testserver", is refused like any other name that is not this machine's (app.TRUSTED_HOSTS)
 LOCAL = 'http://127.0.0.1'

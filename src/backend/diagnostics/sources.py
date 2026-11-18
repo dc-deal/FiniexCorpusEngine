@@ -16,6 +16,9 @@ CATALOG = ROOT / 'corpus' / 'catalog.json'
 # What the sources view says, in place of page counts, of a licensed catalog entry the export has no pages of (O1.a): the
 # view's own state until the core reads it, an EPUB by its sections as the free HTML works are (123.a), which then replace it
 NOT_READ = 'not read page by page'
+# What it says of a licensed EPUB whose sections are not counted yet: cutting all of them takes about 20 s, and the list
+# never waits for it (123.a)
+EPUB_COUNTING = 'sections by heading · being counted, here in a moment'
 
 
 class CatalogSource(BaseModel):
@@ -60,6 +63,9 @@ class Work(BaseModel):
     structure_why_not: str | None = None
     # a licensed catalog entry the export holds no pages of (O1.a): `NOT_READ`, in place of page counts; None otherwise
     not_read: str | None = None
+    # a licensed EPUB the librarian serves by section (123.a): the key its view and its search hits name it by, which may
+    # differ from the catalog's id (a legacy work's key); None for any other work
+    epub_key: str | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

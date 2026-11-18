@@ -10,18 +10,22 @@ import type { KnowledgeBase } from '@/types/api/source_types'
  * labels, and the sections and chunks in it and beneath it, as the API counted them. A heading with a section of its own
  * opens that section; a heading without text of its own names only its range. Opened, its sub-headings in the work's order.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   node: HtmlNode
   childrenOf: Map<string | null, HtmlNode[]>
   kb: KnowledgeBase
   work: string
-}>()
+  // the route a section opens on, and whether the work has chunks to count: a licensed EPUB's outline is the same outline,
+  // its sections opened on their own route and never chunked (123.a)
+  sectionRoute?: 'html-section' | 'epub-section'
+  chunked?: boolean
+}>(), { sectionRoute: 'html-section', chunked: true })
 
 const children = computed(() => props.childrenOf.get(props.node.id) ?? [])
 
 // an opened heading stays open on coming back from a section (the operator, 2026-11-10), known by its first label and title
 const openUnits = useOpenUnitsStore()
-const workKey = computed(() => `html:${props.kb}/${props.work}`)
+const workKey = computed(() => `${props.sectionRoute === 'epub-section' ? 'epub' : 'html'}:${props.kb}/${props.work}`)
 const nodeKey = computed(() => `${props.node.first ?? ''}:${props.node.title}`)
 
 function onToggle(opened: boolean): void {
@@ -39,16 +43,25 @@ function counted(count: number, word: string): string {
   <FoldSection v-if="children.length" class="unit" :open="openUnits.isOpen(workKey, nodeKey)" :data-node="node.id" @toggle="onToggle">
     <template #title>
       <span class="unit-line">
-        <RouterLink v-if="node.label" class="unit-title" :to="{ name: 'html-section', params: { kb, work, section: node.label } }">
+        <RouterLink v-if="node.label" class="unit-title" :to="{ name: sectionRoute, params: { kb, work, section: node.label } }">
           {{ node.title }}
         </RouterLink>
         <span v-else class="unit-title no-text" title="a heading without text of its own">{{ node.title }}</span>
         <span class="unit-range">{{ range }}</span>
-        <span class="unit-count">{{ counted(node.sections, 'section') }} · {{ counted(node.chunks, 'chunk') }}</span>
+        <span class="unit-count">{{ counted(node.sections, 'section') }}{{ chunked ? ` · ${counted(node.chunks, 'chunk')}` : '' }}</span>
       </span>
     </template>
     <div class="unit-body ruled">
-      <HtmlOutlineNode v-for="child in children" :key="child.id" :node="child" :children-of="childrenOf" :kb="kb" :work="work" />
+      <HtmlOutlineNode
+        v-for="child in children"
+        :key="child.id"
+        :node="child"
+        :children-of="childrenOf"
+        :kb="kb"
+        :work="work"
+        :section-route="sectionRoute"
+        :chunked="chunked"
+      />
     </div>
   </FoldSection>
   <!-- a heading the loader drops as noise, greyed at its place: it opens its original, and has no chunks (the operator's 2.a) -->
@@ -63,12 +76,12 @@ function counted(count: number, word: string): string {
   <div v-else class="unit-head leaf ruled-row" :data-node="node.id">
     <span class="mark-space" />
     <span class="unit-line">
-      <RouterLink v-if="node.label" class="unit-title" :to="{ name: 'html-section', params: { kb, work, section: node.label } }">
+      <RouterLink v-if="node.label" class="unit-title" :to="{ name: sectionRoute, params: { kb, work, section: node.label } }">
         {{ node.title }}
       </RouterLink>
       <span v-else class="unit-title no-text">{{ node.title }}</span>
       <span class="unit-range">{{ range }}</span>
-      <span class="unit-count">{{ counted(node.chunks, 'chunk') }}</span>
+      <span v-if="chunked" class="unit-count">{{ counted(node.chunks, 'chunk') }}</span>
     </span>
   </div>
 </template>

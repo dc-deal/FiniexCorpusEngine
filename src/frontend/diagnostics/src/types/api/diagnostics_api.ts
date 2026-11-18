@@ -107,6 +107,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/{knowledge_base}/epub/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Epub Work
+         * @description A licensed EPUB work (123.a, the operator's P1.a): its outline by heading and its sections, as the librarian
+         *     serves them, each with the count of its images.
+         */
+        get: operations["epub_work"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/{knowledge_base}/epub/{source_id}/sections/{label}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Epub Section
+         * @description One section of a licensed EPUB work: its text in runs, each image where its mark stands, and its neighbours.
+         */
+        get: operations["epub_section"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/{knowledge_base}/epub/{source_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Epub Image
+         * @description An image of a licensed EPUB work by its path inside the EPUB, read from its zip, never extracted; only one its
+         *     sections name.
+         */
+        get: operations["epub_image"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/{knowledge_base}/works/{source_id}/pages": {
         parameters: {
             query?: never;
@@ -929,6 +991,109 @@ export interface components {
             text: string;
             /** Changed */
             changed: boolean;
+        };
+        /**
+         * EpubImage
+         * @description One image where its mark stands: its path inside the EPUB, its alt text, and whether it stands inside a line of text (an
+         *     inline formula, most often) or on its own.
+         */
+        EpubImage: {
+            /** Href */
+            href: string;
+            /** Alt */
+            alt: string;
+            /** Inline */
+            inline: boolean;
+        };
+        /**
+         * EpubPart
+         * @description A section's text in its order: a run of text, or an image where its mark stood.
+         */
+        EpubPart: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "image";
+            /** Text */
+            text?: string | null;
+            image?: components["schemas"]["EpubImage"] | null;
+        };
+        /** EpubSection */
+        EpubSection: {
+            /**
+             * Knowledge Base
+             * @default licensed
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Source Id */
+            source_id: string;
+            /** Work Title */
+            work_title: string;
+            /** Label */
+            label: string;
+            /** Heading Path */
+            heading_path: string;
+            /** Place */
+            place: string | null;
+            /** Parts */
+            parts: components["schemas"]["EpubPart"][];
+            /** Previous */
+            previous: string | null;
+            /** Next */
+            next: string | null;
+        };
+        /** EpubSectionRow */
+        EpubSectionRow: {
+            /** Label */
+            label: string;
+            /** Heading Path */
+            heading_path: string;
+            /** Characters */
+            characters: number;
+            /** Images */
+            images: number;
+        };
+        /** EpubWork */
+        EpubWork: {
+            /**
+             * Knowledge Base
+             * @default licensed
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Source Id */
+            source_id: string;
+            /** Title */
+            title: string;
+            /** File */
+            file: string;
+            /**
+             * Route
+             * @default epub, parsed by section
+             */
+            route: string;
+            /**
+             * Sections
+             * @default 0
+             */
+            sections: number;
+            /**
+             * Images
+             * @default 0
+             */
+            images: number;
+            /**
+             * Outline
+             * @default []
+             */
+            outline: components["schemas"]["HtmlNode"][];
+            /**
+             * Rows
+             * @default []
+             */
+            rows: components["schemas"]["EpubSectionRow"][];
         };
         /** ErrorClass */
         ErrorClass: {
@@ -2640,6 +2805,8 @@ export interface components {
             structure_why_not?: string | null;
             /** Not Read */
             not_read?: string | null;
+            /** Epub Key */
+            epub_key?: string | null;
         };
         /** WorkPages */
         WorkPages: {
@@ -2830,6 +2997,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HtmlArticle"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    epub_work: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                knowledge_base: "free" | "licensed";
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpubWork"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    epub_section: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                knowledge_base: "free" | "licensed";
+                source_id: string;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpubSection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    epub_image: {
+        parameters: {
+            query: {
+                href: string;
+            };
+            header?: never;
+            path: {
+                knowledge_base: "free" | "licensed";
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                    "image/jpeg": unknown;
+                    "image/gif": unknown;
                 };
             };
             /** @description Validation Error */

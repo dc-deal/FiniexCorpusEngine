@@ -4,6 +4,7 @@ import type { AppInfo } from '@/types/api/app_types'
 import type { CallList } from '@/types/api/calls_types'
 import type { ChatInfo, ChatResult } from '@/types/api/chat_types'
 import type { ErrorClassList } from '@/types/api/errors_types'
+import type { EpubSection, EpubWork } from '@/types/api/epub_types'
 import type { HtmlArticle, HtmlWork } from '@/types/api/html_types'
 import type { Overview, PageList } from '@/types/api/overview_types'
 import type { PromptList } from '@/types/api/prompts_types'
@@ -70,6 +71,23 @@ export async function getRecall(knowledgeBase: KnowledgeBase, sourceId: string, 
 export async function getHtmlWork(knowledgeBase: KnowledgeBase, sourceId: string): Promise<HtmlWork> {
   const response = await http.get<HtmlWork>(`/${knowledgeBase}/html/${encodeURIComponent(sourceId)}`)
   return response.data
+}
+
+/** A licensed EPUB work's outline and sections (123.a), as the librarian serves them. */
+export async function getEpubWork(knowledgeBase: KnowledgeBase, sourceId: string): Promise<EpubWork> {
+  const response = await http.get<EpubWork>(`/${knowledgeBase}/epub/${encodeURIComponent(sourceId)}`)
+  return response.data
+}
+
+/** One section of a licensed EPUB work: its text in runs, each image where its mark stands. */
+export async function getEpubSection(knowledgeBase: KnowledgeBase, sourceId: string, label: string): Promise<EpubSection> {
+  const response = await http.get<EpubSection>(`/${knowledgeBase}/epub/${encodeURIComponent(sourceId)}/sections/${encodeURIComponent(label)}`)
+  return response.data
+}
+
+/** Where an EPUB's image is read from: its path inside the EPUB, served from the zip by the API. */
+export function epubImageUrl(knowledgeBase: KnowledgeBase, sourceId: string, href: string): string {
+  return `/api/${knowledgeBase}/epub/${encodeURIComponent(sourceId)}/image?href=${encodeURIComponent(href)}`
 }
 
 /** The article, chapter or other top unit holding a section, whole: every section with its original and chunks. */

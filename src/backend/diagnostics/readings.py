@@ -1433,6 +1433,11 @@ class Readings:
         self.works()
         return self._entries.get(source_id)
 
+    def catalog_entry_of_file(self, file_name: str) -> CatalogEntry | None:
+        """The licensed catalog's entry of a file, read or not: how an EPUB the librarian serves finds its title."""
+        self.works()
+        return next((entry for entry in [*self._entries.values(), *self._unread] if entry.file == file_name), None)
+
     def unread_entries(self) -> list[CatalogEntry]:
         """The licensed catalog's entries the export has no pages of, in the catalog's order (the operator's O1.a, 18 Nov):
         the EPUBs and the files not read yet. [] without a catalog."""

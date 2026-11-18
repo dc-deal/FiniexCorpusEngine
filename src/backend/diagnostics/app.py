@@ -13,6 +13,7 @@ Every route answers only a request addressed to this machine by name; see `TRUST
 import threading
 from collections.abc import Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
@@ -22,8 +23,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.chat import app_config
-from backend.diagnostics import (calls, chat, error_classes, html_works, overview, page_integrity, prompts, readings, runs,
-                                 search_hits, shelf_rows, sources, verdicts)
+from backend.diagnostics import (calls, chat, epub_works, error_classes, html_works, overview, page_integrity, prompts,
+                                 readings, runs, search_hits, shelf_rows, sources, verdicts)
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
@@ -59,6 +60,8 @@ def warm(bases: dict[str, readings.Readings], search: search_hits.Search) -> Non
     for store in bases.values():
         overview.counted(store)
     search.service()
+    if 'licensed' in bases:  # the licensed EPUBs cut ahead, so the sources list counts their sections (123.a)
+        epub_works.warm()
 
 
 def create_app(public_only: bool = False, warm_search: bool = False, chat_agent: Callable[[], Any] | None = None,
@@ -125,10 +128,34 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                 listed += [sources.Work(knowledge_base=work['knowledge_base'], id=work['source_id'], title=work['title'],
                                         readings=store.summary(work['source_id']), **catalog_fields(store, work['source_id']))
                            for work in store.works()]
-                # then the catalog's entries the export has no pages of, as the free HTML works without readings stand (O1.a)
-                listed += [sources.Work(knowledge_base=name, id=entry.id, title=entry.title, not_read=sources.NOT_READ,
-                                        **entry.model_dump(include=CATALOG_FIELDS)) for entry in store.unread_entries()]
+                # then the catalog's entries the export has no pages of, as the free HTML works without readings stand (O1.a);
+                # an EPUB the librarian serves by section counts its sections (123.a), the others are not read yet
+                epubs = {path.name: (key, path) for key, path in epub_works.epubs().items()}
+                unread = store.unread_entries()
+                listed += [sources.Work(knowledge_base=name, id=entry.id, title=entry.title,
+                                        **entry.model_dump(include=CATALOG_FIELDS), **unread_structure(entry, epubs))
+                           for entry in unread]
+                # and an EPUB the catalog does not list, by its file's stem
+                listed += [sources.Work(knowledge_base=name, id=key, title=path.stem, format='epub', epub_key=key,
+                                        **epub_structure(path)) for path_name, (key, path) in epubs.items()
+                           if not any(entry.file == path_name for entry in unread)]
         return listed
+
+    def unread_structure(entry: readings.CatalogEntry, epubs: dict[str, tuple[str, Path]]) -> dict:
+        """A catalog entry without page readings: an EPUB the librarian serves, by its sections; else not read yet."""
+        served = epubs.get(entry.file or '')
+        if served is None:
+            return {'not_read': sources.NOT_READ}
+        return {'epub_key': served[0], **epub_structure(served[1])}
+
+    def epub_structure(path: Path) -> dict:
+        """An EPUB's sections where it is cut already; while it is not, the list says so and the cut starts in the
+        background, so the list never waits the 20 s all of them take."""
+        count = epub_works.counted(path)
+        if count is None:
+            epub_works.warm_in_background()
+            return {'structure_why_not': sources.EPUB_COUNTING}
+        return {'sections': count}
 
     def catalog_fields(store: readings.Readings, source_id: str) -> dict:
         """The licensed catalog's fields of a work the sources view shows, {} where the catalog does not list it."""
@@ -178,6 +205,46 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
             raise HTTPException(404, html_works.NOT_BUILT if not html_works.DATABASE.is_file()
                                 else f'no section {label!r} of {source_id!r} in the search index')
         return found
+
+    def epub_of(knowledge_base: str, source_id: str) -> str:
+        """The title of a licensed EPUB work, from the local licensed catalog by its file, else its file's stem; 404 for any
+        other knowledge base, and before anything is read where the licensed one is not served (--public-only, 81.a)."""
+        if knowledge_base != 'licensed' or 'licensed' not in bases:
+            raise HTTPException(404, f'no EPUB work in the {knowledge_base} knowledge base here')
+        path = epub_works.epubs().get(source_id)
+        if path is None:
+            raise HTTPException(404, f'no EPUB work {source_id!r} in the licensed knowledge base')
+        entry = bases['licensed'].catalog_entry_of_file(path.name)
+        return entry.title if entry else path.stem
+
+    @app.get('/api/{knowledge_base}/epub/{source_id}')
+    def epub_work(knowledge_base: readings.KnowledgeBase, source_id: str) -> epub_works.EpubWork:
+        """A licensed EPUB work (123.a, the operator's P1.a): its outline by heading and its sections, as the librarian
+        serves them, each with the count of its images."""
+        found = epub_works.work(source_id, epub_of(knowledge_base, source_id))
+        if found is None:
+            raise HTTPException(404, f'no EPUB work {source_id!r}')
+        return found
+
+    @app.get('/api/{knowledge_base}/epub/{source_id}/sections/{label}')
+    def epub_section(knowledge_base: readings.KnowledgeBase, source_id: str, label: str) -> epub_works.EpubSection:
+        """One section of a licensed EPUB work: its text in runs, each image where its mark stands, and its neighbours."""
+        found = epub_works.section(source_id, label, epub_of(knowledge_base, source_id))
+        if found is None:
+            raise HTTPException(404, f'no section {label!r} of {source_id!r}')
+        return found
+
+    @app.get('/api/{knowledge_base}/epub/{source_id}/image', response_class=Response,
+             responses={200: {'content': {'image/png': {}, 'image/jpeg': {}, 'image/gif': {}}}})
+    def epub_image(knowledge_base: readings.KnowledgeBase, source_id: str, href: str) -> Response:
+        """An image of a licensed EPUB work by its path inside the EPUB, read from its zip, never extracted; only one its
+        sections name."""
+        epub_of(knowledge_base, source_id)
+        found = epub_works.image(source_id, href)
+        if found is None:
+            raise HTTPException(404, f'no image {href!r} in {source_id!r}')
+        data, media_type = found
+        return Response(content=data, media_type=media_type)
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages')
     def list_pages(knowledge_base: readings.KnowledgeBase, source_id: str) -> readings.WorkPages:

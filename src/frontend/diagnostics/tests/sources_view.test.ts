@@ -145,6 +145,22 @@ describe('SourcesView', () => {
     expect(row.text()).toContain('epub')
   })
 
+  it('opens a licensed EPUB the librarian serves on its own view and counts its sections, or says they are being counted (123.a)', async () => {
+    // invented: the catalog's id and the librarian's key differ, as for a legacy work
+    const counted = aWork({ knowledge_base: 'licensed', id: 'an_invented_book_file', title: 'An Invented Book', format: 'epub',
+      readings: null, epub_key: 'invented', sections: 268 })
+    const counting = aWork({ knowledge_base: 'licensed', id: 'another_file', title: 'Another Book', format: 'epub', readings: null,
+      epub_key: 'another', sections: null, structure_why_not: 'sections by heading · being counted, here in a moment' })
+    vi.mocked(getWorks).mockResolvedValue([counted, counting])
+    const view = mountView()
+    await flushPromises()
+    const [first, second] = view.findAll('tbody tr')
+    expect(first.find('a.work-title').attributes('href')).toBe('#/licensed/epub/invented')
+    expect(first.find('[data-part="epub-sections"]').text()).toBe('268 sections by heading')
+    expect(second.find('[data-part="epub-sections"]').text()).toBe('sections by heading · being counted, here in a moment')
+    expect(second.find('a.work-title').attributes('href')).toBe('#/licensed/epub/another')
+  })
+
   it('says beside a state to look at how many of its pages the core serves all the same (18 Nov)', async () => {
     // invented: nine issues whose findings lie on blocks never quoted, all served; three blocked, none
     const work = aWork({ readings: { pages: 20, states: [{ value: 'ok', count: 8 }, { value: 'issue', count: 9, served: 9 },

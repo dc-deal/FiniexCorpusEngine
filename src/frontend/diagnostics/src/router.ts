@@ -79,6 +79,24 @@ export const router = createRouter({
       meta: { label: 'Article', wide: true },
       props: route => ({ kb: route.params.kb as KnowledgeBase, work: String(route.params.work), section: String(route.params.section) }),
     },
+    // a licensed EPUB work by its headings, and one section with its images (123.a, the operator's P1.a); only the licensed
+    // knowledge base has EPUB works, and an app started with --public-only answers them 404
+    {
+      path: '/:kb(licensed)/epub/:work',
+      name: 'epub-work',
+      component: () => import('@/views/EpubWorkView.vue'),
+      sensitive: true,
+      meta: { label: 'EPUB work' },
+      props: route => ({ kb: route.params.kb as KnowledgeBase, work: String(route.params.work) }),
+    },
+    {
+      path: '/:kb(licensed)/epub/:work/:section(s\\d+)',
+      name: 'epub-section',
+      component: () => import('@/views/EpubSectionView.vue'),
+      sensitive: true,
+      meta: { label: 'Section' },
+      props: route => ({ kb: route.params.kb as KnowledgeBase, work: String(route.params.work), section: String(route.params.section) }),
+    },
     { path: '/issues', name: 'issues', component: IssuesView, meta: { label: 'Issues' } },
     // the findings grouped by kind, block class and work: what kind of error recurs, and where
     { path: '/errors', name: 'errors', component: ErrorClassesView, meta: { label: 'Errors' } },

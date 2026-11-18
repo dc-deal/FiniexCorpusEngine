@@ -225,6 +225,181 @@
         }
       }
     },
+    "/api/{knowledge_base}/epub/{source_id}": {
+      "get": {
+        "summary": "Epub Work",
+        "description": "A licensed EPUB work (123.a, the operator's P1.a): its outline by heading and its sections, as the librarian\nserves them, each with the count of its images.",
+        "operationId": "epub_work",
+        "parameters": [
+          {
+            "name": "knowledge_base",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "free",
+                "licensed"
+              ],
+              "type": "string",
+              "title": "Knowledge Base"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpubWork"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/{knowledge_base}/epub/{source_id}/sections/{label}": {
+      "get": {
+        "summary": "Epub Section",
+        "description": "One section of a licensed EPUB work: its text in runs, each image where its mark stands, and its neighbours.",
+        "operationId": "epub_section",
+        "parameters": [
+          {
+            "name": "knowledge_base",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "free",
+                "licensed"
+              ],
+              "type": "string",
+              "title": "Knowledge Base"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpubSection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/{knowledge_base}/epub/{source_id}/image": {
+      "get": {
+        "summary": "Epub Image",
+        "description": "An image of a licensed EPUB work by its path inside the EPUB, read from its zip, never extracted; only one its\nsections name.",
+        "operationId": "epub_image",
+        "parameters": [
+          {
+            "name": "knowledge_base",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "free",
+                "licensed"
+              ],
+              "type": "string",
+              "title": "Knowledge Base"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "href",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Href"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/png": {},
+              "image/jpeg": {},
+              "image/gif": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/{knowledge_base}/works/{source_id}/pages": {
       "get": {
         "summary": "List Pages",
@@ -2541,6 +2716,241 @@
           "changed"
         ],
         "title": "DiffPart"
+      },
+      "EpubImage": {
+        "properties": {
+          "href": {
+            "type": "string",
+            "title": "Href"
+          },
+          "alt": {
+            "type": "string",
+            "title": "Alt"
+          },
+          "inline": {
+            "type": "boolean",
+            "title": "Inline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "href",
+          "alt",
+          "inline"
+        ],
+        "title": "EpubImage",
+        "description": "One image where its mark stands: its path inside the EPUB, its alt text, and whether it stands inside a line of text (an\ninline formula, most often) or on its own."
+      },
+      "EpubPart": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EpubImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "EpubPart",
+        "description": "A section's text in its order: a run of text, or an image where its mark stood."
+      },
+      "EpubSection": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base",
+            "default": "licensed"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "work_title": {
+            "type": "string",
+            "title": "Work Title"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "heading_path": {
+            "type": "string",
+            "title": "Heading Path"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/EpubPart"
+            },
+            "type": "array",
+            "title": "Parts"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "work_title",
+          "label",
+          "heading_path",
+          "place",
+          "parts",
+          "previous",
+          "next"
+        ],
+        "title": "EpubSection"
+      },
+      "EpubSectionRow": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "heading_path": {
+            "type": "string",
+            "title": "Heading Path"
+          },
+          "characters": {
+            "type": "integer",
+            "title": "Characters"
+          },
+          "images": {
+            "type": "integer",
+            "title": "Images"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "heading_path",
+          "characters",
+          "images"
+        ],
+        "title": "EpubSectionRow"
+      },
+      "EpubWork": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base",
+            "default": "licensed"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "route": {
+            "type": "string",
+            "title": "Route",
+            "default": "epub, parsed by section"
+          },
+          "sections": {
+            "type": "integer",
+            "title": "Sections",
+            "default": 0
+          },
+          "images": {
+            "type": "integer",
+            "title": "Images",
+            "default": 0
+          },
+          "outline": {
+            "items": {
+              "$ref": "#/components/schemas/HtmlNode"
+            },
+            "type": "array",
+            "title": "Outline",
+            "default": []
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EpubSectionRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "title",
+          "file"
+        ],
+        "title": "EpubWork"
       },
       "ErrorClass": {
         "properties": {
@@ -8001,6 +8411,17 @@
               }
             ],
             "title": "Not Read"
+          },
+          "epub_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epub Key"
           }
         },
         "type": "object",
