@@ -96,21 +96,37 @@ def write_check(store, cell: str, row: dict) -> None:
     store.write_report(path.name, report)
 
 
+def review_findings(base: reading_export.KnowledgeBase, file: str, pdf_page: int, reading_key: str) -> list[dict]:
+    """The rejects that name a block of the standing reading: what a review found wrong on it, for the re-read's hint."""
+    return [verdict for verdict in pipeline_db.human_verdicts(base.name).get((file, pdf_page), [])
+            if verdict['verdict'] == 'reject' and verdict['reading_key'] == reading_key and verdict.get('note')]
+
+
 def reread(base: reading_export.KnowledgeBase, work: str, pdf_page: int, cap: float, dry_run: bool = False, run_id: int | None = None,
-           asker=ask, over_a_person: str | None = None) -> dict:
+           asker=ask, over_a_person: str | None = None, review_hint: bool = False, export: bool = True) -> dict:
     """Read one page again, check it, judge it, choose it if it is ok, and write the export again. A page a person checked is
-    refused unless `over_a_person` gives the reason, or a person reset the page first (decision 191.a)."""
+    refused unless `over_a_person` gives the reason, or a person reset the page first (decision 191.a).
+
+    With `review_hint` the reader is told what a review's rejects found wrong on the standing reading (M2.c, 18 Nov): the
+    judge alone missed those errors, so whoever runs it checks the new reading against the review's correction before
+    trusting the choice. Without `export` the export is left to one run after several re-reads (a licensed one takes minutes)."""
     store = open_store(base.name)
     page = page_of(base, work, pdf_page)
     refused = pipeline_db.refused_over_a_person(base.name, page['file'], pdf_page, over_a_person)
     if refused:
         raise SystemExit(refused)
     before = row_of(base, work, pdf_page)
+    hint = None
+    if review_hint:
+        findings = review_findings(base, page['file'], pdf_page, before['reading_key'])
+        if not findings:
+            raise SystemExit(f'no reject with a note on the standing reading of p. {pdf_page}: nothing to tell the reader')
+        hint = vision_batches.review_hint(findings)
     cell = list_replayed(base, page)
     attempt = next_attempt(store, [*base.cells(), cell.name], page)
     mirror, pdf = vision_batches.Documents().page(page['file'], pdf_page)
     entry = vision_batches.reading_entry(cell, {**page, 'id': f"{work}:p{pdf_page:04d}"}, page_render.render(pdf, cell.resolution),
-                                         mirror, store, mode='standard', attempt=attempt)
+                                         mirror, store, mode='standard', attempt=attempt, hint=hint)
     estimate = entry['estimate_usd'] * 2  # the reading, and about as much again for the judge, who sees the page and the reading
     print(f'{base.name} {work} p{pdf_page}: attempt {attempt}, estimate {estimate:.4f} USD; standing now {before["reading_key"][:12]}'
           f' ({before["route"]})')
@@ -137,12 +153,13 @@ def reread(base: reading_export.KnowledgeBase, work: str, pdf_page: int, cap: fl
                                    'replayed': True})
     if state == 'ok':
         pipeline_db.choose(base.name, page['file'], pdf_page, entry['reading_key'], why='replay --reread: judged ok', run_id=run_id)
-    result.update(state=state, reasons=reasons, chosen=state == 'ok')
-    reading_export.export(base, store)
+    result.update(state=state, reasons=reasons, chosen=state == 'ok', reading_before=before['reading_key'])
+    if export:
+        reading_export.export(base, store)
     print(f"{work} p{pdf_page}: class {record['result_class']}, stage 2 {'suspicious' if check['suspicious'] else 'clean'}, "
           f"{state}{' ' + ', '.join(reasons) if reasons else ''}; "
-          f"{'chosen, and the export written again' if state == 'ok' else 'not chosen: the reading before keeps standing'}; "
-          f"{result['cost_usd']:.4f} USD")
+          f"{('chosen' + (', and the export written again' if export else ', the export left for later')) if state == 'ok' else 'not chosen: the reading before keeps standing'}; "
+          f"key {entry['reading_key'][:12]}; {result['cost_usd']:.4f} USD")
     return result
 
 
@@ -212,6 +229,9 @@ def main() -> None:
         if name == 'reread':
             command.add_argument('--over-a-person', metavar='REASON',
                                  help='read again a page a person checked; the reason is recorded with the run (decision 191.a)')
+            command.add_argument('--review-hint', action='store_true',
+                                 help="tell the reader what a review's rejects found wrong on the standing reading (M2.c)")
+            command.add_argument('--no-export', action='store_true', help='leave the export to one run after several re-reads')
         if name == 'judge':
             command.add_argument('--version', default=None, help='the judge version, as judge/1 or judge/2 (default: the active one)')
             command.add_argument('--fresh', action='store_true', help='ask once more even where this version answered before')
@@ -226,7 +246,8 @@ def main() -> None:
             judge(base, args.work, args.page, args.version or page_judge.active_version(), args.cap, fresh=args.fresh,
                   reading_key=args.reading, dry_run=args.dry_run)
             return
-        reread(base, args.work, args.page, args.cap, args.dry_run, run_id=recorded.run_id, over_a_person=args.over_a_person)
+        reread(base, args.work, args.page, args.cap, args.dry_run, run_id=recorded.run_id, over_a_person=args.over_a_person,
+               review_hint=args.review_hint, export=not args.no_export)
 
 
 if __name__ == '__main__':

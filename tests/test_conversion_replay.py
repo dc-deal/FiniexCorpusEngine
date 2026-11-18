@@ -95,3 +95,19 @@ def test_a_replay_refuses_a_page_a_person_checked_unless_told_why(free, monkeypa
                         lambda base, file, pdf_page, over: None if over else 'a person checked p. 3')
     with pytest.raises(SystemExit, match='a person checked'):
         replay.reread(free, 'w', 3, cap=1.0, dry_run=True)
+
+
+def test_a_reread_after_a_review_is_told_its_findings_never_its_correction(free, tmp_path, monkeypatch):
+    # M2.c (the operator, 18 Nov): the judge missed these errors, so the reader is told what the review found, block by block
+    from backend.conversion.store import pipeline_db
+
+    monkeypatch.setattr(pipeline_db, 'PATHS', {'free': tmp_path / 'p.sqlite', 'licensed': tmp_path / 'l.sqlite'})
+    session = pipeline_db.delegated_giver('claude-opus-5-5', '18 Nov')
+    pipeline_db.give_verdict('free', 'w.pdf', 3, 'k-standing', 'reject', 'reading_wrong', session, block='b04',
+                             note='two values sit under swapped column headers', correction='<table><tr><td>secret</td></tr></table>')
+    pipeline_db.give_verdict('free', 'w.pdf', 3, 'k-older', 'reject', 'reading_wrong', session, block='b09', note='an older one')
+    found = replay.review_findings(free, 'w.pdf', 3, 'k-standing')
+    hint = vision_batches.review_hint(found)
+    assert [finding['block'] for finding in found] == ['b04']
+    assert '- b04: two values sit under swapped column headers' in hint and 'secret' not in hint and 'b09' not in hint
+    assert hint.startswith('A review of your previous reading')

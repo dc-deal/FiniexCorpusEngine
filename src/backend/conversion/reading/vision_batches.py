@@ -268,6 +268,17 @@ def judge_hint(findings: list[dict]) -> str:
             'everything else as it is.')
 
 
+def review_hint(verdicts: list[dict]) -> str:
+    """What a re-read after a review's reject is told (M2.c, the operator, 18 Nov): the review's own findings on the reading
+    before, each with its block, worded as the judge's are (133.b). Never the review's correction itself: the reader reads the
+    page again from the image, it does not copy a text it is handed. The notes name blocks and what is wrong, in a few words."""
+    listed = '\n'.join(f"- {verdict.get('block') or 'the page'}: {' '.join(str(verdict.get('note') or '').split())[:HINT_ERROR_CHARS]}"
+                       for verdict in verdicts[:HINT_ERRORS])
+    return ('A review of your previous reading of this page against the page image found these places wrong:\n'
+            + listed + '\nRead the whole page again from the image, exactly as printed: correct these places and keep '
+            'everything else as it is.')
+
+
 def reading_entry(cell: reading_cells.Cell, page: dict, image: page_render.PageImage, mirror: str, store: Store,
                   mode: str, attempt: int = 0, hint: str | None = None) -> dict:
     """One request of a cell: what it sends stored by hash, everything it asks in its key."""

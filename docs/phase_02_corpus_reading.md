@@ -126,6 +126,9 @@ person uses, its giver named `<model> session, delegated by the operator (<day>)
 person's does, but it is never called one: the route says "an automated review (delegated by the operator) accepted the
 reading", the export marks each verdict `by_a_person`, and only a person's verdict protects a page from being read again
 (decision 191.a). The operator's reason: a person who signs a verdict takes the responsibility for it, as with a contract.
+A page a review rejected on a quoted block is read again with the review's findings as the hint, never its correction
+(`replay reread --review-hint --no-export`, 18 November); since the judge had missed those errors, each new reading is
+compared with the review's correction before it is trusted, and only then does the page serve it.
 
 **A direct reading, for the hard cases only (decision 280.a, 17–18 November).** Once the API credit ends, a page whose reading
 stayed malformed after its format retry may be read in a Claude Code session, as its own route (`direct_reader`: cell
