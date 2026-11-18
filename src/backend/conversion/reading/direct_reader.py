@@ -116,13 +116,46 @@ def pages(args) -> dict:
     listed = {(page['file'], page['pdf_page']): page
               for name in base.cells() for page in reading_cells.pages_for(reading_cells.known_cells()[name])}
     chosen, left = select(rows, listed, set(pipeline_db.protected_pages(base.name)))
-    cards = {page['work']: page.pop('work_card') for page in chosen}
     target = reading_cells.DIRECT_PAGES[args.knowledge_base]
+    added = sorted(set(json.loads(target.read_text(encoding='utf-8')).get('added_works', []) if target.exists() else [])
+                   | set(getattr(args, 'add_work', None) or []))
+    known = {(page['file'], page['pdf_page']) for page in chosen}
+    for file_name in added:
+        chosen += [page for page in whole_work(base, file_name, rows) if (page['file'], page['pdf_page']) not in known]
+    cards = {page['work']: page.pop('work_card') for page in chosen}
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({'work_cards': cards, 'pages': chosen}, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+    target.write_text(json.dumps({'work_cards': cards, 'added_works': added, 'pages': chosen}, indent=1, ensure_ascii=False) + '\n',
+                      encoding='utf-8')
     print(f"{args.knowledge_base}: {len(chosen)} pages for a direct reading {dict(Counter(p['why'] for p in chosen))}, "
           f'written to {target.name}; left out {dict(left)}')
     return {'pages': len(chosen), 'left': dict(left)}
+
+
+WORK_CARD = ('A book in English. Read the page as printed: its columns in reading order, its printed page number and running '
+             'head as page furniture, and every label (figure, table, equation number) exactly as printed.')
+SCAN_NOTE = ' The page is a scan of print with no text layer: read every word from the image, and mark what you cannot read.'
+
+
+def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
+    """Every page of one licensed file that no reader has read, for the direct cell: the operator's experiment of 18 Nov night
+    ("das ganze Buch über Nacht konvertieren, readings, kein Judge"), a scanned book no batch round took. A file the provenance
+    list holds back, or a page with a filter or a refusal in its history, is never added (280.a)."""
+    import pymupdf
+
+    if not reading_cells.may_send(file_name):
+        raise SystemExit(f'{file_name} is held back by the provenance list (send: false): never sent to a provider')
+    read = {row['pdf_page'] for row in rows if row['file'] == file_name}
+    if any(touched_by_a_filter(row) for row in rows if row['file'] == file_name):
+        read |= {row['pdf_page'] for row in rows if row['file'] == file_name and touched_by_a_filter(row)}
+    path = data_paths.LICENSED_ARCHIVE / file_name if base.name == 'licensed' else data_paths.locate(file_name)
+    work = Path(file_name).stem
+    with pymupdf.open(path) as document:
+        scan = not any(document[number].get_text().strip() for number in range(0, document.page_count, 25))
+        count = document.page_count
+    card = WORK_CARD + (SCAN_NOTE if scan else '')
+    return [{'file': file_name, 'pdf_page': number, 'work': work, 'gold': False, 'class_note': '',
+             'expected_output_tokens': 1900, 'deviation': DIRECT_DEVIATION, 'why': 'unread', 'work_card': card}
+            for number in range(1, count + 1) if number not in read]
 
 
 def entry_for(cell: reading_cells.Cell, page: dict, image: page_render.PageImage, mirror: str, store,
@@ -277,6 +310,9 @@ def main(argv: list[str] | None = None) -> int:
     for name in ('pages', 'prepare', 'store', 'choose'):
         command = commands.add_parser(name)
         command.add_argument('--knowledge-base', choices=('free', 'licensed'), required=True)
+        if name == 'pages':
+            command.add_argument('--add-work', action='append', metavar='FILE',
+                                 help='add every unread page of this file to the cell, kept on later runs (the experiment of 18 Nov)')
         if name == 'prepare':
             command.add_argument('--limit', type=int, default=1, help='at most this many pages; 0 prepares all')
             command.add_argument('--page', help="one page by its id, e.g. 'work:p0103'")

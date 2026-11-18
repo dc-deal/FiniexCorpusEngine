@@ -1,4 +1,5 @@
 """Direct reading (280.a): the hard cases a session may read, never a page a filter or a reader turned away."""
+import pytest
 
 from backend.constants.reading_constants import DIRECT_DEVIATION
 from backend.conversion.reading import direct_reader
@@ -90,3 +91,23 @@ def test_a_session_reading_costs_none_not_zero_while_its_record_keeps_a_number_f
     # 0.0 would claim it was free; the plan pays it, and no API measures it (the operator and line 2, 18 Nov)
     assert reading_export.cost_of({'mode': 'session', 'cost_usd': 0.0}) is None
     assert reading_export.cost_of({'mode': 'batch', 'cost_usd': 0.0115}) == 0.0115
+
+
+def test_a_whole_unread_work_joins_the_cell_without_its_read_or_filtered_pages(tmp_path, monkeypatch):
+    # the operator's experiment of 18 Nov night: a scanned book no batch round took, read whole in the session
+    import pymupdf
+    from types import SimpleNamespace
+
+    document = pymupdf.open()
+    for _ in range(4):
+        document.new_page()  # no text: a scan as far as the text layer can tell
+    document.save(tmp_path / 'scan.pdf')
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: name != 'held.pdf')
+    rows = [{'file': 'scan.pdf', 'pdf_page': 2, 'attempts': []},
+            {'file': 'scan.pdf', 'pdf_page': 3, 'attempts': [{'class_now': 'blocked'}]}]
+    pages = direct_reader.whole_work(SimpleNamespace(name='licensed'), 'scan.pdf', rows)
+    assert [(page['pdf_page'], page['why'], page['deviation']) for page in pages] == [(1, 'unread', DIRECT_DEVIATION), (4, 'unread', DIRECT_DEVIATION)]
+    assert pages[0]['work'] == 'scan' and pages[0]['work_card'].endswith(direct_reader.SCAN_NOTE)
+    with pytest.raises(SystemExit):
+        direct_reader.whole_work(SimpleNamespace(name='licensed'), 'held.pdf', [])
