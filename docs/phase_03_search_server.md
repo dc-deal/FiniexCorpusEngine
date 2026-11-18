@@ -185,3 +185,14 @@ chat model, a stage of its own.
   `openstax_principles_of_accounting_v1` there). A legacy text without a reading has no page in the view and no link. The
   view's address is `DIAGNOSTICS_VIEW_URL` where it runs elsewhere (a server the chat starts inherits it), or
   `--view-url`; the field is new, so a client that does not know it loses nothing.
+- **EPUBs, by section** (decision 123.a, after the submission; the operator, 18 Nov). An EPUB is born-digital XHTML in a zip,
+  so it needs no reader, no judge and no API call: `backend.ingestion.clean_sections.epub_sections` reads the container, the
+  package's reading order (spine) and the navigation's chapter names with the standard library, and cuts each document at its
+  headings with the HTML route's own walker, so both formats read text alike; a publisher's paragraphs set as `<div>` are read
+  as paragraphs. Hits name their section as an HTML source's do (`s12`, with the heading path). An EPUB serves its work in
+  place of the legacy text made from it; a stand-in EPUB stays beside the legacy text of its work. An image stays where it
+  stands as the mark `⟦image⟧` and is listed with its file: in several books the formulas are images whose alt text says
+  nothing, so a route of text alone would lose them without a word; the ranking leaves the mark out (`Page.index_text`).
+  Measured on the private shelf: the loader keeps 96 to 100 % of each book's words, and where a legacy text exists the two
+  hold the same words to within 1 to 4 %, the legacy text's surplus being markup and image paths. Reading the formula images
+  is a later step, and only for files that may go to a provider.

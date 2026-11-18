@@ -321,6 +321,37 @@ def with_readings(legacy: list[page_index.Page], readings: list[page_index.Page]
     return sorted(out, key=lambda page: int(page.pdf) if page.pdf else 0) if all(page.pdf for page in out) else out
 
 
+EPUB_ROUTE = 'epub, parsed by section'
+
+
+def licensed_epubs(keys: dict[str, str]) -> dict[str, Path]:
+    """Work key -> EPUB, for every licensed EPUB that is not a stand-in (decision 123.a, the operator's P1.a, 18 Nov). An EPUB of a
+    legacy work serves it in place of its legacy text, since the EPUB is the file the text was made from; one without a legacy
+    text joins under its file's stem. A stand-in EPUB stays beside the legacy text of its work, which stands. The provenance
+    list does not matter here: nothing of an EPUB reaches a provider."""
+    by_slug = {slug: key for key, slug in keys.items()}
+    suffix, _ = stand_in_rule()
+    return {by_slug.get(path.stem, path.stem): path for path in sorted(LICENSED_ARCHIVE.glob('*.epub'))
+            if not (suffix and path.stem.endswith(suffix))}
+
+
+def epub_pages(key: str, path: Path, marks: list[str]) -> list[page_index.Page]:
+    """An EPUB's sections as pages `s1`, `s2`, …, as the free HTML sources' are; an image stands as its mark in the text."""
+    from backend.ingestion.clean_sections.epub_sections import IMAGE_MARK, load_epub_sections
+
+    pages = []
+    for item in load_epub_sections(path, key):
+        section = item.section
+        text = strip_stamps(section.text, marks)
+        if not text.strip():
+            continue
+        pages.append(page_index.Page(key, f's{section.ordinal + 1}', 1, text, section.url or path.name,
+                                     section=' > '.join(section.heading_path) or None, knowledge_base='licensed', route=EPUB_ROUTE,
+                                     index_text=text.replace(IMAGE_MARK, ' ') if IMAGE_MARK in text else None,
+                                     searchable=not page_index.is_structural(text)))
+    return pages
+
+
 def licensed_pages() -> tuple[list[page_index.Page], dict]:
     """The licensed works by citation key; empty on a machine without them. Per page the checked reading where one may be served
     (the free corpus's rule, `text_layer_why`), else the legacy Markdown; a work without legacy Markdown (a new work, decision
@@ -343,6 +374,11 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
             legacy[key] = numbered(legacy[key], offset)
     standing_in = stand_ins(keys)
     pages, works = [], {}
+    for key, epub in licensed_epubs(keys).items():  # decision 123.a: the EPUB in place of the legacy text made from it
+        legacy.pop(key, None)
+        own = epub_pages(key, epub, marks)
+        works[key] = Work(key, epub.stem, 'licensed', LICENSED_LICENCE, EPUB_ROUTE, sum(page.searchable for page in own))
+        pages += own
     for key, pdf in standing_in.items():
         legacy.pop(key, None)
         own = pdf_work_pages(key, pdf, rows.get(pdf.name, {}), reading_export.quoted_pages('licensed', pdf.name), LICENSED_EXPORT,
