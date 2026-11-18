@@ -195,8 +195,10 @@ def prepare(args) -> list[str]:
         if args.page and page['id'] != args.page:
             continue
         row = rows.get((page['file'], page['pdf_page']))
-        if row is None or touched_by_a_filter(row) or not reading_cells.may_send(page['file']) or page.get('protected'):
-            continue  # checked again: the list may be older than the page's history; a page a person checked is not read again
+        if (row is None and page.get('why') != 'unread') or (row is not None and touched_by_a_filter(row)) \
+                or not reading_cells.may_send(page['file']) or page.get('protected'):
+            continue  # checked again: the list may be older than the page's history; a page a person checked is not read again;
+            # an unread page of a whole work (`--add-work`) has no row in the export yet
         mirror, pdf_page = documents.page(page['file'], page['pdf_page'])
         image = page_render.render(pdf_page, RESOLUTION)
         store = open_store(mirror)
