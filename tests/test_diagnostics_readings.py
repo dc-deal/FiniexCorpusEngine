@@ -499,9 +499,35 @@ def test_each_reading_of_a_page_carries_what_its_check_made_of_it(tmp_path):
     unchecked = {**row['attempts'][0], 'reading_key': 'bbbb2222', 'attempt': 1, 'check': None}
     row['attempts'] = [first, unchecked, *row['attempts']]
     attempts = a_corpus(tmp_path, [row]).page(KELLY, row['pdf_page'], 'Kelly').attempts
-    assert attempts[0].check.model_dump() == {'state': 'issue', 'verdict': 'bad', 'outcome': 'issue', 'came_from': None}
+    assert attempts[0].check.model_dump() == {'state': 'issue', 'verdict': 'bad', 'outcome': 'issue', 'reasons': [],
+                                              'came_from': None}
     assert attempts[1].check is None
     assert [attempt.shown for attempt in attempts] == [False, False, True]
+
+
+@pytest.mark.readings
+def test_each_reading_says_why_it_stands_and_what_it_cost_a_session_reading_none(tmp_path):
+    # invented after licensed pages line 1 named (18 Nov): a first reading the validator refused, which no check reached; its
+    # format retry, refused again and checked; and the reading shown, read in a Claude Code session (280.a), which no API
+    # ledger prices. The page's row still writes 0.0 in an export of before 18 Nov, so the shown attempt's own field counts
+    row = copy.deepcopy(next(row for row in kelly_rows() if row.get('attempts')))
+    malformed = ['block b04 (line 26): LaTeX command outside math: \\HL']
+    shown = {**row['attempts'][-1], 'mode': 'session', 'cost_usd': None, 'format_errors': [],
+             'check': {'state': 'ok', 'verdict': 'ok', 'outcome': 'ok', 'reasons': []}}
+    first = {**shown, 'reading_key': 'aaaa1111', 'mode': 'batch', 'cost_usd': 0.0094749, 'format_errors': malformed, 'check': None}
+    retry = {**first, 'reading_key': 'bbbb2222', 'attempt': 1,
+             'check': {'state': 'issue', 'verdict': None, 'outcome': None, 'reasons': ['format: malformed']}}
+    row.update(attempts=[first, retry, shown], cost_usd=0.0)
+    corpus = a_corpus(tmp_path, [row])
+    page = corpus.page(KELLY, row['pdf_page'], 'Kelly')
+    assert [(one.format_errors, one.check.reasons if one.check else None) for one in page.attempts] == [
+        (malformed, None), (malformed, ['format: malformed']), ([], [])]
+    assert [one.cost_usd for one in page.attempts] == [0.0094749, 0.0094749, None]
+    assert page.trace.cost_usd is None
+    assert next(one for one in corpus.pages('free', KELLY, 'Kelly').pages if one.pdf_page == row['pdf_page']).cost_usd is None
+    # an export that lists no attempt's cost keeps the row's own
+    del row['attempts'][-1]['cost_usd']
+    assert a_corpus(tmp_path / 'older', [row]).page(KELLY, row['pdf_page'], 'Kelly').trace.cost_usd == 0.0
 
 
 @pytest.mark.readings
@@ -1021,6 +1047,21 @@ def test_a_validator_error_is_parted_into_its_block_and_line_and_says_whether_a_
     assert [(one.looked, one.looked_at) for one in looked] == [('note', 'block'), ('accept', 'page'), ('accept', 'page')]
 
 
+def test_an_error_on_a_block_carries_the_blocks_lines_from_its_opening_fence_to_its_closing_one():
+    # invented: the validator names the line a block opens on (26 in a real error of 18 Nov), while what it found may stand
+    # lines below, so the raw view marks the whole block; an unclosed block runs to the line before the next one
+    raw = '\n'.join(['---', 'work: x', '---', '::: {#b01 .paragraph}', 'one', 'two \\HL', ':::', '::: {#b02 .paragraph}',
+                     'left open', '::: {#b03 .paragraph}', 'last', ':::'])
+    assert readings.block_lines(raw, 4) == [4, 7]
+    assert readings.block_lines(raw, 8) == [8, 9]
+    assert readings.block_lines(raw, 10) == [10, 12]
+    placed = readings.errors_placed(['block b01 (line 4): LaTeX command outside math: \\HL', 'line 2: attributes not parseable',
+                                     'front matter: image_size missing'], [], [], raw)
+    assert [one.lines for one in placed] == [[4, 7], None, None]
+    # without the raw text no span is claimed
+    assert readings.errors_placed(['block b01 (line 4): x'], [], [])[0].lines is None
+
+
 @pytest.mark.readings
 def test_a_page_gives_its_errors_parted_and_the_raw_lines_they_name():
     # accounting p. 338, as tracked: line 86 is the attribute line the parser refuses, line 101 b13's empty body
@@ -1029,6 +1070,9 @@ def test_a_page_gives_its_errors_parted_and_the_raw_lines_they_name():
     placed = {one.line: one for one in page.reading.error_places}
     assert placed[86].block is None and lines[85].startswith(':::') and 'bbox=' in lines[85]
     assert placed[101].block == 'b13' and lines[100].startswith('::: {#b13')
+    # b13's error marks b13 whole in the raw view: from its opening fence to its closing one
+    first, last = placed[101].lines
+    assert first == 101 and last > first and lines[last - 1].strip() == ':::'
     assert [one.said for one in page.reading.error_places] == page.reading.errors
 
 

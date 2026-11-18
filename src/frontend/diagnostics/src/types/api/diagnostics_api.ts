@@ -566,6 +566,13 @@ export interface components {
             stored_at: string;
             /** Deviation */
             deviation?: string | null;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /**
+             * Format Errors
+             * @default []
+             */
+            format_errors: string[];
             check?: components["schemas"]["AttemptCheck"] | null;
             /**
              * Judgements
@@ -586,6 +593,11 @@ export interface components {
             verdict?: string | null;
             /** Outcome */
             outcome?: string | null;
+            /**
+             * Reasons
+             * @default []
+             */
+            reasons: string[];
             /** Came From */
             came_from?: string | null;
         };
@@ -1629,7 +1641,7 @@ export interface components {
             /** Attempt */
             attempt: number;
             /** Cost Usd */
-            cost_usd: number;
+            cost_usd: number | null;
             /** Error Message */
             error_message: string | null;
             /** From Text Layer */
@@ -1870,6 +1882,8 @@ export interface components {
             block?: string | null;
             /** Line */
             line?: number | null;
+            /** Lines */
+            lines?: number[] | null;
             /** Looked */
             looked?: string | null;
             /** Looked At */
@@ -2439,7 +2453,7 @@ export interface components {
             /** Attempt */
             attempt: number;
             /** Cost Usd */
-            cost_usd: number;
+            cost_usd: number | null;
             /** Stored At */
             stored_at: string;
             /** Class When Collected */

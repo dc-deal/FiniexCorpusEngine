@@ -94,4 +94,31 @@ describe('the page view\'s errors and its numbered raw text (228.a)', () => {
     await view.findAll('.mode button').find(button => button.text() === 'raw')!.trigger('click')
     expect(view.find('pre.raw .raw-line.marked').exists()).toBe(false)
   })
+
+  it('marks an error\'s block in the raw text as a compiler does, the named line strongest, a looked-at one quietly', async () => {
+    const onBlock = anError({ said: 'block b01 (line 4): HTML in prose', line: 4, lines: [4, 6] })
+    vi.mocked(getPage).mockReset().mockResolvedValue(aPageDetail({
+      raw: RAW,
+      reading: { front: {}, blocks: [aBlock({ id: 'b01' })], warnings: [], errors: [onBlock.said, LINE_ONLY.said],
+        error_places: [onBlock, LINE_ONLY] },
+    }))
+    const view = mountView()
+    await flushPromises()
+    await view.findAll('.mode button').find(button => button.text() === 'raw')!.trigger('click')
+    const marks = () => view.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? '')
+    // line 3 named alone; the block b01 from its opening fence (4) to its closing one (6), the named line strongest
+    expect(marks()).toEqual(['', '', 'error-named', 'error-named', 'error-block', 'error-block'])
+    expect(view.find('pre.raw').element.textContent).toBe(RAW)
+    // where a person has looked, the block keeps a quiet mark, never the error's colour
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({
+      raw: RAW,
+      reading: { front: {}, blocks: [aBlock({ id: 'b01' })], warnings: [], errors: [NOTED.said],
+        error_places: [{ ...NOTED, line: 4, lines: [4, 6] }] },
+    }))
+    const looked = mountView()
+    await flushPromises()
+    await looked.findAll('.mode button').find(button => button.text() === 'raw')!.trigger('click')
+    expect(looked.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? ''))
+      .toEqual(['', '', '', 'error-looked', 'error-looked', 'error-looked'])
+  })
 })

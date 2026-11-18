@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { inject } from 'vue'
 import { CHAPTER_MARKS } from '@/chapter_marks'
+import { NOT_MEASURABLE, usd } from '@/cost_format'
 import DataTable from '@/components/base/DataTable.vue'
 import ReasonList from '@/components/ReasonList.vue'
 import RouteWhy from '@/components/RouteWhy.vue'
@@ -77,7 +78,7 @@ function classChange(row: PageRow): string {
         <td class="why"><RouteWhy :row="row" /></td>
         <td>{{ classChange(row) }}</td>
         <td class="number">{{ row.attempt > 0 ? row.attempt : '' }}</td>
-        <td class="number cost">{{ row.cost_usd.toFixed(4) }}</td>
+        <td class="number cost">{{ row.cost_usd === null ? NOT_MEASURABLE : usd(row.cost_usd) }}</td>
       </tr>
     </tbody>
   </DataTable>

@@ -27,7 +27,7 @@ function aJudgement(overrides: Partial<Judgement>): Judgement {
 
 function aPage(): PageDetail {
   return aPageDetail({
-    attempts: [{ reading_key: KEY, number: 1, model: 'claude-sonnet-5-5', mode: 'batch', attempt: 0, class_now: 'ok',
+    attempts: [{ reading_key: KEY, number: 1, model: 'claude-sonnet-5-5', mode: 'batch', attempt: 0, class_now: 'ok', format_errors: [],
       stored_at: '2026-11-09T09:21:55+00:00', deviation: null, shown: true, judgements: [
         aJudgement({}),
         aJudgement({ version: 'judge/3', version_state: 'prototype', counts: false, verdict: 'bad', findings: [VOID], recall: PROTOTYPE }),

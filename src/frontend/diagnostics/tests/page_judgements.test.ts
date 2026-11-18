@@ -25,7 +25,8 @@ function aJudgement(overrides: Partial<Judgement> = {}): Judgement {
 
 /** The review's showcase in invented words: one reading, judged by judge/1, asked again, and by two prototypes. */
 function aJudgedPage(overrides: Partial<PageDetail> = {}): PageDetail {
-  const reading = { model: 'claude-sonnet-5-5', mode: 'batch', class_now: 'ok', stored_at: '2026-11-09T09:21:55+00:00', deviation: null }
+  const reading = { model: 'claude-sonnet-5-5', mode: 'batch', class_now: 'ok', stored_at: '2026-11-09T09:21:55+00:00', deviation: null,
+    format_errors: [] }
   return aPageDetail({
     check: aCheck({
       why_judged: 'a block stage 2 cannot check',
@@ -38,9 +39,9 @@ function aJudgedPage(overrides: Partial<PageDetail> = {}): PageDetail {
       people: [{ reading_key: 'r1', applies: true, block: 'b01', verdict: 'accept', reason_text: 'the judge quotes the same word twice' }] })],
     errors: [], warnings: [], error_places: [] },
     attempts: [
-      { ...reading, reading_key: 'r0', number: 1, attempt: 0, check: { state: 'ok', verdict: 'bad', outcome: 'ok', came_from: 'an earlier check' },
+      { ...reading, reading_key: 'r0', number: 1, attempt: 0, check: { state: 'ok', verdict: 'bad', outcome: 'ok', reasons: [], came_from: 'an earlier check' },
         judgements: [aJudgement({ judge_outcome: 'bin' })], shown: false },
-      { ...reading, reading_key: 'r1', number: 2, attempt: 1, check: { state: 'ok', verdict: 'bad', outcome: 'ok' }, shown: true, judgements: [
+      { ...reading, reading_key: 'r1', number: 2, attempt: 1, check: { state: 'ok', verdict: 'bad', outcome: 'ok', reasons: [] }, shown: true, judgements: [
         aJudgement(),
         aJudgement({ again: 1, counts: false, mode: 'standard' }),
         aJudgement({ version: 'judge/2', version_state: 'prototype', counts: false }),

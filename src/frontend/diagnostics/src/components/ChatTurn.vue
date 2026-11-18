@@ -4,6 +4,7 @@ import FoldSection from '@/components/base/FoldSection.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
 import ChatServerAnswer from '@/components/ChatServerAnswer.vue'
 import type { IconName } from '@/icon_registry'
+import { usd } from '@/cost_format'
 import { renderMarkdown } from '@/render_markdown'
 import type { ChatResult, SecurityCheck } from '@/types/api/chat_types'
 import type { components } from '@/types/api/diagnostics_api'
@@ -120,7 +121,7 @@ function articleOf(article: ArticleLink) {
     <footer class="turn-foot">
       <span class="turn-id">{{ result.turn_id }}</span>
       · {{ (result.seconds ?? 0).toFixed(1) }} s
-      · {{ typeof result.usd === 'number' ? `≈ ${result.usd.toFixed(4)} USD` : 'cost unknown' }}
+      · {{ typeof result.usd === 'number' ? `≈ ${usd(result.usd)} USD` : 'cost unknown' }}
       <span class="cost-note">(agent, router and generator; query embeddings not counted)</span>
       <span v-if="!result.logged" class="not-logged">· not in the turn log</span>
       <FoldSection class="security" title="Security checks">

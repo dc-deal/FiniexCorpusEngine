@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import DataTable from '@/components/base/DataTable.vue'
 import IntegrityMark from '@/components/IntegrityMark.vue'
+import { usd } from '@/cost_format'
 import StateMark from '@/components/StateMark.vue'
 import type { ModelRow, ModelSection, Section } from '@/types/api/overview_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
@@ -21,9 +22,9 @@ function formatted(count: number | null): string {
   return count === null ? '—' : count.toLocaleString('en')
 }
 
-function usd(row: Section['rows'][number] | ModelRow, kb: KnowledgeBase): string {
+function costOf(row: Section['rows'][number] | ModelRow, kb: KnowledgeBase): string {
   const cost = 'free_usd' in row ? row[`${kb}_usd` as const] : null
-  return cost === null ? '—' : cost.toFixed(2)
+  return cost === null ? '—' : usd(cost)
 }
 </script>
 
@@ -56,7 +57,7 @@ function usd(row: Section['rows'][number] | ModelRow, kb: KnowledgeBase): string
               </RouterLink>
               <template v-else>{{ formatted(row[kb]) }}</template>
             </td>
-            <td v-if="paid" class="box-count box-usd" :data-kb-usd="kb">{{ usd(row, kb) }}</td>
+            <td v-if="paid" class="box-count box-usd" :data-kb-usd="kb">{{ costOf(row, kb) }}</td>
           </template>
         </tr>
       </tbody>

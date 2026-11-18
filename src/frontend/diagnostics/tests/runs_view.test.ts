@@ -74,7 +74,7 @@ describe('RunView', () => {
     expect(vi.mocked(getRun)).toHaveBeenCalledWith('free', 17)
     expect(view.find('.command').text()).toBe('python -m backend.conversion.replay reread --work kelly --page 3 --cap 75')
     expect(view.find('[data-fact="code"]').text()).toContain('15e96738fe35 · with uncommitted changes')
-    expect(view.findAll('[data-fact="cost"] .provider').map(provider => provider.text())).toEqual(['· anthropic 0.0580', '· openrouter 0.1080'])
+    expect(view.findAll('[data-fact="cost"] .provider').map(provider => provider.text())).toEqual(['· anthropic 0.058', '· openrouter 0.11'])
     const [exported, unexported] = view.findAll('.chose-rows tbody tr')
     expect(exported.find('a').attributes('href')).toBe(`#/free/sources/${KELLY}/page/3`)
     expect(exported.find('.when time').attributes('datetime')).toBe('2026-11-05T08:53:03+00:00')

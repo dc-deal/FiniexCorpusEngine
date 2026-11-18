@@ -7,6 +7,7 @@ import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import DetailList from '@/components/base/DetailList.vue'
+import { usd } from '@/cost_format'
 import { useRunsStore } from '@/stores/runs_store'
 import { useViewName } from '@/view_name'
 import type { KnowledgeBase } from '@/types/api/source_types'
@@ -57,9 +58,9 @@ useViewName(() => (shown.value ? `Run #${shown.value.run_id}` : null))
         <dd v-else>not recorded</dd>
         <dt>cost</dt>
         <dd data-fact="cost">
-          {{ shown.cost_usd === null ? 'not recorded' : `${shown.cost_usd.toFixed(4)} USD` }}
-          <span v-for="(usd, provider) in shown.cost_by_provider ?? {}" :key="provider" class="provider" :data-provider="provider">
-            · {{ provider }} {{ usd.toFixed(4) }}
+          {{ shown.cost_usd === null ? 'not recorded' : `${usd(shown.cost_usd)} USD` }}
+          <span v-for="(cost, provider) in shown.cost_by_provider ?? {}" :key="provider" class="provider" :data-provider="provider">
+            · {{ provider }} {{ usd(cost) }}
           </span>
         </dd>
         <template v-if="shown.batch_ids.length">

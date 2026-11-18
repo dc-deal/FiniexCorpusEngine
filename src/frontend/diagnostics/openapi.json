@@ -1458,6 +1458,25 @@
             ],
             "title": "Deviation"
           },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "format_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Format Errors",
+            "default": []
+          },
           "check": {
             "anyOf": [
               {
@@ -1522,6 +1541,14 @@
               }
             ],
             "title": "Outcome"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
           },
           "came_from": {
             "anyOf": [
@@ -4787,7 +4814,14 @@
             "title": "Attempt"
           },
           "cost_usd": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Cost Usd"
           },
           "error_message": {
@@ -5614,6 +5648,20 @@
               }
             ],
             "title": "Line"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
           },
           "looked": {
             "anyOf": [
@@ -7338,7 +7386,14 @@
             "title": "Attempt"
           },
           "cost_usd": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Cost Usd"
           },
           "stored_at": {

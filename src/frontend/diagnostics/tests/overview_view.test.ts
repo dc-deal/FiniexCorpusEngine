@@ -82,7 +82,7 @@ describe('OverviewView', () => {
     expect(free.find('[data-tile="pages"] .tile-value').text()).toBe('12')
     expect(free.find('[data-tile="judged"] .tile-value').text()).toBe('7')
     expect(free.find('[data-tile="to_look_at"]').attributes('href')).toBe('#/issues')
-    expect(free.find('[data-tile="cost"] .tile-value').text()).toBe('0.20')
+    expect(free.find('[data-tile="cost"] .tile-value').text()).toBe('0.2')
     expect(view.find('.headline[data-kb="licensed"] .not-served').text()).toContain('--public-only')
   })
 
@@ -133,7 +133,7 @@ describe('OverviewView', () => {
     expect(router.resolve(href.slice(1)).query).toEqual({ knowledge_base: 'free', reader: SECOND_READER })
     // a cost the export does not give is said unknown, never shown as nothing spent
     expect(second.find('[data-kb-usd="free"]').text()).toBe('—')
-    expect(readers.find('[data-value="claude-sonnet-5-5"] [data-kb-usd="free"]').text()).toBe('0.20')
+    expect(readers.find('[data-value="claude-sonnet-5-5"] [data-kb-usd="free"]').text()).toBe('0.2')
     expect(view.find('[data-section="Judgements by model"] [data-kb="free"] a').attributes('href'))
       .toBe('#/pages?knowledge_base=free&judge=claude-sonnet-5-5')
     // the boxes that count pages alone carry no cost column
@@ -184,7 +184,7 @@ describe('OverviewView', () => {
     expect(run.find('.command').text()).toBe('replay reread')
     expect(run.find('.command').attributes('title')).toBe('python -m backend.conversion.replay reread')
     expect(run.find('.batches summary').text()).toBe('2 batches')
-    expect(run.find('.cost').text()).toBe('0.0416')
+    expect(run.find('.cost').text()).toBe('0.042')
     // a run's number opens its own page
     expect(run.find('.run-id a').attributes('href')).toBe('#/free/runs/17')
   })

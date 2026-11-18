@@ -8,6 +8,7 @@ import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import OverviewSection from '@/components/OverviewSection.vue'
+import { usd } from '@/cost_format'
 import { shortCommand } from '@/run_format'
 import { useOverviewStore } from '@/stores/overview_store'
 import type { KnowledgeBase } from '@/types/api/source_types'
@@ -69,7 +70,7 @@ function inTheSearch(count: number | null | undefined): string {
               <span class="tile-label">to look at</span>
             </RouterLink>
             <div class="tile" data-tile="cost">
-              <span class="tile-value">{{ base.cost_usd.toFixed(2) }}</span>
+              <span class="tile-value">{{ usd(base.cost_usd) }}</span>
               <span class="tile-label">USD spent</span>
             </div>
           </div>
@@ -126,7 +127,7 @@ function inTheSearch(count: number | null | undefined): string {
                     </FoldSection>
                   </td>
                   <td>{{ run.outcome ?? '' }}</td>
-                  <td class="cost">{{ run.cost_usd === null ? '' : run.cost_usd.toFixed(4) }}</td>
+                  <td class="cost">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
                 </tr>
               </tbody>
             </DataTable>

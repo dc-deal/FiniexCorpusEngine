@@ -659,3 +659,16 @@ The record of how the diagnostics frontend came about, mistakes included.
   `Request` took its place. **Found on the way:** the test client's default host, `testserver`, is refused like any
   foreign name, so every test client now names 127.0.0.1; the rebuilt bundle differs from the old only in the scoped style
   ids Vue hashes from each component's source, comments included.
+- **A.a: why, cost, the raw error's block and the box's stroke** (line 1's handoff, 18 Nov, the operator's A.a). The
+  worktree first moved onto the new main: every junction to the data removed with `rmdir` but `.claude`, the main tree's
+  folders named in a git-ignored `configs/app_config.local.json` instead (285.a). With it six of line 1's tests failed,
+  each assuming the data lay inside the repository; line 1 fixed them (f282e80). Then the four tasks. **Found on the way:**
+  the page's row wrote 0.0 for a reading read in a session, where its attempt wrote None; the API takes the attempt's
+  own, and line 1 makes the row's None too. The export writes `format_errors: null` for a reading that passed, which the
+  model takes as none. Three browser checks went red after the change and were the checks' own: two computed the
+  expected figure with `toFixed`, one invented a history in the API's old shape, which threw in the view; they now take
+  the formatter and the current shape. **The box:** line 1 measured the reader's boxes against the text layer (median 1 px
+  off); the view put each frame on its bbox to 0.03 px, measured in the browser over 65 blocks, so nothing was shifted.
+  A screenshot showed what was: the stroke inside the box lay on the first and last glyphs. **Mistake:** a screenshot
+  script given `/free/...` from Git Bash found no page, its path rewritten into Git's own folder, as this file warned on
+  5 Nov; run from PowerShell it worked.

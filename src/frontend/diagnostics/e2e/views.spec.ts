@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { NOT_MEASURABLE, usd } from '../src/cost_format'
 
 /**
  * The views in a real browser, against the built UI and the tracked data: what jsdom cannot show, such as an image that
@@ -78,7 +79,7 @@ test('the overview says which model did what, and a model\'s count opens the pag
   const box = page.locator('[data-band="cost"] [data-section="Readings by model"]')
   await expect(box.locator('thead th')).toHaveText(['Readings by model', 'free', 'USD', 'licensed', 'USD'])
   const row = box.locator(`tr[data-value="${fewest.value}"]`)
-  await expect(row.locator('[data-kb-usd="free"]')).toHaveText(fewest.free_usd === null ? '—' : fewest.free_usd.toFixed(2))
+  await expect(row.locator('[data-kb-usd="free"]')).toHaveText(fewest.free_usd === null ? '—' : usd(fewest.free_usd))
   await row.locator('[data-kb="free"] a').click()
   await settled(page)
   await expect(page.locator('[data-filter="reader"]')).toContainText(fewest.value)
@@ -437,7 +438,7 @@ test('a work\'s chapters are one table, and every page table in them stands in t
 // every field the API serves for a page stands in its row, reachable in the table's own scroller, and the page itself
 // never scrolls sideways
 test('nothing a page row carries is lost at 1280 or at 390 px, and the page never scrolls sideways', async ({ page, request }) => {
-  type Row = { pdf_page: number, printed_label: string | null, cost_usd: number, attempt: number, error_message: string | null,
+  type Row = { pdf_page: number, printed_label: string | null, cost_usd: number | null, attempt: number, error_message: string | null,
     route_level: string | null, route_why: string | null, check: { reasons: { value: string }[] } }
   const { pages } = await (await request.get(`/api/free/works/${FINANCE}/pages`)).json() as { pages: Row[] }
   const sample = [...pages.slice(0, 5), ...pages.filter(row => row.route_level !== 'checked' || row.attempt > 0 || row.check.reasons.length)]
@@ -455,7 +456,8 @@ test('nothing a page row carries is lost at 1280 or at 390 px, and the page neve
     for (const row of sample) {
       const line = page.locator(`tr[data-page="${row.pdf_page}"]`)
       const text = await line.textContent()
-      const expected = [`p. ${row.pdf_page}`, row.printed_label, row.cost_usd.toFixed(4), row.attempt > 0 ? String(row.attempt) : null,
+      const expected = [`p. ${row.pdf_page}`, row.printed_label, row.cost_usd === null ? NOT_MEASURABLE : usd(row.cost_usd),
+        row.attempt > 0 ? String(row.attempt) : null,
         row.error_message ?? (row.route_level && row.route_level !== 'checked' ? row.route_why : null),
         ...row.check.reasons.map(reason => reason.value)]
       for (const field of expected.filter(Boolean)) expect(text, `p. ${row.pdf_page} at ${width} px`).toContain(field)
@@ -1254,7 +1256,8 @@ test('a page that was read again lists its readings, the one shown marked and wh
   const real = await (await request.get(`/api/free/works/${KELLY}/pages/7`)).json() as { trace: { reading_key: string, model: string } }
   // shaped as the API sends a reading since 147.a: every one carries its judgements, here none
   const first = { reading_key: '0123456789abcdef', number: 1, purpose: 'first reading', model: real.trace.model, mode: 'batch',
-    attempt: 0, class_now: 'malformed', stored_at: '2026-11-02T14:48:03+00:00', deviation: null, judgements: [], shown: false }
+    attempt: 0, class_now: 'malformed', stored_at: '2026-11-02T14:48:03+00:00', deviation: null, judgements: [], shown: false,
+    cost_usd: 0.0157879, format_errors: ['block b03 (line 22): in=b00 points to no block on this page'], check: null }
   const second = { ...first, reading_key: real.trace.reading_key, number: 2, purpose: 'read again by a replay', mode: 'standard',
     attempt: 1, class_now: 'ok', stored_at: '2026-11-04T09:12:00+00:00', shown: true }
   await page.route(`**/api/free/works/${KELLY}/pages/7`, async route => {
@@ -1267,6 +1270,9 @@ test('a page that was read again lists its readings, the one shown marked and wh
   await expect(page.locator('.history [data-reading]')).toHaveCount(2)
   await expect(page.locator('.history .current')).toContainText('shown here')
   await expect(page.locator('.history .chosen')).toContainText('re-read after the format retry')
+  // the first reading says why it is malformed, in the validator's words, though no check reached it (A.a, 18 Nov)
+  await expect(page.locator('.history [data-reading="0123456789abcdef"] [data-part="format-error"]'))
+    .toHaveText(first.format_errors)
   await expect(page.locator('.history')).toBeInViewport()
   await page.screenshot({ path: `${SHOTS}/page_history.png` })
 })
@@ -1881,6 +1887,12 @@ test('a block under the pointer is framed on the original exactly where the read
   expect(Math.abs(drawn.y - (image.y + y0 / height * image.height))).toBeLessThanOrEqual(2)
   expect(Math.abs(drawn.width - (x1 - x0) / width * image.width)).toBeLessThanOrEqual(2)
   expect(Math.abs(drawn.height - (y1 - y0) / height * image.height)).toBeLessThanOrEqual(2)
+  // its stroke stands outside the box: a box hugs the printed text, and a stroke drawn inside it covered the glyphs' outer
+  // pixels, which read as a box a little off (the operator, 18 Nov)
+  expect(await frame.evaluate(element => {
+    const style = getComputedStyle(element)
+    return [style.borderTopWidth, style.borderLeftWidth, style.outlineWidth, style.outlineStyle]
+  })).toEqual(['0px', '0px', '2px', 'solid'])
   await page.screenshot({ path: `${SHOTS}/page_box.png` })
 
   // the last placed block lies low on the page: its frame is brought into the original's view
@@ -1964,6 +1976,22 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   await alone.locator('[data-part="show-raw"]').click()
   await expect(page.locator('pre.raw .raw-line.marked')).toHaveAttribute('data-line', String(lineOnly!.line))
   await expect(page.locator('pre.raw .raw-line.marked')).toBeInViewport()
+  // as a compiler marks an error (line 1's A.a, 18 Nov): b13's whole block from its opening fence to its closing one, the
+  // named line strongest and in the error's colour, and the line named alone; nothing else
+  const [first, last] = (b13 as Placed & { lines: number[] }).lines
+  const named = page.locator(`pre.raw .raw-line[data-line="${b13!.line}"]`)
+  await expect(named).toHaveAttribute('data-error-line', 'error-named')
+  await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveAttribute('data-error-line', 'error-block')
+  await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveText(/^:::\s*$/)
+  expect(first).toBe(b13!.line)
+  const marked338 = new Set((p338.reading.error_places as (Placed & { lines: number[] | null })[]).flatMap(error => {
+    const [from, to] = error.lines ?? (error.line ? [error.line, error.line] : [1, 0])
+    return Array.from({ length: to - from + 1 }, (_, at) => from + at)
+  }))
+  await expect(page.locator('pre.raw [data-error-line]')).toHaveCount(marked338.size)
+  expect(await named.evaluate(line => getComputedStyle(line, '::before').color)).toBe(await colour('[data-part="parse-errors"] li'))
+  await named.scrollIntoViewIfNeeded()
+  await page.locator('pre.raw').screenshot({ path: `${SHOTS}/raw_error_block.png` })
 })
 
 test('a page without a reading opens on the text the search and the chat quote, its one choice', async ({ page, request }) => {

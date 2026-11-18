@@ -246,7 +246,7 @@ class PageRow(BaseModel):
     class_when_collected: str
     class_now: str
     attempt: int
-    cost_usd: float
+    cost_usd: float | None  # None for a reading read in a Claude Code session (280.a): see `reading_cost`
     error_message: str | None  # the provider's own sentence where a reading failed, e.g. its content filter's
     # The page's text comes from its PDF's text layer, and its route says why: the view's answer where the provider gave
     # no sentence, as for a page the reader declined (line 1, 2026-11-04).
@@ -309,7 +309,7 @@ class Trace(BaseModel):
     contract: str
     validator: str
     attempt: int
-    cost_usd: float
+    cost_usd: float | None  # None for a reading read in a Claude Code session (280.a): see `reading_cost`
     stored_at: str
     class_when_collected: str
     class_now: str
@@ -389,6 +389,9 @@ class ReadingError(BaseModel):
     message: str  # what it says, without its place
     block: str | None = None
     line: int | None = None  # counted as the validator counts: line 1 is the front matter's first `---`
+    # the first and last line of the block it names, from its opening fence to its closing one (`block_lines`); None for
+    # an error that names a line alone, or no place
+    lines: list[int] | None = None
     looked: str | None = None
     looked_at: Literal['block', 'page'] | None = None
     corrected: bool = False
@@ -409,8 +412,16 @@ class AttemptCheck(BaseModel):
     state: str
     verdict: str | None = None
     outcome: str | None = None
+    # why the check gave its state, in the core's words ("format: malformed", "judge: bad"); [] where nothing is wrong
+    reasons: list[str] = []
     # where the check comes from, where it is not the latest run's: "an earlier check" for a reading checked before
     came_from: str | None = Field(default=None, validation_alias='from')
+
+    @field_validator('reasons', mode='before')
+    @classmethod
+    def none_is_empty(cls, given: list[str] | None) -> list[str]:
+        """An export written before the reasons were exported has none: null reads as nothing said."""
+        return given or []
 
 
 class ReaderRule(BaseModel):
@@ -479,9 +490,20 @@ class Attempt(BaseModel):
     class_now: str  # its class under today's validator
     stored_at: str
     deviation: str | None = None  # why a reading is off the default reader, where it is (63.a)
+    # what the reading cost; None for one read in a Claude Code session (280.a), whose cost no API ledger holds
+    cost_usd: float | None = None
+    # the validator's messages where the reading failed its format check, as the core wrote them, at most 8; [] otherwise.
+    # They say why a reading is malformed where no check ran on it, as on a reading its one format retry replaced
+    format_errors: list[str] = []
     check: AttemptCheck | None = None  # None where no check ran on this reading
     judgements: list[Judgement] = []  # every judgement of this reading, oldest first
     shown: bool  # the reading this page shows and serves
+
+    @field_validator('format_errors', mode='before')
+    @classmethod
+    def none_is_empty(cls, given: list[str] | None) -> list[str]:
+        """The export writes null for a reading that passed its format check."""
+        return given or []
 
 
 class Chosen(BaseModel):
@@ -757,6 +779,15 @@ def attempts_of(row: dict) -> 'list[Attempt] | None':
                                     'judgements': [{**judgement, 'recall': recall_id(attempt['reading_key'], judgement)}
                                                    for judgement in attempt.get('judgements') or []]})
             for at, attempt in enumerate(attempts)]
+
+
+def reading_cost(row: dict) -> float | None:
+    """What the reading a page shows cost, as its own attempt records it: None for a reading read in a Claude Code
+    session (280.a), whose cost no API ledger holds, so the view never says 0 for it. The page's row writes 0.0 there, so
+    the shown attempt's own field counts where the export lists it; an export without it keeps the row's."""
+    shown = next((attempt for attempt in row.get('attempts') or [] if attempt.get('reading_key') == row.get('reading_key')),
+                 None)
+    return shown['cost_usd'] if shown is not None and 'cost_usd' in shown else row.get('cost_usd')
 
 
 def assessed_judge(person: dict, attempts: list[dict]) -> str | None:
@@ -1081,10 +1112,25 @@ def latest_standing(people: list[PersonVerdict], chosen=lambda person: True) -> 
 ERROR_PLACE = re.compile(r'(?:block (?P<block>\S+) \(line (?P<line>\d+)\)|line (?P<only>\d+)): (?P<message>.*)', re.S)
 
 
-def errors_placed(errors: list[str], blocks: list[Block], people: list[PersonVerdict]) -> list[ReadingError]:
+def block_lines(raw: str, line: int) -> list[int]:
+    """The first and last line of the block that opens at `line` in the raw text, counted as the validator counts them:
+    from its opening fence to its closing `:::` (the core's `page_contract.CLOSER`), or to the line before the next block
+    where it was left open. The validator names the line a block opens on, while what it found wrong may stand lines below
+    (found 18 Nov: line 26 named, the offending text on line 28), so the raw view marks the whole block."""
+    lines = raw.split('\n')
+    for at in range(line, len(lines)):  # `line` counts from 1, so lines[line] is the line after the opening fence
+        if page_contract.CLOSER.match(lines[at]):
+            return [line, at + 1]
+        if page_contract.OPENER_IN_BODY.match(lines[at]):
+            return [line, at]
+    return [line, len(lines)]
+
+
+def errors_placed(errors: list[str], blocks: list[Block], people: list[PersonVerdict], raw: str = '') -> list[ReadingError]:
     """The validator's errors, each parted into the block and the line it names (228.a), and whether a person has looked: the
     latest verdict that applies to the block, else to the page as a whole, and whether a correction stands for the block.
-    An error that names no place is kept whole, its message the error itself."""
+    An error that names no place is kept whole, its message the error itself. An error on a block carries the block's
+    lines in the raw text, so the raw view marks them as a compiler marks an error."""
     corrected = {block.id for block in blocks if block.correction}
     whole = latest_standing(people, lambda person: person.block is None)
     placed = []
@@ -1095,6 +1141,7 @@ def errors_placed(errors: list[str], blocks: list[Block], people: list[PersonVer
         on_block = latest_standing(people, lambda person: person.block == block) if block else None
         looked = on_block or whole
         placed.append(ReadingError(said=error, message=found['message'] if found else error, block=block, line=line,
+                                   lines=block_lines(raw, line) if found and found['line'] and raw else None,
                                    looked=looked.verdict if looked else None,
                                    looked_at=('block' if on_block else 'page') if looked else None,
                                    corrected=block in corrected))
@@ -1303,7 +1350,7 @@ class Readings:
                          pages=[PageRow(pdf_page=row['pdf_page'], printed_label=row.get('printed_label'),
                                         units=row.get('units'), route=row['route'],
                                         check=check_of(row), class_when_collected=row['class_when_collected'],
-                                        class_now=row['class_now'], attempt=row['attempt'], cost_usd=row['cost_usd'],
+                                        class_now=row['class_now'], attempt=row['attempt'], cost_usd=reading_cost(row),
                                         error_message=row.get('error_message'),
                                         from_text_layer=row['route'] in TEXT_LAYER_ROUTES,
                                         route_level=row.get('route_level'), route_why=route_parts(row['route'])[2],
@@ -1373,7 +1420,7 @@ class Readings:
             errors = parsed.errors
             reading = Reading(front={name: str(value) for name, value in parsed.front.items()}, blocks=blocks,
                               errors=parsed.errors, warnings=parsed.warnings,
-                              error_places=errors_placed(parsed.errors, blocks, people))
+                              error_places=errors_placed(parsed.errors, blocks, people, raw))
         chosen = row.get('chosen')
         source, reader, why = route_parts(row['route'])
         # the blocks with findings in reading order, a decorative one after the rest (194.a), so the page opens on content
@@ -1398,7 +1445,7 @@ class Readings:
             route=row['route'], from_text_layer=row['route'] in TEXT_LAYER_ROUTES, check=check, reading=reading, raw=raw,
             integrity=state, image=self.image(source_id, pdf_page)[0],
             page_findings=[finding for finding in findings if finding.block not in placed], human=people,
-            trace=Trace(**{name: row.get(name) for name in Trace.model_fields}))
+            trace=Trace(**{**{name: row.get(name) for name in Trace.model_fields}, 'cost_usd': reading_cost(row)}))
 
     def stored_reading(self, row: dict, reading_key: str) -> tuple[str | None, str]:
         """A reading's text and form: the export's for the reading the page shows, else the core's reading store on this
@@ -1437,7 +1484,7 @@ class Readings:
             placed = {block.id for block in blocks}
             reading = Reading(front={name: str(value) for name, value in parsed.front.items()}, blocks=blocks,
                               errors=parsed.errors, warnings=parsed.warnings,
-                              error_places=errors_placed(parsed.errors, blocks, people))
+                              error_places=errors_placed(parsed.errors, blocks, people, text))
             width, _, height = str(parsed.front.get('image_size', '')).partition('x')
             if width.isdigit() and height.isdigit():
                 size = [int(width), int(height)]

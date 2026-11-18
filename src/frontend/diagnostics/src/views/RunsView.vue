@@ -6,6 +6,7 @@ import ApiFailure from '@/components/ApiFailure.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import { usd } from '@/cost_format'
 import { shortCommand } from '@/run_format'
 import { useRunsStore } from '@/stores/runs_store'
 
@@ -55,7 +56,7 @@ onMounted(() => {
               <span v-if="run.batch_ids.length" class="batches">{{ run.batch_ids.length }} {{ run.batch_ids.length === 1 ? 'batch' : 'batches' }}</span>
             </td>
             <td>{{ run.outcome ?? '' }}</td>
-            <td class="cost">{{ run.cost_usd === null ? '' : run.cost_usd.toFixed(4) }}</td>
+            <td class="cost">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
           </tr>
         </tbody>
       </DataTable>

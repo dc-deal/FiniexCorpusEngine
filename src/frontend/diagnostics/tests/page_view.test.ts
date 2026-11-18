@@ -71,7 +71,7 @@ describe('PageView', () => {
     await flushPromises()
     const summary = view.find('.summary')
     expect(summary.find('[data-state="ok"]').exists()).toBe(true)
-    expect(summary.find('.cost').text()).toBe('0.0163 USD')
+    expect(summary.find('.cost').text()).toBe('0.016 USD')
     expect(summary.find('.class-move').exists()).toBe(false)
     expect(summary.find('.retry').exists()).toBe(false)
     expect(summary.find('.error-message').exists()).toBe(false)
@@ -326,7 +326,7 @@ describe('PageView', () => {
   it('lists a page\'s readings over time where it has more than one, the one shown here marked and why it was chosen', async () => {
     const first = { reading_key: 'aaaa1111', number: 1, purpose: 'first reading', cell: 'FREE-SM', model: 'claude-sonnet-5-5',
       mode: 'batch', attempt: 0, class_now: 'malformed', stored_at: '2026-11-02T14:48:03+00:00', deviation: null, judgements: [],
-      shown: false }
+      format_errors: [], cost_usd: 0.0157879, shown: false }
     const second = { ...first, reading_key: '2b2d48e77b246c95', number: 2, purpose: 'read again by a replay', mode: 'standard',
       attempt: 1, class_now: 'ok', stored_at: '2026-11-04T09:12:00+00:00', shown: true }
     vi.mocked(getPage)
@@ -347,7 +347,7 @@ describe('PageView', () => {
     // each numbered across the page's readers and said in the core's words; the reader's own count in the fold (the operator, p. 524)
     expect(rows.map(row => row.find('.reading-number').text())).toEqual(['reading 2', 'reading 1'])
     expect(rows.map(row => row.find('[data-part="purpose"]').text())).toEqual(['read again by a replay', 'first reading'])
-    expect(rows[0].find('[data-part="reader-attempt"]').text()).toBe("the reader's attempt 1 · cell FREE-SM")
+    expect(rows[0].find('[data-part="reader-attempt"]').text()).toBe("the reader's attempt 1 · cell FREE-SM · 0.016 USD")
     expect(healed.find('.history .chosen').text())
       .toBe(`Chosen ${sayTime('2026-11-04T09:13:00+00:00').text} by run 7: re-read after the format retry`)
     expect(healed.find('.history .chosen time').attributes('datetime')).toBe('2026-11-04T09:13:00+00:00')
@@ -442,12 +442,12 @@ describe('PageView', () => {
 
   it('says beside each reading what its check made of it, the verdict only where the state does not say it', async () => {
     const reading = { model: 'claude-sonnet-5-5', mode: 'batch', class_now: 'ok', stored_at: '2026-11-02T14:48:03+00:00',
-      deviation: null, judgements: [] }
+      deviation: null, judgements: [], format_errors: [] }
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
       attempts: [
-        { ...reading, reading_key: 'aaaa1111', number: 1, attempt: 0, check: { state: 'issue', verdict: 'bad', outcome: 'issue' }, shown: false },
+        { ...reading, reading_key: 'aaaa1111', number: 1, attempt: 0, check: { state: 'issue', verdict: 'bad', outcome: 'issue', reasons: ['judge: bad'] }, shown: false },
         { ...reading, reading_key: 'bbbb2222', number: 2, attempt: 1, check: null, shown: false },
-        { ...reading, reading_key: '2b2d48e77b246c95', number: 3, attempt: 2, check: { state: 'ok', verdict: 'ok', outcome: 'ok' }, shown: true },
+        { ...reading, reading_key: '2b2d48e77b246c95', number: 3, attempt: 2, check: { state: 'ok', verdict: 'ok', outcome: 'ok', reasons: [] }, shown: true },
       ],
     }))
     const view = mountView()
@@ -455,6 +455,40 @@ describe('PageView', () => {
     // the reading shown first, then the earlier ones, newest first
     const checks = view.findAll('.history .attempt-check').map(cell => cell.text())
     expect(checks).toEqual(['ok', 'not checked', 'issue · judged bad'])
+  })
+
+  it('says why each reading stands as it does, and a session reading\'s cost as not measurable, never 0', async () => {
+    // invented after licensed pages line 1 named (the operator, 18 Nov: "reading 2 · malformed · issue" said what, not why)
+    const malformed = ['block b04 (line 26): LaTeX command outside math: \\HL']
+    const reading = { model: 'claude-sonnet-5-5', mode: 'batch', class_now: 'malformed', stored_at: '2026-11-02T14:48:03+00:00',
+      deviation: null, judgements: [], cost_usd: 0.0094749 }
+    const page = aPageDetail()
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({
+      trace: { ...page.trace, cost_usd: null },
+      attempts: [
+        { ...reading, reading_key: 'aaaa1111', number: 1, attempt: 0, check: null, format_errors: malformed, shown: false },
+        { ...reading, reading_key: 'bbbb2222', number: 2, attempt: 1, format_errors: malformed, shown: false,
+          check: { state: 'issue', verdict: null, outcome: null, reasons: ['format: malformed'] } },
+        { ...reading, reading_key: '2b2d48e77b246c95', number: 3, attempt: 0, model: 'claude-opus-5-5', mode: 'session',
+          class_now: 'ok', cost_usd: null, format_errors: [], shown: true,
+          check: { state: 'ok', verdict: 'ok', outcome: 'ok', reasons: [] } },
+      ],
+    }))
+    const view = mountView()
+    await flushPromises()
+    expect(view.find('[data-part="reading-cost"]').text()).toBe('external cost, not measurable')
+    const rows = view.findAll('.history [data-reading]')
+    expect(rows.map(row => row.attributes('data-reading'))).toEqual(['2b2d48e77b246c95', 'bbbb2222', 'aaaa1111'])
+    // the session reading: nothing wrong, so no why; its cost said, never 0
+    expect(rows[0].find('[data-part="attempt-why"]').exists()).toBe(false)
+    expect(rows[0].find('[data-part="reader-attempt"]').text()).toBe("the reader's attempt 0 · external cost, not measurable")
+    // the checked retry: the check's reason and the validator's message, as written
+    expect(rows[1].find('[data-part="attempt-reasons"]').text()).toBe('format: malformed')
+    expect(rows[1].findAll('[data-part="format-error"]').map(error => error.text())).toEqual(malformed)
+    expect(rows[1].find('[data-part="reader-attempt"]').text()).toBe("the reader's attempt 1 · 0.0095 USD")
+    // the first reading, which no check reached: the validator's message says why it is malformed all the same
+    expect(rows[2].find('[data-part="attempt-reasons"]').exists()).toBe(false)
+    expect(rows[2].findAll('[data-part="format-error"]').map(error => error.text())).toEqual(malformed)
   })
 
   it('says in the line when the reading file is no longer what was checked, and nothing while it is', async () => {

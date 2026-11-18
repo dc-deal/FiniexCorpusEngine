@@ -1473,3 +1473,26 @@ shelf's counts gave way to invented names and to the free figures. **Measured:**
 test client's own `testserver` among them, gets 400 on the GET routes and the UI while 127.0.0.1, localhost and [::1] get
 the works, and one that the routes' own check still refuses a foreign name; 291 unit tests, 75 checks in the browser (two
 skipped on today's data), 1,368 Python tests.
+
+**Why a reading stands as it does, what it cost, where its error lies, and a box's stroke (A.a, 18 Nov).** Four things the
+operator found on licensed pages, built from fields the core exports. (a) A reading in the Reading History said
+"malformed · issue" and not why: each reading now says the check's reasons in the core's words ("Why: format: malformed")
+and the validator's own messages where it failed its format check ("Format check: block b04 (line 26): …", at most 8 as the
+core exports them), in the look a validator's error has above the reading; a reading no check reached says it all the same.
+The API's `Attempt` carries `format_errors` and its cost, `AttemptCheck` its `reasons`. (b) A reading read in a Claude Code
+session (280.a) has no cost an API ledger holds: its cost is None, from the reading's own attempt where the export lists
+it, and the view says "external cost, not measurable", never 0. Every cost in the UI now goes through one formatter,
+`cost_format.ts`: nothing paid says 0, a dollar or more keeps its cents, less keeps two significant digits (0.014, not
+0.0136), so the runs no longer stand in a column of 0.0000. (c) In the raw text an error is marked as a compiler marks
+one: the whole block it names, from its opening fence to its closing `:::` (`ReadingError.lines`, from the core's own
+`CLOSER`), since the validator names the line a block opens on while the fault may stand lines below; the named line
+strongest, its number in the error's colour, and an error a person has looked at with a quiet bar. (d) The boxes on the
+original "always a little off": measured against the bbox on finance pp. 21 and 113 and Kelly p. 4, every frame sat on
+it to 0.03 px, so the transform was right; but a box hugs the printed text, and its 2px stroke, drawn inside the box,
+covered the glyphs' outermost pixels. The stroke now stands just outside the box (an outline), the box itself unchanged.
+**Measured:** Python tests of the attempts' reasons, messages and costs, a session reading's None and an older export's
+row cost, and of a block's lines (closed, left open, last); unit tests of the formatter, of the history's why and costs,
+and of the raw marks; a browser check of the stroke outside the box (shown failing first against the old build) and of
+b13's block marked on accounting p. 338; 298 unit tests, 75 checks in the browser (two skipped on today's data), 1,403
+Python tests. `npm audit --omit=dev` reports a new advisory on `picomatch` (every version), which reaches the list
+through the build tools of Vite and vue-router and is not in the bundle; its only offered fix downgrades vue-router to 4.

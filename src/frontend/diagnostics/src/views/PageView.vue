@@ -35,6 +35,7 @@ import { useSettingsStore } from '@/stores/settings_store'
 import { useVerdictStore } from '@/stores/verdict_store'
 import { useViewName } from '@/view_name'
 import { lookedSaid } from '@/person_words'
+import { readingCost, usd } from '@/cost_format'
 import type { Attempt, Judgement, PersonVerdict } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
@@ -308,6 +309,25 @@ function share(value: number | null | undefined): string {
 // text, never in it, so the text copied is the text stored. A validator's error opens it at its line, marked.
 const rawText = ref<HTMLElement | null>(null)
 const rawLines = computed(() => (analysisRaw.value ?? '').split('\n'))
+// The lines a validator's error names, marked as a compiler marks them (line 1's A.a, 18 Nov): the whole block the API says
+// it names (`lines`), since the validator names the line a block opens on while what it found may stand lines below, and
+// the named line strongest. An error a person has looked at marks its lines quietly, as its entry above recedes; where
+// two errors meet on a line, the stronger mark stands.
+type LineMark = 'error-looked' | 'error-block' | 'error-named'
+const LINE_MARK_RANK: Record<LineMark, number> = { 'error-looked': 0, 'error-block': 1, 'error-named': 2 }
+const errorLines = computed(() => {
+  const marks = new Map<number, LineMark>()
+  for (const error of analysisReading.value?.error_places ?? []) {
+    if (!error.line) continue
+    const [first = error.line, last = first] = error.lines ?? []
+    for (let line = first; line <= last; line++) {
+      const kind: LineMark = error.looked ? 'error-looked' : line === error.line ? 'error-named' : 'error-block'
+      const had = marks.get(line)
+      if (!had || LINE_MARK_RANK[kind] > LINE_MARK_RANK[had]) marks.set(line, kind)
+    }
+  }
+  return marks
+})
 async function showRaw(line: number): Promise<void> {
   mode.value = 'raw'
   rawLine.value = line
@@ -459,7 +479,7 @@ watch(box, async () => {
             <span v-if="readingOf" class="reading-part">{{ readingOf }}</span>
             <span v-if="classMoved" class="class-move reading-part">{{ shown.trace.class_when_collected }} → {{ shown.trace.class_now }}</span>
             <span v-if="shown.trace.attempt > 0" class="retry reading-part">retry {{ shown.trace.attempt }}</span>
-            <span class="cost reading-part">{{ shown.trace.cost_usd.toFixed(4) }} USD</span>
+            <span class="cost reading-part" data-part="reading-cost">{{ readingCost(shown.trace.cost_usd) }}</span>
             <span v-if="!shown.image.available" class="image-mark missing reading-part">
               <AppIcon name="status-unknown" /> original not available
             </span>
@@ -544,9 +564,25 @@ watch(box, async () => {
                 <!-- the reader's own count and cell stand here, folded: the line numbers the page's readings across readers -->
                 <p class="secondary" data-part="reader-attempt">
                   {{ [`the reader's attempt ${attempt.attempt}`, attempt.cell ? `cell ${attempt.cell}` : '',
-                      attempt.retry_of_number ? `re-read of reading ${attempt.retry_of_number}` : ''].filter(Boolean).join(' · ') }}
+                      attempt.retry_of_number ? `re-read of reading ${attempt.retry_of_number}` : '',
+                      readingCost(attempt.cost_usd ?? null)].filter(Boolean).join(' · ') }}
                 </p>
                 <p class="hash secondary">reading key {{ attempt.reading_key }}</p>
+                <!-- why the reading stands as it does (the operator, 18 Nov: "reading 2 · malformed · issue" said what, not why):
+                     the check's reasons in the core's words, and the validator's own messages where the reading failed its
+                     format check, which say it also where no check ran on the reading, as on one its format retry replaced -->
+                <LabelledLines v-if="attempt.check?.reasons.length || attempt.format_errors.length" class="attempt-why" data-part="attempt-why">
+                  <LabelledLine v-if="attempt.check?.reasons.length" label="Why">
+                    <span data-part="attempt-reasons">{{ attempt.check.reasons.join(' · ') }}</span>
+                  </LabelledLine>
+                  <LabelledLine v-if="attempt.format_errors.length" label="Format check">
+                    <ul class="format-errors">
+                      <li v-for="(error, at) in attempt.format_errors" :key="at" data-part="format-error">
+                        <AppIcon name="status-error" /> {{ error }}
+                      </li>
+                    </ul>
+                  </LabelledLine>
+                </LabelledLines>
                 <!-- its pipeline judgements in aligned columns (147.a): the one that counts first, then the rest by date; the role
                      a column of its own, so the eye can run down it; what does not count recedes -->
                 <DataTable v-if="pipelineJudgements(attempt.judgements).length" table-class="judgements ruled">
@@ -582,7 +618,7 @@ watch(box, async () => {
                       <td class="secondary">{{ judgement.judge_outcome && judgement.judge_outcome !== judgement.outcome ? judgement.judge_outcome : '' }}</td>
                       <td class="judgement-findings">{{ findingsWord(judgement) }}</td>
                       <td class="secondary">{{ [judgement.model, judgement.mode].filter(Boolean).join(' · ') }}</td>
-                      <td class="secondary number">{{ typeof judgement.cost_usd === 'number' ? judgement.cost_usd.toFixed(4) : '' }}</td>
+                      <td class="secondary number">{{ typeof judgement.cost_usd === 'number' ? usd(judgement.cost_usd) : '' }}</td>
                       <td class="secondary"><HumanTime :at="judgement.stored_at" /></td>
                       <td class="recall-cell">
                         <span v-if="judgement.recall === recallId" class="recall-current" data-part="recalled-here"><AppIcon name="recalled" /> on the page</span>
@@ -640,7 +676,7 @@ watch(box, async () => {
                 <td class="secondary">{{ judgement.judge_outcome && judgement.judge_outcome !== judgement.outcome ? judgement.judge_outcome : '' }}</td>
                 <td>{{ findingsWord(judgement) }}</td>
                 <td class="secondary">{{ [judgement.model, judgement.mode].filter(Boolean).join(' · ') }}</td>
-                <td class="secondary number">{{ typeof judgement.cost_usd === 'number' ? judgement.cost_usd.toFixed(4) : '' }}</td>
+                <td class="secondary number">{{ typeof judgement.cost_usd === 'number' ? usd(judgement.cost_usd) : '' }}</td>
                 <td class="secondary"><HumanTime :at="judgement.stored_at" /></td>
                 <td class="recall-cell">
                   <span v-if="judgement.recall === recallId" class="recall-current" data-part="recalled-here"><AppIcon name="recalled" /> on the page</span>
@@ -725,7 +761,7 @@ watch(box, async () => {
             <dt>Attempt</dt>
             <dd>{{ shown.trace.attempt }}</dd>
             <dt>Cost</dt>
-            <dd>{{ shown.trace.cost_usd.toFixed(4) }} USD</dd>
+            <dd>{{ readingCost(shown.trace.cost_usd) }}</dd>
             <dt>Stored</dt>
             <dd><HumanTime :at="shown.trace.stored_at" /></dd>
             <template v-if="shown.trace.text_sha256">
@@ -819,7 +855,7 @@ watch(box, async () => {
               @jump="showBlock"
               @raw="showRaw"
             />
-            <pre v-else ref="rawText" class="raw" data-part="raw" :style="{ '--gutter': `${String(rawLines.length).length}ch` }"><span v-for="(line, at) in rawLines" :key="at" class="raw-line" :class="{ marked: at + 1 === rawLine }" :data-line="at + 1">{{ at < rawLines.length - 1 ? `${line}\n` : line }}</span></pre>
+            <pre v-else ref="rawText" class="raw" data-part="raw" :style="{ '--gutter': `${String(rawLines.length).length}ch` }"><span v-for="(line, at) in rawLines" :key="at" class="raw-line" :class="[{ marked: at + 1 === rawLine }, errorLines.get(at + 1)]" :data-line="at + 1" :data-error-line="errorLines.get(at + 1)">{{ at < rawLines.length - 1 ? `${line}\n` : line }}</span></pre>
           </template>
         </div>
       </div>
@@ -1126,18 +1162,21 @@ tr.recalled-source {
   height: auto;
 }
 
-/* where the reader placed the block on show: a frame, not a fill, so the printed text inside stays legible */
+/* where the reader placed the block on show: a frame, not a fill, so the printed text inside stays legible. The element is
+   exactly the bbox and its stroke stands just outside it, an outline rather than a border: a box hugs the printed text,
+   and a 2px border drawn inside it covered the glyphs' outermost pixels, which read as a box a little off (the operator,
+   18 Nov), though the element sat on the bbox to 0.03 px (measured on finance pp. 21 and 113 and Kelly p. 4) */
 .block-box {
   position: absolute;
-  border: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent);
   background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
   pointer-events: none;
 }
 
 /* a block framed for another that has no box of its own: dashed, as the derived block's frame is borrowed, not placed */
 .block-box.recalled {
-  border-color: var(--color-annotation);
-  border-style: dashed;
+  outline-color: var(--color-annotation);
+  outline-style: dashed;
   background-color: color-mix(in srgb, var(--color-annotation) 10%, transparent);
 }
 
@@ -1146,13 +1185,14 @@ tr.recalled-source {
 }
 
 .block-box.described {
-  border-style: dashed;
+  outline-style: dashed;
   background-color: transparent;
 }
 
+/* the label stands on the stroke's outer edge, as the stroke stands outside the box */
 .block-box-label {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 2px);
   left: -2px;
   padding: 0 var(--space-xs);
   background-color: var(--color-accent);
@@ -1172,13 +1212,19 @@ tr.recalled-source {
   margin-bottom: var(--space-sm);
 }
 
-.parse-errors {
+/* a validator's error has one look (221.a), above the reading and in the Reading History alike */
+.parse-errors,
+.format-errors {
   list-style: none;
-  margin-bottom: var(--space-sm);
   color: var(--color-error);
 }
 
-.parse-errors li {
+.parse-errors {
+  margin-bottom: var(--space-sm);
+}
+
+.parse-errors li,
+.format-errors li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -1213,6 +1259,35 @@ tr.recalled-source {
 .raw-line.marked {
   background-color: var(--color-bg-elevated);
   box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+/* a validator's error in the raw text, as a compiler marks one: the block it names tinted, a bar in the error's role at the
+   gutter, the named line stronger and its number in the role too, so the mark survives greyscale by its bar and weight */
+.raw-line.error-block,
+.raw-line.error-named {
+  background-color: color-mix(in srgb, var(--color-error) 8%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-error);
+}
+
+.raw-line.error-named {
+  background-color: color-mix(in srgb, var(--color-error) 18%, transparent);
+}
+
+.raw-line.error-named::before {
+  color: var(--color-error);
+  font-weight: bold;
+}
+
+/* an error a person has looked at: its block keeps a quiet bar, never the error's colour */
+.raw-line.error-looked {
+  box-shadow: inset 3px 0 0 var(--color-text-secondary);
+}
+
+/* the line a click asked for stays marked over an error's tint, so the jump is seen */
+.raw-line.marked.error-block,
+.raw-line.marked.error-named {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
 }
 
 /* where the quoted text comes from: the route, in the words of the line above */
