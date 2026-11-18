@@ -147,6 +147,11 @@ def test_page1_reads_as_it_always_did_and_page2_is_page1_plus_its_rules():
     assert reader_requests.system_prompt('markdown') == rules_1 + markdown
     assert reader_requests.system_prompt('markdown', 'page/2') == rules_2 + markdown
     assert rules_2.startswith(rules_1) and 'MORE BODY RULES' in rules_2[len(rules_1):]  # an addition, nothing of page/1 changed
+    rules_3 = (reader_requests.PROMPTS / 'reader_page3_rules.txt').read_text(encoding='utf-8')
+    assert reader_requests.system_prompt('markdown', 'page/3') == rules_3 + markdown
+    anchor = 'Inside math a dollar sign is \\$.'  # F4.a: page/3 is page/1 with one sentence after it, nothing else
+    assert rules_3 == rules_1.replace(anchor, anchor + ' A backslash the page prints as text, not as part of a formula, is '
+                                      'written &#92; (rate&#92;term); inside math it is \\backslash.', 1)
     with pytest.raises(ValueError):
         reader_requests.system_prompt('json', 'page/2')
     with pytest.raises(ValueError):

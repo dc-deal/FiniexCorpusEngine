@@ -24,6 +24,7 @@
   "prompts/reader_page1_rules.txt": "80df736f89bd1af29a295703cce5318d3301b4c469057aedf8da4deea547bcff",
   "prompts/reader_page1_markdown.txt": "933b8e57e02b7fb96fdbf9654ee683d0ffd939e74da291a666e12dc2a8310b00",
   "prompts/reader_page2_rules.txt": "9cc2a39ed0387c7fb9b766053efd37460d906474ea73f0b51da26aacf63a62f8",
+  "prompts/reader_page3_rules.txt": "60a2a65002fb63ba287036416a341dbba196a81ada506181d6e0dac91f7a50e5",
   "prompts/judge_page1.txt": "e05fbd324c7c57937998fe9b35adbe0a59380ed5fcef8dc52d2e46d11b22ed08",
   "prompts/judge_page2.txt": "f2ea70b30227c6e1a5875356bccdcfdb71b6b4008b5356b42035e5ca01f07490",
   "prompts/judge_page3.txt": "5fc2fdb61b09300958c9b7944a7ff7f4909aef724479baa53c4e3ed7681a7bfa",

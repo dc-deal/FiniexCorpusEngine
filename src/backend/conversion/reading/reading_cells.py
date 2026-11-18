@@ -75,10 +75,19 @@ CORPUS_CELLS = {cell.name: cell for cell in [
 # six pages where the walk of 10 Nov found the reader wrong, each checked by code (`reader_prototype`).
 WALK_ERRORS = ('openstax-finance-2e:p0094', 'openstax-finance-2e:p0119', 'openstax-finance-2e:p0387',
                'openstax-accounting:p0305', 'openstax-accounting:p0524', 'openstax-accounting:p0969')
+# F4.a (the operator, 18 Nov): page/3, page/1 with one sentence on a backslash printed as text, a prototype the same way: the
+# mini pilot's 20 pages as the gate against page/1, and the free pages whose readings failed only on a LaTeX command outside
+# math, which page/3 must make valid. Nothing runs before the operator has seen the gate.
+BACKSLASH_PAGES = ('carta-conversano-kelly-2020:p0006', 'deep-walk-forward-2025:p0012', 'openstax-finance-2e:p0109',
+                   'openstax-finance-2e:p0179', 'openstax-finance-2e:p0229', 'openstax-finance-2e:p0405',
+                   'openstax-finance-2e:p0446', 'openstax-finance-2e:p0573', 'openstax-finance-2e:p0575')
 READER_PROTOTYPE_CELLS = {cell.name: cell for cell in [
     Cell('P2-MP-SM', SONNET, 'hi', 'markdown', MINI_PILOT, reader_version='page/2'),
     Cell('P2-WALK-SM', SONNET, 'hi', 'markdown', MINI_PILOT, reader_version='page/2',
          whole_works=('openstax-finance-2e', 'openstax-accounting'), only=WALK_ERRORS),
+    Cell('P3-MP-SM', SONNET, 'hi', 'markdown', MINI_PILOT, reader_version='page/3'),
+    Cell('P3-BS-SM', SONNET, 'hi', 'markdown', MINI_PILOT, reader_version='page/3',
+         whole_works=('openstax-finance-2e', 'carta-conversano-kelly-2020', 'deep-walk-forward-2025'), only=BACKSLASH_PAGES),
 ]}
 
 
