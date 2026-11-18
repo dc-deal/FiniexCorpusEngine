@@ -7326,6 +7326,17 @@
               }
             ],
             "title": "Noted"
+          },
+          "served": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served"
           }
         },
         "type": "object",
@@ -7979,6 +7990,17 @@
               }
             ],
             "title": "Structure Why Not"
+          },
+          "not_read": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Read"
           }
         },
         "type": "object",

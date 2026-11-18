@@ -13,6 +13,9 @@ from backend.diagnostics.readings import KnowledgeBase, WorkReadings
 
 ROOT = Path(__file__).resolve().parents[3]
 CATALOG = ROOT / 'corpus' / 'catalog.json'
+# What the sources view says, in place of page counts, of a licensed catalog entry the export has no pages of (O1.a): the
+# view's own state until the core reads it, an EPUB by its sections as the free HTML works are (123.a), which then replace it
+NOT_READ = 'not read page by page'
 
 
 class CatalogSource(BaseModel):
@@ -55,6 +58,8 @@ class Work(BaseModel):
     sections: int | None = None
     chunks: int | None = None
     structure_why_not: str | None = None
+    # a licensed catalog entry the export holds no pages of (O1.a): `NOT_READ`, in place of page counts; None otherwise
+    not_read: str | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

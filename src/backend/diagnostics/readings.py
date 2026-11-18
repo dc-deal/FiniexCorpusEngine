@@ -54,6 +54,10 @@ class StateCount(Count):
     accepted: int | None = None
     rejected: int | None = None
     noted: int | None = None
+    # of a state to look at (issue, blocked, stopped), how many of its pages the core serves all the same, its reading and
+    # not the text layer: an issue whose findings lie on blocks never quoted (133.b) is served (the operator, 18 Nov: "issue
+    # 9" read as nine pages held back where the core held back none); None for every other state, and where none is served
+    served: int | None = None
 
 
 class WorkReadings(BaseModel):
@@ -717,8 +721,11 @@ def counted_states(rows: list[dict]) -> list[StateCount]:
     rank = {state: at for at, state in enumerate(STATE_ORDER)}
     standings = Counter((listed_state(row), mark.standing) for row in rows
                         if (mark := person_mark(row)) is not None and mark.by_a_person)
+    served = Counter(state for row in rows if (state := listed_state(row)) in LISTED_AS_ISSUE
+                     and row.get('route') and row['route'] not in TEXT_LAYER_ROUTES)
     return sorted((StateCount(value=count.value, count=count.count, accepted=standings[(count.value, 'accepted')],
-                              rejected=standings[(count.value, 'rejected')], noted=standings[(count.value, 'noted')])
+                              rejected=standings[(count.value, 'rejected')], noted=standings[(count.value, 'noted')],
+                              served=served[count.value] or None)
                    for count in counted([listed_state(row) for row in rows])),
                   key=lambda count: rank.get(count.value, len(rank)))
 
@@ -1383,6 +1390,7 @@ class Readings:
         self._works_at: tuple[int | None, int | None] | None = None
         self._works: list[dict] = []
         self._entries: dict[str, CatalogEntry] = {}
+        self._unread: list[CatalogEntry] = []
 
     def _index(self) -> dict:
         if not self.index.exists():
@@ -1415,6 +1423,8 @@ class Readings:
                              if (entry := by_id.get(work.get('work')) or by_file.get(work.get('file')))}
             self._works = [{**work, 'title': self._entries[work['source_id']].title} if work['source_id'] in self._entries
                            else work for work in works]
+            matched = {id(entry) for entry in self._entries.values()}
+            self._unread = [entry for entry in entries if id(entry) not in matched]
             self._works_at = (self._read_at, stamp)
         return self._works
 
@@ -1422,6 +1432,12 @@ class Readings:
         """The licensed catalog's entry of a work, None where there is no catalog or it does not list the work."""
         self.works()
         return self._entries.get(source_id)
+
+    def unread_entries(self) -> list[CatalogEntry]:
+        """The licensed catalog's entries the export has no pages of, in the catalog's order (the operator's O1.a, 18 Nov):
+        the EPUBs and the files not read yet. [] without a catalog."""
+        self.works()
+        return self._unread
 
     def work(self, source_id: str) -> dict | None:
         return next((work for work in self.works() if work['source_id'] == source_id), None)

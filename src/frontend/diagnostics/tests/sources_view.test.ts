@@ -131,6 +131,33 @@ describe('SourcesView', () => {
     expect(other.find('[data-part="work-notes"]').exists()).toBe(false)
   })
 
+  it('lists a catalog entry not read yet with its columns and the API\'s words in place of page counts, no link (O1.a)', async () => {
+    // invented: an EPUB the licensed catalog lists and the export holds no pages of
+    const unread = aWork({ knowledge_base: 'licensed', id: 'an_unread_book', title: 'An Unread Book', format: 'epub', readings: null,
+      not_read: 'not read page by page' })
+    vi.mocked(getWorks).mockResolvedValue([unread])
+    const view = mountView()
+    await flushPromises()
+    const row = view.find('tbody tr')
+    expect(row.find('[data-part="not-read"]').text()).toBe('not read page by page')
+    expect(row.find('.work-title').text()).toBe('An Unread Book')
+    expect(row.find('a').exists()).toBe(false)
+    expect(row.text()).toContain('epub')
+  })
+
+  it('says beside a state to look at how many of its pages the core serves all the same (18 Nov)', async () => {
+    // invented: nine issues whose findings lie on blocks never quoted, all served; three blocked, none
+    const work = aWork({ readings: { pages: 20, states: [{ value: 'ok', count: 8 }, { value: 'issue', count: 9, served: 9 },
+      { value: 'blocked', count: 3, served: null }], routes: [], people: [], reviews: [], categories: [] } })
+    vi.mocked(getWorks).mockResolvedValue([work])
+    const view = mountView()
+    await flushPromises()
+    expect(view.find('[data-state="issue"] [data-part="served"]').text()).toContain('9 served')
+    expect(view.find('[data-state="issue"] [data-part="served"] [data-icon="quoted"]').exists()).toBe(true)
+    expect(view.find('[data-state="blocked"] [data-part="served"]').exists()).toBe(false)
+    expect(view.find('[data-state="ok"] [data-part="served"]').exists()).toBe(false)
+  })
+
   it('says so when the catalog lists nothing, rather than drawing an empty table', async () => {
     vi.mocked(getWorks).mockResolvedValue([])
     const view = mountView()

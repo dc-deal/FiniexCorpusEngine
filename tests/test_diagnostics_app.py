@@ -238,7 +238,7 @@ def licensed_with_a_catalog(monkeypatch, folder, catalog_text: str | None) -> Te
 
 
 def licensed_work(client: TestClient) -> dict:
-    [work] = [work for work in client.get('/api/works').json() if work['knowledge_base'] == 'licensed']
+    [work] = [work for work in client.get('/api/works').json() if work['knowledge_base'] == 'licensed' and work['readings']]
     return {name: work[name] for name in SHOWN}
 
 
@@ -249,6 +249,8 @@ def test_a_licensed_work_takes_its_title_and_fields_from_the_local_catalog(monke
     # works show theirs; an entry that does not read is left out, the others stand
     both = licensed_with_a_catalog(monkeypatch, tmp_path / 'by_key', json.dumps({'_about': 'invented', 'sources': [ENTRY, {'id': 'x'}]}))
     assert licensed_work(both) == {name: ENTRY[name] for name in SHOWN}
+    # the read work alone: the catalog has no other entry that reads
+    assert [work['id'] for work in both.get('/api/works').json() if work['knowledge_base'] == 'licensed'] == ['a_licensed_book']
     # the work head and a page name the work by its title too
     assert both.get('/api/licensed/works/a_licensed_book/pages').json()['title'] == 'An Invented Book'
     assert both.get('/api/licensed/works/a_licensed_book/pages/1').json()['title'] == 'An Invented Book'
@@ -260,12 +262,30 @@ def test_a_licensed_work_takes_its_title_and_fields_from_the_local_catalog(monke
 
 @pytest.mark.corpus
 @pytest.mark.readings
+def test_a_catalog_entry_the_export_holds_no_pages_of_is_listed_after_the_read_works_as_not_read(monkeypatch, tmp_path):
+    # the operator's O1.a, 18 Nov: an EPUB or a file not read yet stands in the sources list with its catalog's columns and,
+    # in place of page counts, "not read page by page", as a free HTML work without readings stands
+    unread = {**ENTRY, 'id': 'an_unread_book', 'file': 'an_unread_book.epub', 'title': 'An Unread Book', 'format': 'epub',
+              'year': None, 'edition': None, 'notes': None}
+    both = licensed_with_a_catalog(monkeypatch, tmp_path, json.dumps({'sources': [unread, ENTRY]}))
+    listed = [work for work in both.get('/api/works').json() if work['knowledge_base'] == 'licensed']
+    assert [(work['id'], work['not_read']) for work in listed] == [('a_licensed_book', None), ('an_unread_book', sources.NOT_READ)]
+    last = listed[-1]
+    assert last['readings'] is None and last['sections'] is None and last['title'] == 'An Unread Book'
+    assert {name: last[name] for name in SHOWN} == {name: unread[name] for name in SHOWN}
+    # it has no pages to open
+    assert both.get('/api/licensed/works/an_unread_book/pages').status_code == 404
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
 def test_without_a_readable_licensed_catalog_a_licensed_work_shows_what_it_showed_and_says_nothing(monkeypatch, tmp_path):
     # N1.a: a clone has no catalog, and a broken one must not break the view: today's columns, no error, no warning
     today = {'title': 'a_licensed_book', **{name: None for name in SHOWN if name != 'title'}}
     for case, text in (('missing', None), ('not_json', '{not json'), ('not_a_catalog', '[1, 2]'), ('no_entry', '{"sources": []}')):
         both = licensed_with_a_catalog(monkeypatch, tmp_path / case, text)
         assert licensed_work(both) == today, case
+        assert not any(work['not_read'] for work in both.get('/api/works').json()), case
         assert both.get('/api/licensed/works/a_licensed_book/pages').json()['title'] == 'a_licensed_book', case
 
 

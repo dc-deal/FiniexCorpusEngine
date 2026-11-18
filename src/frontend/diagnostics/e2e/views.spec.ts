@@ -2302,3 +2302,27 @@ test('an automated review\'s verdict is named so, never a person\'s, and settles
   await expect(page.locator(`[data-part="reviewed"] tr[data-page="free/${NMS}/4"]`)).toHaveCount(1)
   await expect(page.locator(`[data-part="decided"] tr[data-page="free/${NMS}/4"]`)).toHaveCount(0)
 })
+
+test('the sources table fits the window at 1,280 and 2,000 px, its last column inside it (18 Nov)', async ({ page }) => {
+  // the operator, on a 2,000 px window: the licence column was cut and the table's scroll bar lay out of sight at the
+  // list's end. An invented work with the longest fields a licensed row has, so the check holds whatever the export holds
+  const long = { knowledge_base: 'licensed', id: 'an_invented_work_whose_file_stem_runs_long_without_a_single_space_in_it',
+    title: 'An Invented Work With a Title Long Enough to Wrap Over Two or Three Lines of Its Column',
+    authors: 'First Author, Second Author, Third Author, Fourth Author', publisher: 'An Invented Publishing House of Some Length',
+    year: 2001, edition: '12th', licence: 'private copy (licensed)', format: 'epub', shelf: 'trading_finance',
+    notes: 'stand-in file; re-typeset copy; printed pages differ', readings: null, sections: null, chunks: null,
+    structure_why_not: null, not_read: 'not read page by page' }
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, json: [...await response.json() as object[], long] })
+  })
+  for (const width of [1280, 2000]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/#/sources')
+    await settled(page)
+    const last = (await page.locator('table.works thead th').last().boundingBox())!
+    expect(last.x + last.width, `the last column at ${width} px`).toBeLessThanOrEqual(width)
+    expect(await page.locator('.data-scroll').evaluate(box => box.scrollWidth <= box.clientWidth), `a hidden scroll at ${width} px`).toBe(true)
+  }
+  await page.screenshot({ path: `${SHOTS}/sources_fit.png` })
+})

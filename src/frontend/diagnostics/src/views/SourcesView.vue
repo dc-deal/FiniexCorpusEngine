@@ -16,6 +16,9 @@ import { useSourceStore } from '@/stores/source_store'
  * list; an HTML work its sections by heading and their chunks, and opens its outline (the operator's 6.a).
  */
 const store = useSourceStore()
+// Work and Authors share what the fixed columns leave; the rest are as wide as their longest word needs
+const COLUMNS = [{}, { width: '11ch' }, { width: '24ch' }, {}, { width: '16ch' }, { width: '9ch' }, { width: '7ch' },
+  { width: '17ch' }, { width: '14ch' }]
 const { works, error, loaded } = storeToRefs(store)
 
 onMounted(() => {
@@ -30,7 +33,10 @@ onMounted(() => {
     <LoadingLine v-if="!loaded && !error" />
     <ApiFailure v-else-if="error" :error="error" @retry="store.loadWorks()" />
     <p v-else-if="loaded && works.length === 0" class="empty">The catalog lists no works.</p>
-    <DataTable v-else-if="loaded" table-class="works ruled">
+    <!-- the table fits the content width (the operator, 18 Nov, on a 2,000 px window: the licence column was cut, the scroll
+         bar out of sight at the list's end): the narrow columns hold their widths, the title and the authors share the rest,
+         and every cell wraps; below its least width, a phone's, the table scrolls in its own box, never the page -->
+    <DataTable v-else-if="loaded" table-class="works ruled" fixed min-width="64rem" :columns="COLUMNS">
       <template #head>
         <tr>
           <th>Work</th>
@@ -80,6 +86,8 @@ onMounted(() => {
             <span v-else-if="work.structure_why_not" class="not-built" :title="work.structure_why_not">
               sections by heading · search index not built
             </span>
+            <!-- a licensed catalog entry the export holds no pages of (O1.a), in the API's words, until the core reads it -->
+            <span v-else-if="work.not_read" class="page-count" data-part="not-read">{{ work.not_read }}</span>
           </td>
           <td>{{ work.authors }}</td>
           <td>{{ work.publisher }}</td>
@@ -107,8 +115,14 @@ onMounted(() => {
   text-align: left;
   color: var(--color-text-secondary);
   font-weight: normal;
-  white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
+}
+
+/* a fixed column's head and cells wrap rather than push the table past the content width */
+.works th,
+.works td {
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .works th,
@@ -130,7 +144,12 @@ a.work-title:hover {
   text-decoration: underline;
 }
 
-/* the id is what a ticket and a reading key name, so it stays on screen beneath the title */
+/* the id is what a ticket and a reading key name, so it stays on screen beneath the title, broken anywhere where a long
+   one has no space to break at */
+.work-id {
+  overflow-wrap: anywhere;
+}
+
 .work-id,
 .work-notes,
 .page-count,

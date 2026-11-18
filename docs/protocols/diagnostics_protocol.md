@@ -687,3 +687,9 @@ The record of how the diagnostics frontend came about, mistakes included.
   entries. **Found the same evening:** three tests pinned live free pages that the second reader then read (accounting
   p. 360, Kelly's blocked pages): they now invent a blocked page, or take any free page in the state they need and skip
   without one.
+- **O1.a and two findings of the operator's** (18 Nov). The table's cut licence column had a cause the operator could
+  not see: the table scrolled in its box, but the box's scroll bar sat at the end of a list of 100 rows. Measured in the
+  browser with the licensed rows (sizes only, no text): 1,612 px of table in a 1,408 px box. For "issue 9" line 1
+  proposed a state of its own; a state is the core's word, so the view keeps it and says beside it how many of its pages
+  are served, a count the API makes as it makes a person's tally. **Mistake:** the served count read `row['route']`, and
+  a test's minimal rows have none; a row without a route now counts as not served.

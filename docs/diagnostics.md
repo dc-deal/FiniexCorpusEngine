@@ -1529,3 +1529,18 @@ the build: the tests invent their entries. **Measured:** Python tests of the fie
 catalog, by key and by file, of a missing, broken and empty catalog, and that a public-only app never reaches it; a unit
 test of the row with its notes and edition; 305 unit tests, 76 checks in the browser (three skipped on today's data),
 1,427 Python tests.
+
+**The licensed catalog's unread works, a table that fits, and what an issue still serves (O1.a, 18 Nov).** The licensed
+catalog's entries the export has no pages of (the EPUBs and the files not read yet) now stand in the sources list after
+the read works, with their catalog columns and, in place of page counts, the API's "not read page by page" (`not_read`),
+a state the export replaces once the core reads them, an EPUB by its sections. On a 2,000 px window the sources table ran
+past the content width, its licence column cut and its scroll bar out of sight at the list's end: the table now fits,
+its narrow columns at fixed widths, the title and the authors sharing the rest, every cell wrapping, a long id broken
+anywhere; below 64rem, a phone's width, it scrolls in its own box, never the page. And a state to look at says how many
+of its pages the core serves all the same ("issue 9 · 9 served", `StateCount.served`): an issue whose findings lie on
+blocks never quoted is served (133.b), and "issue 9" alone read as nine pages held back. The state stays the core's
+word. **Measured:** Python tests of the unread entries (listed after the read works, no pages to open) and of the
+served count; unit tests of the not-read row and the served tally; a browser check that the table's last column stays
+inside a 1,280 and a 2,000 px window with an invented row of the longest fields (shown failing first against the old
+build); with the real licensed rows the table is 1,408 px in a 1,408 px box at 2,000 px. 307 unit tests, 77 checks in
+the browser (three skipped on today's data), 1,429 Python tests.

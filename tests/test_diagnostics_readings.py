@@ -1144,6 +1144,19 @@ def test_a_page_gives_its_errors_parted_and_the_raw_lines_they_name(tmp_path):
 
 
 @pytest.mark.readings
+def test_a_state_to_look_at_counts_the_pages_the_core_serves_all_the_same(tmp_path):
+    # the operator, 18 Nov: "issue 9" read as nine pages held back, where the core served all nine (findings on blocks never
+    # quoted, 133.b). Invented: an issue served from its reading, and a page the provider blocked, served from its text layer
+    served = copy.deepcopy(next(row for row in kelly_rows() if row.get('text_file') and row['check']['state'] == 'ok'))
+    served.update(route="vision reading (claude-sonnet-5-5, page/1, validator page/1.4): the judge's findings lie on blocks never "
+                        'quoted', route_level='noted', check={**served['check'], 'state': 'issue', 'reasons': ['judge: bad']})
+    blocked = {**a_blocked_row(), 'pdf_page': served['pdf_page'] + 1}
+    states = {count.value: count for count in a_corpus(tmp_path, [served, blocked]).summary(KELLY).states}
+    assert (states['issue'].count, states['issue'].served) == (1, 1)
+    assert (states['blocked'].count, states['blocked'].served) == (1, None)
+
+
+@pytest.mark.readings
 def test_a_chapters_count_to_look_at_carries_its_pages_and_a_fine_count_none():
     # 225.a on accounting, as tracked: every count a chapter opens has exactly as many pages as it counts, in the state it
     # counts them, and only the states a person should look at, or decided, open anything

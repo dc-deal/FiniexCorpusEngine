@@ -27,6 +27,8 @@ from backend.diagnostics import (calls, chat, error_classes, html_works, overvie
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
+# the licensed catalog's fields the sources view shows beside a work's title (N1.a)
+CATALOG_FIELDS = {'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes'}
 
 # The names a request may address this server by: a page elsewhere can point a domain of its own at 127.0.0.1 (DNS
 # rebinding) and read what the GET routes serve, licensed pages and the coding sessions' questions among them, so any
@@ -123,12 +125,15 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                 listed += [sources.Work(knowledge_base=work['knowledge_base'], id=work['source_id'], title=work['title'],
                                         readings=store.summary(work['source_id']), **catalog_fields(store, work['source_id']))
                            for work in store.works()]
+                # then the catalog's entries the export has no pages of, as the free HTML works without readings stand (O1.a)
+                listed += [sources.Work(knowledge_base=name, id=entry.id, title=entry.title, not_read=sources.NOT_READ,
+                                        **entry.model_dump(include=CATALOG_FIELDS)) for entry in store.unread_entries()]
         return listed
 
     def catalog_fields(store: readings.Readings, source_id: str) -> dict:
         """The licensed catalog's fields of a work the sources view shows, {} where the catalog does not list it."""
         entry = store.catalog_entry(source_id)
-        return entry.model_dump(include={'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes'}) if entry else {}
+        return entry.model_dump(include=CATALOG_FIELDS) if entry else {}
 
     def html_structure(work: sources.Work, html: dict[str, html_works.HtmlCounts] | None) -> dict:
         """An HTML work's sections and chunks as the index records them, or why they are not known here."""

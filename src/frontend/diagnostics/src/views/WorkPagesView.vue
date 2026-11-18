@@ -18,6 +18,7 @@ import RouteTable from '@/components/RouteTable.vue'
 import UnitCells from '@/components/UnitCells.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import PersonTally from '@/components/PersonTally.vue'
+import ServedTally from '@/components/ServedTally.vue'
 import StateMark from '@/components/StateMark.vue'
 import { queryValues } from '@/address_query'
 import { CHAPTER_MARKS, unitKey } from '@/chapter_marks'
@@ -203,7 +204,10 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
               <template v-else>{{ value }}</template>
             </template>
             <template #after="{ facet, value }">
-              <PersonTally v-if="facet.key === 'state'" :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
+              <template v-if="facet.key === 'state'">
+                <ServedTally :served="stateCount(value)?.served" />
+                <PersonTally :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
+              </template>
             </template>
           </FacetBar>
           <LabelledLines :label-chars="10">

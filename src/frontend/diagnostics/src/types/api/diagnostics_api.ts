@@ -2427,6 +2427,8 @@ export interface components {
             rejected?: number | null;
             /** Noted */
             noted?: number | null;
+            /** Served */
+            served?: number | null;
         };
         /**
          * StatePages
@@ -2636,6 +2638,8 @@ export interface components {
             chunks?: number | null;
             /** Structure Why Not */
             structure_why_not?: string | null;
+            /** Not Read */
+            not_read?: string | null;
         };
         /** WorkPages */
         WorkPages: {

@@ -40,6 +40,7 @@ export type StandingCorrection = Schemas['StandingCorrection']
 export type ReadingError = Schemas['ReadingError']
 export type Check = Schemas['Check']
 export type Count = Schemas['Count']
+export type StateCount = Schemas['StateCount']
 /** The pages a person should look at, over every work of every knowledge base served (`GET /api/issues`). */
 export type IssueList = Schemas['IssueList']
 /** A page as a list across works shows it, in the issues and behind a figure of the overview. */

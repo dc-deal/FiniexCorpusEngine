@@ -9,6 +9,7 @@ import LoadingLine from '@/components/base/LoadingLine.vue'
 import GroupedPageRows from '@/components/GroupedPageRows.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import PersonTally from '@/components/PersonTally.vue'
+import ServedTally from '@/components/ServedTally.vue'
 import StateMark from '@/components/StateMark.vue'
 import { queryValues } from '@/address_query'
 import { DECIDED, DECIDED_BY_REVIEW, isDecided, standingOf } from '@/listed_state'
@@ -103,7 +104,10 @@ function stateCount(value: string) {
           <template v-else>{{ value }}</template>
         </template>
         <template #after="{ facet, value }">
-          <PersonTally v-if="facet.key === 'state'" :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
+          <template v-if="facet.key === 'state'">
+            <ServedTally :served="stateCount(value)?.served" />
+            <PersonTally :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
+          </template>
         </template>
       </FacetBar>
       <GroupedPageRows v-if="toRepair.length" :rows="toRepair" />
