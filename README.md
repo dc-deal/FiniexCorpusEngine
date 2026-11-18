@@ -237,7 +237,8 @@ python -m venv .venv-eval
   declined a few. No page is split, paraphrased or sent through the same model by another door to get past them; such a page
   keeps its own text layer, and its record says why. The same pipeline can serve a second, private knowledge base that stays
   on its owner's machine; nothing of it is committed, a start switch (`--public-only`) leaves it unread, and every number
-  above uses the free corpus only.
+  above uses the free corpus only. Contract tests hold that line on the owner's machine before every push: no tracked file
+  names a private work, and none shares a passage of its text (`tests/contracts/test_no_licensed_text_in_tracked_files.py`).
 - **No answer from the model's own memory.** The chat answers from retrieved pages only; where nothing is found it says so.
   Figure descriptions written by the reader are marked as derived and never quoted. The held-out run shows where this still
   fails: one near miss above the relevance floor was answered.
