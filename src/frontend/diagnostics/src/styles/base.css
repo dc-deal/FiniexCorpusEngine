@@ -1,0 +1,84 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: monospace;
+  font-size: var(--font-size);
+  line-height: 1.5;
+}
+
+/*
+ * One size (the operator, 11 Nov): what the browser sizes by its own scale takes the body's. A heading is told by its weight, which
+ * the browser gives it; a form control takes the whole font, which it does not inherit by itself. A sub- or superscript
+ * alone stays smaller: it is a part of what it stands in, as a formula's are.
+ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+small {
+  font-size: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/*
+ * A table or a grid wider than the window scrolls in its own box, so the page itself never scrolls sideways and nothing is
+ * cut (159.a, checked at 390 px for every view).
+ */
+.scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/*
+ * Anything that acts on a click says so, once and globally rather than per component. Deliberately not
+ * applied to elements that only reveal a hover card: a pointer there promises a click that does nothing.
+ */
+button,
+summary,
+[role='button'] {
+  cursor: pointer;
+}
+
+/*
+ * A fine line between the rows of a list (the operator, 2026-11-09): rows ran into each other, and the eye lost the line between
+ * a chapter's title and its counts. One rule for every list, set by the class `ruled` on the list itself: a table's rows,
+ * a list's items, a run of folded units such as the chapters, a key-value list's pairs (a page's details). The line
+ * stands between siblings only, never around the list, and is the row's own border, so no space is added; a table's head
+ * keeps its line in the border colour. A key-value list laid out as a grid sets no column gap, so the line runs through.
+ */
+.ruled > thead > tr > th {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ruled > tbody > tr + tr > :is(td, th),
+.ruled > li + li,
+.ruled > :is(details, .ruled-row) + :is(details, .ruled-row),
+.ruled > dt:not(:first-of-type),
+.ruled > dt:not(:first-of-type) + dd {
+  border-top: 1px solid var(--color-row-rule);
+}
+
+/*
+ * A person's manual correction (188.a, the operator: "both must be marked as a manual change"): the annotation
+ * role and its dash, one look wherever a correction stands: first in its block (229.a), an earlier one beneath the
+ * block's findings, and the verdict dialog's preview of one (213.b). Never served.
+ */
+.person-correction {
+  color: var(--color-annotation);
+  border-left: 2px dashed var(--color-annotation);
+  padding-left: var(--space-sm);
+}

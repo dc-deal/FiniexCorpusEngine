@@ -1,0 +1,105 @@
+/*
+ * Colour carries ROLE, and each role has exactly one colour:
+ *
+ *   accent     a LINK, and interactive focus. Nothing else: a heading, a rule or a badge in the
+ *              link colour reads as clickable.
+ *   warning    something the reader must weigh before trusting what is beside it. Always with a
+ *              glyph and a word: in the light theme a dark yellow and a dark red are inseparable
+ *              under red-green colour blindness (measured CVD ΔE 5.5), so hue is never the only
+ *              channel a warning travels on.
+ *   annotation the structure of a text or a table, such as a chunk boundary, and a view that shows
+ *              something other than the standing state, such as a recalled judgement (181.a): its
+ *              region framed, a chip with the way back in the top row. Says "the thing changed here",
+ *              not "something is wrong". Always DASHED, a second channel beside the hue. The hue is
+ *              computed, not chosen (dataviz validator, 10 Nov): against the link blue ΔE 11.0 dark,
+ *              11.2 light at deutan, where the earlier #e07ad8 / #a21caf measured 7.4 and 6.0; against
+ *              error 15.1 / 16.3, and text contrast 6.4:1 dark on the panel, 7.1:1 light.
+ *   error      something is wrong with the data or the request.
+ *   positive /
+ *   negative   the polarity of a figure. Never a rank, never a category.
+ *   text-secondary  structure and neutral annotation: notices that inform rather than warn.
+ *
+ * Text contrast measured against the panel surface: warning 8.2:1 dark, 5.9:1 light.
+ *
+ * SURFACES are not roles: they are lightness steps of one surface, and a control moves through them
+ * as it is pointed at and pressed. `bg-hover` lifts, `bg-active` sinks, in both themes. Text over all
+ * three button surfaces measured 12.97:1 or better in both themes. The step between them is small (a
+ * luminance ratio of ~1.1), too weak to carry press feedback alone, so a pressed control also moves
+ * down a pixel.
+ *
+ * `text-secondary` on a surface is the look of a DISABLED control. Nothing that can be clicked may
+ * wear it.
+ *
+ * What FLOATS over the page (a hover card, a menu) has its own overlay surface, border and shadow:
+ * on the panel surface with the panel border it could not be told from what it covered.
+ *
+ * The ROW RULE parts the rows of a list (the operator, 2026-11-09): a step fainter than the border, so rows read as
+ * structure and a list never as a grid; a table's head keeps the border colour above them.
+ */
+:root[data-theme='dark'] {
+  /* the browser's own parts (buttons, fields, scrollbars) follow the app's theme */
+  color-scheme: dark;
+  --color-bg-base:        #0d0d0f;
+  --color-bg-surface:     #18181b;
+  --color-bg-elevated:    #1e1e23;
+  --color-bg-hover:       #26262c;
+  --color-bg-active:      #16161a;
+  --color-text-primary:   #eeeeee;
+  --color-text-secondary: #888888;
+  --color-accent:         #4aaeff;
+  --color-error:          #ee0055;
+  --color-warning:        #e5a50a;
+  --color-annotation:     #f06cc0;
+  --color-positive:       #26a69a;
+  --color-negative:       #ef5350;
+  --color-border:         #2a2a2e;
+  --color-row-rule:       #232328;
+  --color-bg-overlay:     #212127;
+  --color-border-overlay: #4a4a54;
+  --shadow-overlay:       0 8px 28px rgb(0 0 0 / 60%);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-bg-base:        #f0f0f2;
+  --color-bg-surface:     #ffffff;
+  --color-bg-elevated:    #f8f8fa;
+  --color-bg-hover:       #ececf0;
+  --color-bg-active:      #e0e0e6;
+  --color-text-primary:   #111111;
+  --color-text-secondary: #555555;
+  --color-accent:         #0066cc;
+  --color-error:          #cc0033;
+  --color-warning:        #6f6000;
+  --color-annotation:     #9c1a8c;
+  /* computed rather than chosen: the teal band tops out at chroma 0.101 once 4.50:1 against white
+     is required, and a greener candidate lost distance from --color-negative under deuteranopia */
+  --color-positive:       #008674;
+  --color-negative:       #c62828;
+  --color-border:         #dcdcdc;
+  --color-row-rule:       #e0e0e4;
+  --color-bg-overlay:     #ffffff;
+  --color-border-overlay: #a9a9b3;
+  --shadow-overlay:       0 8px 24px rgb(0 0 0 / 22%);
+}
+
+:root {
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  /* one step of indent (decision 179): a fold's content stands one step right of its title, at every depth */
+  --indent-step: 1.25rem;
+
+  /* how wide a view's content grows on a wide screen (decision 160): one container for every view, a wider one for a view
+     of two panes side by side; beyond it the content stands centred, as documentation sites and dashboards hold it */
+  --content-max-width: 90rem;
+  --content-max-width-wide: 120rem;
+
+  /* One size for every text (the operator, 11 Nov: "I prefer everything uniform"; before it three, 159.a): a view's title, a
+     heading, a table, a label and a count alike, a title and a heading told by their weight, what stands beside by its
+     colour. The size the lists and tables had, so their columns keep their width. A browser check holds every visible
+     text to it, a formula's own parts aside */
+  --font-size: 0.85rem;
+}

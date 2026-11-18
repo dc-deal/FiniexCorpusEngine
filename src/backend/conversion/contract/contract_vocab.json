@@ -1,0 +1,51 @@
+{
+  "contract": "page/1",
+  "note": "The reader's page contract. One page = front fields (scalars, read as strings) + blocks with one class, attributes and a body. 'content' says what the body is: V = verbatim characters as printed (quotable once verified); V* = a verbatim encoding of printed non-linear content (LaTeX for math, HTML for table structure), quotable only when verified, shown rendered, the page crop stays the authority; D = derived, written by the model, never quoted; - = no body. 'layer' is the DoclingDocument content layer. 'docling_label' is the DocItemLabel a block becomes (null: a group or a meta field, see 'docling_note'); fields without a native slot go to meta as capstone__<field>.",
+  "front_matter": {
+    "required": ["contract", "work", "pdf_page", "image_size", "printed_label", "page_kind"],
+    "optional": ["label_position", "columns", "rotation", "language", "slide_number", "deck_part"],
+    "enums": {
+      "page_kind": ["body", "front_matter", "toc", "index", "chapter_opener", "part_opener", "blank", "plate", "ad", "slide", "cover", "copyright", "back_matter"],
+      "label_position": ["header", "footer", "margin", "none"],
+      "rotation": ["0", "90", "180", "270"],
+      "columns": ["1", "2", "3", "4"]
+    }
+  },
+  "common_attrs": ["bbox", "in", "near", "cont", "conf", "status", "lang"],
+  "bbox_exempt": ["description"],
+  "enums": {
+    "cont": ["prev", "next", "both"],
+    "conf": ["low"],
+    "status": ["unreadable", "partial", "truncated_by_source"]
+  },
+  "detached_binding_attrs": ["of", "defines", "near"],
+  "classes": {
+    "paragraph":      {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["defines"], "required": [], "docling_label": "text", "docling_note": "inline math becomes an inline group of text and formula items"},
+    "list_item":      {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["marker", "depth", "defines", "kind"], "required": [], "required_unless_cont_prev": ["marker"], "kinds": ["bullet", "number", "step", "definition", "paragraph", "point", "subparagraph", "provision"], "docling_label": "list_item", "docling_note": "marker and enumerated are native"},
+    "quote":          {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["kind"], "required": ["kind"], "kinds": ["epigraph", "block", "pull", "praise"], "docling_label": "text", "docling_note": "capstone__quote_kind; no quote label exists"},
+    "attribution":    {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["of"], "required": ["of"], "of_classes": ["quote"], "docling_label": "text", "docling_note": "capstone__attribution_of"},
+    "formula":        {"group": "content",      "content": "V*", "layer": "body",       "attrs": ["label"], "required": [], "docling_label": "formula", "docling_note": "text holds the LaTeX; capstone__label"},
+    "code":           {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["kind", "first_line", "numbered"], "required": [], "kinds": ["listing", "console", "repl", "pseudocode", "config", "illustrative"], "docling_label": "code", "docling_note": "code_language; R and console are not in CodeLanguageLabel: unknown + capstone__lang"},
+    "table":          {"group": "content",      "content": "V*", "layer": "body",       "attrs": ["kind", "raster", "rotated", "template", "header_rows"], "required": [], "kinds": ["data", "spreadsheet", "journal", "keystroke", "form", "matrix"], "docling_label": "table", "docling_note": "TableData cells with spans"},
+    "figure":         {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["kind", "panels", "rotated", "grouped"], "required": ["kind"], "kinds": ["chart", "diagram", "photo", "screenshot", "map", "icon", "logo", "other"], "docling_label": "picture", "docling_note": "PictureClassification; figure text in capstone__figure_text"},
+    "caption":        {"group": "content",      "content": "V",  "layer": "body",       "attrs": ["of", "label"], "required": [], "required_unless_cont_prev": ["of"], "of_classes": ["figure", "table", "code", "formula", "box"], "docling_label": "caption", "docling_note": "referenced from the float's captions[]"},
+    "credit":         {"group": "apparatus",    "content": "V",  "layer": "body",       "attrs": ["of"], "required": ["of"], "of_classes": ["figure", "table"], "docling_label": "text", "docling_note": "capstone__credit_of: the object's own licence line"},
+    "description":    {"group": "non_verbatim", "content": "D",  "layer": "body",       "attrs": ["of", "form"], "required": ["of", "form"], "of_classes": ["figure", "table", "formula", "code"], "forms": ["prose", "data", "mermaid"], "docling_label": null, "docling_note": "PictureItem.meta.description (DescriptionMetaField, created_by); never a text item"},
+    "heading":        {"group": "structure",    "content": "V",  "layer": "body",       "attrs": ["number", "runin"], "required": [], "docling_label": "section_header", "docling_note": "level set by assembly, not the reader; a heading with in= is a text item with capstone__role=box_title, never a section header"},
+    "box":            {"group": "structure",    "content": "V",  "layer": "body",       "attrs": ["kind", "label"], "required": ["kind"], "kinds": ["sidebar", "note", "tip", "warning", "caution", "important", "feature", "margin", "provision", "case_study", "example", "exercise", "solution", "definition", "theorem", "proof", "problem", "other"], "docling_label": null, "docling_note": "GroupLabel.SECTION + capstone__box_kind; no aside label exists"},
+    "footnote":       {"group": "apparatus",    "content": "V",  "layer": "body",       "attrs": ["marker", "kind", "of"], "required": [], "required_unless_cont_prev": ["marker"], "kinds": ["foot", "end", "table"], "of_classes": ["table", "figure"], "docling_label": "footnote", "docling_note": "table notes referenced from TableItem.footnotes[]"},
+    "callout":        {"group": "apparatus",    "content": "V",  "layer": "body",       "attrs": ["marker", "of", "lines", "listing"], "required": [], "required_unless_cont_prev": ["marker"], "of_classes": ["code", "figure", "table"], "docling_label": "list_item", "docling_note": "capstone__callout_of"},
+    "bib_entry":      {"group": "apparatus",    "content": "V",  "layer": "body",       "attrs": ["key"], "required": [], "docling_label": "reference", "docling_note": ""},
+    "glossary_entry": {"group": "apparatus",    "content": "V",  "layer": "body",       "attrs": ["term"], "required": [], "docling_label": "text", "docling_note": "capstone__glossary_term"},
+    "toc_entry":      {"group": "navigation",   "content": "V",  "layer": "body",       "attrs": ["target", "level"], "required": [], "docling_label": "document_index", "docling_note": ""},
+    "index_entry":    {"group": "navigation",   "content": "V",  "layer": "body",       "attrs": ["depth"], "required": [], "docling_label": "document_index", "docling_note": "capstone__index; kept out of retrieval"},
+    "page_header":    {"group": "furniture",    "content": "V",  "layer": "furniture",  "attrs": [], "required": [], "docling_label": "page_header", "docling_note": "ContentLayer.FURNITURE"},
+    "page_footer":    {"group": "furniture",    "content": "V",  "layer": "furniture",  "attrs": [], "required": [], "docling_label": "page_footer", "docling_note": "ContentLayer.FURNITURE"},
+    "page_number":    {"group": "furniture",    "content": "V",  "layer": "furniture",  "attrs": [], "required": [], "docling_label": "page_header", "docling_note": "capstone__role=page_number; no own label exists"},
+    "margin_tab":     {"group": "furniture",    "content": "V",  "layer": "furniture",  "attrs": [], "required": [], "docling_label": "page_header", "docling_note": "capstone__role=margin_tab"},
+    "watermark":      {"group": "furniture",    "content": "V",  "layer": "background", "attrs": [], "required": [], "docling_label": "text", "docling_note": "ContentLayer.BACKGROUND"},
+    "decoration":     {"group": "furniture",    "content": "-",  "layer": "furniture",  "attrs": ["kind"], "required": [], "expected": ["kind"], "kinds": ["rule", "ornament", "logo", "chapter_art", "icon", "drop_cap", "bar"], "docling_label": "picture", "docling_note": "ContentLayer.FURNITURE"},
+    "other":          {"group": "non_verbatim", "content": "V",  "layer": "body",       "attrs": ["why"], "required": ["why"], "docling_label": "text", "docling_note": "capstone__other_why; counted and reviewed"}
+  },
+  "inline_classes": ["fn", "term", "sc", "sup", "sub", "unclear", "gap", "lang"]
+}

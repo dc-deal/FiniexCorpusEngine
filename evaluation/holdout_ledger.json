@@ -1,0 +1,23 @@
+{
+  "_about": [
+    "Every reading of a held-out set, oldest first. The evaluation commands write their reading here before they measure anything, and refuse a second reading of the same file unless --again states why; the reason is kept beside the first reading.",
+    "A held-out set measures whether the improvements generalise. Read twice, its results start to steer the changes, which is the retrieval version of tuning a strategy on its own test period.",
+    "The first entry was written by hand: the RAG sprint read its held-out set once, on 2026-10-01, before this ledger existed."
+  ],
+  "runs": [
+    {
+      "file": "evaluation/eval_questions_holdout.json",
+      "at": "2026-10-01",
+      "command": "the RAG sprint's final measurement (pipeline_eval --holdout)",
+      "commit": null,
+      "again": null
+    },
+    {
+      "file": "evaluation/eval_questions_holdout_2026-11-06.json",
+      "at": "2026-11-09T11:59:25+00:00",
+      "command": "answer_eval --through-server --holdout --label phase7-holdout",
+      "commit": "b4d1d9a828a8a037f1a05bb8c7490ebec0bc27a8",
+      "again": null
+    }
+  ]
+}

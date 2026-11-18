@@ -1,0 +1,3 @@
+# The image is built from requirements.txt alone; the repository and its data are mounted at run time.
+*
+!requirements.txt

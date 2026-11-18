@@ -1,0 +1,661 @@
+# Protocol: the diagnostics frontend
+
+The record of how the diagnostics frontend came about, mistakes included.
+
+## 2026-11-02
+
+- **A second line of work,** beside the core, in its own git worktree with its own branch; the git-ignored data is linked
+  in. Its first offline run failed 2 of 770 tests: the reading store's guard followed the link into the main tree and refused it
+  as another work tree. The guard was fixed in the core (commit 82bb4bf); afterwards 774 passed in the worktree.
+- **The stack:** FastAPI with server-rendered HTML and HTMX was proposed first, for having no build step. The operator chose Vue, so the
+  components and patterns of an existing Vue project could be reused. The reviewer still installs nothing but Python packages:
+  the build is committed.
+- **Decided with it:** the URL holds only the deep link to the thing on show (hash routing); everything else becomes stored
+  settings. A `page/1` reading will be parsed on the server by the core's own parser and shown block by block, with a switch
+  to the raw text. API types are generated, not written.
+- **Mistake: TypeScript installed without a version.** npm took 7.0.2, which three of the tools do not support (their peer ranges
+  stop below 7, below 6.1 and at 5.x). Pinned to 5.9.3. The first install had also nested packages so deep that git reported
+  "Filename too long" (312 characters); a clean reinstall brought the longest path to 208.
+- **Mistake: the first frame showed nothing.** The view showed its loading line only after a flag set in `onMounted`, so the
+  first render had neither a loading line nor content, and a test caught it. The view now shows the loading line until the
+  first answer or failure, and the flag is gone.
+- **The real catalog broke the first model:** `year` is `null` for the Wikipedia set. `int | None` now.
+- **knip reported the built bundle as an unused file;** `dist/` is ignored there.
+- **Result:** pytest 786 passed, Vitest 20, ESLint and knip clean; the running process answered 200 for the page, its script,
+  `/api/works` and `/docs`.
+
+## 2026-11-03
+
+- **Commits by line 2 itself** (the operator): for its own folders, and for a shared file only with an approved change that touches
+  line 2's areas alone.
+- **The duplicate uvicorn pin went:** the search server pins it now, and the diagnostics block keeps fastapi.
+- **Planning V1 on tracked data:** the core began to track the free readings in `corpus/readings/` (decision 72.a, numbered
+  38.a until the core renumbered its decisions on 2026-11-04 → now 72.a), so the
+  views can work on a clone. The original was the open question: a fresh render of three tracked pages from three works was
+  compared with the sha256 of the image each reader received, and all three matched byte for byte.
+
+## 2026-11-04
+
+- **Tables from the parser's cells,** not the model's HTML through a sanitiser: decided by line 1, to whom the operator left it.
+- **Three gaps closed in the core on request:** the export now names each page's catalog id and route, and each finding of
+  the judge with its block, severity and evidence.
+- **Mistake: a test mounted page 2 with an answer for page 4.** The view dropped the answer as one for another page, which is
+  what it should do; the test was wrong.
+- **The contract test for imports turned red in this worktree only:** KaTeX's Python helper scripts in `node_modules` were
+  read as project code. Reported to line 1, whose test it is.
+- **V1 in main** (fast-forward 91d5ba5..3eddccc). The automatic permission check of the session refused the merge twice as a
+  change to a shared resource; the operator allowed exactly that one command in the local settings.
+- **A browser check (Playwright), on the operator's suggestion.** Its screenshots were the first look at the views at all: until then
+  they had been tested in jsdom and over HTTP only. Three defects showed that no unit test could: a work's title repeated on
+  every row of the bin, a wide table cut off at the window's edge, a marked block scrolled with its top above the edge.
+- **Mistake: a misreading suspected without checking.** A table cell read "3,9%" where its neighbours have a point; the PDF's
+  text layer has the comma too, so the reading is faithful. Checked before it went anywhere.
+- **Mistake: a check that did not run.** A type error in the new browser spec stopped the build, and the browser check then
+  ran against the previous build and failed for the wrong reason.
+- **The block's box on the original,** the last step of V1, built with a look at each screenshot (the operator: "please with a visual check"). The frame is placed in percent of the image the reader received; the browser check measured it within
+  2 px of the reader's box, and a block at the foot of the page brought its frame into the original's view.
+- **`--public-only` (decision 81.a, the operator):** the review is recorded, so the app can be started without ever reading the
+  licensed knowledge base. Built before the licensed export exists, so its views are gated from their first day; the test
+  makes reading it raise, as the search server's does. The browser check now starts the app that way.
+- **A fast-forward refused, correctly:** main moved between the check and the merge, and `--ff-only` stopped instead of
+  merging. Rebased and merged again.
+- **V1.1, the page at a glance, on the operator's request:** one line of what matters, the findings below it, the rest folded and
+  remembered; a field to open a page by its number.
+- **Data asked for, not built** (the operator: "At best you go by the data alone. If it is not there, then we ask"): the
+  sentence of a blocked page's error and the printed page label, now in the core's export, and a work's outline, which line 1
+  put to the operator as decision 84. The four PDFs' bookmarks had been read here first, to see whether an outline exists at all.
+- **Mistake: the judge's word twice.** The verdict went into the line beside the reasons without a look at how the core builds
+  them; the reasons already name a bad verdict, and the state `ok` already means judged ok. The screenshot showed it, the
+  counts over the export confirmed it.
+- **Mistake: the earlier scroll fix, carried over unchecked.** "Top first, at once" scrolled every scrolling ancestor, the
+  window included; with the findings now above the panes, choosing one hid the page's title. Only the reading's column
+  scrolls now.
+- **V1.2, the operator's choices 1.a, 2.a, 3.a and 4.a:** the knowledge base as the first part of a work's address, the provider's
+  sentence in the line and the lists, the printed number shown, the bin view renamed Issues while the state keeps the core's
+  word. The operator's wish from the screenshot: a finding beneath the block it names.
+- **The test client now serves the free knowledge base alone.** Built with the default switch, it would have read the
+  licensed export on the operator's machine, and the catalog-order test would have failed there and passed on a clone.
+- **A data check before a column:** some blocked pages have no sentence; every one was declined by the reader, not refused
+  by the provider. Asked line 1 whether the export should carry one.
+- **Mistake: a selector that counted twice.** The browser check counted the free marks on the sources list as 16 for 8
+  works, because the row carries `data-kb` as well as its mark. The test was wrong, not the view.
+- **An independent review before the merge,** two read-only agents (the project's limit without asking): one on
+  correctness, one on the licensed gate. The gate held in all seven checks, with a positive control for the leak search.
+  Six small defects and one hardening, all fixed. **Mistakes of mine among them:** the test of a differing image was lost
+  when the page view's tests were rewritten, and the docs claimed every knowledge base came from a row's field while a
+  work's page list repeated its address.
+- **Line 1's answer on declined pages:** `error_message` stays the provider's own words; a sentence of ours there would pass
+  for theirs, and the reader's refusal offers a summary that is never used (75.a). The API now marks a page served from its
+  text layer by the core's own list of such routes, and the Error column shows the route where the provider said nothing.
+- **V1.3, a work's pages by its own order** (the operator: 6.a, 7.a, and 5.a by "your recommendation for now"). Built against the
+  outline's announced shape and checked against the licensed export by shape only; the free export carries none yet, so the
+  browser check lays an invented outline over real free pages.
+- **The operator asked to see an HTML work before the build:** the diagnostics showed only "This work has no page readings", since the
+  export holds PDF readings alone. That led to the operator's wish for one diagnosis for every medium, the data from line 1 (8.a,
+  10.a); PDF keeps priority (11.a).
+- **V4, the search (the operator's 14.a),** while HTML and the free outline wait on line 1. Checked against the data first: the
+  search's keys for the free PDFs are exactly the export's work names, and no legacy Markdown key matches a licensed export
+  name, so linking a hit needs no mapping, and a legacy hit honestly gets no link to a vision reading of another text.
+- **Mistake: a test that leaked into the next.** The search view's tests share one router, and the views of earlier tests,
+  still mounted, answered the next test's address and used up its prepared answers. The tests now unmount after each.
+- **A gap found by following a hit (the operator: "judge for yourself what fits"):** a page in the bin showed its rejected
+  reading as if it were quoted. Weighed against two small conveniences (folded empty chapters, kept filters), this one was
+  taken: the view now says when a reading is not what is quoted. Extracting the text layer here was turned down, as a third
+  way beside the search's and the chat loader's own; the core's one function for a page's quoted text was asked of line 1.
+  Line 1 confirmed the fault behind it: the search and the chat loader extract a text-layer page differently, so they can
+  quote different words; one function for both comes in phase 5.
+
+## 2026-11-05
+
+- **Asked line 1 what to build next** (the operator). Line 1 ranked: a page's readings over time first (the self-healing demo), the
+  way each page took second (to be exported), a runs view third, the second reader's side-by-side last. The operator chose the first
+  (15.a). Built against the announced export shape, with an invented history in the browser check until the export lands.
+- **Mistake of mine, found by line 1 before it broke main:** a readings test assumed the tracked export had no outline yet;
+  line 1's refresh would have turned it red. Fixed, with two more tests of the same weakness and two browser checks that
+  counted a work's pages in a list that now opens on its chapters; checked against both exports before line 1 committed.
+- **A server error on the operator's screen:** the licensed export's newest round holds pages no check has reached (`check: null`);
+  the API took every row to have a check. Every test runs public-only, so none could see it. Such a page is now `unchecked`.
+- **V6, the overview** (the operator through line 1, "best as a new menu item"). The core renames the state `bin` to `issue`
+  (97.a); both names are read until every export says `issue`.
+- **Mistake: a boolean property** cast to false when not given turned every figure's link off; the unit test found it.
+- **The overview redrawn as compact boxes** (the operator: "clumsy", titles labelled twice; chose 16.a): key figures on top, each
+  value once with both bases' counts beside it, joined in the API.
+- **Mistake: an edit landed in the main tree.** A byte-safe replacement through .NET took relative paths against .NET's own
+  current directory, the main tree, not the worktree `Set-Location` had chosen. Three of line 2's files in the main tree were
+  rewritten beside line 1's uncommitted work. Seen at once by `git status`; those three paths were moved to the worktree and
+  restored with `git checkout --`, nothing of line 1's touched. The trap stands in the frontend-commands skill.
+- **Which model did what** (the operator's 17.a), on the fields line 1 added the same day. Counted against the exports first: the
+  readings' costs (free 25.11 USD) exceeded the cost tile (23.63), since the tile counted only the reading a page shows. The
+  tile now says what was spent, the provider box's sum. The boxes stand in the two-column grid, not full width as offered:
+  on a full-width line the numbers sat far from the model's name.
+- **Mistake: headers aligned left over right-aligned numbers** in every box since 16.a; a more specific rule outweighed
+  theirs. Seen in the screenshot of the new boxes, which have four number columns.
+- **`bin` dropped:** both exports say `issue` since line 1's re-export.
+- **The overview set in bands** (the operator's 18.a, "the boxes still come across somewhat disordered"): three causes named from
+  the operator's screenshots, holes in a grid whose rows take their tallest box, no grouping, runs wrapping over several lines.
+  Boxes paired by height by hand were weighed and dropped: the pairing breaks as soon as the data grows. The operator's terms: if
+  this does not work, the overview stays as it is until a better idea comes.
+- **V7, the text that is quoted** (the operator's 20.a), on line 1's `quoted_pages`. A data check first: the export had cut the
+  free knowledge base's quoted text, not yet the licensed one's, and the function cuts a missing book on its first call,
+  writing into the core's store. Decided here, as a technical detail: the core's function is called as line 1 meant it,
+  but only when the quoted text is to be shown, through a route of its own, so a page view never waits a minute for it.
+- **Mistake: two browser checks assumed a page opens on its reading.** A page quoted from its text layer now opens on the
+  quoted text, so its table and its findings were not there to measure; both checks now choose the reading first.
+- **Mistake: a test that needed a declined page in the real export.** Line 1 let a second reading stand for the free
+  export's one declined page, and the test turned main red. It now invents the declined page, as the rule says a test
+  should when the data may change under it.
+- **V8, for the review demo (69.a):** asked line 1 for one page's integrity, each attempt's check and the choices of one
+  run; all came the same day. Weighed first: the integrity scan of a whole export takes 0.5 s (free) and 1.1 s (licensed)
+  on every page view, and a cache would miss the demo's live change, so one file is hashed per page instead.
+- **Found while building:** a page whose reading file is gone would have ended in a server error, since the page view
+  read the file unasked. It is now a state of the page.
+- **Mistake: a screenshot that showed nothing.** Git Bash turned the address argument `#/free/sources/...` into
+  `#C:/Program Files/Git/free/sources/...`, and the router knew no such address. The app was fine; the trap stands in the
+  frontend-commands skill.
+
+## 2026-11-06
+
+- **Decisions through line 1:** for a time line 2's decisions went to line 1, which decides inside the
+  approved plan and parks for the operator what changes money, scope or line 2's rules. Line 1 took 21.a (a Runs menu item with a page
+  per run) and placed the calls view (19) inside the plan by decision 98.c. Both are listed for the operator to revise.
+- **A data question before the runs view:** the free pipeline database listed rounds of the licensed base. Line 1 found a core bug
+  (every batch run was recorded in both databases) and fixed it in 4729f55; the view reads `pipeline_db.runs` as it is.
+- **Mistake: a route that would have matched only the letter d.** A path written as `'(\d+)'` in a JavaScript string loses its
+  backslash; the other routes write `\d+`. Caught when reading the diff, before any test ran.
+- **One browser check failed once, unexplained.** Right after a rebase that brought line 1's phase 6 and a full Python run,
+  one of 22 checks failed; the next three runs passed in full. The report was cut off before its name, so which check it
+  was is not known; a cold server under load is a guess, not a finding. Watched in the next runs.
+- **V10, the chat (100.a),** after the demo parts as planned. Scouted first by two read-only agents (the core's turn contract,
+  and the operator's first chatbot's patterns), before an estimate was given: about 9 h for the chat, about 13 h with the demo parts.
+  The scouting found what the brief had not said: the turn travels two or three times in one response (line 1 then gave
+  `turn_log.stored`), the cost left out the server's router (line 1 then priced it), a failed start left a server process
+  behind (line 1 fixed it), and a thread id went into a file name unchecked (the route takes a UUID only).
+- **Two holes closed in the ported sanitiser:** its allow-list kept `target`, `rel` and `align`, which its own URI rule then
+  removed, and it let a protocol-relative `//host` link through. And a formula: `\(` is a Markdown escape, so formulas in an
+  answer lost their backslashes; they now stay word for word, as code.
+- **The single unexplained browser failure (→ now explained):** the details check reloaded before `toggle` had stored the
+  choice; it now waits for the store.
+- **Not done:** an independent review of the chat, and one live turn through the real agent; both spend, so both wait
+  for the operator. The chat went into main without them, switched off in every test.
+- **V11, the calls view** (19.a, inside the plan by 98.c, line 1). A junction for `logs/` in the worktree, after checking that
+  no test writes the real call log through the default path. A first test built the app without `--public-only` and so would
+  have read the licensed export on the operator's machine; it now reads the free knowledge base alone, as every test must.
+
+## 2026-11-08
+
+- **Core changes of the day checked against the views,** at line 1's request: nothing broke (the licensed rollout complete,
+  validator page/1.2, rotated pages rendered upright by the core, attempt numbers up to 2).
+- **V12, the shelf (129.a).** A data check before any code: the shelf's reason counts matched neither the check state nor
+  the class for 21 works, so a filter on state would have opened more pages than counted. Asked line 1; a second count
+  showed the reasons equal the text-layer routes for every work, and line 1 confirmed it holds by construction and pinned it
+  with a test. The form of the view is put to the operator (22).
+- **A gap found by the same check:** licensed search hits name their work by the server's key (`book_a`), the export by the
+  file's stem, so licensed hits and licensed pages in the call log opened no page view. Mapped through the shelf.
+- **Answered works in the call log (124.a), built before line 1's commit:** the public-only filter checked answered pages
+  only, so a search over works that named a licensed work would have shown that name. Closed against the announced shape,
+  with a test. **Mistake:** a local name `sources` hid the module of that name in the same function; the tests caught it.
+
+## 2026-11-09
+
+- **A fidelity check of the chat on a live turn (the operator, via line 1).** No turn log held line 1's run, so one turn ran through
+  this view from the main tree (about 0.004 USD). The view lost and reordered nothing, and its links opened the right pages.
+  It did not say whose words were whose, and it hid a near miss in a folded list: both mended. What the core returned (an
+  answer by analogy, relevance below the floor in this run and above it in line 1's) went back to line 1.
+- **The shelf view (22.a, the operator: "yes, shelf sounds good").** Its browser check first failed: the shelf, local and built
+  from line 1's not yet committed free export, counted two free works differently from the tracked export in the worktree.
+  Not the view's fault; the check now tests what is the view's (a reason opens the pages on its route).
+- **Features sealed (142.a, via line 1).** The issue view walked in a headless browser before the operator's own walk on Wednesday:
+  the overview's route row opens exactly the 11 pages the operator judges, and back keeps that list; the Issues view did not keep
+  its choice, and five served-despite pages gave no reason. Both mended, and the Sources column renamed (the operator: "I will take your recommendations for now", 23.a, 24.a, 25.a). **First screenshots showed "Loading…":** taken before the view's own
+  request ran, not a slow API (0.36 s for the issues, 0.03 s for the 11); the scripts now wait for the rows.
+- **The last free work (143.a) and the spread-fee question, checked along (via line 1).** The four works show in every
+  view. One live turn of the operator's question through the chat view (about 0.005 USD): both quotes and all ten passages shown in
+  their order, every link on an existing page, relevance and floor in sight. What the core returned went back to line 1: the
+  answer's own text repeats its quotes, gaps and follow-up, one of those quotes the word-for-word check had dropped; the
+  answer is German against the generator's rule 7; the export gives PDF page 76 of the regulation no printed number though
+  its reading holds "L 87/76"; the export's outline is flat (252 units), not the nested sections of loader 6. The view's
+  own: a long chapter title wrapped below its marker (mended), and the dropped quote is shown nowhere (put to the operator).
+- **The deck's three screens (the operator's OK for the English turn, via line 1).** One turn on a `--public-only` server from the
+  main tree (about 0.004 USD), English, three quotes all kept, fidelity held again. The calls screen showed the pages a call
+  answered running into each other once opened: mended, one page a line. **Mistake:** a process filter meant for this
+  session's server also matched search servers of the main tree's venv, which may be line 1's; the permission check refused
+  it, and the server was stopped by its own task instead.
+- **The overview's tiles say what they count (the operator's 1.a, via line 1).** The banner's 15 works against the tile's 11 were
+  both right. The served counts are taken as the banner takes them, not recounted, and a test reads the banner's own line.
+  First wording for the time the index is still being built ("search index still being built") doubled the tiles' height in
+  the browser check, which sees the overview before the index stands; shortened to "search index building".
+- **Loader 7's nested outlines (line 1, main 959627a), checked in the chapter view.** The EU regulation's 111 roots stand
+  at the top and every one of its 141 children inside its parent; Regulation T's 34 roots likewise; "ANNEX II > Costs and
+  charges > Identified costs ..." opens down to PDF pages 75 and 76. A page stands under every unit whose text lies on it, so
+  page 75 stands under all three: the export's `units`, shown as given. **The new browser check for a long title failed
+  once:** that title now stands nested inside folded parents; the check opens them first, outermost first, and so tests the
+  indented case.
+- **A fine line between rows, every list (the operator, via line 1's new session).** One token and one shared rule replace eight
+  per-view row borders and part the lists that had none. The search hits kept their spacing, now half above and half below
+  the line. **The new browser check failed once:** it took the Kelly paper's second top-level chapter, but since loader 7
+  that paper's chapters all stand under its title; it now takes the EU regulation's. Looked at in both themes.
+- **Details lines and block boxes (the operator, via line 1's new session).** Two key-value lists exist (a page's details, a run's
+  facts); both take the shared rule, extended to a list's pairs. The block box keeps the findings mark by drawing the edge
+  as an inset shadow, so the box's 1px border and the 2px edge do not compete.
+- **Three questions left as they are (the operator: "leave everything as it is for now").** A quote the check dropped is not shown in the chat
+  view (26.c); a page with findings whose text comes from its text layer still opens on the quoted text, one click from its
+  finding (27.c, 20.a stands); the chapter view does not say where its titles come from (28.c).
+- **V13, the HTML works: an explicit exception to the feature seal 142.a (the operator's 6.a), named here as such.** Ordered through
+  line_features, the operator's plan read before any code. A data check first: the index's heading paths, the s-labels as the search
+  server gives them, every chunk found in its section. Built: the API, Sources' Structure column (4.a), the outline, the table
+  and the chunk pane; the original's pane and the dropped headings wait for line 1's function. **Mistakes:** an invented test
+  text that repeated one sentence placed a chunk at an earlier repeat (the test now uses a text without repeats, the limit
+  stands in the docstring); a join of chunks on the section id, which has no index, took 15 s for SRE, now counted over the
+  index's `chunks_by_source` in 0.24 s; a browser check of an unrelated view timed out once while the full test suite ran
+  beside it.
+- **The overview's browser check waits longer.** It failed twice in a row, also without load: the overview hashes every
+  reading file on each call (69.a), 3.5 to 5 s measured, and as the first request it shares the machine with the search index
+  being built. Its two checks now wait up to 20 s, the reason beside the constant.
+- **V14, the check in stages, its judges and a person (146.a, 147.a; exceptions to 142.a named as such).** Display orders
+  from line 1, the operator's review demo first. A data check on finance p. 5 before code: stage 2, the judge with its version, a void
+  finding, three judgements of the shown reading. The page's details now give the stages one by one and a person; the
+  history every judgement. **Mistakes:** a judgement line drawn as a flex box on the table cell itself lost the cell's span
+  and wrapped narrow (now a box inside the cell); spaces at the start of conditional spans were dropped ("cannot checkb05"),
+  now one joined string; the fixtures and one browser check that invents a page's history lacked the fields the API now
+  always sends.
+- **The prompts tab (148.a).** The core offers the judge's versions alone (`page_judge.judge_versions`), so the API reads the
+  registry and the frozen contract by the core's own paths. **Found on the way:** judge/2 and judge/3 each change one long
+  paragraph line, so a line diff showed the whole line removed and added; a word diff of replaced lines marks just the added
+  sentence. **Mistake:** a test joined the diff's lines without line breaks.
+- **V13's left pane and rule 5, with line 1's `strip_source` (78dd1b7).** Kept in memory per work, never written. A
+  dropped heading is placed after the section it follows, under that section's top unit. **Found:** the sanitiser kept
+  `id` but dropped `colspan`, `rowspan` and `data-image`, as DOMPurify tests unknown attributes' values against the URI rule;
+  named inert, and a test pins all four. The invented-index tests now stub the stripping, since the real raw files do not
+  match an invented index.
+
+## 2026-11-10
+
+- **Opened chapters are remembered (the operator: "when I unfold something, it should remember that").** A chapter opened, a page clicked,
+  and on coming back all stood folded again. Kept in the browser per work under a key of its own (`openUnits.v1`), the
+  chapter known by its first page and title, since the outline's ids are renumbered whenever the core cuts it anew; the
+  HTML outline likewise. The opening a filter makes is not remembered. **Found on the way:** the runs' browser check timed
+  out: 390 runs, the newest hundred judge and prototype runs that choose no reading, walked newest first at 0.16 s each; it
+  now walks the oldest first, and counts the listed runs as "at least", since the core may start one meanwhile.
+- **A page's readings, folded and ordered (the operator: "retries should fold open ... order them better", line 1's proposal,
+  confirmed by the operator).** Each reading is one folding line, the one shown first and open, the earlier ones newest first; a
+  folded line sums its judgements up ("4 judgements: judge/1 counts · 1 asked again · 2 prototypes"). Opened, its
+  judgements stand in one table with aligned columns, the role (counts, asked again, prototype) a column of its own, the
+  counting judgement first. **Found on the way:** the line's last fields fell into a grid row of their own under the 1ch
+  marker column and broke "shown here" in two; they now share the last column.
+- **The view's name from the config, and a menu in four groups (decision 149.c; the operator: "the menus are too big ... a burger menu and submenus with categories", through line 1).** `GET /api/app` serves `ui.title` and `ui.subtitle` of the app
+  config; the header and the tab show them. The ten links became a menu button whose panel groups the views as the operator's
+  order gave them; Overview and the view's own name stay in the header. **Found on the way:** a view that names itself
+  from its address could lend its name to the next view, since it sees the new address a moment before it is removed; it
+  now gives a name only when its name changes, kept with the address of that moment. The subtitle's leading space was
+  dropped by the template, as once before in a conditional span; it now stands inside the interpolation. A first try to
+  add the Python test through a one-line shell command broke on its quotes and changed nothing; the test went in through
+  the editor.
+- **The Reading History and the Lab (decision 150.a), and who said what in a finding (the operator on finance p. 5's b12: "error fixed - by what? was that the fix comment? what was the judge's message?").** The morning's ordering kept the
+  experimental judgements in the history, receded; the operator chose instead to part them: the history keeps what the pipeline
+  did, the Lab below holds a prototype's judgements and a judge asked again, folded. The finding's three parts now carry
+  their names, since the struck kind, the void mark and the grey quote read as one voice: the judge found, code voided,
+  the judge quoted. Nothing was fixed in the reading; it was right. **Found on the way:** a check of a whole line's text
+  fails on the flex lines, since the spans stand without spaces between them in the page's text; the tests check each
+  part.
+- **A work's routes in a table (the operator: "is this route a faulty one?", line 1's spec).** The chips said each route as
+  one long string; the table parts it into level, source, reader and why, the fallback marked. The API parts the strings
+  where `served_readings.route_of` builds them, a test builds them with that function, so a change of wording in the core
+  fails here rather than in the view. **Found on the way:** three browser checks counted every `tbody tr` of the work view
+  and so counted the routes' rows as pages; they count `tr[data-page]` now. The fallback's glyph made its row taller
+  than the others; it is drawn at the word's height.
+- **Formulas typeset, paragraphs parted, the dashed line explained (the operator on Sharpe ratio, through line 1).** The sanitiser's
+  list gained `data-tex` and `data-display`, both named inert as `data-image` was on 9 Nov (see above: DOMPurify tests an
+  attribute it does not know against the URI rule), so "S_{a}" is not dropped. KaTeX typesets after the sanitiser, on its
+  DOM fragment, so its own markup is not sanitised away. **Found on the way:** a first test that the LaTeX cannot ask for
+  a link looked for "javascript:" anywhere in the result and found it, inert, in the `data-tex` value and in KaTeX's
+  annotation; the test now asks whether anything became a link or a class.
+- **The overview's first load (line 1 measured the operator's 22 s and proposed a stat cache and warming before the search).** Both
+  taken. **Found on the way:** warming alone made it worse at first: five seconds after a start, while the search read its
+  pages beside it, the overview took 8 s, since PyMuPDF holds the interpreter's lock while it reads a page's text layer.
+  Measured where the time went (reading the pages 45 s, the index over them 4.9 s, pickling 57 MB 0.25 s) and moved the
+  reading into a process of its own. A test that `--public-only` never reads the licensed base patched the core in this
+  process; it now reads the pages here, with the same switch, and a test of its own shows the process reads them with the
+  app's switch, and that the pages are read here where no process can be started. A measuring script without a
+  `__main__` guard ran twice, once in the spawned process; the start command has its guard.
+- **The prompts in tabs by part (the operator through line 1), and the dashed line's legend as a hint (the operator: "does the dashed note always show? ... rather show it as a hint").** The legend stood as a paragraph even over a section of one chunk; it is
+  now an info mark, shown only where a chunk shares text. **Found on the way:** two layout faults in the new prompts
+  table, both shown by its screenshot and not by any test: the automatic table layout grew to 3,575 px around an opened
+  prompt (measured with a temporary browser script, then deleted), and a class name used twice made the diff's unchanged
+  lines refuse to wrap. The browser check now asks that the page stays inside the window.
+- **A description's frame and a grouped figure (the operator on accounting p. 305, through line 1).** Hovering the description drew
+  no frame, as it has no box; it now borrows its figure's, dashed and labelled. The figure's T-accounts ran together in
+  the readable mode; they now stand one box per container. **Seen on the way, for line 1:** the judge's finding on that
+  description says "page shows twelve accounts"; the original and the reading show eleven.
+- **The whole article (the operator, through line 1), and previous and next that jump (the operator: "a no-go in design").** Line 1
+  proposed grouping an article's sections by raw file; the outline from the index already holds the articles at its top,
+  stands without the raw files, and keeps a book in one file from becoming one scroll, so it groups them instead. The
+  article view was first built with its neighbours after its title, the very fault the operator had just named in the section view;
+  caught before it left the worktree, both now use one pager in boxes of a fixed width. **Found on the way:** a check of a
+  control's place must be shown to fail: with the pager set back after the title for a moment, it failed by 22 px on the
+  step from p. 9 to p. 10, then passed again with the pager first. A first draft of the check expected the title to start
+  with "PDF page"; the title's text starts with a space.
+- **Decision 159.a, step 1: three type sizes.** Line 1 estimated two to three hours for the four steps; line 2 said four to
+  five, since each step runs the full gates and is looked at in screenshots, and line 1 passed that on. The rename ran as a
+  byte-for-byte script over the sources, so no line ending changed. **Found on the way:** the type check passed at its first
+  run, which proves nothing; it now injects a 19 px title at its end and must find it.
+- **Step 2: the head line and the routes' one line.** The level totals are the API's, so the view sums nothing. **Seen on
+  the way:** folding the routes would hide a route the shelf's link had chosen, and with it why the list is short; the
+  line now says a route is chosen and lets it go.
+- **Step 3: the chapters as a table, one grid for the page tables.** The page tables lined up only once nothing indented
+  them: the depth moved from the tables' margin into the title's cell. The fold's mark moved into the title cell as well,
+  since a `::before` on the row would have taken a column of the grid. The state columns follow the states the work has,
+  so a state such as blocked keeps a column where it occurs. **Found on the way:** at 390 px the tables' first least width,
+  52rem, left Reasons and Why about 6rem each and stacked a long why into a tall row; 64rem keeps them about 12rem.
+- **Step 4: the other views.** A survey of every view at 1,280 and 390 px, by a temporary browser script since deleted,
+  found eight views scrolling sideways at 390 px and the Issues repeating whole route strings. The tables were wrapped by a
+  small script that moved each table's `v-if` to its new box and indented the table, so no line was retyped by hand; the
+  last offender, the page view's Lab line, was found by listing the outermost elements past the window: its `width:
+  max-content` stood outside any scroll box. The session paused in the middle of this step and
+  resumed from the worktree as it stood. **Seen on the way:** one core test failed in this worktree's full run,
+  `test_a_free_pdf_page_is_quoted_by_the_search_exactly_as_the_chat_cuts_it`, on Kelly p. 4 and p. 9: the index the
+  worktree shares with the main tree by junction had been rebuilt by line 1's uncommitted PDF loader 8, while this branch
+  still held the loader before it. It passed at step 3, and touches no file of this step.
+- **Decisions 160 and 161.a: one content width, and a unit's pages under it.** Line 1 proposed the width tokens and a note
+  column of about 18rem with the outside note on one line at 1,440 px; the first browser run found the note two lines
+  high, as it stood at the body's size, and put it at meta. With the note at up to 28rem the chapter titles then wrapped
+  ("Chapter 2 Corporate Structure and / Governance"), which the screenshot showed and no check had asked about; the
+  note's column was narrowed to 21rem, its words shortened, and the check now holds the titles to one line too. For the
+  indented blocks line 1 named the rule that settles the two wishes: the first column absorbs the indent, so the other
+  columns keep their x. A browser check of the chapters with an invented outline lacked the new `own_pages`, and the view
+  failed on it; the invented outline now counts its own pages as the API does.
+- **The Sharpe check-along and decision 164.a.** The operator's question ran once through the chat view on a `--public-only`
+  main-tree server (0.0041 USD); the view showed every quote and source as the API sent them. Three core findings went to
+  line 1; one was withdrawn when line 1 showed the passage holds the 1966 formula the answer cites, the other two became
+  decision 163. The "open in the article" idea, sent as a question, came back as 164.a with line 1's hint that the data
+  might already hold it: it did, and the core needed nothing. **Found on the way:** the key test first asked a search page
+  for `label`; the search's `Page` names its label `page`.
+- **Human times (the operator on accounting p. 524, through line 1: "every time stated in the project must get a human date format").** One formatter on the browser's `Intl` and one `<time>` component; the API keeps ISO 8601. **Found on the
+  way:** the formatter's own test first expected "13 h ago" for 23:30 UTC seen at 13:30 UTC the next day, which is 14
+  hours; the test was wrong, not the code. Five view tests had pinned the old "11-05 08:52" against the real clock; they
+  now ask for the `datetime` the API sent and for the formatter's words. Under a day's heading in the calls a time of an
+  earlier day repeated the date the heading already says, so it says its clock alone there. The browser check passed at
+  its first run, which proves nothing alone; it puts an ISO timestamp on the page at its end and must find it.
+- **A page's readings numbered, and one sentence first (the operator on accounting p. 524, items 2 and 3).** Line 1 guessed p. 524's
+  fourth reading was "read again (round or replay)"; the core's code showed it was decision 113.a's hinted retry, and the
+  export did not say which kind a re-read was. Line 2 first inferred the kind from the reading before and told line 1,
+  which then wrote `purpose`, `cell` and `retry_of` into every attempt of the export (86efdb2); the inference was dropped
+  for the core's words. **Found on the way:** the inference first read the reading before by its class, which is today's
+  validator's: a first reading malformed when it was retried may pass today, and six re-reads came out "read again"; it was
+  turned to the core's attempt numbers before the core's words arrived. The real-data tests first opened every page of the
+  export and so rendered every original, which ran past five minutes; they call the two functions on the rows now, and
+  one page whole. A page no check had reached broke the sentence on its missing check; it says nothing more, as its state
+  says all there is. Finance p. 229 and Reg NMS p. 4 serve their text layer while their first reading passes today's
+  validator; passed to line 1.
+- **A person's verdict beside the state (decision 166.a).** Line 1 asked that the API call the core's
+  `human_standing` rather than re-implement it; it does, and adds only "noted" for a note alone, with the core's own
+  test of `applies`. The state chips' counts needed a place after the count in the facet bar, which had only a slot for
+  the value; it gained a second one. A person's glyph and word replace the emoji line 1 wrote, so the mark follows the
+  icon registry's rule of one drawing per meaning and is never colour alone. **Found on the way:** the chip's tally first
+  read "·  1 accepted" in the unit test, two spaces around the glyph, which the browser collapses; the test compares
+  collapsed spaces. A new list field with an empty default is required in the generated types, so ten fixtures gained
+  `people: []`.
+- **What kind of page it is (decision 172.a).** Line 1 offered to sort the Issues' pages that are not content last; the
+  API orders them so and marks each (`apart`), so the view only parts the list where the API says, and never decides what
+  content is. A page no reading named the kind of, mostly a blocked one, counts with the content: nothing says it is not.
+  **Found on the way:** the two lists of the Issues first stood in columns of their own widths, Reasons and Why at
+  different x, which the screenshot showed and no check had asked about; the grouped table now has one fixed grid, and
+  the check holds its columns within a pixel. The italic category sat lower than the marks beside it until it was set
+  like them. A label's constant exported for the view and never imported failed knip; it stays in its module.
+- **One voice a line, and what a category means (decisions 178.a, 177.a).** The operator first named the void line "user judgement";
+  line 1 pointed out the void is the code's, so the person has a line of their own and the code's is "The code's ruling".
+  Line 1 asked for the four labels in a browser check on finance p. 5; b12 has no person's verdict, so the check finds
+  three there and the fourth on accounting p. 635, b08, where a person accepted the reading. The labels went bold in an
+  addendum while the check was being written; it now asks each label's weight. **Found on the way:** a scripted edit of a
+  test whose strings held escaped quotes missed its match and changed nothing; the test was edited by hand.
+- **The analysis set apart (181.a, item 2), done first as line 1 asked, since it is small.** Its markup was wrapped in a
+  section and the wrapped lines indented by a short script, so no line was retyped. Decisions 183 (the record zone in the
+  standard width, the analysis alone wide) and 184 (a labelled page head) arrived meanwhile; line 1 placed them in 179's
+  steps 1 and 2.
+- **A judgement recalled on the page (181.a, item 1).** Line 1's addenda arrived while it was built: an unmistakable
+  marking, then the operator's own viewer's convention (a chip with the way back, a dashed frame around what the overlay acts on),
+  then the skills' new rule that the overlay is the annotation role, always dashed. A token of its own, first named
+  "overlay", was dropped for that role; the name would also have collided with the popover's `--color-bg-overlay`.
+  **Found on the way:** the validator showed the light annotation hue failing against the link blue under deutan (ΔE 6.0)
+  and the dark one in the 6 to 8 band; a first light candidate passed against blue but stood 12.8 from error at normal
+  vision, so the hue was searched against all roles at once. The browser check first expected the recall's id
+  percent-encoded in the address; the hash router keeps its colons and slash, and the check now compares the decoded
+  address. The store is read by path and only for a key that is one of the page's own readings, so no path the address
+  names can leave it; a test tries one.
+- **Decision 179, the audit and step 1a.** Line 1 approved the plan in its order, split step 3 into 3a and 3b, and folded
+  decisions 183, 184, 186 and 188.a, the badge and title fixes, the chart labels and the viewer's rules into the steps;
+  step 1 was split again into 1a (the fold) and 1b (the grid folds and the two zones), so each lands green. **Found on the
+  way:** the fold first asked the settings store on every mount, and the chat turn's tests, which mount without a store,
+  failed; only a remembered fold asks it now. A test that compared the page's HTML for `class="history"` broke once the
+  root carried the fold's class too; it compares the two folds' order in the document instead.
+- **Step 1b.** The readings' fold first kept the mark inside the grid, as the chapters do; a plain fold with the grid as
+  its title keeps the columns aligned as well, since every reading's mark has one width, and lets the general indent
+  check see it, so only the chapters keep the mark in the title cell. **Found on the way:** the width check first measured
+  a zone of the page the browser had just left, still in the document while the next view came in, and read it as 0 px
+  wide; it now waits for the view's own analysis and measures inside the view. Two counter-probes broke each other: a
+  style injected to show the page-title check failing still held when the type-scale probe ran after it, and is removed
+  after use. The fold check's counter-probe clicked a fold the first pass had left open and remembered, and so closed it;
+  it now opens it directly. The check that a reload keeps the history open passed alone and failed in the full run:
+  the fold says its toggle after the click returns, and the reload came first; it now waits until the choice is kept.
+- **188.a, a person's correction and assessment, taken ahead of step 2 at line 1's request while the operator looked at p. 94.**
+  The core added the fields in 879233b; the API's model took them without a change in its reading, and the fold of the
+  finding voices shows them. **Found on the way:** a unit test compared the assessment's whole line and found its label
+  and words run together, the known trap of flex spans without a space between them in the page's text; it compares each
+  part.
+- **190.a, the printed words in attributes.** **Found on the way:** the template's own line breaks between the term, the
+  separator and the body became spaces: two after the colon, and a leading one in a body that keeps its line breaks
+  (`pre-line`), which an older test of a grouped figure caught; the bodies are written without gaps between their nodes.
+- **Step 2a.** **Found on the way:** the findings line's jump first carried `data-block`, the attribute a reading's block
+  is found by, so a test looking for block b02 found the button; it carries `data-jump`. The new record first flowed its
+  lines side by side under the old head line's flex rule, and the old findings line's grey small type held, which the
+  screenshot showed; the record is a column now and the old rules are gone.
+- **Two checks that hung on a real page's state (after line 1's ff9a57b).** The operator accepted finance p. 119 in the walk, and a
+  Python test and a browser check had taken it as "a standing finding on a page served from its text layer". The test now
+  builds that case from an invented row; the browser check picks such a page from the Issues when it runs, by its state,
+  not by its number. On the page it then chose, a tall block below the page's grown record (184) showed its start but not
+  half of itself in a 720 px window; the check asked a share of the block where its intent was the block's start in view
+  with the window unmoved, and now asks exactly that.
+- **Step 2c and 194.a, taken ahead of 2b,** as the operator was looking at figures in the readable mode. **Found on the way:** an
+  edit script passed through a Bash heredoc lost its backslashes, the known trap of `rules/machine.md`, and a `split('\n')`
+  became a line break inside a string; the type check caught it and the line was set with the editor. A first try handed
+  the fold a hover through an attribute it does not take; explanations wait for 2b's hint registry.
+  The guard that a block reaches the view only as segments, cells, LaTeX, code or text listed the block's fields and
+  failed on the new `decorative`, which is the API's reason, not the model's text; it lists it now. The three browser
+  walks that open every fold took a list once and clicked through it while opening a fold drew the view again, and one
+  clicked a row that was gone; a shared helper looks the next closed fold up anew after each click. Two browser checks now
+  skip on today's data: no page of its work is declined any more, and the calls list (as before) has no answered page here.
+- **Step 2b, part one,** split from the hint registry and the hover card so that the walk's new fields land first. No reset
+  exists in the data yet; the tests invent one.
+  The routes' browser check began to skip once the walk moved finance's last pages off its fallback route; it picks a work
+  that has one from the Issues when it runs, so it checks the fallback row again rather than skipping it.
+- **Step 2b, part two.** Line 1 noted that part one named the page's protection 189.b; it is decision 191.a with the reset
+  (189.b is the rule that a wrong block always gets its correction). The labels in code, tests and this chapter were set
+  right in this commit; part one's commit message keeps the wrong number. **Found on the way:** the overlap hint's old
+  button left two imports unused, which the type check refused; a card fixed to the window was chosen over one placed in
+  its cell after a table's scroll box was seen to cut anything absolutely placed inside it.
+- **Step 3a.** The shared rules stand unscoped in the table component, by its class, since the cells are the views' own
+  and reach it through its slots; a view's own rule for the table element itself would not reach it, so the routes' margin
+  went to the box around it. The grouped list's work row kept its rule beneath it, which the parted-rows check asks for.
+- **Step 3b.** The eleven tables were moved by a script written to a file, after two heredoc edits had lost their
+  backslashes earlier in the day; it removed a table's own rule for the table element, which no longer reaches the
+  element the library draws, and kept its width as the table's `wide` option. **Found on the way:** the script's pattern for
+  a class took `class="{ paid }"` out of the overview box's `:class="{ paid }"` and left a bare colon; the type checker
+  crashed on it without naming the file, and a compile of each changed component found it. Four scroll boxes under a
+  condition were left by the script, which matched only an unconditioned box, and were unwrapped by a second one.
+
+## 2026-11-11
+
+- **Checked along on judge/4's verdicts** (line 1, for the operator's choice of the active judge). The first look found no judge/4
+  in the page JSON at all: the tracked export had been written before judge/4's batches were collected. That was the
+  core's, sent back, and line 1 wrote the export again (c89ff5c). Before it landed, the view was checked against a copy of
+  the export in the scratchpad with the core's own judgements of each reading put in, the store only read, so the check
+  did not wait. Accounting p. 69: judge/4's one flag on the clean calibration pages judged the mini pilot's reading, a
+  reading the page's history does not list; line 1 had told the operator the served reading lacked the title, and the served one
+  has it as its own heading block, so the omission is the pilot reading's alone, and the calibration judgement stays out of
+  the page (line 1 agreed and corrected its protocol). **The view's own two faults:** the rows gave the findings' count
+  without their severity; and a person's assessment, rating judge/1's finding, stood unnamed under a recalled judge/4's
+  finding. On p. 119 that read as the person calling judge/4's finding a false alarm, where the person's own note says the
+  grid finding, which is judge/4's, is right. The judge named is derived in the API, never in the view: the counting
+  judgement on the verdict's reading, the latest stored before the verdict was given. Both verdicts were given before
+  judge/4 judged (19:58 and 20:41 against 22:46 on 10 Nov), so the person cannot have meant it. Recording the judge
+  with the assessment would be the core's, so it is left to line 1 to propose; the API would then read it instead.
+  **Found on the way:** the scratch check's first run called the recall with the title it does not take and stopped after
+  the first page; its second read the person's verdicts by a field the block does not have and showed none.
+- **The page's head and one text size** (the operator, on finance p. 119: best practice for the best overview; then "I prefer everything uniform", and "do it as you recommend for now"). Proposed as seven findings with options; the operator
+  took the recommended bundle of the head (each thing once, aligned columns, 100 characters a line, a person's verdict
+  before a state it overrules) and asked for the sizes to be looked at. The second pane's share stays open. **Measured
+  before deciding:** a browser walk of 17 views listed every visible text's font and size; the font was already one, form
+  controls included, and the sizes the three of 159.a, so one size was taken, the one most text already had. The size
+  declarations went by a script written to a file, which also removed the rules left empty, and their comments where a
+  comment stood only for that rule; the diff was read for each. **Found on the way:** the aligned values moved by 7 px from
+  a page with a person's line to one without, as the label column took the widest label present; it now takes the
+  longest the record can show. In the grid the labels sat 3 px below their values until the line aligned by baseline.
+  An invented page served from its text layer showed "Why: a person rejected the reading" under a sentence saying just
+  that; a person's why now gives only their note. The receding state's reasons kept their bright ink, set by the list
+  itself; the line's rule now reaches them.
+- **211.a, a page a person settled leaves the issues** (line 1, from the operator). Line 1's rule named a current verdict, by the
+  page's protection, and the latest one for the split. The view takes the rule the page's own person mark follows (the
+  core's standing accept or reject on the reading shown, else an applying note): the same on today's export, and apart
+  only where a verdict stands on another reading of the page, which then settles nothing, so the head, the row and the
+  count never disagree. The record's line was named "State:"; on a settled page it would have read as the person's, so it
+  is "Check:" now, everywhere. **Found on the way:** the Issues' check of the aligned columns measured every list's
+  header, the folded one's at x 0; it opens the fold and asks for three. The check of a narrowed list took the first
+  row's check state as the facet's value, which for a settled page is no longer what the facet lists it by.
+  The fold of settled pages indented its table, so its columns stood 40 px off the open lists'; the columns check found
+  it, and the fold is flat. The check of a served issue's why began to skip, as every such page is settled today; it
+  takes a settled one, in its fold, where no open one is. And the prompts' check, unrelated: it took the first version
+  with one before it, now line 1's reader prototype page/2, a rewrite whose diff has added and removed lines and no word
+  replaced in a line, so nothing to mark; the view was right, and the check now picks a version that changed words.
+- **206.a, step 1** (line 1, from the operator; the core's 205.a waits on it). The segment's kinds widened first, since a reading
+  with an `fn` segment would fail the API's model before the view could draw it. The link to the note is the API's: it
+  knows every block of the page, the view knows one segment. The card sits around the raised marker, not inside it, so its
+  text keeps the one size rather than the superscript's.
+- **204.a** (line 1, from the operator). The table's drawing moved out of the reading's blocks into `ReadingTable`, used by the
+  reading and by a correction alike, under "unify as you go". **Found on the way:** the build stopped on a type the
+  view's type module did not name yet (`Cell`), and the browser check of the new table ran against the old build and
+  failed, as it should; with the type named, it passed.
+- **210.a** (line 1, from the operator; taken before 202.a, since the export already listed page/2's readings and they stood in the
+  history). The reading keeps its number among all the page's readings, so a recall's line and the Lab name it as the
+  export orders it; the history's count is of the pipeline's readings. **Found on the way:** the operator's look at finance's work
+  page showed "decided by a person" running into "Note"; the chapters' columns were fixed at 7rem. A first control of the
+  new heading check, run by stashing the change, proved nothing, as the stash took the check with it; the check now puts
+  the old widths back itself and must see the overrun.
+  The check of accounting p. 524's readings expected every attempt in the history, page/2's too; it takes the pipeline's.
+- **202.a and a verdict's one look** (line 1, from the operator; and the operator on the history of finance p. 119: "all the displays would need one clear line", change only with high confidence). Taken: a person's verdict in one look, as
+  certain; proposed, not built: the Lab drawn as the history is, by reading, at 70 % confidence. The rules first stood
+  in rows of their own after all the Lab's judgements; a judgement and its rules now come from one loop, so the rules
+  stand right beneath it. **Found on the way:** the unit test of a rule's line read its parts run together, the known
+  trap of flex spans without spaces; it compares the parts.
+- **203.a** (line 1, from the operator; under "unify as you go"). Three named places, and a fourth found: the assessment's tooltip
+  repeated the note that now stands beneath the verdict, so it went rather than moving. The dashed overlap's tooltip went
+  too: its figures are the count's card, its meaning the view's hint.
+- **Checked along: the demo views** (line 1, for the deck's screenshots in `_INTERNAL/deck_shots/`, light theme set in
+  the browser alone, as the app's theme is dark by its page and has no switch). One claim of line 1's did not hold and was
+  the data's, not the view's: accounting "issue 9" was before validator page/1.3; the view says 3, and the Issues agree.
+- **208.b, the conversion in folders by concern** (line 1; the operator: "internet is back, to all lines"). Line 1 rewrote the
+  imports of this API's five modules and its tests itself and held them while it worked; line 2 waited, then took main
+  as it was. One thing was the view's own: a run's command is said without the module path all of them share, and a run
+  started since reads "python -m backend.conversion.checks.check_run …" where the pipeline database keeps the earlier
+  "python -m backend.conversion.check_run …". The path to drop now takes an optional concern folder, named one by one, so
+  both read "check_run …" and a folder the conversion does not have is not taken for one.
+- **The head's findings, flagged** (the operator via line 1, 12 Nov, on accounting p. 524). Both flag and colour, as beneath the
+  block: one look for one kind of thing, the rule the operator is deciding as line 2's question (3). Line 1 named finance p. 94 as
+  "one minor under an ok outcome"; that is judge/4's, seen when it is recalled, while the head shows the page's standing
+  judgement, judge/1's major; the minor case is tested with an invented page.
+- **219.a, a work's head on the page head's grid** (the operator, via line 1; formerly line 2's question 1). The facet bar became
+  labelled lines everywhere it stands, not only on the work page, as one kind of thing gets one look; the Issues and the
+  calls changed with it. **Found on the way:** a line of toggles centred its label between two wrapped rows, and set by
+  baseline it sat 3px low beside the toggles' padding; it now stands at the top, set down by the toggle's own padding and
+  border. Measuring that showed every labelled line with a value that begins with a glyph 3px off, on the page's head
+  too, since 11 Nov; the lines stand at their top now, and a check measures the words' line boxes. A scratch server run
+  outside the harness's background tasks was stopped by its port.
+  **Found by the full browser run:** at 390 px the work page and the Issues scrolled sideways, the bucket's toggle
+  (361 px) wider than the value column; a toggle's parts now wrap inside it. The voices' check met a block with a
+  person's correction and assessment (line 1's 217.a on accounting p. 635) and knew neither voice; it reads them from
+  the API now. The timestamps' walk ran past 180 s: it hung on a click in the Issues, held by a hover card a row had
+  opened under the resting pointer (since 203.a gave rows their cards), and the calls' log has grown past 300 folds
+  (24 s to open). A card now lets the pointer through, and the walk opens the first 60 folds of a view, each kind among
+  them, said in the check.
+- **213.b, a person's verdict from the page view** (the operator via line 1, 12 Nov: "this really is the last proper feature before the freeze"; the switch 223.a, the correction 224.b). Line 1 built the core's `from_view` and the export
+  queue first; line 2 the route, the dialog and its checks. The view addresses a work by its id, the core by the export's
+  folder name (`openstax-accounting`, not the source id); the API maps one to the other from the page's own row, and a
+  test pins it. Two of line 2's own tests broke and were told apart from a fault: the start switch's test replaced
+  `create_app` with a function that knew no `allow_verdicts`, and the block's field list lacked the new `body`.
+  **Found on the way, for the deck's shot:** accounting p. 524's b11, a table the reader marked unreadable, carries a
+  person's correction as a table, and the page showed it as HTML source: the rule from 204.a asked the block for cells of
+  its own, which an unreadable table has none of. It asks for the block's class now. The deck's shot was taken from a
+  scratch server started with `--allow-verdicts --public-only --no-chat` as a background task, every verdict request
+  aborted in the browser, and the server stopped after it; nothing was sent. The correction's field ran its one-line HTML
+  out of sight to the right; it wraps at the field's edge now, the text unchanged. knip found two type names exported for
+  nothing, and they went.
+  **Line 1 ran it once end to end** on copies of the export and the pipeline database (the real ones untouched, 31
+  verdicts before and after): recorded, the export finished after 53 s without error, and the page showed the note on
+  reloading. The dialog had promised "about 40 s", measured on an idle machine; it says "about a minute" now, which holds
+  on a busy laptop too.
+- **227.a, every page opens on its reading** (the operator via line 1, 12 Nov, optics). The one exception kept is not a choice: a
+  page without a reading has only the quoted text to show, and opening it on "readable" would leave the pane empty.
+  Accounting p. 360 is such a page (blocked), p. 398 a text-layer page with a reading. Every browser check that clicked
+  "readable" on a text-layer page first still does so harmlessly; the two that pinned "quoted" now pin "readable".
+  **Found by the full browser run, twice, and not alone or in the first six:** 219.a's check of the work head failed
+  at its control, which widened the label column on the grid elements themselves; the work view draws its head again when
+  the work's pages arrive anew, and Vue sets the grid's own width back on it. The control is a style rule now, and the
+  check measures from the head's edge once the head stands, so a scrollbar still coming does not count either.
+- **229.a and two faults on accounting p. 398** (the operator via line 1, 12 Nov, right after the first real verdict from the
+  dialog: verdict 32, export run 231; route, export and reload all worked). The text correction was not lost in the API,
+  which served it; the view drew a person's correction only beneath a block's findings, and b04 had none. The break was
+  lost in the core's table parser, on purpose: its quoted text needs a table one line a row. So the break could not be
+  drawn from what the API gave; the API now reads a cell again with the same parser, the break held by a private-use
+  character, and keeps the first parse wherever the second would differ in shape. The core is untouched. Which correction
+  stands is the API's choice now (latest applying, not archived), so the view and the dialog cannot pick differently; the
+  dialog's own rule went. The struck-through reader's text of 188.a went with it: the reading now stands whole beneath
+  the correction, muted, which is what 229.a asked. Found while checking p. 524: under a correction over an unreadable
+  table the reading's label named nothing, and now says the reading holds no text there. Line 1 added "not served yet"
+  to the correction's line so "correction first" cannot be read as what the search quotes. Verdict 32 lives in the main
+  tree's export, not yet in the worktree's tracked copy, so p. 398's b04 is tested with an invented block of its shape.
+- **228.a, the validator's errors on their blocks, and the raw text numbered** (the operator via line 1, 12 Nov, after 229.a).
+  The validator's errors are strings; parting them in the view would have computed in the UI, so the API parts them by
+  the validator's own two forms and keeps the string whole where neither fits. Who looked is the same choice as which
+  correction stands (`latest_standing`, one function for both). The validator's line numbers were checked against the
+  raw text before anything was built: p. 398's line 26 is b04's fence, p. 338's line 86 the refused attributes, so the
+  gutter counts from the file's first line. The gutter is a pseudo-element, so neither the text nor a selection holds a
+  number; a browser check selects the whole raw text and compares. A Python script through a Bash heredoc turned two
+  escaped newlines into line breaks in the page view (the trap the machine rules name; it struck this entry too); found
+  in the source and mended with the editor.
+- **A parting dot at a line's start, again** (seen on p. 398's b04 while checking 229.a). The operator had asked on 11 Nov that a
+  wrapped line never begin with the dot that parts two fields; the note had moved to a line of its own then, but the
+  verdict's line itself was a flex row whose items each began with their dot, so a long reason pushed "· maintainer" to
+  the next line's start. The person's line, in the lists and beneath a finding, is one run of text now, each dot bound to
+  the word before it by a no-break space: a line breaks after a dot, never before one. The validator's error on a block
+  had the same fault for its "show raw"; that and who looked stand on an indented line beneath the error now, as a
+  finding's evidence does.
+- **225.a, a chapter's count opens its pages** (the operator via line 1, 12 Nov, "only if it fits before the freeze"). Line 1's
+  example, chapter 6's red 1 to p. 398, no longer held by the evening: the operator's verdict 32 had moved p. 398 from issue to
+  decided by a person. Leaving that count a figure would have made the example unreachable, so the decided count opens
+  its pages too (`OPENED_BY_A_COUNT`); said to line 1 with the commit. The units to open are found as the filter's are,
+  from each page's units upward (one function for both now, `withAbove`), and the open-units store opens them, so they
+  stay open on coming back, as the reader's own opening does.
+- **Stage 3 in labelled lines** (the operator via line 1, 16 Nov, about two hours before the review; markup only). Stages 1 and 2
+  stay one line each, as line 1 asked; they read as single facts beside stage 3's three and were left alone.
+  The full browser run then failed twice. One was this change's: a check that the head has no "Why:" looked over the
+  whole page and found stage 3's; it looks at the head now. The other was the data's: the call log, grown since 12 Nov,
+  lists a call answered with a work first, whose link opens the work, and the check took the first link for a page's; it
+  takes the first page's link now, and skips, as before, where no listed call names a page.
+- **Which search is which, said where it is chosen** (the operator via line 1, 16 Nov, an hour before the review; text only). The operator
+  typed a question into Search and expected the chat's hybrid search. The menu now says "Chat · hybrid search" and
+  "Keyword search · no model" (the operator: "search without LLMs"); the search page's heading follows, and its note says it is the
+  MCP server's keyword tool with no model at all, neither embeddings nor a language model, and sends a question in words
+  to the Chat by a link; the Chat's first screen says its answers come through the librarian's hybrid search and every
+  quote is checked word for word. The label is the route's, so the header and the tab say the same.
+  **→ now**, the same day, the operator's naming rule: `search` is called search (BM25), `semantic_search` semantic (hybrid). The
+  menu says "Chat · semantic (hybrid)" and "Search · BM25, no model", the search page's heading follows, and both lines
+  say BM25 and semantic (hybrid) where they said keywords and hybrid search.
+- **Ready for a public repository** (line 1's handoff, 16 Nov evening, after the operator's 263.a to 267.a). Line 2's
+  share, delivered as a patch on the import commit rather than as a commit, since that commit is redone: a Host check on
+  every route, the licence notices of the bundle, the operator named by role with their quotes translated, a licensed
+  work's key and the licensed shelf's counts replaced. The handle went by a script that capitalises at a sentence's
+  start, across line breaks and comment markers, and lists every case for a look; the quotes by a table of each German
+  phrase and its English, matched across wrapped lines, longest first, so a short quote inside a longer one is not
+  translated twice. **Mistake:** the new test of the chat's own Host check imported `starlette` directly, which
+  `requirements.txt` does not declare; the contract test that every import is declared caught it, and FastAPI's own
+  `Request` took its place. **Found on the way:** the test client's default host, `testserver`, is refused like any
+  foreign name, so every test client now names 127.0.0.1; the rebuilt bundle differs from the old only in the scoped style
+  ids Vue hashes from each component's source, comments included.

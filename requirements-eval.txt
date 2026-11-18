@@ -1,0 +1,10 @@
+# The RAGAS report's own environment (decision 136.a): RAGAS 0.4.3 pins openai below 2 and needs langchain-community 0.3,
+# which the app's stack (requirements.txt: openai 3, langchain-openai 1.6) cannot take. Install it into .venv-eval, never .venv:
+#   python -m venv .venv-eval
+#   .venv-eval/Scripts/python -m pip install -r requirements-eval.txt
+#   .venv-eval/Scripts/python -m backend.evaluation.ragas_report evaluation/results/answers_<label>.json
+-e .
+ragas==0.4.3
+langchain-community==0.3.31
+langchain-openai==1.1.9
+python-dotenv==1.2.4

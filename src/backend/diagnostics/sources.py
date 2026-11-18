@@ -1,0 +1,59 @@
+"""What the diagnostics UI shows about the sources, read from the core's data and never written.
+
+Every model here is the response shape of a route in `app.py`. It reaches the UI's TypeScript through
+the OpenAPI schema (`python -m backend.diagnostics.build`), never by hand.
+"""
+
+import json
+from pathlib import Path
+
+from pydantic import BaseModel
+
+from backend.diagnostics.readings import KnowledgeBase, WorkReadings
+
+ROOT = Path(__file__).resolve().parents[3]
+CATALOG = ROOT / 'corpus' / 'catalog.json'
+
+
+class CatalogSource(BaseModel):
+    """A source as the catalog must list it: every field the sources view shows. A gap is refused, not shown empty."""
+
+    id: str
+    title: str
+    authors: str
+    publisher: str
+    # None for the Wikipedia set: articles that change all the time have no year of publication
+    year: int | None
+    licence: str
+    format: str
+    shelf: str
+
+
+class Work(BaseModel):
+    """One work as the sources view lists it. A licensed work has no catalog entry: its export gives an id and a title,
+    the PDF's stem as on the search server, and the catalog's fields stay empty."""
+
+    knowledge_base: KnowledgeBase
+    id: str
+    title: str
+    authors: str | None = None
+    publisher: str | None = None
+    year: int | None = None
+    licence: str | None = None
+    format: str | None = None
+    shelf: str | None = None
+    # The work's page readings in figures; None for a work that is not read page by page (HTML, for one).
+    readings: WorkReadings | None = None
+    # An HTML work's structure (the operator's 4.a): the sections the loader cut by heading and the chunks embedded from them, as
+    # the search index records them; None for a work read page by page, or where the index is not built, which `why_not`
+    # then says.
+    sections: int | None = None
+    chunks: int | None = None
+    structure_why_not: str | None = None
+
+
+def works(catalog: Path = CATALOG) -> list[Work]:
+    """Every work in the catalog, in the catalog's order. The catalog is the free knowledge base's, kept with it in
+    `corpus/`, so each of its works is free; the licensed knowledge base has none."""
+    sources = json.loads(catalog.read_text(encoding='utf-8'))['sources']
+    return [Work(knowledge_base='free', **CatalogSource.model_validate(source).model_dump()) for source in sources]

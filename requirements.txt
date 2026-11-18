@@ -1,0 +1,55 @@
+# Install:  python -m venv .venv  &&  .venv/Scripts/activate  &&  pip install -r requirements.txt
+#
+# Pinned exactly (decided 2026-09-28): the current LangChain 1.x, whose interfaces are the ones the
+# course teaches. Only what the code imports is listed. tests/contracts checks that.
+
+# This project, in editable mode: puts src/ on the path (pyproject.toml)
+-e .
+
+# Loading
+pymupdf==1.28.2                    # PDF text and outline, called directly (phase 1: pypdf split
+                                   # words; phase 2: langchain-community, home of PyMuPDFLoader, is archived)
+beautifulsoup4==4.15.0             # the HTML sources
+
+# Splitting, embedding, storing
+langchain-core==1.8.1              # 1.8 since langchain-anthropic 1.7.10, the first to take anthropic 2.3.0
+langchain-text-splitters==1.1.2    # RecursiveCharacterTextSplitter
+langchain-openai==1.6.6            # OpenAIEmbeddings, pointed at OpenRouter
+openai==3.19.2                     # its finish-reason errors, caught where structured output stops early
+langchain-chroma==1.1.0
+chromadb==1.5.9
+tiktoken==0.14.0                   # token counts, as the embedding API bills them
+python-dotenv==1.2.3               # reads the provider keys from .env
+
+# Reading page images (the vision conversion)
+anthropic==2.3.0                   # the official SDK: LangChain's ChatAnthropic has no Message Batches API
+langchain-anthropic==1.7.10        # ChatAnthropic: the chat's models on Anthropic's API (decision 287.b)
+pillow==12.3.0                     # page renders: colour check and greyscale PNG
+markdown-it-py==4.2.0              # parses the reader's page files
+mdit-py-plugins==0.6.1             # their front matter, colon fences, attributes and inline math
+pyyaml==6.0.3                      # their front matter, every scalar kept a string
+mini-racer==0.14.1                 # runs the vendored KaTeX, which checks every formula
+rapidfuzz==3.14.6                  # token alignment against the text layer and edit distances
+docling-core==2.105.0              # the document model the structures lean on; needs no torch (measured 2026-10-30)
+
+# Query routing (phase 4)
+pydantic==2.13.5                   # the router's QueryPlan, filled by with_structured_output
+
+# The agent and its tools (phase 7)
+langchain==1.4.2                   # create_agent, as in lesson 4
+langgraph==1.2.12                  # InMemorySaver, the conversation memory
+
+# Diagnostics (line 2)
+fastapi==0.162.0                   # the read-only API of the diagnostics UI, and its OpenAPI schema; uvicorn, which
+                                   # serves it, is pinned with the search server below
+
+# Keyword search (phase 5)
+rank-bm25==0.2.2                   # BM25Okapi, the version lesson 2 was tested with
+
+# The search server (capstone phase 3)
+mcp==2.3.0                         # the official SDK, MCPServer over stdio, as in the course's workshop
+uvicorn==0.54.0                    # serves its streamable HTTP transport (--http), already pulled in by mcp
+httpx==0.28.1                      # the tests call that transport in-process; already pulled in by mcp
+
+# Tests
+pytest==9.1.1

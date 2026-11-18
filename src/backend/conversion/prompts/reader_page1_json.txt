@@ -1,0 +1,24 @@
+
+OUTPUT FORMAT
+Reply with one JSON object: {"front": [...], "blocks": [...]}. front holds the front fields as {"name", "value"} pairs. Each block is {"id", "class", "attrs", "body"}, and attrs holds its attributes as {"name", "value"} pairs. Every value is a string. In a body, write what the rules above say and escape it as JSON requires: every backslash doubled (\\frac, \\text), every line break as \n, every double quote as \".
+
+EXAMPLE (an invented page, showing the form only)
+{"front": [{"name": "contract", "value": "page/1"}, {"name": "work", "value": "example-work"}, {"name": "pdf_page", "value": "42"}, {"name": "image_size", "value": "1688x2184"}, {"name": "printed_label", "value": "28"}, {"name": "label_position", "value": "header"}, {"name": "page_kind", "value": "body"}, {"name": "columns", "value": "1"}, {"name": "rotation", "value": "0"}, {"name": "language", "value": "en"}],
+ "blocks": [
+  {"id": "b01", "class": "page_number", "attrs": [{"name": "bbox", "value": "150 66 190 98"}], "body": "28"},
+  {"id": "b02", "class": "page_header", "attrs": [{"name": "bbox", "value": "200 66 700 98"}], "body": "3 • Measuring Returns"},
+  {"id": "b03", "class": "paragraph", "attrs": [{"name": "cont", "value": "prev"}, {"name": "bbox", "value": "194 150 1490 240"}], "body": "of the period. The holding return ignores dividends unless they are added to \\(P_t\\),[1]{.fn} which [total return]{.term} does:"},
+  {"id": "b04", "class": "formula", "attrs": [{"name": "label", "value": "3.2"}, {"name": "bbox", "value": "450 250 1240 330"}], "body": "R_t = \\frac{P_t - P_{t-1} + D_t}{P_{t-1}} = \\frac{\\$52{,}000 - \\$50{,}000}{\\$50{,}000}"},
+  {"id": "b05", "class": "box", "attrs": [{"name": "kind", "value": "example"}, {"name": "bbox", "value": "194 350 1494 900"}], "body": "WORKED EXAMPLE"},
+  {"id": "b06", "class": "heading", "attrs": [{"name": "in", "value": "b05"}, {"name": "bbox", "value": "211 400 700 440"}], "body": "Two Funds"},
+  {"id": "b07", "class": "table", "attrs": [{"name": "in", "value": "b05"}, {"name": "bbox", "value": "300 460 1400 640"}], "body": "<table>\n<thead><tr><th></th><th>Fund A</th><th>Fund B</th></tr></thead>\n<tbody>\n<tr><td>Return</td><td>4.1%</td><td>&lt;3%</td></tr>\n</tbody>\n</table>"},
+  {"id": "b08", "class": "caption", "attrs": [{"name": "of", "value": "b07"}, {"name": "label", "value": "Table 3.1"}, {"name": "in", "value": "b05"}, {"name": "bbox", "value": "300 650 1000 690"}], "body": "Table 3.1 Returns of the Two Funds"},
+  {"id": "b09", "class": "figure", "attrs": [{"name": "kind", "value": "chart"}, {"name": "bbox", "value": "300 920 1400 1400"}], "body": "Return (%)\nYear\n2010\n2020"},
+  {"id": "b10", "class": "caption", "attrs": [{"name": "of", "value": "b09"}, {"name": "label", "value": "Figure 3.4"}, {"name": "bbox", "value": "300 1410 1000 1450"}], "body": "Figure 3.4 Fund A over Time"},
+  {"id": "b11", "class": "description", "attrs": [{"name": "of", "value": "b09"}, {"name": "form", "value": "prose"}], "body": "A line chart of return against year. The line rises from the lower left to the upper right, which is the growth the caption refers to."},
+  {"id": "b12", "class": "code", "attrs": [{"name": "kind", "value": "listing"}, {"name": "lang", "value": "python"}, {"name": "bbox", "value": "194 1480 1300 1590"}], "body": "def total_return(p0, p1, d):\n    return (p1 - p0 + d) / p0  ①"},
+  {"id": "b13", "class": "callout", "attrs": [{"name": "marker", "value": "①"}, {"name": "of", "value": "b12"}, {"name": "lines", "value": "2"}, {"name": "bbox", "value": "194 1600 1300 1650"}], "body": "Dividends count as part of the gain."},
+  {"id": "b14", "class": "paragraph", "attrs": [{"name": "cont", "value": "next"}, {"name": "bbox", "value": "194 1680 1490 1760"}], "body": "The next section compares this measure with the"},
+  {"id": "b15", "class": "footnote", "attrs": [{"name": "marker", "value": "1"}, {"name": "bbox", "value": "194 1950 1490 1990"}], "body": "See Chapter 5 for dividends."},
+  {"id": "b16", "class": "page_footer", "attrs": [{"name": "bbox", "value": "194 2100 700 2140"}], "body": "Example Press"}
+ ]}

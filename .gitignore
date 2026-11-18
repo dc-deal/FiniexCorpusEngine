@@ -1,0 +1,84 @@
+# Local data, never published: every folder whose name starts with an underscore. _data is the
+# local data folder (the free sources, their readings, the measurements), _sources the original
+# books (the commercial ones above all), _work everything the pipeline keeps on this machine, the
+# reading of the commercial books included, _internal_archive the internal documents.
+# One wrong rule here would publish them with the next push, so a contract test holds it.
+/_*/
+_*/
+
+# The data's places before it moved to _data/: ignored, so nothing written there is ever published.
+/corpus/raw/
+/corpus/readings/
+/evaluation/results/
+
+# This machine's own settings, laid over configs/app_config.json (decision 285.a).
+/configs/*.local.json
+
+# Developer tooling: its settings, rules and skills live in .claude/.
+# CLAUDE.md is named as well as a safety net, so a copy anywhere else in the tree stays out too.
+.claude/
+CLAUDE.md
+.claude.json
+.mcp.json
+
+# Keys and credentials, should one ever land here: keys belong in .env
+claude-key*.json
+*-key.json
+*.key
+*.pem
+id_rsa*
+keys/
+secrets/
+.envrc
+.env.*
+!.env.example
+
+# Internal working notes and drafts
+INTERNAL_*
+/ISSUE_*.md
+/JOBS_*.md
+/SESSION_*.md
+/HANDOFF_*.md
+SUMMARY_*.md
+export_github_issues.sh
+
+# Local databases; everything built from the corpus (vector store, SQLite) is derived and rebuilt by
+# the pipeline.
+*.sqlite
+*.sqlite3
+*.db
+corpus/index/
+
+# Virtual environments (the RAGAS report has its own: requirements-eval.txt) and tool caches
+.venv/
+.venv-eval/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — secrets.example.json / .env.example ARE tracked as templates.
+# Path-independent on purpose: the RAG sprint's layout is not decided yet.
+**/secrets.json
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+# What the editable install of this project writes
+*.egg-info/
+build/
+
+# Runtime artefacts
+# The turn log (phase 10): every question, prompt and passage of every turn; local only.
+logs/
+
+# Node
+node_modules/
+dist/
+# The diagnostics UI's build IS tracked, so a reviewer needs no Node; a contract test holds it current.
+!src/frontend/diagnostics/dist/
+playwright-report/
+test-results/
+coverage/
+
+# Editor settings
+.vscode/

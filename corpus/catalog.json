@@ -1,0 +1,544 @@
+{
+  "_about": [
+    "The submission corpus: freely licensed sources only (decided 2026-09-25/28). This file, the downloaded files and their manifest are tracked (decided 2026-09-28), except files marked \"tracked\": false.",
+    "Every file is downloaded from its url into its path by `python -m backend.ingestion.acquire`, which also writes corpus/raw/_manifest.json (time, size, SHA-256, Wikipedia revision). Nothing is placed by hand, so the raw corpus can be rebuilt from this file alone.",
+    "Wikipedia pages come from the REST API (clean HTML with section ids); the revision id in the response is what a citation links to.",
+    "SRE book: the 34 chapters and 6 appendices; foreword, preface, part introductions and bibliography are left out.",
+    "Every licence was checked at licence_url on the date given. Re-check before a source's first ingest, because pages change.",
+    "Selection record, including rejected sources and why: docs/phase_00_foundation.md."
+  ],
+  "sources": [
+    {
+      "id": "openstax_principles_of_finance_2e",
+      "title": "Principles of Finance 2e",
+      "subject": "A first-year finance textbook: the time value of money, bonds, stocks, risk and return, portfolios, financial statements and interest-rate swaps; introductory, with nothing on market microstructure, trading systems or backtesting.",
+      "authors": "Julie Dahlquist, Rainford Knight",
+      "publisher": "OpenStax",
+      "year": 2026,
+      "licence": "CC BY-NC-SA 4.0",
+      "licence_url": "https://openstax.org/books/principles-finance-2e/pages/preface",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://openstax.org/books/principles-finance-2e/pages/preface",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://assets.openstax.org/oscms-prodcms/media/documents/Principles_of_Finance_2e_-_WEB_.pdf",
+          "path": "corpus/raw/openstax_principles_of_finance_2e.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Section 20.4 covers interest-rate swaps: a different meaning from the overnight forex swap (evaluation question q08)."
+    },
+    {
+      "id": "openstax_principles_of_accounting_v1",
+      "title": "Principles of Accounting, Volume 1: Financial Accounting",
+      "subject": "An introductory financial accounting textbook: double-entry bookkeeping, journals, ledgers, the trial balance, adjusting entries and the financial statements; the bookkeeping side of a ledger, not trading or performance measurement.",
+      "authors": "Mitchell Franklin, Patty Graybeal, Dixon Cooper",
+      "publisher": "OpenStax",
+      "year": 2019,
+      "licence": "CC BY-NC-SA 4.0",
+      "licence_url": "https://openstax.org/books/principles-financial-accounting/pages/preface",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://openstax.org/books/principles-financial-accounting/pages/preface",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://assets.openstax.org/oscms-prodcms/media/documents/principles-financial-accounting_-_WEB.pdf",
+          "path": "corpus/raw/openstax_principles_of_accounting_v1.pdf",
+          "tracked": false,
+          "not_tracked_because": "167 MB, above GitHub's 100 MB limit for a single file; python -m backend.ingestion.acquire downloads it"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Journals, ledgers, trial balance (chapter 3)."
+    },
+    {
+      "id": "wikipedia_trading_set",
+      "title": "Wikipedia articles on trading and risk",
+      "subject": "Eleven encyclopedia articles (Sharpe ratio, drawdown, Kelly criterion, backtesting, margin, foreign exchange swap, double-entry bookkeeping, algorithmic trading, stock exchange, moving average, bid-ask spread): short definitions to cite by revision, of uneven depth; the one on backtesting is close to a stub.",
+      "authors": "Wikipedia contributors",
+      "publisher": "Wikimedia Foundation",
+      "year": null,
+      "licence": "CC BY-SA 4.0",
+      "licence_url": "https://en.wikipedia.org/wiki/Wikipedia:Copyrights",
+      "licence_checked": "2026-09-29",
+      "source_url": "https://en.wikipedia.org/",
+      "format": "html",
+      "html_profile": "wikipedia",
+      "files": [
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Sharpe_ratio",
+          "path": "corpus/raw/wikipedia_trading_set/Sharpe_ratio.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Drawdown_(economics)",
+          "path": "corpus/raw/wikipedia_trading_set/Drawdown_(economics).html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Kelly_criterion",
+          "path": "corpus/raw/wikipedia_trading_set/Kelly_criterion.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Backtesting",
+          "path": "corpus/raw/wikipedia_trading_set/Backtesting.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Margin_(finance)",
+          "path": "corpus/raw/wikipedia_trading_set/Margin_(finance).html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Foreign_exchange_swap",
+          "path": "corpus/raw/wikipedia_trading_set/Foreign_exchange_swap.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Double-entry_bookkeeping",
+          "path": "corpus/raw/wikipedia_trading_set/Double-entry_bookkeeping.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Algorithmic_trading",
+          "path": "corpus/raw/wikipedia_trading_set/Algorithmic_trading.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Stock_exchange",
+          "path": "corpus/raw/wikipedia_trading_set/Stock_exchange.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Moving_average",
+          "path": "corpus/raw/wikipedia_trading_set/Moving_average.html"
+        },
+        {
+          "url": "https://en.wikipedia.org/api/rest_v1/page/html/Bid%E2%80%93ask_spread",
+          "path": "corpus/raw/wikipedia_trading_set/Bid-ask_spread.html"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Article quality varies: Backtesting is close to a stub. Cite the article revision that was fetched, since articles change. Moving_average and Bid-ask_spread added 2026-09-29 for the held-out questions on moving averages and trading costs; the local file name of 'Bid–ask spread' uses a plain hyphen."
+    },
+    {
+      "id": "lefevre_reminiscences_of_a_stock_operator",
+      "title": "Reminiscences of a Stock Operator",
+      "subject": "A speculator's memoir told as a novel, in the public domain: the psychology of trading, reading the tape and the behaviour of crowds as experience, never a method or a model to cite as one.",
+      "authors": "Edwin Lefèvre",
+      "publisher": "George H. Doran",
+      "year": 1923,
+      "licence": "Public domain in the USA",
+      "licence_url": "https://www.gutenberg.org/ebooks/60979",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://www.gutenberg.org/ebooks/60979",
+      "format": "html",
+      "html_profile": "gutenberg",
+      "files": [
+        {
+          "url": "https://www.gutenberg.org/cache/epub/60979/pg60979-images.html",
+          "path": "corpus/raw/lefevre_reminiscences_of_a_stock_operator.html"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Narrative prose, not a textbook: a test of the pipeline on a different kind of text. Download the HTML version from the Gutenberg page."
+    },
+    {
+      "id": "google_site_reliability_engineering",
+      "title": "Site Reliability Engineering",
+      "subject": "Google's book on running production systems reliably: service level objectives, error budgets, monitoring and alerting, on-call, incident response, postmortems and release engineering; quoted only in its original English.",
+      "authors": "Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy (eds.)",
+      "publisher": "O'Reilly / Google",
+      "year": 2017,
+      "licence": "CC BY-NC-ND 4.0",
+      "licence_url": "https://sre.google/sre-book/table-of-contents/",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://sre.google/sre-book/table-of-contents/",
+      "format": "html",
+      "html_profile": "sre",
+      "files": [
+        {
+          "url": "https://sre.google/sre-book/introduction/",
+          "path": "corpus/raw/google_site_reliability_engineering/01_introduction.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/production-environment/",
+          "path": "corpus/raw/google_site_reliability_engineering/02_production-environment.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/embracing-risk/",
+          "path": "corpus/raw/google_site_reliability_engineering/03_embracing-risk.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/service-level-objectives/",
+          "path": "corpus/raw/google_site_reliability_engineering/04_service-level-objectives.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/eliminating-toil/",
+          "path": "corpus/raw/google_site_reliability_engineering/05_eliminating-toil.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/monitoring-distributed-systems/",
+          "path": "corpus/raw/google_site_reliability_engineering/06_monitoring-distributed-systems.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/automation-at-google/",
+          "path": "corpus/raw/google_site_reliability_engineering/07_automation-at-google.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/release-engineering/",
+          "path": "corpus/raw/google_site_reliability_engineering/08_release-engineering.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/simplicity/",
+          "path": "corpus/raw/google_site_reliability_engineering/09_simplicity.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/practical-alerting/",
+          "path": "corpus/raw/google_site_reliability_engineering/10_practical-alerting.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/being-on-call/",
+          "path": "corpus/raw/google_site_reliability_engineering/11_being-on-call.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/effective-troubleshooting/",
+          "path": "corpus/raw/google_site_reliability_engineering/12_effective-troubleshooting.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/emergency-response/",
+          "path": "corpus/raw/google_site_reliability_engineering/13_emergency-response.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/managing-incidents/",
+          "path": "corpus/raw/google_site_reliability_engineering/14_managing-incidents.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/postmortem-culture/",
+          "path": "corpus/raw/google_site_reliability_engineering/15_postmortem-culture.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/tracking-outages/",
+          "path": "corpus/raw/google_site_reliability_engineering/16_tracking-outages.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/testing-reliability/",
+          "path": "corpus/raw/google_site_reliability_engineering/17_testing-reliability.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/software-engineering-in-sre/",
+          "path": "corpus/raw/google_site_reliability_engineering/18_software-engineering-in-sre.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/load-balancing-frontend/",
+          "path": "corpus/raw/google_site_reliability_engineering/19_load-balancing-frontend.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/load-balancing-datacenter/",
+          "path": "corpus/raw/google_site_reliability_engineering/20_load-balancing-datacenter.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/handling-overload/",
+          "path": "corpus/raw/google_site_reliability_engineering/21_handling-overload.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/addressing-cascading-failures/",
+          "path": "corpus/raw/google_site_reliability_engineering/22_addressing-cascading-failures.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/managing-critical-state/",
+          "path": "corpus/raw/google_site_reliability_engineering/23_managing-critical-state.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/distributed-periodic-scheduling/",
+          "path": "corpus/raw/google_site_reliability_engineering/24_distributed-periodic-scheduling.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/data-processing-pipelines/",
+          "path": "corpus/raw/google_site_reliability_engineering/25_data-processing-pipelines.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/data-integrity/",
+          "path": "corpus/raw/google_site_reliability_engineering/26_data-integrity.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/reliable-product-launches/",
+          "path": "corpus/raw/google_site_reliability_engineering/27_reliable-product-launches.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/accelerating-sre-on-call/",
+          "path": "corpus/raw/google_site_reliability_engineering/28_accelerating-sre-on-call.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/dealing-with-interrupts/",
+          "path": "corpus/raw/google_site_reliability_engineering/29_dealing-with-interrupts.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/operational-overload/",
+          "path": "corpus/raw/google_site_reliability_engineering/30_operational-overload.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/communication-and-collaboration/",
+          "path": "corpus/raw/google_site_reliability_engineering/31_communication-and-collaboration.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/evolving-sre-engagement-model/",
+          "path": "corpus/raw/google_site_reliability_engineering/32_evolving-sre-engagement-model.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/lessons-learned/",
+          "path": "corpus/raw/google_site_reliability_engineering/33_lessons-learned.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/conclusion/",
+          "path": "corpus/raw/google_site_reliability_engineering/34_conclusion.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/availability-table/",
+          "path": "corpus/raw/google_site_reliability_engineering/35_availability-table.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/service-best-practices/",
+          "path": "corpus/raw/google_site_reliability_engineering/36_service-best-practices.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/incident-document/",
+          "path": "corpus/raw/google_site_reliability_engineering/37_incident-document.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/example-postmortem/",
+          "path": "corpus/raw/google_site_reliability_engineering/38_example-postmortem.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/launch-checklist/",
+          "path": "corpus/raw/google_site_reliability_engineering/39_launch-checklist.html"
+        },
+        {
+          "url": "https://sre.google/sre-book/production-meeting/",
+          "path": "corpus/raw/google_site_reliability_engineering/40_production-meeting.html"
+        }
+      ],
+      "shelf": "architecture",
+      "language": "en",
+      "notes": "NoDerivatives: quote only in the original English, never show a translation or close paraphrase of a passage."
+    },
+    {
+      "id": "kleppmann_accounting_for_computer_scientists",
+      "title": "Accounting for Computer Scientists",
+      "subject": "A short essay that explains double-entry accounting to programmers as a graph, accounts as nodes and transactions as edges: the developer's view of a ledger, not accounting standards.",
+      "authors": "Martin Kleppmann",
+      "publisher": "martin.kleppmann.com",
+      "year": 2011,
+      "licence": "CC BY 3.0 Unported",
+      "licence_url": "https://martin.kleppmann.com/2011/03/07/accounting-for-computer-scientists.html",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://martin.kleppmann.com/2011/03/07/accounting-for-computer-scientists.html",
+      "format": "html",
+      "html_profile": "kleppmann",
+      "files": [
+        {
+          "url": "https://martin.kleppmann.com/2011/03/07/accounting-for-computer-scientists.html",
+          "path": "corpus/raw/kleppmann_accounting_for_computer_scientists.html"
+        }
+      ],
+      "shelf": "architecture",
+      "language": "en",
+      "notes": "Accounting as a graph: accounts as nodes, transactions as edges. The developer's view of a ledger."
+    },
+    {
+      "id": "carta_conversano_kelly_criterion_2020",
+      "title": "Practical Implementation of the Kelly Criterion: Optimal Growth Rate, Number of Trades, and Rebalancing Frequency for Equity Portfolios",
+      "subject": "A paper on using the Kelly criterion for equity portfolios: the optimal growth rate, how many trades it needs and how often to rebalance; position sizing, not the design of a signal.",
+      "authors": "Andrea Carta, Claudio Conversano",
+      "publisher": "Frontiers in Applied Mathematics and Statistics",
+      "year": 2020,
+      "licence": "CC BY",
+      "licence_url": "https://www.frontiersin.org/journals/applied-mathematics-and-statistics/articles/10.3389/fams.2020.577050/pdf",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://www.frontiersin.org/journals/applied-mathematics-and-statistics/articles/10.3389/fams.2020.577050/full",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.frontiersin.org/journals/applied-mathematics-and-statistics/articles/10.3389/fams.2020.577050/pdf",
+          "path": "corpus/raw/carta_conversano_kelly_criterion_2020.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Position sizing (evaluation question q14)."
+    },
+    {
+      "id": "deep_walk_forward_validation_2025",
+      "title": "Interpretable Hypothesis-Driven Trading: A Rigorous Walk-Forward Validation Framework for Market Microstructure Signals",
+      "subject": "A paper that validates interpretable market microstructure signals walk-forward, out of sample; it reports a Sharpe ratio of 0.33 that is not significant, which makes it a case of honest validation more than a strategy.",
+      "authors": "Gagan Deep, Akash Deep, William Lamptey",
+      "publisher": "arXiv",
+      "year": 2025,
+      "licence": "CC BY 4.0",
+      "licence_url": "https://arxiv.org/abs/2512.12924",
+      "licence_checked": "2026-09-28",
+      "source_url": "https://arxiv.org/abs/2512.12924",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://arxiv.org/pdf/2512.12924",
+          "path": "corpus/raw/deep_walk_forward_validation_2025.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Backtesting and walk-forward validation (q10); reports a modest Sharpe of 0.33 that is not significant, which is material for q13."
+    },
+    {
+      "id": "fed_sr_11_7_model_risk_management_2011",
+      "title": "Supervisory Guidance on Model Risk Management (SR Letter 11-7, Attachment)",
+      "subject": "The 2011 interagency guidance on model risk: what counts as a model, sound development and use, validation independent of development, and governance; superseded by SR 26-2 in April 2026, so it is the historical baseline, written for banks.",
+      "authors": "Board of Governors of the Federal Reserve System; Office of the Comptroller of the Currency",
+      "publisher": "Board of Governors of the Federal Reserve System",
+      "year": 2011,
+      "licence": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "licence_url": "https://www.federalreserve.gov/disclaimer.htm",
+      "licence_checked": "2026-11-08",
+      "source_url": "https://www.federalreserve.gov/supervisionreg/srletters/sr1107.htm",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://web.archive.org/web/20260116143818id_/https://www.federalreserve.gov/supervisionreg/srletters/sr1107a1.pdf",
+          "path": "corpus/raw/fed_sr_11_7_model_risk_management_2011.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The Board no longer serves this file since SR 26-2 superseded it on 17 April 2026; fetched from the Internet Archive's copy of the Board's own file, taken 16 January 2026. The Board asks to be cited as the source."
+    },
+    {
+      "id": "fed_sr_26_2_model_risk_management_2026",
+      "title": "Revised Guidance on Model Risk Management (SR Letter 26-2)",
+      "subject": "The current interagency guidance on model risk (April 2026), which supersedes SR 11-7: a risk-based approach scaled to a bank's model risk, with validation, governance and controls; supervisory guidance rather than binding rules, written for banks.",
+      "authors": "Board of Governors of the Federal Reserve System; Office of the Comptroller of the Currency; Federal Deposit Insurance Corporation",
+      "publisher": "Board of Governors of the Federal Reserve System",
+      "year": 2026,
+      "licence": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "licence_url": "https://www.federalreserve.gov/disclaimer.htm",
+      "licence_checked": "2026-11-08",
+      "source_url": "https://www.federalreserve.gov/supervisionreg/srletters/SR2602.htm",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.federalreserve.gov/supervisionreg/srletters/SR2602.pdf",
+          "path": "corpus/raw/fed_sr_26_2_model_risk_management_2026.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "Supersedes SR 11-7 and SR 21-8 (its own page, read 2026-11-08); the letter and the revised guidance in one file. The Board asks to be cited as the source."
+    },
+    {
+      "id": "regulation_t_12_cfr_220_2025",
+      "title": "Regulation T: Credit by Brokers and Dealers (12 CFR Part 220)",
+      "subject": "The US rule on the credit brokers and dealers may extend to customers: margin accounts, initial margin, cash accounts, the payment period and liquidation when a customer does not pay; it binds US brokers, not a trader's own backtest, but it is the source for how margin and settlement work.",
+      "authors": "Board of Governors of the Federal Reserve System",
+      "publisher": "U.S. Government Publishing Office (Code of Federal Regulations)",
+      "year": 2025,
+      "licence": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "licence_url": "https://www.govinfo.gov/about/policies",
+      "licence_checked": "2026-11-08",
+      "source_url": "https://www.govinfo.gov/content/pkg/CFR-2025-title12-vol3/pdf/CFR-2025-title12-vol3-part220.pdf",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title12-vol3/pdf/CFR-2025-title12-vol3-part220.pdf",
+          "path": "corpus/raw/regulation_t_12_cfr_220_2025.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The annual edition of title 12, volume 3, revised as of 1 January 2025. Customary credit goes to the Board, which issued the rule."
+    },
+    {
+      "id": "eu_delegated_regulation_2017_565",
+      "title": "Commission Delegated Regulation (EU) 2017/565: organisational requirements and operating conditions for investment firms (MiFID II)",
+      "subject": "The EU rule that details MiFID II for investment firms; for a trading report its Article 50 and Annex II matter: what a firm must tell a client about costs and charges, before and once a year after, totalled as a cash amount and as a percentage, with payments the firm receives from third parties itemised separately and the spread counted among transaction costs as a mark-up embedded in the price. It binds firms in the EU for any instrument, a broker quoting its own forex or CFD prices included, not a trader's own backtest; the text as published in 2017, without later amendments.",
+      "authors": "European Commission",
+      "publisher": "Publications Office of the European Union (Official Journal of the European Union, L 87, 31.3.2017)",
+      "year": 2017,
+      "licence": "Reuse authorised, source acknowledged (Commission Decision 2011/833/EU)",
+      "licence_url": "http://publications.europa.eu/resource/celex/32011D0833",
+      "licence_checked": "2026-11-09",
+      "source_url": "http://data.europa.eu/eli/reg_del/2017/565/oj",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "http://publications.europa.eu/resource/cellar/7c37494d-15d3-11e7-808e-01aa75ed71a1.0006.01/DOC_1",
+          "path": "corpus/raw/eu_delegated_regulation_2017_565.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The English PDF of the Official Journal, from the Publications Office's own repository (EUR-Lex refuses automated requests). Decision 2011/833/EU, Articles 4 and 6, read at its source: reuse for commercial or non-commercial purposes without application; the source is acknowledged and the original meaning not distorted. Only the Official Journal's text is authentic."
+    },
+    {
+      "id": "sec_regulation_nms_rule_600_2025",
+      "title": "Regulation NMS, Rule 600: NMS security designation and definitions (17 CFR 242.600)",
+      "subject": "The definitions of the US rules for the national market system in stocks, among them the average effective and the average realized spread that Rule 605 reports, each measured against the midpoint of the national best bid and offer. US equity markets, order-driven; it binds US market centers and brokers, not a trader's own backtest.",
+      "authors": "U.S. Securities and Exchange Commission",
+      "publisher": "U.S. Government Publishing Office (Code of Federal Regulations)",
+      "year": 2025,
+      "licence": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "licence_url": "https://www.govinfo.gov/about/policies",
+      "licence_checked": "2026-11-09",
+      "source_url": "https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-600.pdf",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-600.pdf",
+          "path": "corpus/raw/sec_regulation_nms_rule_600_2025.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it. Customary credit goes to the Commission, which issued the rule."
+    },
+    {
+      "id": "sec_regulation_nms_rule_605_2025",
+      "title": "Regulation NMS, Rule 605: Disclosure of order execution information (17 CFR 242.605)",
+      "subject": "The US rule on how market centers and larger brokers report, for each calendar month, the quality of their executions: the quoted, the effective and the percentage effective spread, the effective spread over the quoted one as a percentage, and price improvement, by order type and size. US equity markets, order-driven; it binds US market centers and brokers, not a trader's own backtest.",
+      "authors": "U.S. Securities and Exchange Commission",
+      "publisher": "U.S. Government Publishing Office (Code of Federal Regulations)",
+      "year": 2025,
+      "licence": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "licence_url": "https://www.govinfo.gov/about/policies",
+      "licence_checked": "2026-11-09",
+      "source_url": "https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-605.pdf",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-605.pdf",
+          "path": "corpus/raw/sec_regulation_nms_rule_605_2025.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its last page is Rule 606's first). Customary credit goes to the Commission, which issued the rule."
+    },
+    {
+      "id": "sec_regulation_nms_rule_606_2025",
+      "title": "Regulation NMS, Rule 606: Disclosure of order routing information (17 CFR 242.606)",
+      "subject": "The US rule on how brokers report where they route customer orders: per venue, the net of payment for order flow received, transaction fees paid and rebates received, as a total dollar amount and per share; on a customer's request, for not-held orders, the average net execution rebate or fee for orders that provided or removed liquidity (the maker and taker sides), in cents per 100 shares. US equity markets, order-driven; it binds US brokers, not a trader's own backtest.",
+      "authors": "U.S. Securities and Exchange Commission",
+      "publisher": "U.S. Government Publishing Office (Code of Federal Regulations)",
+      "year": 2025,
+      "licence": "Public domain (U.S. Government work, 17 U.S.C. §105)",
+      "licence_url": "https://www.govinfo.gov/about/policies",
+      "licence_checked": "2026-11-09",
+      "source_url": "https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-606.pdf",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-606.pdf",
+          "path": "corpus/raw/sec_regulation_nms_rule_606_2025.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its first page is Rule 605's last). Customary credit goes to the Commission, which issued the rule."
+    }
+  ]
+}

@@ -1,0 +1,313 @@
+{
+  "_about": [
+    "The held-out set: questions that are NEVER used while the pipeline is tuned. Phases 3-6 improve the pipeline against evaluation/eval_questions.json; this file is measured only at the end, once, to show whether the improvements generalise or only fit the 14 known questions (the retrieval version of backtest overfitting).",
+    "Written by the operator on 2026-09-29 in German, translated to English, casual style kept. expected_answer is the operator's own description of a good answer, with corrections noted where the description needed one.",
+    "expected_sources were located on 2026-09-29 in the indexed text, with the method and matching rules of the main set (phase 1, phase 3). Where the corpus covers a question only partly, the behaviour was changed to answer_partial or answer_not_found, as agreed before locating; each such change says why in 'correction'. 'confirmed' turns true once the operator has checked the question.",
+    "SRE sources always carry an anchor: the SRE book is one document at document level, and 39 of its chapter leads have no anchor, so 'no anchor' would match any of them.",
+    "References only, never source text. Tracked."
+  ],
+  "questions": [
+    {
+      "id": "h01",
+      "question": "what fees are there in the forex market, is it the same as for the crypto market",
+      "behaviour": "answer_partial",
+      "expected_answer": "Several things to untangle. Fees depend on the trading model more than on the market: spot trading costs the spread and possibly a percentage fee on traded volume (crypto exchanges: maker/taker fees); margin trading (forex) costs spread, commission and swap for positions held overnight. 'Fees' is a broad term covering commission, spread and swap; point to further reading.",
+      "correction": "Crypto margin and perpetual-futures trading has a swap-like cost too, the funding rate. The corpus has nothing on funding rates (0 hits, 2026-09-29). Behaviour answer_broad -> answer_partial: the general cost types are covered (spread, commission, margin interest, rollover), crypto fees are not ('crypto' occurs once, in passing, in Algorithmic trading).",
+      "expected_sources": [
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Bid-ask_spread",
+          "anchor": null,
+          "revision": 1339662753,
+          "confidence": 85,
+          "note": "the spread as a transaction cost"
+        },
+        {
+          "source": "openstax_principles_of_finance_2e",
+          "section": "1.5 Markets and Participants",
+          "pdf_page": 35,
+          "printed_page": 21,
+          "confidence": 70,
+          "note": "brokers' commissions, discount versus full-service brokers"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Margin_(finance)",
+          "anchor": "Margin_account",
+          "revision": 1375648706,
+          "confidence": 70,
+          "note": "the broker charges interest and fees on the margin loan"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Foreign_exchange_swap",
+          "anchor": "Uses",
+          "revision": 1372430312,
+          "confidence": 75,
+          "note": "overnight interest on open currency positions, rolled with tom-next swaps: the cost of carry, i.e. the forex swap fee"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h02",
+      "question": "explain commission and spread to me",
+      "behaviour": "answer_direct",
+      "expected_answer": "Two different kinds of cost: a commission is an explicit fee per trade or per volume; the spread is an implicit cost, the difference between bid and ask. A rough bridge between the two is fine.",
+      "correction": "'Commission' is ambiguous in the corpus: the accounting book uses it for sales commissions (83 hits), the brokerage sense appears in the finance book and Lefèvre. 'Spread' also means spreading load in the SRE book.",
+      "expected_sources": [
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Bid-ask_spread",
+          "anchor": null,
+          "revision": 1339662753,
+          "confidence": 90
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Bid-ask_spread",
+          "anchor": "Quoted_spread",
+          "revision": 1339662753,
+          "confidence": 70,
+          "note": "how the spread is measured, relative to the midpoint"
+        },
+        {
+          "source": "openstax_principles_of_finance_2e",
+          "section": "1.5 Markets and Participants",
+          "pdf_page": 35,
+          "printed_page": 21,
+          "confidence": 75,
+          "note": "commissions in the brokerage sense"
+        },
+        {
+          "source": "deep_walk_forward_validation_2025",
+          "section": "Transaction Cost Model and Risk Management",
+          "pdf_page": 13,
+          "confidence": 65,
+          "note": "a cost model with both parts: a fixed commission per trade plus slippage in basis points"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h03",
+      "question": "win rate and profit factor, do you know what that is?",
+      "behaviour": "answer_partial",
+      "expected_answer": "Explain both with a worked example at the simplest level: one period, a few spot trades, e.g. 3 trades with 1 win and 2 losses. Win rate = winning trades / all trades; profit factor = gross profit / gross loss.",
+      "correction": "Behaviour answer_direct -> answer_partial: the corpus uses win rate (walk-forward paper: fold-level 41 %, trade-level 46.5 %) but never defines it, and 'profit factor' does not occur at all (0 hits, 2026-09-29).",
+      "expected_sources": [
+        {
+          "source": "deep_walk_forward_validation_2025",
+          "section": "Walk-Forward Results: Aggregate Performance",
+          "pdf_page": 14,
+          "confidence": 50,
+          "note": "win rate used and reported, not defined"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Kelly_criterion",
+          "anchor": "Formula",
+          "revision": 1371216953,
+          "confidence": 45,
+          "note": "the win-loss probability ratio, the idea behind a win rate"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h04",
+      "question": "what exactly does equity include in a margin market?",
+      "behaviour": "answer_direct",
+      "expected_answer": "Equity is the current, not yet settled account value: the balance plus the unrealised profit and loss of all open positions, a floating value.",
+      "correction": "Equity is not only a margin concept; a spot account has an account value too (cash plus the market value of holdings). And 'equity' is ambiguous in the corpus: the accounting and finance books use it for owner's or shareholders' equity (628 and 450 hits), a different meaning. This question tests exactly that. The corpus covers it for stock margin accounts (net equity = current market value - amount borrowed); the forex wording 'balance plus floating P&L' does not occur, but it is the same quantity.",
+      "expected_sources": [
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Margin_(finance)",
+          "anchor": "Price_of_stock_for_margin_calls",
+          "revision": 1375648706,
+          "confidence": 75,
+          "note": "stock equity, net equity = market value minus the amount borrowed, with a worked example"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Margin_(finance)",
+          "anchor": "Types_of_margin_requirements",
+          "revision": 1375648706,
+          "confidence": 55,
+          "note": "current liquidating margin; mark to market as the daily settlement of profits and losses"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Margin_(finance)",
+          "anchor": "Margin-equity_ratio",
+          "revision": 1375648706,
+          "confidence": 55
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h05",
+      "question": "what is expectancy",
+      "behaviour": "answer_partial",
+      "expected_answer": "Formula and examples: expectancy = win rate × average win − loss rate × average loss, the average result per trade. Examples help and should be the standard way of answering.",
+      "correction": "Expectancy is not itself a risk parameter; it is the average result per trade (the edge). It connects to risk when results are expressed in units of the amount risked per trade (R-multiples). Behaviour answer_direct -> answer_partial: the word 'expectancy' does not occur (0 hits, 2026-09-29); the corpus has the general expected value and the Kelly edge, from which trading expectancy follows, but not the trading term itself.",
+      "expected_sources": [
+        {
+          "source": "openstax_principles_of_finance_2e",
+          "section": "13.5 Probability Distributions",
+          "pdf_page": 402,
+          "printed_page": 388,
+          "confidence": 65,
+          "note": "expected value as probability-weighted outcomes"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Kelly_criterion",
+          "anchor": "Formula",
+          "revision": 1371216953,
+          "confidence": 60,
+          "note": "an edge exists when win-loss probability ratio times reward-to-risk ratio exceeds 1"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h06",
+      "question": "explain MA and RSI to me, why is there also the option to use bar_mid and bar_start besides bar_close?",
+      "behaviour": "answer_partial",
+      "expected_answer": "The asker already knows more: explain MA and RSI briefly, then precisely which price an indicator is computed from and why the choice exists. Whether mid behaves differently in spot and margin operation (e.g. last trade at Kraken spot) is to be weighed.",
+      "correction": "Two different 'mids' must not be mixed up: the mid price of a quote, (bid + ask) / 2 per tick, and the middle of a bar, (high + low) / 2. The reason for bar_start and bar_mid is timing: a bar's close is only known when the bar has ended, so computing on it at an earlier moment is look-ahead. The names bar_close / bar_mid / bar_start come from the asker's own software, so the literature can answer the concept, not the parameter names. RSI is not covered (one mention, in a hypothesis specification).",
+      "expected_sources": [
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Moving_average",
+          "anchor": null,
+          "revision": 1375992621,
+          "confidence": 80
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Moving_average",
+          "anchor": "Simple_moving_average",
+          "revision": 1375992621,
+          "confidence": 75,
+          "note": "computed on closing prices; lags by half the window; a central moving average uses data after the point, i.e. look-ahead in trading"
+        },
+        {
+          "source": "deep_walk_forward_validation_2025",
+          "section": "Notation and Definitions",
+          "pdf_page": 9,
+          "confidence": 60,
+          "note": "open, high, low, close per bar and the information set up to time t, preventing lookahead bias"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Bid-ask_spread",
+          "anchor": "Quoted_spread",
+          "revision": 1339662753,
+          "confidence": 45,
+          "note": "the quote midpoint, the other 'mid'"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h07",
+      "question": "explain the difference between MA and EMA",
+      "behaviour": "answer_direct",
+      "expected_answer": "A classic: simple moving average versus exponential moving average, with an example. Should be easy to find and give very clear top-k results.",
+      "correction": "Covered since the Wikipedia article Moving average was added (2026-09-29). The simple moving average is covered well; the exponential one only briefly, a definition without formula or example (525 characters in the article itself, whose main article Exponential smoothing is not in the corpus).",
+      "expected_sources": [
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Moving_average",
+          "anchor": "Simple_moving_average",
+          "revision": 1375992621,
+          "confidence": 85
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Moving_average",
+          "anchor": "Exponential_moving_average",
+          "revision": 1375992621,
+          "confidence": 80,
+          "note": "short: definition only"
+        },
+        {
+          "source": "wikipedia_trading_set",
+          "article": "Moving_average",
+          "anchor": "Weighted_moving_average",
+          "revision": 1375992621,
+          "confidence": 70,
+          "note": "the WMA formula with linearly falling weights, explicitly compared with the EMA that follows"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h08",
+      "question": "which timeframe should i trade on? M15, M30 or h1?",
+      "behaviour": "clarify",
+      "expected_answer": "A hard question that depends on the strategy. Often several timeframes are needed, especially the combination of a short and a long timeframe for the overview.",
+      "correction": "Not in the current corpus in this sense: 'time frame' appears only in its everyday meaning (accounting 31 hits). No expected sources: after the follow-up question, the honest answer is that the corpus has nothing on choosing a timeframe (checked again 2026-09-29: 'intraday', 'hourly', 'minute' only in other senses).",
+      "expected_sources": [],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h09",
+      "question": "what are the most important indicators?",
+      "behaviour": "answer_not_found",
+      "expected_answer": "List the top 10 with a list of chapters. Should be fairly clear, but top-5 retrieval would not be enough for a list question like this one.",
+      "correction": "Not in the current corpus: no source on technical indicators (RSI 2 hits, 'technical indicator' 9, 2026-09-29). And right about k: a list question needs more chunks than a definition, which is a reason for k to depend on the kind of question (phase 4). Behaviour answer_broad -> answer_not_found: the corpus only mentions indicators in passing (Algorithmic trading > Market timing names moving averages; the walk-forward paper lists feature categories), with no list and no ranking. Naming moving averages as the one covered indicator is acceptable; a top-10 list from the model's own knowledge is not.",
+      "expected_sources": [],
+      "origin": "operator",
+      "confirmed": true
+    },
+    {
+      "id": "h10",
+      "question": "do i need versioning for my trade algo?",
+      "behaviour": "answer_direct",
+      "expected_answer": "A question of a different kind: DevOps and infrastructure. Yes, storing code states is essential, so that a result can be traced back to the code that produced it.",
+      "correction": "Covered: the SRE book's release engineering chapter ('version control' and similar, 33 hits). A trading question whose answer sits on the architecture shelf.",
+      "expected_sources": [
+        {
+          "source": "google_site_reliability_engineering",
+          "anchor": "hermetic-builds-nqslhnid",
+          "confidence": 85,
+          "note": "the same revision must give identical results"
+        },
+        {
+          "source": "google_site_reliability_engineering",
+          "anchor": "branching-nqs9tMud",
+          "confidence": 75,
+          "note": "the exact contents of each release are known"
+        },
+        {
+          "source": "google_site_reliability_engineering",
+          "anchor": "configuration-management-vJsYUr",
+          "confidence": 65,
+          "note": "configuration kept in the source repository under review; strategy parameters are configuration"
+        },
+        {
+          "source": "deep_walk_forward_validation_2025",
+          "section": "Introduction",
+          "pdf_page": 2,
+          "confidence": 50,
+          "note": "the reproducibility crisis in trading research"
+        }
+      ],
+      "origin": "operator",
+      "confirmed": true
+    }
+  ]
+}

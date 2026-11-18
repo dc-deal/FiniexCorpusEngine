@@ -1,0 +1,14 @@
+# The code lies in src/; `pip install -r requirements.txt` installs this project in editable mode, which puts
+# src/ on the path, so `python -m backend.ingestion.build` works from anywhere in the repository. The pinned dependencies stay in requirements.txt.
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finiex-corpus-engine"
+version = "0.1.0"
+description = "FiniexCorpusEngine: a librarian over checked pages, every answer with a verbatim quote and its page."
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]

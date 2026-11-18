@@ -1,0 +1,43 @@
+# FiniexCorpusEngine as a service that is always on: the librarian (the MCP search server over HTTP) and the diagnostics
+# view, each started again by Docker whenever Docker starts, until it is stopped by hand.
+#
+#   docker compose up -d --build     # build the image once, start both
+#   docker compose logs -f librarian # what the server says
+#   docker compose down              # stop both
+#
+# Both listen on 127.0.0.1 alone. A container of the app park (the testing IDE) reaches the librarian as
+# host.docker.internal:8765/mcp, with the bearer token in .env. The repository is mounted, so the data folders the
+# configuration names (_data, _sources, _work, corpus/index, logs) and .env are this machine's own.
+services:
+  librarian:
+    build: .
+    image: finiex-corpus-engine
+    container_name: finiex-corpus-librarian
+    command: python -m backend.search.search_server --http 8765 --host 0.0.0.0
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - .:/app
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DIAGNOSTICS_VIEW_URL=http://127.0.0.1:8021
+    restart: unless-stopped
+
+  diagnostics:
+    image: finiex-corpus-engine
+    container_name: finiex-corpus-diagnostics
+    command: python -m backend.diagnostics --port 8021 --host 0.0.0.0 --allow-verdicts
+    ports:
+      - "127.0.0.1:8021:8021"
+    volumes:
+      - .:/app
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DIAGNOSTICS_VIEW_URL=http://127.0.0.1:8021
+    depends_on:
+      - librarian
+    restart: unless-stopped

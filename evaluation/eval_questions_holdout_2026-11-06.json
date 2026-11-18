@@ -1,0 +1,293 @@
+{
+  "_about": [
+    "The capstone's held-out set (phase 6): ten questions that are NEVER used while the pipeline is tuned. Phase 6 improves the pipeline against evaluation/eval_questions.json; this file is measured once, at the end, to show whether the improvements generalise. The RAG sprint's held-out set (eval_questions_holdout.json) was read on 2026-10-01 and is spent.",
+    "Written on 2026-11-06 by the coding sessions of a project that consumes this knowledge base, from the needs in its own open and closed issues, in the same pass as its development questions, and not looked at by its author since. Neither the operator nor the pipeline's author wrote any of them.",
+    "Every expected source was located by reading its page on the search server, in the free knowledge base. The same day the pipeline's author mapped each page to what the index holds for it: a PDF page to its outline unit (the section the chat's chunks carry), an HTML section to its anchor, a Wikipedia section to its article and anchor. The ids are hc01 to hc10, since the spent set holds h01 to h10; delivered_id keeps the id each question was delivered under. One expected page (hc03, PDF p. 14) is not in the chat index, because it lies under a back-matter unit; it stays, so the measurement counts the gap. -> now (2026-11-08): loader 4 indexes that page under \"4. Discussion\", the section its authors gave (decision 107.a); hc07 to hc09 were amended before the reading too (105.a), each entry saying so.",
+    "found_by_search: the rank (1 to 6) at which the search server's keyword search, given the question exactly as written, returned the expected page, or null; measured by the questions' author on a server holding both knowledge bases. No question was reworded to improve its rank, and none was dropped for missing.",
+    "Read once: evaluation/holdout_ledger.json records the reading, and the evaluation commands refuse a second one without a stated reason. Its results must not steer any change.",
+    "'confirmed' is true once the operator has checked the entry. Behaviours are defined in eval_questions.json. Never put source text in this file - references only. It is tracked.",
+    "Amended on 2026-11-06, the day it was committed and before any reading: the printed page numbers had been taken from the first chunk that overlaps a page, which can start on the page before; they now come from the page's own reading (the export's printed label), and a page without one has none rather than a guess. No question, behaviour or section changed, and no printed number is used for matching. Found by the second reading of the development questions."
+  ],
+  "questions": [
+    {
+      "id": "hc01",
+      "delivered_id": "h01",
+      "question": "how do i know if my monitoring is actually catching real problems",
+      "behaviour": "answer_direct",
+      "style": "question",
+      "expected_answer": "The split between watching what users feel and watching what the system reports, and why paging should follow symptoms while causes stay as debugging aids.",
+      "expected_sources": [
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Black-Box Versus White-Box",
+          "anchor": "black-box-versus-white-box-q8sJuw",
+          "page_label": "s73",
+          "confidence": 92,
+          "note": "Symptom-oriented versus internals."
+        },
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Conclusion",
+          "anchor": "conclusion-8ksvFj",
+          "page_label": "s83",
+          "confidence": 85,
+          "note": "Page on symptoms, keep causes for debugging."
+        }
+      ],
+      "tests": "Checking whether a set of alarms would actually catch the failures that matter.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": 1,
+      "confirmed": false
+    },
+    {
+      "id": "hc02",
+      "delivered_id": "h02",
+      "question": "should i test the backup or just trust that it exists",
+      "behaviour": "answer_direct",
+      "style": "question",
+      "expected_answer": "That an untested recovery path is assumed broken, that the restore and not the copy is what has to work, and that this is proven by exercising it on a schedule.",
+      "expected_sources": [
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Knowing That Data Recovery Will Work",
+          "anchor": "knowing-that-data-recovery-will-work-yDs9uoCA",
+          "page_label": "s423",
+          "confidence": 93,
+          "note": "A restore path can be latently broken until you need it."
+        },
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Backups Versus Archives",
+          "anchor": "backups-versus-archives-V7sLskuL",
+          "page_label": "s405",
+          "confidence": 85,
+          "note": "What people want is restores, not backups."
+        }
+      ],
+      "tests": "Knowing that a recovery path works before it is needed.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": 2,
+      "confirmed": false
+    },
+    {
+      "id": "hc03",
+      "delivered_id": "h03",
+      "question": "how often should i rebalance",
+      "behaviour": "answer_direct",
+      "style": "question",
+      "expected_answer": "That raising the number of trades and the rebalancing frequency improves the measured result but raises risk, and that transaction costs are the term left out of that comparison.",
+      "expected_sources": [
+        {
+          "source": "carta_conversano_kelly_criterion_2020",
+          "section": "3.2.3. Rolling Optimization",
+          "pdf_page": 12,
+          "printed_page": "12",
+          "confidence": 88,
+          "note": "Daily, weekly and monthly rebalancing compared on CAGR and annualised deviation."
+        },
+        {
+          "source": "carta_conversano_kelly_criterion_2020",
+          "section": "4. Discussion",
+          "pdf_page": 14,
+          "printed_page": null,
+          "confidence": 85,
+          "note": "The trade-off against transaction costs, which the study excludes."
+        }
+      ],
+      "tests": "Choosing how often a position mix is adjusted.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": null,
+      "confirmed": false,
+      "amended": "2026-11-08, decision 107.a: the second source back to the section its authors gave, \"DISCUSSION\" as printed. The mapper of 2026-11-06 had taken the back-matter unit the old loader put at the page's top; loader 4 files the text above \"DATA AVAILABILITY STATEMENT\" under \"4. Discussion\", as the paper prints it"
+    },
+    {
+      "id": "hc04",
+      "delivered_id": "h04",
+      "question": "cascading failure load shedding graceful degradation",
+      "behaviour": "answer_direct",
+      "style": "keywords",
+      "expected_answer": "Dropping work when overloaded, and then reducing the work per request, so a server fails early and cheaply instead of collapsing and taking its neighbours with it.",
+      "expected_sources": [
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Load Shedding and Graceful Degradation",
+          "anchor": "xref_cascading-failure_load-shed-graceful-degredation",
+          "page_label": "s309",
+          "confidence": 96,
+          "note": "Both techniques and the difference between them."
+        },
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Preventing Server Overload",
+          "anchor": "xref_cascading-failure_preventing-server-overload",
+          "page_label": "s307",
+          "confidence": 88,
+          "note": "The surrounding list of preventions."
+        }
+      ],
+      "tests": "Keeping one overloaded component from pulling the rest of a run down with it.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": 1,
+      "confirmed": false
+    },
+    {
+      "id": "hc05",
+      "delivered_id": "h05",
+      "question": "one person in charge during an incident so everyone isnt doing the same thing",
+      "behaviour": "answer_direct",
+      "style": "section_paraphrase",
+      "expected_answer": "A command role separate from the people operating, with explicit handover, so responsibilities do not overlap and nobody strays onto another's work.",
+      "expected_sources": [
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Recursive Separation of Responsibilities",
+          "anchor": "recursive-separation-of-responsibilities",
+          "page_label": "s201",
+          "confidence": 90,
+          "note": "Roles, their boundaries, and why the separation gives more autonomy, not less."
+        }
+      ],
+      "tests": "Keeping an incident from being worked twice by two people at once.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": 3,
+      "confirmed": false
+    },
+    {
+      "id": "hc06",
+      "delivered_id": "h06",
+      "question": "volatility standard deviation of returns",
+      "behaviour": "answer_direct",
+      "style": "keywords",
+      "expected_answer": "That volatility of returns is what finance treats as risk, and that it is measured by the standard deviation of those returns.",
+      "expected_sources": [
+        {
+          "source": "openstax_principles_of_finance_2e",
+          "section": "15.1 Risk and Return to an Individual Asset",
+          "pdf_page": 461,
+          "printed_page": "447",
+          "confidence": 92,
+          "note": "Printed page 447. States the measure directly."
+        },
+        {
+          "source": "openstax_principles_of_finance_2e",
+          "section": "13.2 Measures of Spread",
+          "pdf_page": 392,
+          "printed_page": "378",
+          "confidence": 82,
+          "note": "Printed page 378. The formula and variance beside it."
+        }
+      ],
+      "tests": "Putting a number on how much a result bounces from period to period.",
+      "origin": "stakeholder",
+      "from": "closed issue",
+      "found_by_search": 1,
+      "confirmed": false
+    },
+    {
+      "id": "hc07",
+      "delivered_id": "h07",
+      "question": "a trader who cant stop trading when hes losing money",
+      "behaviour": "answer_partial",
+      "style": "section_paraphrase",
+      "expected_answer": "The psychology appears only as Lefevre's narrative: in X hope and fear, and a customer who drops a stop-loss method and lets his losses run; in XII the narrator keeps a losing cotton line against a rule he knew, buys more, and keeps trading and losing into debt. The SRE book reports that proprietary trading firms leave the halt to an enforcement team separate from the traders, which alone can restart. No source treats the behaviour as a measurable effect.",
+      "expected_sources": [
+        {
+          "source": "lefevre_reminiscences_of_a_stock_operator",
+          "section": "XII",
+          "anchor": "XII",
+          "page_label": "s13",
+          "confidence": 80,
+          "note": "The fullest first-person account: keeps trading and losing, against a rule he states himself."
+        },
+        {
+          "source": "lefevre_reminiscences_of_a_stock_operator",
+          "section": "X",
+          "anchor": "X",
+          "page_label": "s11",
+          "confidence": 55,
+          "note": "Hope and fear; a customer drops his stop-loss method and lets losses run (narrative)."
+        },
+        {
+          "source": "google_site_reliability_engineering",
+          "section": "Structured and Rational Decision Making",
+          "anchor": "structured-and-rational-decision-making-xqsKfBq",
+          "page_label": "s591",
+          "confidence": 70,
+          "note": "The halt sits with a team separate from the traders: in the system, not the person."
+        }
+      ],
+      "tests": "Deciding whether a rule that stops trading after a loss belongs in the system rather than in the person.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": 3,
+      "confirmed": false,
+      "amended": "2026-11-08, decision 105.a, from the second reading of 2026-11-06: two sources the search had missed added, Lefevre XII first; the behaviour stays answer_partial"
+    },
+    {
+      "id": "hc08",
+      "delivered_id": "h08",
+      "question": "nonce replay protection",
+      "behaviour": "answer_not_found",
+      "style": "short_phrase",
+      "expected_answer": "Nothing. The word nonce appears once (SRE s74) as a throwaway example of a cheap request, with no treatment of request signing or replay. The SRE cron chapter (s373, s383) treats a neighbouring subject, an operation that must not take effect twice because a launch was retried; it says nothing about nonces, signatures or replay by an attacker, so it does not answer the question.",
+      "expected_sources": [],
+      "tests": "Stopping a repeated request from being accepted twice by a venue.",
+      "origin": "stakeholder",
+      "from": "closed issue",
+      "found_by_search": null,
+      "confirmed": false,
+      "amended": "2026-11-08, decision 105.c: back to answer_not_found by the authors' rule (a neighbouring topic is not found); the SRE cron chapter the second reading found is named and ruled out in the expected answer. Between, on the same day, 105.a had made it answer_partial"
+    },
+    {
+      "id": "hc09",
+      "delivered_id": "h09",
+      "question": "market impact model",
+      "behaviour": "answer_not_found",
+      "style": "title_words",
+      "expected_answer": "Nothing. The free works contain no model of how an order moves the price it trades at. The walk-forward paper fills simulated orders with a fixed slippage and says itself that this ignores order size and liquidity; Lefevre tells of large lines moving prices, as narrative. Neither is a model of market impact.",
+      "expected_sources": [],
+      "tests": "Estimating how much a simulated order would have moved the price it assumed.",
+      "origin": "stakeholder",
+      "from": "open issue",
+      "found_by_search": null,
+      "confirmed": false,
+      "amended": "2026-11-08, decision 105.c: back to answer_not_found by the authors' rule; the walk-forward paper's cost model and Lefevre's narrative are named and ruled out in the expected answer. Between, on the same day, 105.a had made it answer_partial"
+    },
+    {
+      "id": "hc10",
+      "delivered_id": "h10",
+      "question": "writing down why a number is what it is so someone can check it later",
+      "behaviour": "answer_direct",
+      "style": "section_paraphrase",
+      "expected_answer": "That the documents behind each entry form an audit trail, a chain of evidence for the history of a transaction that someone can follow back.",
+      "expected_sources": [
+        {
+          "source": "openstax_principles_of_accounting_v1",
+          "section": "7.1 Define and Describe the Components of an Accounting Information System",
+          "pdf_page": 429,
+          "printed_page": null,
+          "confidence": 85,
+          "note": "Defines the audit trail from source documents. NOTE: this page is served from a fallback text layer, not a verified reading."
+        },
+        {
+          "source": "openstax_principles_of_accounting_v1",
+          "section": "7.3 Analyze and Journalize Transactions Using Special Journals",
+          "pdf_page": 447,
+          "printed_page": "433",
+          "confidence": 70,
+          "note": "Printed page 433. Finding the original documents behind a posting."
+        }
+      ],
+      "tests": "Making a stored figure traceable back to the entries it was derived from.",
+      "origin": "stakeholder",
+      "from": "closed issue",
+      "found_by_search": null,
+      "confirmed": false
+    }
+  ]
+}

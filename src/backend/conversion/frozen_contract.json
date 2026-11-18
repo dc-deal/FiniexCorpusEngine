@@ -1,0 +1,32 @@
+{
+ "about": "What the mini pilot measured and the batches of phase 2 read with. tests/contracts/test_the_contract_is_frozen.py holds it.",
+ "contract": "page/1",
+ "frozen_on": "2026-10-30",
+ "validator": "page/1.3",
+ "validator_changes": [
+  {"version": "page/1.1", "on": "2026-11-02", "page_contract.py was": "c59b7208d89edb04c42272acc53f6e2686b90da1fb98b35a7fc869bbabd8bd2b",
+   "why": "The dollar-math check took a prose dollar amount followed on its line by an inline mark such as [1]{.fn} or by an escaped \\$ for $...$ math. Prompt, vocabulary and reading keys are unchanged; stored readings are checked again for free."},
+  {"version": "page/1.2", "on": "2026-11-08", "decided_by": "the operator, decision 111.a",
+   "page_contract.py was": "eac0aa4f34e32544a3672e06139ccadb38aae4cbf02565132e4dcc69eb6f9695",
+   "contract_vocab.json was": "8bf08cc5ceab3129b5d99c612bf10fc6828f3ce578077123087a6d48c8f995dc",
+   "why": "Round 6 of the licensed rollout left 15 pages malformed after their retry, and none had lost text. What loses no text is now a warning: a list item or caption that continues from the page before needs no marker or binding, a table note no marker, a decoration no kind; a callout may explain a table, a paragraph may sit in a list item; a tab in a contents entry is its leader; a binding written without quotes, and a brace in a quoted value, are read as meant. The prompt and the vocabulary's classes are unchanged, so no reading key changes; stored readings are checked again for free."},
+  {"version": "page/1.3", "on": "2026-11-11", "decided_by": "the operator, decision 212.a",
+   "page_contract.py was": "09cb28e4a76778f94c0eb6f261941848cd8dd6dc9040c7116e531f9bcf49cf46",
+   "why": "8 of the free corpus's 9 malformed accounting pages had one cause: a numbered answer or an option whose whole content is the journal table (or figure, formula, listing) printed right after it, written as a list item with its marker and an empty body, then the table. Nothing is lost, so it is a warning, as page/1.2 made what loses no text. The prompt and the vocabulary are unchanged, so no reading key changes; stored readings are checked again for free. In the same version the inline segments keep a footnote marker, a superscript and a subscript apart (decision 205.a), which changes no verdict."}
+ ],
+ "form": "markdown",
+ "reader_for_structure_pages": "claude-sonnet-5-5",
+ "judge": "claude-sonnet-5-5",
+ "sha256": {
+  "prompts/reader_page1_rules.txt": "80df736f89bd1af29a295703cce5318d3301b4c469057aedf8da4deea547bcff",
+  "prompts/reader_page1_markdown.txt": "933b8e57e02b7fb96fdbf9654ee683d0ffd939e74da291a666e12dc2a8310b00",
+  "prompts/reader_page2_rules.txt": "9cc2a39ed0387c7fb9b766053efd37460d906474ea73f0b51da26aacf63a62f8",
+  "prompts/judge_page1.txt": "e05fbd324c7c57937998fe9b35adbe0a59380ed5fcef8dc52d2e46d11b22ed08",
+  "prompts/judge_page2.txt": "f2ea70b30227c6e1a5875356bccdcfdb71b6b4008b5356b42035e5ca01f07490",
+  "prompts/judge_page3.txt": "5fc2fdb61b09300958c9b7944a7ff7f4909aef724479baa53c4e3ed7681a7bfa",
+  "prompts/judge_page4.txt": "29f6e9175e5caa04b603d8ac89ce0598d308eaa6c949d347996e6ea8b7087884",
+  "prompts/page_classes_check.txt": "6c204042bb3e358e7249e671be4aee8c3da9935117225b135dfca53efbdb0b29",
+  "contract/contract_vocab.json": "e4bbfb9422429a2c0629e556ab20487a3b3f80aaef69e1341ef855eb8b4fbd89",
+  "contract/page_contract.py": "4e19a4ea9ad1606485c30034feef0e5e247e46de9fca59938911b65489f13841"
+ }
+}

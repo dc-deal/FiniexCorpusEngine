@@ -1,0 +1,90 @@
+
+OUTPUT FORMAT
+Reply with the page file and nothing else, not inside a code fence: YAML front matter between --- lines, then the blocks, with a blank line between blocks. A block opens with a line of at least three colons and its attributes in braces, and closes with a line of colons only. The fence must be longer than any run of colons that starts a line of its body: a listing that holds a ::: line gets a :::: fence. Quote attribute values that contain spaces or symbols. Bodies are raw: no escaping beyond the rules above.
+
+EXAMPLE (an invented page, showing the form only)
+---
+contract: page/1
+work: example-work
+pdf_page: 42
+image_size: "1688x2184"
+printed_label: "28"
+label_position: header
+page_kind: body
+columns: 1
+rotation: 0
+language: en
+---
+
+::: {#b01 .page_number bbox="150 66 190 98"}
+28
+:::
+
+::: {#b02 .page_header bbox="200 66 700 98"}
+3 • Measuring Returns
+:::
+
+::: {#b03 .paragraph cont=prev bbox="194 150 1490 240"}
+of the period. The holding return ignores dividends unless they are added to \(P_t\),[1]{.fn} which [total return]{.term} does:
+:::
+
+::: {#b04 .formula label="3.2" bbox="450 250 1240 330"}
+R_t = \frac{P_t - P_{t-1} + D_t}{P_{t-1}} = \frac{\$52{,}000 - \$50{,}000}{\$50{,}000}
+:::
+
+::: {#b05 .box kind=example bbox="194 350 1494 900"}
+WORKED EXAMPLE
+:::
+
+::: {#b06 .heading in=b05 bbox="211 400 700 440"}
+Two Funds
+:::
+
+::: {#b07 .table in=b05 bbox="300 460 1400 640"}
+<table>
+<thead><tr><th></th><th>Fund A</th><th>Fund B</th></tr></thead>
+<tbody>
+<tr><td>Return</td><td>4.1%</td><td>&lt;3%</td></tr>
+</tbody>
+</table>
+:::
+
+::: {#b08 .caption of=b07 label="Table 3.1" in=b05 bbox="300 650 1000 690"}
+Table 3.1 Returns of the Two Funds
+:::
+
+::: {#b09 .figure kind=chart bbox="300 920 1400 1400"}
+Return (%)
+Year
+2010
+2020
+:::
+
+::: {#b10 .caption of=b09 label="Figure 3.4" bbox="300 1410 1000 1450"}
+Figure 3.4 Fund A over Time
+:::
+
+::: {#b11 .description of=b09 form=prose}
+A line chart of return against year. The line rises from the lower left to the upper right, which is the growth the caption refers to.
+:::
+
+::: {#b12 .code kind=listing lang=python bbox="194 1480 1300 1590"}
+def total_return(p0, p1, d):
+    return (p1 - p0 + d) / p0  ①
+:::
+
+::: {#b13 .callout marker="①" of=b12 lines="2" bbox="194 1600 1300 1650"}
+Dividends count as part of the gain.
+:::
+
+::: {#b14 .paragraph cont=next bbox="194 1680 1490 1760"}
+The next section compares this measure with the
+:::
+
+::: {#b15 .footnote marker="1" bbox="194 1950 1490 1990"}
+See Chapter 5 for dividends.
+:::
+
+::: {#b16 .page_footer bbox="194 2100 700 2140"}
+Example Press
+:::
