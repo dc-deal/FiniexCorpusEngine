@@ -117,6 +117,21 @@ def test_a_person_s_accept_serves_the_reading_over_the_judge_and_a_reject_its_te
     assert served_readings.route_of(rejected) == 'text layer: a person rejected the reading'
 
 
+def test_a_session_s_verdict_on_the_operator_s_delegation_is_never_called_a_person_s():
+    """The operator, 18 Nov: "a person is always manual". A delegated review decides as a person's verdict does, and says
+    what it is; an export written before carries the giver alone."""
+    delegated = {**a_person('accept'), 'given_by': 'claude-opus-5-5 session, delegated by the operator (17 Nov)'}
+    accepted = {**an_issue('list_item'), 'human': [delegated]}
+    assert served_readings.text_layer_why(accepted) is None
+    assert served_readings.route_of(accepted).endswith(
+        'an automated review (delegated by the operator) accepted the reading: the judge took a name or a term for a wrong word')
+    rejected = {**an_issue(), 'check': {'state': 'ok'}, 'human': [{**delegated, 'verdict': 'reject', 'by_a_person': False}]}
+    assert served_readings.text_layer_why(rejected) == 'rejected_by_review'
+    assert served_readings.route_of(rejected) == 'text layer: an automated review (delegated by the operator) rejected the reading'
+    by_the_operator = {**an_issue('list_item'), 'human': [{**a_person('accept'), 'given_by': 'maintainer', 'by_a_person': True}]}
+    assert ': a person accepted the reading' in served_readings.route_of(by_the_operator)
+
+
 def test_an_accept_for_another_reason_names_the_person_s_note_in_the_route():
     # "another reason, said in the note" told a reader of the route nothing (the operator, 10 Nov, accounting p. 305)
     other = {**a_person('accept'), 'reason': 'other', 'reason_text': 'another reason, said in the note',

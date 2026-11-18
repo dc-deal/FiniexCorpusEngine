@@ -258,6 +258,23 @@ def test_a_person_s_accept_pins_its_reading_and_a_reset_discards_and_archives(tm
     assert shown[0]['archived'] and not shown[0]['applies']
 
 
+def test_a_session_s_accept_neither_pins_its_reading_nor_is_shown_as_a_person_s(tmp_path, monkeypatch):
+    # the operator, 18 Nov: "a person is always manual"; only a person's signature protects a page (3.a)
+    from backend.conversion.store import pipeline_db
+
+    monkeypatch.setattr(pipeline_db, 'PATHS', {'free': tmp_path / 'p.sqlite', 'licensed': tmp_path / 'l.sqlite'})
+    store = reading_store.Store(tmp_path / 'vision')
+    for key, attempt in (('a' * 64, 0), ('c' * 64, 1)):
+        store.save_reading(key, record(key, attempt=attempt), page('::: {#b01 .paragraph bbox="10 50 900 120"}\nA.\n:::'))
+    base = reading_export.KnowledgeBase('free', tmp_path / 'readings', tmp_path, lambda: ('FREE-SM',), tracked=True)
+    session = pipeline_db.delegated_giver('claude-opus-5-5', '18 Nov')
+    pipeline_db.give_verdict('free', 'w_book.pdf', 2, 'a' * 64, 'accept', 'other', session, note='a false alarm')
+    newer = reading_export.with_people(base, store, [record('c' * 64, attempt=1)])[0]
+    assert newer['reading_key'] == 'c' * 64 and 'pinned_by_a_person' not in newer
+    shown = reading_export.human_of(pipeline_db.human_verdicts('free')[('w_book.pdf', 2)], 'a' * 64)
+    assert shown[0]['applies'] and shown[0]['by_a_person'] is False
+
+
 def test_a_reader_prototype_s_readings_are_listed_beside_a_page_never_chosen():
     # decision 210.a: page/2's readings stand in the history as a prototype's; the base's own cells choose, as before
     from backend.conversion.reading import reading_cells

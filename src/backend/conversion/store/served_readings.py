@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 from backend.configuration import data_paths
-from backend.constants.reading_constants import DIRECT_DEVIATION, DIRECT_ROUTE_KIND
+from backend.constants.reading_constants import AUTOMATED_REVIEW, DELEGATED_MARK, DIRECT_DEVIATION, DIRECT_ROUTE_KIND
 
 EXPORT = data_paths.FREE_READINGS
 READING_ROUTE = 'vision reading'
@@ -28,6 +28,7 @@ TEXT_LAYER_WHY = {  # why a page's text came from its PDF's text layer and not f
                 'until a person releases the work'),
     'unread': 'text layer: the page has no reading',
     'rejected': 'text layer: a person rejected the reading',
+    'rejected_by_review': f'text layer: {AUTOMATED_REVIEW} rejected the reading',
     'unchecked': 'text layer: the reading has not been checked yet',
     'reset': 'text layer: a person reset the page; a new reading is due',
 }
@@ -53,6 +54,12 @@ def human_standing(row: dict | None) -> dict | None:
     return found[-1] if found else None
 
 
+def by_a_person(verdict: dict) -> bool:
+    """Whether a verdict is a person's own, not a session's on the operator's delegation (the operator, 18 Nov: "a person is
+    always manual"). An export written before says it by the giver alone."""
+    return verdict.get('by_a_person', DELEGATED_MARK not in (verdict.get('given_by') or ''))
+
+
 def text_layer_why(row: dict | None) -> str | None:
     """None when the page's reading may be served, else why its text layer is served instead. A person's verdict on the reading
     stands over the judge's: a model never overrules a person (decision 146.a)."""
@@ -62,7 +69,7 @@ def text_layer_why(row: dict | None) -> str | None:
         return 'reset'  # a person discarded this reading (decision 191.a)
     person = human_standing(row)
     if person is not None and person['verdict'] == 'reject':
-        return 'rejected'
+        return 'rejected' if by_a_person(person) else 'rejected_by_review'
     if person is not None and row['class_now'] == 'ok':
         return None  # accepted by a person, over the judge's finding
     if not row.get('check') and row['class_now'] == 'ok':
@@ -83,8 +90,9 @@ def route_of(row: dict | None) -> str:
     person = human_standing(row)
     if why is None and person is not None:  # accepted by a person (146.a), and the route names the reason, or the note it is said in
         reason = person['note'] if person.get('reason') == 'other' and person.get('note') else person['reason_text']
+        who = 'a person' if by_a_person(person) else AUTOMATED_REVIEW
         return (f"{READING_ROUTE} ({row['model']}, {row['contract']}, validator {row['validator']}): "
-                f"a person accepted the reading: {reason}")
+                f"{who} accepted the reading: {reason}")
     if why is None and (row.get('check') or {}).get('state') in ('issue', 'bin'):  # served by 133.b, and the route says so
         return (f"{READING_ROUTE} ({row['model']}, {row['contract']}, validator {row['validator']}): "
                 "the judge's findings lie on blocks never quoted")
@@ -103,7 +111,8 @@ def route_of(row: dict | None) -> str:
 
 ROUTE_LEVELS = {  # how good a page's route is, for a person reading the routes (the operator, 10 Nov: "is this route a faulty one?")
     'checked': 'the checked reading of the page image',
-    'noted': 'the checked reading, with a note: a void or unquoted finding, a second reader, or a person accepted it',
+    'noted': ('the checked reading, with a note: a void or unquoted finding, a second reader, or a person or an automated review '
+              'accepted it'),
     'fallback': "the PDF's own text layer, because the reading could not be served: formulas and tables may be garbled there",
 }
 

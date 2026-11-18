@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from backend.configuration import data_paths
+from backend.constants.reading_constants import DELEGATED_MARK
 from backend.conversion.store import reading_store
 from backend.conversion.store.reading_store import REPO
 
@@ -351,13 +352,25 @@ def since_last_reset(verdicts: list[dict], resets: list[dict]) -> list[dict]:
     return [verdict for verdict in verdicts if verdict['given_at'] > cut]
 
 
+def by_a_person(given_by: str | None) -> bool:
+    """Whether a verdict was given by a person, not by a session on the operator's delegation (`DELEGATED_MARK`)."""
+    return DELEGATED_MARK not in (given_by or '')
+
+
+def delegated_giver(model: str, day: str) -> str:
+    """The giver a session's verdicts name, '<model> session, delegated by the operator (<day>)', which `by_a_person` tells apart."""
+    return f'{model} {DELEGATED_MARK} ({day})'
+
+
 def protected_pages(knowledge_base: str, path: Path | None = None) -> dict[tuple[str, int], dict]:
     """(file, PDF page) -> the latest verdict of a person that still counts: a page a person checked is not read again
-    without a reason (decision 191.a, the operator: "pages a human corrected … are valuable, a human has looked them over")."""
+    without a reason (decision 191.a, the operator: "pages a human corrected … are valuable, a human has looked them over").
+    Only a person's verdict protects (the operator, 18 Nov: a person who signs takes the responsibility, as with a contract);
+    a session's verdict on the operator's delegation does not."""
     verdicts, resets = human_verdicts(knowledge_base, path), page_resets(knowledge_base, path)
     found = {}
     for page, given in verdicts.items():
-        standing = since_last_reset(given, resets.get(page, []))
+        standing = [verdict for verdict in since_last_reset(given, resets.get(page, [])) if by_a_person(verdict['given_by'])]
         if standing:
             found[page] = standing[-1]
     return found

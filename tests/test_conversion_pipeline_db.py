@@ -191,3 +191,15 @@ def test_a_page_a_person_checked_is_protected_until_a_person_resets_it_with_a_re
     with pipeline_db.connect('free') as db:
         with pytest.raises(sqlite3.DatabaseError):
             db.execute('DELETE FROM page_resets')
+
+
+def test_only_a_person_s_verdict_protects_a_page(paths):
+    # the operator, 18 Nov: "a person is always manual"; who signs takes the responsibility, as with a contract
+    session = pipeline_db.delegated_giver('claude-opus-5-5', '18 Nov')
+    assert session == 'claude-opus-5-5 session, delegated by the operator (18 Nov)'
+    assert not pipeline_db.by_a_person(session) and pipeline_db.by_a_person('maintainer')
+    pipeline_db.give_verdict('free', 'f.pdf', 7, 'k7', 'accept', 'other', session, note='a false alarm')
+    assert ('f.pdf', 7) not in pipeline_db.protected_pages('free')
+    assert pipeline_db.refused_over_a_person('free', 'f.pdf', 7, None) is None
+    pipeline_db.give_verdict('free', 'f.pdf', 7, 'k7', 'accept', 'other', 'maintainer', note='looked at it myself')
+    assert pipeline_db.protected_pages('free')[('f.pdf', 7)]['given_by'] == 'maintainer'

@@ -120,6 +120,13 @@ versions were tried as prototypes: frozen and hashed beside the active one, run 
 - **Where it stands:** judge/1 stays active and judge/4 a prototype until a person decides, so nothing served changes. Every
   version's verdict is in `corpus/readings/index.json`, per attempt; the walk and the runs are in the protocol.
 
+**A person's verdict and a delegated review, kept apart (18 November).** From 17 November a Claude Code session reviewed
+judge issues on the operator's delegation, recording its clear verdicts (confidence 0.9 or above) through the same command a
+person uses, its giver named `<model> session, delegated by the operator (<day>)`. Such a verdict decides what is served as a
+person's does, but it is never called one: the route says "an automated review (delegated by the operator) accepted the
+reading", the export marks each verdict `by_a_person`, and only a person's verdict protects a page from being read again
+(decision 191.a). The operator's reason: a person who signs a verdict takes the responsibility for it, as with a contract.
+
 **The loop closed once: a reader prompt built from the judge's and the person's findings, measured, 11 November.** page/2
 is page/1's rules unchanged plus eight (table grids with operator columns, T-accounts as tables, a table's printed title,
 legible images of tables read, chart values read against the axis, counts only as counted, a photo's own text left out,

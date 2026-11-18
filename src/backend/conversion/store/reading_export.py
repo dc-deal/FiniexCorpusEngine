@@ -387,6 +387,8 @@ def human_of(verdicts: list[dict], reading_key: str, resets: list[dict] | None =
              'archived': id(verdict) not in standing, 'block': verdict['block'],
              'verdict': verdict['verdict'], 'reason': verdict['reason'], 'reason_text': pipeline_db.HUMAN_REASONS[verdict['reason']],
              'tag': verdict['tag'], 'note': verdict['note'], 'given_by': verdict['given_by'], 'given_at': verdict['given_at'],
+             # a person's own, or a session's on the operator's delegation (18 Nov: "a person is always manual")
+             'by_a_person': pipeline_db.by_a_person(verdict['given_by']),
              # a person's manual parts (188.a), marked as theirs: the block's text as they say it reads, and their rating of the judge
              'correction': verdict.get('correction'), 'judge_assessment': verdict.get('judge_assessment'),
              'judge_assessment_text': pipeline_db.JUDGE_ASSESSMENTS.get(verdict.get('judge_assessment') or '')}
@@ -414,7 +416,8 @@ def with_people(base: KnowledgeBase, store, records: list[dict]) -> list[dict]:
     for record in records:
         page = (record['file'], record['pdf_page'])
         counting = pipeline_db.since_last_reset(verdicts.get(page, []), resets.get(page, []))
-        accepts = [verdict for verdict in counting if verdict['verdict'] == 'accept']
+        # only a person's accept holds a reading against a later choice: a session's protects nothing (18 Nov)
+        accepts = [verdict for verdict in counting if verdict['verdict'] == 'accept' and pipeline_db.by_a_person(verdict['given_by'])]
         if accepts and accepts[-1]['reading_key'] != record['reading_key']:
             chosen_after = (record.get('chosen') or {}).get('chosen_at', '') > accepts[-1]['given_at']
             pinned = store.reading(accepts[-1]['reading_key'])
@@ -502,9 +505,11 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                'check': with_block_classes(states.get(record['reading_key']), parsed),
                'human': human_of(people.get((record['file'], record['pdf_page']), []), record['reading_key'],
                                  resets.get((record['file'], record['pdf_page']), [])),
-               # decision 191.a: a page a person checked is protected from being read again; a reset lifts it and discards
-               'protected': bool(pipeline_db.since_last_reset(people.get((record['file'], record['pdf_page']), []),
-                                                              resets.get((record['file'], record['pdf_page']), []))),
+               # decision 191.a: a page a person checked is protected from being read again; a reset lifts it and discards.
+               # A session's verdict on the operator's delegation protects nothing (18 Nov).
+               'protected': any(pipeline_db.by_a_person(verdict['given_by']) for verdict in
+                                pipeline_db.since_last_reset(people.get((record['file'], record['pdf_page']), []),
+                                                             resets.get((record['file'], record['pdf_page']), []))),
                'reset': record.get('reset'), 'pinned_by_a_person': record.get('pinned_by_a_person')}
         if text:
             relative = f"{record['work']}/p{record['pdf_page']:04d}.md"
