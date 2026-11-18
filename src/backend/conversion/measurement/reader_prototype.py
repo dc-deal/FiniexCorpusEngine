@@ -5,7 +5,10 @@ today, by two measures written before the run (the phase 2 protocol, 11 Nov): pu
 and the reader errors a person confirmed in the walk of 10 Nov, each checked by code against what the person recorded.
 judge/4's verdict on each reading is reported beside them, not gated: a prototype judging a prototype.
 
-    python -m backend.conversion.measurement.reader_prototype report
+    python -m backend.conversion.measurement.reader_prototype report [--version page/3]
+
+page/3 (F4.a, 18 Nov) is measured the same way on the mini pilot's gold, and its own gate in place of the walk: the free pages
+whose readings failed only on a LaTeX command outside math must all be valid (cell P3-BS-SM).
 """
 
 import argparse
@@ -22,10 +25,15 @@ from backend.conversion.store import served_readings
 from backend.conversion.contract.page_contract import ParsedPage, parse
 from backend.conversion.store.reading_store import open_store
 
-CELLS = tuple(sorted(reading_cells.READER_PROTOTYPE_CELLS))
+# Each version's cells, its gold cell and its report: one version per report, so a later prototype's readings of the same
+# pages never stand in for an earlier one's (the latest reading per page is taken over the version's own cells only).
+VERSIONS = {'page/2': {'cells': ('P2-MP-SM', 'P2-WALK-SM'), 'gold': 'P2-MP-SM', 'report': 'reader_prototype_page2.json'},
+            'page/3': {'cells': ('P3-BS-SM', 'P3-MP-SM'), 'gold': 'P3-MP-SM', 'report': 'reader_prototype_page3.json',
+                       'must_be_valid': 'P3-BS-SM'}}
+CELLS = VERSIONS['page/2']['cells']
 JUDGE = 'judge/4'
 EXPORT = data_paths.FREE_READINGS / 'index.json'
-REPORT = 'reader_prototype_page2.json'
+REPORT = VERSIONS['page/2']['report']
 
 YEAR = re.compile(r'\b(19[4-9]\d|20[0-4]\d)\b')
 MEETING = re.compile(r'cross|overtak|surpass|exceed|meet|intersect|converge', re.IGNORECASE)
@@ -131,9 +139,11 @@ def _gold(rows: list) -> dict:
 
 def report(args) -> dict:
     sys.stdout.reconfigure(encoding='utf-8')
+    name = getattr(args, 'version', None) or 'page/2'
+    version = VERSIONS[name]  # in the rows, 'page_2' names the prototype's side whichever version it is
     store = open_store('free')
     served = served_keys()
-    newest = check_run.latest_per_page(vision_batches.readings_of(CELLS, store),
+    newest = check_run.latest_per_page(vision_batches.readings_of(version['cells'], store),
                                        valid=lambda record: vision_batches.current_class(record, store) == 'ok')
     pairs = []
     for record in newest:
@@ -142,7 +152,7 @@ def report(args) -> dict:
             pairs.append((_reading(store, store.reading(before)), _reading(store, record)))
     mini_pilot.measure([row for pair in pairs for row in pair])
     history = check_run.judgements_by_target(store)
-    gold_pages = {(page['file'], page['pdf_page']) for page in reading_cells.pages_for(reading_cells.READER_PROTOTYPE_CELLS['P2-MP-SM'])}
+    gold_pages = {(page['file'], page['pdf_page']) for page in reading_cells.pages_for(reading_cells.READER_PROTOTYPE_CELLS[version['gold']])}
     on_gold = [pair for pair in pairs if (pair[0].record['file'], pair[0].record['pdf_page']) in gold_pages]
     rows = []
     for one, two in sorted(pairs, key=lambda pair: (pair[0].record['work'], pair[0].record['pdf_page'])):
@@ -165,19 +175,26 @@ def report(args) -> dict:
     gates = {'gold: every page valid': two_gold['valid'] == two_gold['pages'] == 20,
              'gold: formulas exact no fewer': two_gold['formulas_exact'] >= one_gold['formulas_exact'],
              'gold: table cells exact no fewer': two_gold['cells_exact'] >= one_gold['cells_exact'],
-             'gold: clean pages no fewer': two_gold['clean'] >= one_gold['clean'],
-             'walk: at least four of six fixed': fixed >= 4,
-             'p. 69 keeps its table title': any(row['page'] == 'openstax-accounting:p69' and row['known']['page_2'][0] for row in rows)}
-    result = {'cells': CELLS, 'judge': JUDGE, 'rows': rows, 'gold': gold, 'walk_fixed': f'{fixed} of {len(walk)}', 'gates': gates,
+             'gold: clean pages no fewer': two_gold['clean'] >= one_gold['clean']}
+    if 'must_be_valid' in version:  # page/3: every page that failed on a printed backslash reads valid now
+        wanted = {(page['file'], page['pdf_page']) for page in
+                  reading_cells.pages_for(reading_cells.READER_PROTOTYPE_CELLS[version['must_be_valid']])}
+        mine = [record for record in newest if (record['file'], record['pdf_page']) in wanted]
+        valid = sum(vision_batches.current_class(record, store) == 'ok' for record in mine)
+        gates[f'backslash pages: every one valid ({valid} of {len(wanted)})'] = valid == len(wanted) == len(mine)
+    else:
+        gates['walk: at least four of six fixed'] = fixed >= 4
+        gates['p. 69 keeps its table title'] = any(row['page'] == 'openstax-accounting:p69' and row['known']['page_2'][0] for row in rows)
+    result = {'version': name, 'cells': version['cells'], 'judge': JUDGE, 'rows': rows, 'gold': gold, 'walk_fixed': f'{fixed} of {len(walk)}', 'gates': gates,
               'cost_usd': round(sum(row['cost_usd'] or 0 for row in rows), 4)}
-    store.write_report(REPORT, result)
-    print(f"gold, page/1 -> page/2: {json.dumps(gold)}")
+    store.write_report(version['report'], result)
+    print(f"gold, page/1 -> {name}: {json.dumps(gold)}")
     for row in rows:
         if 'known' in row:
             known = row['known']
             print(f"{row['page']:28} {known['what']:38} page/1 {'fixed' if known['page_1'][0] else 'wrong':5} -> page/2 "
                   f"{'fixed' if known['page_2'][0] else 'wrong':5} | {known['page_2'][1][:110]}")
-    print(f"walk: {result['walk_fixed']} fixed; judge/4 on page/2: {dict(Counter(row['judge_4'][1] for row in rows))}")
+    print(f"walk: {result['walk_fixed']} fixed; judge/4 on {name}: {dict(Counter(row['judge_4'][1] for row in rows))}")
     for gate, held in gates.items():
         print(f"{'HOLDS' if held else 'FAILS'}  {gate}")
     print(f"cost {result['cost_usd']} USD")
@@ -187,7 +204,9 @@ def report(args) -> dict:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest='command', required=True)
-    commands.add_parser('report', help='page/2 against the served page/1 readings, by gold, the walk and judge/4').set_defaults(run=report)
+    report_parser = commands.add_parser('report', help='a prototype against the served page/1 readings, by gold and its own gate')
+    report_parser.add_argument('--version', choices=sorted(VERSIONS), default='page/2')
+    report_parser.set_defaults(run=report)
     return parser
 
 

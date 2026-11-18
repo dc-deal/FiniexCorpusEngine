@@ -45,3 +45,14 @@ def test_t_accounts_journal_boxes_index_numbers_and_a_title_each_by_what_the_per
     assert not reader_prototype.index_number(page(block('index_entry', 'accumulated depletion 489')))[0]
     assert reader_prototype.table_title(page(block('heading', 'Types of Business Structures')))[0]
     assert not reader_prototype.table_title(page(block('caption', 'Table 2.1')))[0]
+
+
+def test_each_prototype_version_is_measured_on_its_own_cells_alone():
+    # 18 Nov: the cell list was every prototype cell, so page/3's readings of the mini pilot would have stood in for page/2's
+    from backend.conversion.reading import reading_cells
+
+    versions = reader_prototype.VERSIONS
+    assert set(versions['page/2']['cells']) == {'P2-MP-SM', 'P2-WALK-SM'}
+    assert set(versions['page/3']['cells']) == {'P3-MP-SM', 'P3-BS-SM'}
+    for name, version in versions.items():
+        assert {reading_cells.READER_PROTOTYPE_CELLS[cell].reader_version for cell in version['cells']} == {name}
