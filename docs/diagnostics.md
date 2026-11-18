@@ -1515,3 +1515,17 @@ a person's verdict standing as before; unit tests of the wording, the Issues' fo
 mark; a browser check on Regulation NMS 600 p. 4, the free base's one delegated accept. A state's word in a facet now
 wraps where it alone is wider than a phone's column. 304 unit tests, 76 checks in the browser (two skipped on today's
 data), 1,418 Python tests.
+
+**A licensed work as the local catalog lists it (the operator's N1.a, 18 Nov).** The sources list showed a licensed work by
+its file's stem with every other column empty. Line 1 keeps a catalog of the licensed shelf on this machine
+(`data_paths.LICENSED_CATALOG`, git-ignored, in the shape of `corpus/catalog.json`), and the licensed knowledge base now
+reads it: title, authors, publisher, year with the edition beside it, format, shelf and licence, as a free work shows
+them, and a few words about the copy under its title ("stand-in file", "lecture slides"). The title stands wherever the
+licensed export's work is named: the work's head, a page's head, the Issues. A work is matched by the export's work key,
+else by its file. The catalog is handed to the licensed store alone (`licensed_readings`), which an app started with
+`--public-only` never builds, so a public view never opens it (81.a); a missing or unreadable file leaves the columns as
+they were, with no error and no warning, and an entry that does not read is left out. No licensed title enters a test or
+the build: the tests invent their entries. **Measured:** Python tests of the fields and the title through an invented
+catalog, by key and by file, of a missing, broken and empty catalog, and that a public-only app never reaches it; a unit
+test of the row with its notes and edition; 305 unit tests, 76 checks in the browser (three skipped on today's data),
+1,427 Python tests.

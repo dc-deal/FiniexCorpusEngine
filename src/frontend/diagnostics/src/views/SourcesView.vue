@@ -65,6 +65,8 @@ onMounted(() => {
             </RouterLink>
             <span v-else class="work-title">{{ work.title }}</span>
             <span class="work-id">{{ work.id }}</span>
+            <!-- a few words about a licensed copy, from the local licensed catalog (N1.a): "stand-in file", "lecture slides" -->
+            <span v-if="work.notes" class="work-notes" data-part="work-notes">{{ work.notes }}</span>
           </td>
           <td><KnowledgeBaseMark :kb="work.knowledge_base" /></td>
           <td data-cell="structure">
@@ -81,7 +83,8 @@ onMounted(() => {
           </td>
           <td>{{ work.authors }}</td>
           <td>{{ work.publisher }}</td>
-          <td>{{ work.year }}</td>
+          <!-- a licensed copy's edition beside its year, where the catalog names one (N1.a) -->
+          <td>{{ work.year }}<span v-if="work.edition" class="edition" data-part="edition">{{ `${work.year ? ' · ' : ''}${work.edition} edition` }}</span></td>
           <td>{{ work.format }}</td>
           <td>{{ work.shelf }}</td>
           <td>{{ work.licence }}</td>
@@ -129,6 +132,7 @@ a.work-title:hover {
 
 /* the id is what a ticket and a reading key name, so it stays on screen beneath the title */
 .work-id,
+.work-notes,
 .page-count,
 .not-built {
   display: block;

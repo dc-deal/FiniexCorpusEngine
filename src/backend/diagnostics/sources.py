@@ -30,8 +30,9 @@ class CatalogSource(BaseModel):
 
 
 class Work(BaseModel):
-    """One work as the sources view lists it. A licensed work has no catalog entry: its export gives an id and a title,
-    the PDF's stem as on the search server, and the catalog's fields stay empty."""
+    """One work as the sources view lists it. A licensed work takes its fields from the local licensed catalog where this
+    machine has one (N1.a); without it, its export gives an id and a title, the PDF's stem as on the search server, and the
+    catalog's fields stay empty."""
 
     knowledge_base: KnowledgeBase
     id: str
@@ -42,6 +43,10 @@ class Work(BaseModel):
     licence: str | None = None
     format: str | None = None
     shelf: str | None = None
+    # a licensed copy's edition and a few words about the copy, from the licensed catalog alone ("3rd", "stand-in file");
+    # None for a free work, whose catalog notes are working notes the view does not show
+    edition: str | None = None
+    notes: str | None = None
     # The work's page readings in figures; None for a work that is not read page by page (HTML, for one).
     readings: WorkReadings | None = None
     # An HTML work's structure (the operator's 4.a): the sections the loader cut by heading and the chunks embedded from them, as

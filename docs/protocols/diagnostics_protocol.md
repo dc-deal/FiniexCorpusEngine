@@ -680,3 +680,10 @@ The record of how the diagnostics frontend came about, mistakes included.
   fault's own line (29, the block opening at 26); and at 390 px the Issues scrolled sideways by 15 px, since a state's
   mark keeps its words on one line and "decided by an automated review" alone was wider than the column. Inside a facet
   toggle the state's words now wrap.
+- **N1.a, the licensed catalog in the sources list** (line 1's handoff, 18 Nov). The free view shows no catalog notes
+  today, so "notes where the free view shows its notes" became a line under the title wherever the API gives notes, which
+  only the licensed catalog does; the free catalog's notes are working notes and stay out of the view. No screenshot of
+  the licensed rows was taken: a screenshot takes the free mirror only, and the unit test draws the row from invented
+  entries. **Found the same evening:** three tests pinned live free pages that the second reader then read (accounting
+  p. 360, Kelly's blocked pages): they now invent a blocked page, or take any free page in the state they need and skip
+  without one.

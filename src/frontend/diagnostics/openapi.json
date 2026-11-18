@@ -7915,6 +7915,28 @@
             ],
             "title": "Shelf"
           },
+          "edition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
           "readings": {
             "anyOf": [
               {
@@ -7966,7 +7988,7 @@
           "title"
         ],
         "title": "Work",
-        "description": "One work as the sources view lists it. A licensed work has no catalog entry: its export gives an id and a title,\nthe PDF's stem as on the search server, and the catalog's fields stay empty."
+        "description": "One work as the sources view lists it. A licensed work takes its fields from the local licensed catalog where this\nmachine has one (N1.a); without it, its export gives an id and a title, the PDF's stem as on the search server, and the\ncatalog's fields stay empty."
       },
       "WorkPages": {
         "properties": {

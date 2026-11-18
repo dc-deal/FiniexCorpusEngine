@@ -2599,8 +2599,9 @@ export interface components {
         };
         /**
          * Work
-         * @description One work as the sources view lists it. A licensed work has no catalog entry: its export gives an id and a title,
-         *     the PDF's stem as on the search server, and the catalog's fields stay empty.
+         * @description One work as the sources view lists it. A licensed work takes its fields from the local licensed catalog where this
+         *     machine has one (N1.a); without it, its export gives an id and a title, the PDF's stem as on the search server, and the
+         *     catalog's fields stay empty.
          */
         Work: {
             /**
@@ -2624,6 +2625,10 @@ export interface components {
             format?: string | null;
             /** Shelf */
             shelf?: string | null;
+            /** Edition */
+            edition?: string | null;
+            /** Notes */
+            notes?: string | null;
             readings?: components["schemas"]["WorkReadings"] | null;
             /** Sections */
             sections?: number | null;

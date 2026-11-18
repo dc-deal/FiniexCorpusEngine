@@ -111,6 +111,26 @@ describe('SourcesView', () => {
     expect(own.find('a').attributes('href')).toBe('#/licensed/sources/a_licensed_book')
   })
 
+  it('shows a licensed work as the local catalog lists it, its edition beside its year and a word on the copy (N1.a)', async () => {
+    // invented: no licensed title stands in a test
+    const licensed = aWork({ knowledge_base: 'licensed', id: 'a_licensed_book', title: 'An Invented Book', authors: 'A. Author',
+      publisher: 'Invented Press', year: 2001, edition: '2nd', licence: 'private copy (licensed)', format: 'pdf',
+      shelf: 'trading_finance', notes: 'stand-in file' })
+    const undated = aWork({ knowledge_base: 'licensed', id: 'another_book', title: 'Another Book', year: null, edition: '3rd', notes: null })
+    vi.mocked(getWorks).mockResolvedValue([licensed, undated])
+    const view = mountView()
+    await flushPromises()
+    const [own, other] = view.findAll('tbody tr')
+    expect(own.find('.work-title').text()).toBe('An Invented Book')
+    expect(own.find('[data-part="work-notes"]').text()).toBe('stand-in file')
+    expect(own.text()).toContain('Invented Press')
+    expect(own.text()).toContain('2001 · 2nd edition')
+    expect(own.text()).toContain('private copy (licensed)')
+    // no year: the edition alone, without a parting dot; no notes: nothing in their place
+    expect(other.find('[data-part="edition"]').text()).toBe('3rd edition')
+    expect(other.find('[data-part="work-notes"]').exists()).toBe(false)
+  })
+
   it('says so when the catalog lists nothing, rather than drawing an empty table', async () => {
     vi.mocked(getWorks).mockResolvedValue([])
     const view = mountView()

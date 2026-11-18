@@ -219,6 +219,69 @@ def test_a_licensed_export_is_served_beside_the_free_one_each_row_marked(monkeyp
     assert both.get('/api/free/works/a_licensed_book/pages').status_code == 404
 
 
+# an invented entry of the local licensed catalog (N1.a): no licensed title stands in a test
+ENTRY = {'id': 'a-licensed-book', 'file': None, 'title': 'An Invented Book', 'authors': 'A. Author', 'publisher': 'Invented Press',
+         'year': 2001, 'edition': '2nd', 'format': 'pdf', 'shelf': 'trading_finance', 'language': 'en',
+         'licence': 'private copy (licensed)', 'notes': 'stand-in file'}
+SHOWN = ('title', 'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes')
+
+
+def licensed_with_a_catalog(monkeypatch, folder, catalog_text: str | None) -> TestClient:
+    """The invented licensed export with a catalog file of the given text beside it, or none, served beside the free base."""
+    folder.mkdir(parents=True, exist_ok=True)
+    store = a_licensed_export(folder)
+    store.catalog = folder / 'catalog.json'
+    if catalog_text is not None:
+        store.catalog.write_text(catalog_text, encoding='utf-8')
+    monkeypatch.setattr(readings, 'licensed_readings', lambda: store)
+    return TestClient(create_app(), base_url=LOCAL)
+
+
+def licensed_work(client: TestClient) -> dict:
+    [work] = [work for work in client.get('/api/works').json() if work['knowledge_base'] == 'licensed']
+    return {name: work[name] for name in SHOWN}
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_a_licensed_work_takes_its_title_and_fields_from_the_local_catalog(monkeypatch, tmp_path):
+    # the operator's N1.a, 18 Nov: title, authors, publisher, year, edition, format, shelf, licence and notes, as the free
+    # works show theirs; an entry that does not read is left out, the others stand
+    both = licensed_with_a_catalog(monkeypatch, tmp_path / 'by_key', json.dumps({'_about': 'invented', 'sources': [ENTRY, {'id': 'x'}]}))
+    assert licensed_work(both) == {name: ENTRY[name] for name in SHOWN}
+    # the work head and a page name the work by its title too
+    assert both.get('/api/licensed/works/a_licensed_book/pages').json()['title'] == 'An Invented Book'
+    assert both.get('/api/licensed/works/a_licensed_book/pages/1').json()['title'] == 'An Invented Book'
+    # matched by its file where the catalog lists the work under another key, as it lists an unread file
+    by_file = {**ENTRY, 'id': 'another_key', 'file': readings.Readings().work(KELLY)['file'], 'title': 'By Its File'}
+    both = licensed_with_a_catalog(monkeypatch, tmp_path / 'by_file', json.dumps({'sources': [by_file]}))
+    assert licensed_work(both)['title'] == 'By Its File'
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_without_a_readable_licensed_catalog_a_licensed_work_shows_what_it_showed_and_says_nothing(monkeypatch, tmp_path):
+    # N1.a: a clone has no catalog, and a broken one must not break the view: today's columns, no error, no warning
+    today = {'title': 'a_licensed_book', **{name: None for name in SHOWN if name != 'title'}}
+    for case, text in (('missing', None), ('not_json', '{not json'), ('not_a_catalog', '[1, 2]'), ('no_entry', '{"sources": []}')):
+        both = licensed_with_a_catalog(monkeypatch, tmp_path / case, text)
+        assert licensed_work(both) == today, case
+        assert both.get('/api/licensed/works/a_licensed_book/pages').json()['title'] == 'a_licensed_book', case
+
+
+def test_public_only_never_opens_the_licensed_catalog(monkeypatch):
+    # 81.a by construction: the catalog is handed to the licensed store alone, which a public-only app never builds
+    def refuse(*_):
+        raise AssertionError('a public-only app reached the licensed catalog')
+
+    monkeypatch.setattr(readings, 'catalog_entries', refuse)
+    monkeypatch.setattr(readings, 'licensed_readings', refuse)
+    public = TestClient(create_app(public_only=True), base_url=LOCAL)
+    for path in ('/api/works', '/api/issues', f'/api/free/works/{KELLY}/pages'):
+        assert public.get(path).status_code == 200, path
+    assert [store.catalog for store in readings.knowledge_bases(public_only=True).values()] == [None]
+
+
 def test_the_start_switch_reaches_the_app_and_the_search_is_warmed(monkeypatch):
     from backend.diagnostics import chat
 

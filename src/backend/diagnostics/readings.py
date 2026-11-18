@@ -1253,8 +1253,42 @@ def _render(pdf: Path, pdf_page: int, resolution: str, modified: int) -> page_re
 
 def licensed_readings() -> 'Readings | None':
     """The licensed knowledge base's export (decision 80.a), git-ignored and on this machine only, so a clone has none.
-    This is the one place that reads it."""
-    return Readings(LICENSED_EXPORT) if (LICENSED_EXPORT / 'index.json').exists() else None
+    This is the one place that reads it, and the one that hands it the licensed catalog (N1.a): never under --public-only."""
+    return Readings(LICENSED_EXPORT, catalog=data_paths.LICENSED_CATALOG) if (LICENSED_EXPORT / 'index.json').exists() else None
+
+
+class CatalogEntry(BaseModel):
+    """A licensed work as the local licensed catalog lists it (`data_paths.LICENSED_CATALOG`, the operator's N1.a, 18 Nov):
+    git-ignored and on this machine only, read for the licensed knowledge base alone, so no licensed title reaches a public
+    view. Its shape follows `corpus/catalog.json`; the free catalog's links and subject have no counterpart here."""
+
+    id: str  # the export's work key for a work it has pages of, else the file's stem
+    file: str | None = None
+    title: str
+    authors: str | None = None
+    publisher: str | None = None
+    year: int | None = None
+    edition: str | None = None  # "3rd", where the copy names one
+    format: str | None = None
+    shelf: str | None = None
+    licence: str | None = None
+    notes: str | None = None  # a few words: "stand-in file", "re-typeset copy; printed pages differ"
+
+
+def catalog_entries(path: Path) -> list[CatalogEntry]:
+    """The licensed catalog's entries, each that reads as one; [] where the file is missing or unreadable, so the view
+    shows what it showed without it, with no error and no warning (N1.a)."""
+    try:
+        sources = json.loads(path.read_text(encoding='utf-8')).get('sources') or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    entries = []
+    for source in sources if isinstance(sources, list) else []:
+        try:
+            entries.append(CatalogEntry.model_validate(source))
+        except ValueError:  # pydantic's ValidationError is one: an entry that does not read is left out, the rest stand
+            continue
+    return entries
 
 
 def knowledge_bases(public_only: bool = False) -> dict[str, 'Readings']:
@@ -1336,12 +1370,19 @@ def why_line(row: dict, said: str | None, blocks: 'list[Block]') -> str | None:
 class Readings:
     """One knowledge base's export; its index is read again whenever the file changes."""
 
-    def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None):
+    def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None, catalog: Path | None = None):
         self.export = export
         self.root = root  # what a work's `pdf` path is relative to; None: the repository's layout, the data in _data/
         self.index = export / 'index.json'
+        # the licensed catalog, handed in by `licensed_readings` alone (N1.a); None for the free knowledge base, whose
+        # catalog the sources view reads itself
+        self.catalog = catalog
         self._data: dict = {}
         self._read_at: int | None = None
+        self._catalog_at: int | None = None
+        self._works_at: tuple[int | None, int | None] | None = None
+        self._works: list[dict] = []
+        self._entries: dict[str, CatalogEntry] = {}
 
     def _index(self) -> dict:
         if not self.index.exists():
@@ -1357,8 +1398,30 @@ class Readings:
 
     def works(self) -> list[dict]:
         """The works the export has pages of, each with its id, title and PDF; a licensed work's id and title are its file's
-        stem, as on the search server."""
-        return self._index().get('works', [])
+        stem, as on the search server, unless the licensed catalog lists it: then its title is the catalog's (N1.a), matched
+        by the export's work key, else by its file. Built again whenever the export or the catalog changes."""
+        works = self._index().get('works', [])
+        stamp = None
+        if self.catalog is not None:
+            try:
+                stamp = self.catalog.stat().st_mtime_ns
+            except OSError:
+                stamp = None
+        if (self._read_at, stamp) != self._works_at:
+            entries = catalog_entries(self.catalog) if stamp is not None else []
+            by_id = {entry.id: entry for entry in entries}
+            by_file = {entry.file: entry for entry in entries if entry.file}
+            self._entries = {work['source_id']: entry for work in works
+                             if (entry := by_id.get(work.get('work')) or by_file.get(work.get('file')))}
+            self._works = [{**work, 'title': self._entries[work['source_id']].title} if work['source_id'] in self._entries
+                           else work for work in works]
+            self._works_at = (self._read_at, stamp)
+        return self._works
+
+    def catalog_entry(self, source_id: str) -> CatalogEntry | None:
+        """The licensed catalog's entry of a work, None where there is no catalog or it does not list the work."""
+        self.works()
+        return self._entries.get(source_id)
 
     def work(self, source_id: str) -> dict | None:
         return next((work for work in self.works() if work['source_id'] == source_id), None)

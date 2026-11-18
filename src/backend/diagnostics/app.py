@@ -118,9 +118,17 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                 listed += [work.model_copy(update={'readings': store.summary(work.id), **html_structure(work, html)})
                            for work in sources.works()]
             else:
+                # a licensed work's title, authors and the rest from the local licensed catalog, where this machine has one
+                # (N1.a); its store reads it, which no --public-only app has
                 listed += [sources.Work(knowledge_base=work['knowledge_base'], id=work['source_id'], title=work['title'],
-                                        readings=store.summary(work['source_id'])) for work in store.works()]
+                                        readings=store.summary(work['source_id']), **catalog_fields(store, work['source_id']))
+                           for work in store.works()]
         return listed
+
+    def catalog_fields(store: readings.Readings, source_id: str) -> dict:
+        """The licensed catalog's fields of a work the sources view shows, {} where the catalog does not list it."""
+        entry = store.catalog_entry(source_id)
+        return entry.model_dump(include={'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes'}) if entry else {}
 
     def html_structure(work: sources.Work, html: dict[str, html_works.HtmlCounts] | None) -> dict:
         """An HTML work's sections and chunks as the index records them, or why they are not known here."""
