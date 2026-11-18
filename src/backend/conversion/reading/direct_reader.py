@@ -189,6 +189,9 @@ def prepare(args) -> list[str]:
     rows = {(row['file'], row['pdf_page']): row for row in json.loads(
         (reading_export.BASES[args.knowledge_base].export / 'index.json').read_text(encoding='utf-8'))['pages']}
     documents, made = vision_batches.Documents(), []
+    # The session's readings, gathered once per store: looked up per page, as `latest_direct` does, every page read the whole
+    # store again, and preparing 25 pages of a whole work took over ten minutes once a hundred of its pages were stored (18 Nov).
+    session_records: dict[str, dict] = {}
     for page in reading_cells.pages_for(cell):
         if args.limit and len(made) >= args.limit:
             break
@@ -200,11 +203,14 @@ def prepare(args) -> list[str]:
             continue  # checked again: the list may be older than the page's history; a page a person checked is not read again;
             # an unread page of a whole work (`--add-work`) has no row in the export yet
         mirror, pdf_page = documents.page(page['file'], page['pdf_page'])
-        image = page_render.render(pdf_page, RESOLUTION)
         store = open_store(mirror)
-        latest = latest_direct(store, page)
+        if mirror not in session_records:
+            session_records[mirror] = session_readings(store)
+        own = session_records[mirror].get((page['file'], page['pdf_page']), [])
+        latest = max(own, key=lambda record: record.get('attempt', 0)) if own else None
         if latest is not None and not (args.retry_malformed and vision_batches.current_class(latest, store) == 'malformed'):
             continue  # read already; a malformed attempt is retried only on request, and only once more each time
+        image = page_render.render(pdf_page, RESOLUTION)
         entry = entry_for(cell, page, image, mirror, store, retry_of=latest)
         if store.reading(entry['reading_key']) is not None:
             continue
@@ -222,6 +228,15 @@ def prepare(args) -> list[str]:
         made.append(str(folder))
         print(f"prepared {page['id']} ({page.get('why', '')}): {folder}")
     return made
+
+
+def session_readings(store) -> dict[tuple[str, int], list[dict]]:
+    """Every reading made in a session, by (file, PDF page): the store read once."""
+    found: dict[tuple[str, int], list[dict]] = {}
+    for record in store.readings():
+        if record.get('kind', 'reading') == 'reading' and record.get('mode') == MODE:
+            found.setdefault((record['file'], record['pdf_page']), []).append(record)
+    return found
 
 
 def latest_direct(store, page: dict) -> dict | None:
