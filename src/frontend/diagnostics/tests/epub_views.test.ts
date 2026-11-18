@@ -21,6 +21,7 @@ const KEY = 'an_invented_book'
 function aWork(overrides: Partial<EpubWork> = {}): EpubWork {
   return {
     knowledge_base: 'licensed', source_id: KEY, title: 'An Invented Book', file: 'an_invented_book.epub', route: 'epub, parsed by section',
+    licence: 'private copy (licensed)',
     sections: 3, images: 2,
     outline: [
       { id: 'h1', title: 'Chapter One', parent: null, level: 1, label: 's1', first: 's1', last: 's2', sections: 2, chunks: 0 },
@@ -63,6 +64,7 @@ describe('a licensed EPUB work (123.a)', () => {
     await flushPromises()
     expect(view.find('.view-title').text()).toBe('An Invented Book')
     expect(view.find('[data-part="summary"]').text()).toContain('3 sections by heading · 2 images')
+    expect(view.find('[data-part="licence"]').text()).toBe('private copy (licensed)')
     const links = view.findAll('.outline a.unit-title')
     expect(links.map(link => link.attributes('href'))).toEqual([`#/licensed/epub/${KEY}/s1`, `#/licensed/epub/${KEY}/s2`, `#/licensed/epub/${KEY}/s3`])
     expect(view.find('.outline').text()).not.toContain('chunk')

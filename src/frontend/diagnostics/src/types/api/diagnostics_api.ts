@@ -1069,6 +1069,8 @@ export interface components {
             title: string;
             /** File */
             file: string;
+            /** Licence */
+            licence?: string | null;
             /**
              * Route
              * @default epub, parsed by section

@@ -57,6 +57,7 @@ class EpubWork(BaseModel):
     source_id: str  # the librarian's work key: the legacy work's key where the EPUB serves it, else the file's stem
     title: str
     file: str
+    licence: str | None = None  # the local licensed catalog's, as the sources list shows it; None where it lists no entry
     route: str = ROUTE
     sections: int = 0
     images: int = 0

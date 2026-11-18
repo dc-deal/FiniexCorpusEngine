@@ -206,25 +206,30 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                                 else f'no section {label!r} of {source_id!r} in the search index')
         return found
 
-    def epub_of(knowledge_base: str, source_id: str) -> str:
-        """The title of a licensed EPUB work, from the local licensed catalog by its file, else its file's stem; 404 for any
-        other knowledge base, and before anything is read where the licensed one is not served (--public-only, 81.a)."""
+    def epub_entry(knowledge_base: str, source_id: str) -> tuple[str, str | None]:
+        """The title and licence of a licensed EPUB work, from the local licensed catalog by its file, as the sources list
+        shows them, else its file's stem and no licence; 404 for any other knowledge base, and before anything is read where
+        the licensed one is not served (--public-only, 81.a)."""
         if knowledge_base != 'licensed' or 'licensed' not in bases:
             raise HTTPException(404, f'no EPUB work in the {knowledge_base} knowledge base here')
         path = epub_works.epubs().get(source_id)
         if path is None:
             raise HTTPException(404, f'no EPUB work {source_id!r} in the licensed knowledge base')
         entry = bases['licensed'].catalog_entry_of_file(path.name)
-        return entry.title if entry else path.stem
+        return (entry.title, entry.licence) if entry else (path.stem, None)
+
+    def epub_of(knowledge_base: str, source_id: str) -> str:
+        return epub_entry(knowledge_base, source_id)[0]
 
     @app.get('/api/{knowledge_base}/epub/{source_id}')
     def epub_work(knowledge_base: readings.KnowledgeBase, source_id: str) -> epub_works.EpubWork:
         """A licensed EPUB work (123.a, the operator's P1.a): its outline by heading and its sections, as the librarian
         serves them, each with the count of its images."""
-        found = epub_works.work(source_id, epub_of(knowledge_base, source_id))
+        title, licence = epub_entry(knowledge_base, source_id)
+        found = epub_works.work(source_id, title)
         if found is None:
             raise HTTPException(404, f'no EPUB work {source_id!r}')
-        return found
+        return found.model_copy(update={'licence': licence})
 
     @app.get('/api/{knowledge_base}/epub/{source_id}/sections/{label}')
     def epub_section(knowledge_base: readings.KnowledgeBase, source_id: str, label: str) -> epub_works.EpubSection:

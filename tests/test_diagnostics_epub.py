@@ -43,8 +43,8 @@ def export_folder(tmp_path):
 def test_an_epub_work_has_its_outline_and_sections_labelled_as_the_librarian_labels_them(served):
     path, client = served
     work = client.get(f'/api/licensed/epub/{KEY}').json()
-    assert (work['title'], work['file'], work['route'], work['sections'], work['images']) == (
-        'An Invented Book', path.name, 'epub, parsed by section', 3, 2)
+    assert (work['title'], work['file'], work['route'], work['sections'], work['images'], work['licence']) == (
+        'An Invented Book', path.name, 'epub, parsed by section', 3, 2, 'private copy (licensed)')
     # the labels a search hit names: the librarian's own pages of this EPUB
     pages = search_server.epub_pages(KEY, path, search_server.stamps())
     assert [row['label'] for row in work['rows']] == [page.page for page in pages] == ['s1', 's2', 's3']

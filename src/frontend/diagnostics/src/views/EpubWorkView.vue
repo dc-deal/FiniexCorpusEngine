@@ -56,6 +56,8 @@ const childrenOf = computed(() => {
       <p class="summary" data-part="summary">
         <span>{{ shown.sections.toLocaleString('en') }} sections by heading · {{ shown.images.toLocaleString('en') }} images</span>
         <span class="route">{{ shown.route }}</span>
+        <!-- the catalog's licence, as the sources list shows it -->
+        <span v-if="shown.licence" class="licence" data-part="licence">{{ shown.licence }}</span>
       </p>
       <div class="view-switch">
         <AppButton size="compact" :active="asChapters" @click="settingsStore.setWorkPagesView('chapters')">chapters</AppButton>
@@ -108,7 +110,8 @@ const childrenOf = computed(() => {
 }
 
 .work-id,
-.route {
+.route,
+.licence {
   color: var(--color-text-secondary);
 }
 

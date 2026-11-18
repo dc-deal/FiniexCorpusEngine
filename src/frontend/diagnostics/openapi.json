@@ -2912,6 +2912,17 @@
             "type": "string",
             "title": "File"
           },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
           "route": {
             "type": "string",
             "title": "Route",
