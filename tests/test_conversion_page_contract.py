@@ -120,6 +120,49 @@ def test_bold_in_a_table_cell_loses_nothing():
     assert page.valid and page.block('b11').rows[2][1].text == '80,000'
 
 
+# page/1.4 (18 Nov): a backslash the page prints as text is written &#92;, in prose and in a table cell alike.
+def test_a_backslash_written_as_an_entity_is_text():
+    page = parse(changed('Based on the information provided', 'Based on rate&#92;term provided'), 'markdown', EXPECTED)
+    assert page.valid, page.errors
+    assert page.block('b13').inline['plain'].startswith('Based on rate\\term provided')
+    cell = parse(changed('<td>80,000</td>', '<td>rate&#92;term</td>'), 'markdown', EXPECTED)
+    assert cell.valid, cell.errors
+    assert cell.block('b11').rows[2][1].text == 'rate\\term' and cell.block('b11').rows[2][1].source == 'rate&#92;term'
+
+
+@pytest.mark.parametrize('written', ['rate\\term', 'rate\\\\term'])  # bare, and as Markdown's escape: a doubled \\frac looks so
+def test_every_other_spelling_of_a_printed_backslash_still_fails(written):
+    assert 'LaTeX command outside math' in errors_of(changed('Based on the information provided', f'Based on {written}'))
+    assert 'LaTeX command outside math' in errors_of(changed('<td>80,000</td>', f'<td>{written}</td>'))
+
+
+def line_of(text: str, needle: str) -> int:
+    """The page's line a needle stands on, counted from 1 as the validator counts."""
+    return next(number for number, line in enumerate(text.split('\n'), 1) if needle in line)
+
+
+@pytest.mark.parametrize('old, new, needle, said', [
+    ('Based on the information provided', 'Based on the information\nprovided \\HL here', '\\HL here',
+     'LaTeX command outside math on line {}: \\HL'),
+    ('<td>90,000</td></tr>', '<td>90,000</td></tr>\n<tr><td>a</td><td>b</td><td>c \\alpha</td></tr>', 'c \\alpha',
+     'LaTeX command outside math on line {}: \\alpha'),
+    ('Based on the information provided', 'Based on the information\nprovided <sup>8</sup>', '<sup>8</sup>',
+     'HTML in prose on line {} '),
+    ('Based on the information provided', 'Based on the information\ncosts $a_1$ provided', '$a_1$',
+     'possible $...$ math on line {} '),
+])
+def test_a_problem_names_the_line_it_stands_on(old, new, needle, said):
+    broken = changed(old, new)
+    errors = errors_of(broken)
+    assert said.format(line_of(broken, needle)) in errors, errors  # the block's opening line stands lines above it
+
+
+def test_without_a_line_a_problem_is_named_as_before():
+    """The JSON form has no lines, and a caller that gives none gets the message as page/1.3 wrote it."""
+    assert page_contract.parse_inline('a \\HL b')['problems'] == ['LaTeX command outside math: \\HL']
+    assert page_contract.parse_table('<table><tr><td>a \\HL</td></tr></table>')[1] == ['LaTeX command outside math: \\HL']
+
+
 def test_a_listing_that_holds_a_fence_line_needs_a_longer_fence():
     block = ':::: {#b30 .code kind=listing lang=markdown bbox="194 502 1477 655"}\n::: note\nA note\n:::\n::::\n\n'
     page = parse(changed('::: {#b07', block + '::: {#b07'), 'markdown', EXPECTED)

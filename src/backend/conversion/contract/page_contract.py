@@ -47,6 +47,10 @@ BLOCK_ID = re.compile(r'^b\d{2,3}$')
 BBOX = re.compile(r'^\d+ \d+ \d+ \d+$')
 IMAGE_SIZE = re.compile(r'^(\d+)x(\d+)$')
 DETACHED = re.compile(r'^@(prev|next|label:\S.*)$')
+# page/1.4 (2026-11-18, the operator, F4.a): read in the source as written, so a backslash the page prints as text, written
+# &#92; ("rate&#92;term", a table head whose rows are rates and columns terms), is not taken for a stray LaTeX command. Every
+# other spelling still fails: markdown-it and html.parser decode &#92; and \\ to a bare backslash before the text is seen, and
+# a doubled \\frac is what a reader writes when it escapes LaTeX twice, so only the entity says "a backslash, on purpose".
 LATEX_OUTSIDE_MATH = re.compile(r'\\[A-Za-z]{2,}')
 HTML_IN_PROSE = re.compile(r'</?(?:sup|sub|b|i|em|strong|u|br|span|div|p)\b[^<>]*>', re.I)
 BARE_DOLLAR = re.compile(r'(?<!\\)\$')  # KaTeX refuses it, and a reader that was told once writes \$
@@ -94,6 +98,8 @@ class Cell:
     rowspan: int = 1
     colspan: int = 1
     inline: dict | None = None
+    source: str | None = None  # the cell as written in the table's body, its entities not decoded (page/1.4)
+    start: int = 0  # where `source` begins in the table's body
 
 
 @dataclass
@@ -104,6 +110,8 @@ class Block:
     body: str
     line: int
     inline: dict | None = None
+    # the page's line the body begins on, so a fault is named where it stands (page/1.4); None in the JSON form, which has none
+    body_line: int | None = None
     rows: list[list[Cell]] | None = None  # a table's rows
     code: str | None = None  # a code body without its callout marks
     callouts: dict = field(default_factory=dict)  # a code body's line number -> callout numbers
@@ -149,15 +157,30 @@ class ParsedPage:
 
 # ---------------------------------------------------------------- inline marks
 
-def parse_inline(text: str) -> dict:
-    """Plain text with the math taken out, plus the math, the note markers, the spans and the problems."""
-    plain, prose, math, markers, spans, segments, problems, notices = [], [], [], [], [], [], [], []
+def _blank(found: re.Match) -> str:
+    """The match as spaces, its line breaks kept, so a place in what is left is the same place in the source."""
+    return re.sub(r'[^\n]', ' ', found.group(0))
+
+
+def _on_line(scope: str, found: re.Match | None, first_line: int | None) -> str:
+    """' on line N', N the page's line the match stands on, counted as the validator counts a page's lines (page/1.4: the
+    block's opening line alone sent the operator to the wrong line, 18 Nov); '' without a line."""
+    if first_line is None or found is None:
+        return ''
+    return f" on line {first_line + scope.count('\n', 0, found.start())}"
+
+
+def parse_inline(text: str, source: str | None = None, first_line: int | None = None) -> dict:
+    """Plain text with the math taken out, plus the math, the note markers, the spans and the problems.
+
+    `source` is the text as written where `text` was decoded before (a table cell: html.parser decodes its entities), and
+    `first_line` the page's line it begins on, so a problem names its line."""
+    plain, math, markers, spans, segments, problems, notices = [], [], [], [], [], [], []
     stack = []
     for token in INLINE_MD.parseInline(text):
         for child in token.children or []:
             if child.type == 'text':
                 plain.append(child.content)
-                prose.append(child.content)
                 segments.append((stack[-1]['class'] if stack and stack[-1]['class'] in KEPT_MARKS else 'text', child.content))
                 if stack:
                     stack[-1]['text'] += child.content
@@ -175,7 +198,6 @@ def parse_inline(text: str) -> dict:
                 segments.append(('code', child.content))
             elif child.type in ('softbreak', 'hardbreak'):
                 plain.append(' ')
-                prose.append(' ')
                 segments.append(('text', ' '))
             elif child.type == 'span_open':
                 name = (child.attrs or {}).get('class', '')
@@ -191,17 +213,23 @@ def parse_inline(text: str) -> dict:
                 problems.append(f'unexpected inline token {child.type}')
     without_code = CODE_SPAN.sub('', text)
     outside_math = INLINE_MATH.sub(' ', without_code)
+    # The source with code, math and a mark's attributes blanked: what the prose was written as, every place where it stood.
+    scope = INLINE_MATH.sub(_blank, CODE_SPAN.sub(_blank, text if source is None else source))
+    scope = INLINE_MARK_ATTRIBUTES.sub(lambda found: ']' + _blank(found)[1:], scope)
     if without_code.count('\\(') != without_code.count('\\)'):
         problems.append('unbalanced inline math delimiter \\( \\)')
-    outside = LATEX_OUTSIDE_MATH.search(''.join(prose))
+    outside = LATEX_OUTSIDE_MATH.search(scope)  # page/1.4: in the source, where &#92; is still an entity
     if outside:
-        problems.append(f'LaTeX command outside math: {outside.group(0)}')
+        problems.append(f'LaTeX command outside math{_on_line(scope, outside, first_line)}: {outside.group(0)}')
     # Two \$ inside one \( \) are dollar amounts, and so are a prose amount with an escaped \$ or an inline mark such as
     # [1]{.fn} after it on the same line (page/1.1, 2026-11-02: 45 of 77 failed readings of the free corpus were only that).
+    # Which page fails is decided as before; the source's blanked copy only finds the line (page/1.4).
     if DOLLAR_MATH.search(INLINE_MARK_ATTRIBUTES.sub(']', ESCAPED_DOLLAR.sub(' ', outside_math))):
-        problems.append('possible $...$ math (the contract uses \\( \\))')
+        found = DOLLAR_MATH.search(ESCAPED_DOLLAR.sub(_blank, scope))
+        problems.append(f'possible $...$ math{_on_line(scope, found, first_line)} (the contract uses \\( \\))')
     if HTML_IN_PROSE.search(outside_math):
-        problems.append('HTML in prose (use the inline marks: [8]{.sup}, **bold**)')
+        found = HTML_IN_PROSE.search(scope) if source is None else None  # a cell's source holds its table's own tags
+        problems.append(f'HTML in prose{_on_line(scope, found, first_line)} (use the inline marks: [8]{{.sup}}, **bold**)')
     return {'plain': re.sub(r'\s+', ' ', ''.join(plain)).strip(), 'math': math, 'markers': markers, 'spans': spans,
             'segments': segments, 'problems': problems, 'notices': notices}
 
@@ -209,11 +237,18 @@ def parse_inline(text: str) -> dict:
 # ---------------------------------------------------------------- tables
 
 class _TableParser(html.parser.HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, body: str = '') -> None:
         super().__init__(convert_charrefs=True)
+        self.body = body
+        self.line_starts = [0] + [index + 1 for index, character in enumerate(body) if character == '\n']
         self.rows: list[list[Cell]] = []
         self.cell: Cell | None = None
         self.problems: list[str] = []
+
+    def at(self) -> int:
+        """Where in the body the tag being handled begins: html.parser moves its position on only after a tag's handler."""
+        line, column = self.getpos()
+        return self.line_starts[line - 1] + column
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
@@ -228,11 +263,13 @@ class _TableParser(html.parser.HTMLParser):
             except ValueError:
                 self.problems.append(f'a span in <{tag}> is not a number')
                 self.cell = Cell('', header=tag == 'th')
+            self.cell.start = self.at() + len(self.get_starttag_text() or '')
         elif tag == 'br' and self.cell is not None:
             self.cell.text += ' '
 
     def handle_endtag(self, tag):
         if tag in ('td', 'th') and self.cell is not None:
+            self.cell.source = self.body[self.cell.start:self.at()]
             if not self.rows:
                 self.rows.append([])
             self.rows[-1].append(self.cell)
@@ -259,14 +296,17 @@ def grid_widths(rows: list[list[Cell]]) -> list[int]:
     return widths
 
 
-def parse_table(body: str) -> tuple[list[list[Cell]], list[str], list[str]]:
-    parser = _TableParser()
+def parse_table(body: str, first_line: int | None = None) -> tuple[list[list[Cell]], list[str], list[str]]:
+    """A table's rows of cells, with the problems and notices of their text; `first_line` is the page's line the body
+    begins on, so a cell's problem names its line (page/1.4)."""
+    parser = _TableParser(body)
     parser.feed(body)
     parser.close()
     problems, notices = list(parser.problems), []
     for row in parser.rows:
         for cell in row:
-            cell.inline = parse_inline(cell.text)
+            line = None if first_line is None else first_line + body.count('\n', 0, cell.start)
+            cell.inline = parse_inline(cell.text, source=cell.source, first_line=line)
             problems.extend(cell.inline['problems'])
             notices.extend(cell.inline['notices'])
     widths = grid_widths(parser.rows)
@@ -367,7 +407,7 @@ def _read_markdown(text: str) -> tuple[dict, list[Block], list[str]]:
             errors.append(f'line {start + 1}: exactly one class required, got {classes}')
         body = token.content[:-1] if token.content.endswith('\n') else token.content
         blocks.append(Block(id=attrs.pop('id', ''), cls=classes[0] if classes else '', attrs=attrs, body=body, line=start + 1,
-                            notices=notices))
+                            body_line=start + 2, notices=notices))
     return front, blocks, errors
 
 
@@ -469,13 +509,13 @@ def _check_body(block: Block, where: str, spec: dict, errors: list[str], warning
         else:
             errors.append(f'{where}: empty body (use status=unreadable)')
     if block.cls in INLINE_BEARING:
-        block.inline = parse_inline(block.body)
+        block.inline = parse_inline(block.body, first_line=block.body_line)
         errors.extend(f'{where}: {problem}' for problem in block.inline['problems'])
         warnings.extend(f'{where}: {notice}' for notice in block.inline['notices'])
     if block.cls == 'heading' and block.body.lstrip().startswith('#'):
         errors.append(f'{where}: a heading body is its text, without # marks')
     if block.cls == 'table' and not empty:
-        block.rows, problems, notices = parse_table(block.body)
+        block.rows, problems, notices = parse_table(block.body, block.body_line)
         errors.extend(f'{where}: {problem}' for problem in problems)
         warnings.extend(f'{where}: {notice}' for notice in notices)
         if not block.rows:

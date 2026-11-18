@@ -2,7 +2,7 @@
  "about": "What the mini pilot measured and the batches of phase 2 read with. tests/contracts/test_the_contract_is_frozen.py holds it.",
  "contract": "page/1",
  "frozen_on": "2026-10-30",
- "validator": "page/1.3",
+ "validator": "page/1.4",
  "validator_changes": [
   {"version": "page/1.1", "on": "2026-11-02", "page_contract.py was": "c59b7208d89edb04c42272acc53f6e2686b90da1fb98b35a7fc869bbabd8bd2b",
    "why": "The dollar-math check took a prose dollar amount followed on its line by an inline mark such as [1]{.fn} or by an escaped \\$ for $...$ math. Prompt, vocabulary and reading keys are unchanged; stored readings are checked again for free."},
@@ -12,7 +12,10 @@
    "why": "Round 6 of the licensed rollout left 15 pages malformed after their retry, and none had lost text. What loses no text is now a warning: a list item or caption that continues from the page before needs no marker or binding, a table note no marker, a decoration no kind; a callout may explain a table, a paragraph may sit in a list item; a tab in a contents entry is its leader; a binding written without quotes, and a brace in a quoted value, are read as meant. The prompt and the vocabulary's classes are unchanged, so no reading key changes; stored readings are checked again for free."},
   {"version": "page/1.3", "on": "2026-11-11", "decided_by": "the operator, decision 212.a",
    "page_contract.py was": "09cb28e4a76778f94c0eb6f261941848cd8dd6dc9040c7116e531f9bcf49cf46",
-   "why": "8 of the free corpus's 9 malformed accounting pages had one cause: a numbered answer or an option whose whole content is the journal table (or figure, formula, listing) printed right after it, written as a list item with its marker and an empty body, then the table. Nothing is lost, so it is a warning, as page/1.2 made what loses no text. The prompt and the vocabulary are unchanged, so no reading key changes; stored readings are checked again for free. In the same version the inline segments keep a footnote marker, a superscript and a subscript apart (decision 205.a), which changes no verdict."}
+   "why": "8 of the free corpus's 9 malformed accounting pages had one cause: a numbered answer or an option whose whole content is the journal table (or figure, formula, listing) printed right after it, written as a list item with its marker and an empty body, then the table. Nothing is lost, so it is a warning, as page/1.2 made what loses no text. The prompt and the vocabulary are unchanged, so no reading key changes; stored readings are checked again for free. In the same version the inline segments keep a footnote marker, a superscript and a subscript apart (decision 205.a), which changes no verdict."},
+  {"version": "page/1.4", "on": "2026-11-18", "decided_by": "the operator, F4.a",
+   "page_contract.py was": "4e19a4ea9ad1606485c30034feef0e5e247e46de9fca59938911b65489f13841",
+   "why": "A page that prints a backslash as text (a table head whose rows are rates and columns terms) failed every reader: the check for a stray LaTeX command outside math read the text after markdown-it and html.parser had decoded it, so neither the entity &#92; nor an escaped backslash could pass. The check now reads the source as written, where &#92; is still an entity; a bare or escaped backslash before letters still fails, since a reader that escapes LaTeX twice writes the same. Its message, and those of possible $...$ math and HTML in prose, now names the page line the fault stands on beside the block. The prompt and the vocabulary are unchanged, so no reading key changes; the stored readings were checked again for free first, and no error changed beyond its line."}
  ],
  "form": "markdown",
  "reader_for_structure_pages": "claude-sonnet-5-5",
@@ -27,6 +30,6 @@
   "prompts/judge_page4.txt": "29f6e9175e5caa04b603d8ac89ce0598d308eaa6c949d347996e6ea8b7087884",
   "prompts/page_classes_check.txt": "6c204042bb3e358e7249e671be4aee8c3da9935117225b135dfca53efbdb0b29",
   "contract/contract_vocab.json": "e4bbfb9422429a2c0629e556ab20487a3b3f80aaef69e1341ef855eb8b4fbd89",
-  "contract/page_contract.py": "4e19a4ea9ad1606485c30034feef0e5e247e46de9fca59938911b65489f13841"
+  "contract/page_contract.py": "f8c736e115a08e5fcd969e16d792ce54b3e18abfa74bfbf420cc0d854d4c44cf"
  }
 }

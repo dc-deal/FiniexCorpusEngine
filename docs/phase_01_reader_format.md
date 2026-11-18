@@ -118,3 +118,12 @@ alarms has an upper bound of about 31 %, and 18 of 18 a lower bound of about 85 
 share a blind spot, which planted errors cannot measure. Formula exactness rests on a comparator that agreed with the gold on all its formulas and caught all mutations,
 without a person reading every pair. Figures and code have no publisher gold here. The starting values of the check flow, 20 pages per work and a stop above 3 bad,
 have not met a real run.
+
+**The validator after the freeze.** The prompt and the vocabulary stay frozen; the validator changed four times, each a version of its
+own in `frozen_contract.json` with the hash it replaced and why, and each time the stored readings were checked again for free before
+the change counted (`vision_batches recheck`). Page/1.1 to 1.3 stopped failing readings that lose no text. **Page/1.4 (18 Nov 2026)** lets a
+page print a backslash as text: a table head such as `rate&#92;term`, rows by rate and columns by term, failed every reader, because
+the check for a stray LaTeX command outside math read the text after markdown-it and html.parser had decoded `&#92;` and `\\` alike.
+It now reads the source as written, so the entity passes and a bare or escaped backslash before letters still fails (a reader that
+escapes LaTeX twice writes `\\frac`). The format check's messages also name the page line a fault stands on, beside the block's
+opening line: `block b04 (line 26): LaTeX command outside math on line 28: \HL`.
