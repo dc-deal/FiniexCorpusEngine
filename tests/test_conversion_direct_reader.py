@@ -25,6 +25,19 @@ def test_only_a_malformed_reading_is_a_hard_case_for_the_session(monkeypatch):
     assert left == {direct_reader.SOFT_REFUSAL: 1}
 
 
+def test_a_page_the_session_read_stays_in_the_cell_whatever_came_of_it(monkeypatch):
+    # 18 Nov: a served page that left the list took its check out of the next report, and the export would have served its
+    # text layer; an issue would have lost its judge's finding the same way
+    monkeypatch.setattr(direct_reader.served_readings, 'text_layer_why', lambda r: r['why'])
+    read = [{'deviation': DIRECT_DEVIATION, 'class_now': 'ok'}]
+    rows = [row(1, None, deviation=DIRECT_DEVIATION, attempts=read), row(2, 'issue', attempts=read), row(3, 'malformed', attempts=read),
+            row(4, None, attempts=read)]
+    chosen, left = select(rows, protected={('w.pdf', 4)})
+    assert [(page['pdf_page'], page['why'], page['read']) for page in chosen] == [
+        (1, 'served', True), (2, 'issue', True), (3, 'malformed', True), (4, 'served', True)]
+    assert chosen[3]['protected'] and not left
+
+
 def test_a_page_a_reader_once_found_no_page_on_is_a_soft_refusal_and_stays_out(monkeypatch):
     # 18 Nov: all five no_page answers of the licensed run declined the page in prose ("I can't write this page out ...")
     monkeypatch.setattr(direct_reader.served_readings, 'text_layer_why', lambda r: r['why'])

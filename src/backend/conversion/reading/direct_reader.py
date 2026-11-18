@@ -68,12 +68,22 @@ def select(rows: list[dict], listed: dict, protected: set, may_send=reading_cell
     chosen, left = [], Counter()
     for row in rows:
         why = served_readings.text_layer_why(row)
+        key = (row['file'], row['pdf_page'])
+        # A page the session read stays in the cell whatever came of it, so the cell's plan and report keep its check: when a
+        # served page left the list (18 Nov), the next report lost its state and the export would have served its text layer.
+        # The same lesson as the second reader's `served` (288.a). It is not prepared again unless its reading is malformed.
+        if any(attempt.get('deviation') == DIRECT_DEVIATION for attempt in [row, *(row.get('attempts') or [])]) and key in listed:
+            page = listed[key]
+            chosen.append({'file': page['file'], 'pdf_page': page['pdf_page'], 'work': page['work'], 'gold': False,
+                           'class_note': page.get('class_note', ''), 'expected_output_tokens': page['expected_output_tokens'],
+                           'deviation': DIRECT_DEVIATION, 'why': why or 'served', 'work_card': page['work_card'],
+                           'read': True, **({'protected': True} if key in protected else {})})
+            continue
         if why == 'no_page':
             left[SOFT_REFUSAL] += 1
             continue
         if why not in REASONS:
             continue
-        key = (row['file'], row['pdf_page'])
         if touched_by_a_filter(row):
             left['a filter or a refusal in its history'] += 1
         elif not may_send(row['file']):
@@ -152,8 +162,8 @@ def prepare(args) -> list[str]:
         if args.page and page['id'] != args.page:
             continue
         row = rows.get((page['file'], page['pdf_page']))
-        if row is None or touched_by_a_filter(row) or not reading_cells.may_send(page['file']):
-            continue  # checked again: the list may be older than the page's history
+        if row is None or touched_by_a_filter(row) or not reading_cells.may_send(page['file']) or page.get('protected'):
+            continue  # checked again: the list may be older than the page's history; a page a person checked is not read again
         mirror, pdf_page = documents.page(page['file'], page['pdf_page'])
         image = page_render.render(pdf_page, RESOLUTION)
         store = open_store(mirror)
