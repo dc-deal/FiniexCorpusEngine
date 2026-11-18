@@ -63,3 +63,9 @@ def test_a_direct_reading_and_its_retry_say_what_they_were_among_the_page_s_atte
     assert reading_export.purpose_of({'deviation': DIRECT_DEVIATION, 'attempt': 0}) == 'direct reading in a Claude Code session'
     assert reading_export.purpose_of({'deviation': DIRECT_DEVIATION, 'attempt': 1}).endswith('a format retry')
     assert reading_export.purpose_of({'deviation': 'anthropic blocked the page (content filter)'}) == 'second reader'
+
+
+def test_a_session_reading_costs_none_not_zero_while_its_record_keeps_a_number_for_the_ledger():
+    # 0.0 would claim it was free; the plan pays it, and no API measures it (the operator and line 2, 18 Nov)
+    assert reading_export.cost_of({'mode': 'session', 'cost_usd': 0.0}) is None
+    assert reading_export.cost_of({'mode': 'batch', 'cost_usd': 0.0115}) == 0.0115

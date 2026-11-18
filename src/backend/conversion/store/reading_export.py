@@ -491,7 +491,7 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                'unit': None, 'units': None,  # from the work's outline below
                'page_kind': read.front.get('page_kind') if read is not None else None, 'category': None,  # below (172.a)
                'reading_key': record['reading_key'], 'model': record['model'], 'form': record['form'], 'contract': FROZEN['contract'],
-               'validator': FROZEN['validator'], 'attempt': record.get('attempt', 0), 'cost_usd': record.get('cost_usd', 0.0),
+               'validator': FROZEN['validator'], 'attempt': record.get('attempt', 0), 'cost_usd': cost_of(record),
                'stored_at': record.get('stored_at'), 'image_sha256': record.get('image_sha256'), 'image_size': record.get('image_size'),
                'resolution': record.get('resolution'), 'class_when_collected': record['result_class'], 'class_now': class_now,
                'error_type': record.get('error_type'), 'error_message': record.get('error_message'),  # the provider's words, never page text
