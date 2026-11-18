@@ -36,8 +36,12 @@ ADAPTER = 'claude-code-session'
 PROVIDER = 'anthropic, in a Claude Code session'
 FORM = 'markdown'
 RESOLUTION = 'hi'
-REASONS = ('malformed', 'no_page')  # the hard cases this cell takes; a judge's issue goes to a person's review first
-FILTER_WORDS = ('blocked', 'refus', 'declin', 'content_filter', 'policy')
+REASONS = ('malformed',)  # the hard case this cell takes; a judge's issue goes to a person's review first
+# A reader that found no page wrote prose instead, and every such answer of the licensed run read on 18 Nov (5 of 5) declined
+# the page as a published book's text: a refusal in other words. So a no_page anywhere in a page's history counts as a refusal,
+# and the session never reads such a page (280.a: never the same model by another door).
+FILTER_WORDS = ('blocked', 'refus', 'declin', 'content_filter', 'policy', 'no_page')
+SOFT_REFUSAL = 'no page found: a reader declined it in prose'
 
 
 def cell_name(knowledge_base: str) -> str:
@@ -64,6 +68,9 @@ def select(rows: list[dict], listed: dict, protected: set, may_send=reading_cell
     chosen, left = [], Counter()
     for row in rows:
         why = served_readings.text_layer_why(row)
+        if why == 'no_page':
+            left[SOFT_REFUSAL] += 1
+            continue
         if why not in REASONS:
             continue
         key = (row['file'], row['pdf_page'])

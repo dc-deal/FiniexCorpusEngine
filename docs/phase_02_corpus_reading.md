@@ -127,6 +127,14 @@ person's does, but it is never called one: the route says "an automated review (
 reading", the export marks each verdict `by_a_person`, and only a person's verdict protects a page from being read again
 (decision 191.a). The operator's reason: a person who signs a verdict takes the responsibility for it, as with a contract.
 
+**A direct reading, for the hard cases only (decision 280.a, 17–18 November).** Once the API credit ends, a page whose reading
+stayed malformed after its format retry may be read in a Claude Code session, as its own route (`direct_reader`: cell
+`*-DIRECT-OPUS`, the deviation "read in a Claude Code session (280.a)"), stored, checked and judged like any reading; its cost is
+not measurable by an API ledger and says so. A page a provider's filter blocked or a reader refused is never read this way,
+since that would pass the same model's safeguard by another door. A reader that answered with prose instead of a page counts
+as having refused: every such answer read on 18 November declined the page as a published book's text, so `no_page` in a page's
+history keeps it out too.
+
 **The loop closed once: a reader prompt built from the judge's and the person's findings, measured, 11 November.** page/2
 is page/1's rules unchanged plus eight (table grids with operator columns, T-accounts as tables, a table's printed title,
 legible images of tables read, chart values read against the axis, counts only as counted, a photo's own text left out,

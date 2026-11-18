@@ -18,11 +18,19 @@ def select(rows, protected=frozenset(), may_send=lambda file_name: True):
     return direct_reader.select(rows, listed, set(protected), may_send)
 
 
-def test_only_a_malformed_or_pageless_reading_is_a_hard_case_for_the_session(monkeypatch):
+def test_only_a_malformed_reading_is_a_hard_case_for_the_session(monkeypatch):
     monkeypatch.setattr(direct_reader.served_readings, 'text_layer_why', lambda r: r['why'])
-    chosen, _ = select([row(1, 'malformed'), row(2, 'no_page'), row(3, 'issue'), row(4, None), row(5, 'unread')])
-    assert [(page['pdf_page'], page['why'], page['deviation']) for page in chosen] == [
-        (1, 'malformed', DIRECT_DEVIATION), (2, 'no_page', DIRECT_DEVIATION)]
+    chosen, left = select([row(1, 'malformed'), row(2, 'no_page'), row(3, 'issue'), row(4, None), row(5, 'unread')])
+    assert [(page['pdf_page'], page['why'], page['deviation']) for page in chosen] == [(1, 'malformed', DIRECT_DEVIATION)]
+    assert left == {direct_reader.SOFT_REFUSAL: 1}
+
+
+def test_a_page_a_reader_once_found_no_page_on_is_a_soft_refusal_and_stays_out(monkeypatch):
+    # 18 Nov: all five no_page answers of the licensed run declined the page in prose ("I can't write this page out ...")
+    monkeypatch.setattr(direct_reader.served_readings, 'text_layer_why', lambda r: r['why'])
+    chosen, left = select([row(1, 'malformed', attempts=[{'class_now': 'no_page'}, {'class_now': 'malformed'}]), row(2, 'malformed')])
+    assert [page['pdf_page'] for page in chosen] == [2]
+    assert left == {'a filter or a refusal in its history': 1}
 
 
 def test_a_page_a_filter_or_a_reader_ever_turned_away_is_never_read_by_the_session(monkeypatch):
@@ -30,7 +38,7 @@ def test_a_page_a_filter_or_a_reader_ever_turned_away_is_never_read_by_the_sessi
     monkeypatch.setattr(direct_reader.served_readings, 'text_layer_why', lambda r: r['why'])
     rows = [row(1, 'malformed', attempts=[{'class_now': 'blocked'}]),
             row(2, 'malformed', attempts=[{'class_now': 'ok', 'deviation': 'the default reader declined the page'}]),
-            row(3, 'no_page', error_type='invalid_request_error', class_when_collected='refused'),
+            row(3, 'malformed', error_type='invalid_request_error', class_when_collected='refused'),
             row(4, 'malformed')]
     chosen, left = select(rows)
     assert [page['pdf_page'] for page in chosen] == [4]
