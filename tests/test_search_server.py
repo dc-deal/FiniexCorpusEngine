@@ -515,6 +515,12 @@ def test_a_hit_links_to_its_page_in_the_diagnostics_view_where_the_view_shows_on
     assert served.open_page('free-book', '12')['view_url'] == 'http://127.0.0.1:8021/#/free/sources/free_book_v1/page/12'
     assert served.open_page('wiki', 's9')['view_url'] == 'http://127.0.0.1:8021/#/free/html/wiki/s9'
     assert served.open_page('key-a', '40')['view_url'] is None  # a legacy text without a reading: the view shows no page of it
+    # an EPUB's section (decision 123.a, line 2's route of 18 Nov), its key URL-encoded
+    epub = page('book a', 's12', PROSE * 3, 'book.epub/OEBPS/c1.xhtml#x', knowledge_base='licensed', route=search_server.EPUB_ROUTE)
+    with_epub = search_server.SearchService({'free': (pages + [epub], {**works, 'book a': search_server.Work(
+        'book a', 'book', 'licensed', 'licensed, local use only', search_server.EPUB_ROUTE, 1, view_id='book a')})},
+        view_url='http://127.0.0.1:8021/')
+    assert with_epub.open_page('book a', 's12')['view_url'] == 'http://127.0.0.1:8021/#/licensed/epub/book%20a/s12'
     assert all('view_url' in hit for hit in served.search('backoff jitter breakers')['hits'])
     assert search_server.SearchService({'free': (pages, works)}, view_url=None).open_page('free-book', '12')['view_url'] is None
 

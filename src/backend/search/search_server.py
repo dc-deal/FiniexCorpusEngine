@@ -32,6 +32,7 @@ import time
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 import pymupdf
 
@@ -377,7 +378,8 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
     for key, epub in licensed_epubs(keys).items():  # decision 123.a: the EPUB in place of the legacy text made from it
         legacy.pop(key, None)
         own = epub_pages(key, epub, marks)
-        works[key] = Work(key, epub.stem, 'licensed', LICENSED_LICENCE, EPUB_ROUTE, sum(page.searchable for page in own))
+        works[key] = Work(key, epub.stem, 'licensed', LICENSED_LICENCE, EPUB_ROUTE, sum(page.searchable for page in own),
+                          view_id=key)
         pages += own
     for key, pdf in standing_in.items():
         legacy.pop(key, None)
@@ -487,6 +489,8 @@ class SearchService:
             return None
         if work.route.startswith('html') and label:
             return f'{self.view_url}/#/{work.knowledge_base}/html/{work.view_id}/{label}'
+        if work.route == EPUB_ROUTE and label:  # the view's EPUB section (line 2, 18 Nov): the work by its key, URL-encoded
+            return f'{self.view_url}/#/{work.knowledge_base}/epub/{quote(work.view_id, safe="")}/{label}'
         if pdf:
             return f'{self.view_url}/#/{work.knowledge_base}/sources/{work.view_id}/page/{pdf}'
         return None
