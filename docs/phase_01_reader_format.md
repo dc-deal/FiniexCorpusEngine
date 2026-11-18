@@ -127,3 +127,10 @@ the check for a stray LaTeX command outside math read the text after markdown-it
 It now reads the source as written, so the entity passes and a bare or escaped backslash before letters still fails (a reader that
 escapes LaTeX twice writes `\\frac`). The format check's messages also name the page line a fault stands on, beside the block's
 opening line: `block b04 (line 26): LaTeX command outside math on line 28: \HL`.
+
+**Reader page/3, a prototype (18 Nov 2026):** page/1 plus one sentence, a backslash printed as text written `&#92;`, inside math
+`\backslash`. Measured on free pages against a gate written before the run: on the mini pilot's gold 20 of 20 valid, formulas
+111 of 112 exact (page/1: 112), table cells 224 of 224 (page/1: 221); of the nine free pages whose readings had failed only on a
+LaTeX command outside math, 6 became valid. The three that did not print no backslash at all: the reader wrote a formula into a
+paragraph or a list item without `\( \)`, an error the sentence does not address, and the free pages hold no printed backslash to
+test it on. The gate is not met, so page/3 stays a prototype and nothing served changes.
