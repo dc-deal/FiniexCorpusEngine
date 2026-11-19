@@ -148,14 +148,15 @@ test('a page a person settled counts in its own bucket, folds apart in the Issue
   test.skip(!settledPages.length, 'no page of finance is settled by a person today')
   await page.goto('/#/sources')
   await settled(page)
-  const counts = page.locator(`tr[data-work="${FINANCE}"] .state-counts`)
-  const decided = counts.locator('.state-count[data-state="decided_by_a_person"]')
-  await expect(decided.locator('.count')).toHaveText(String(settledPages.length))
-  await expect(decided.locator('.state-word')).toHaveText('decided by a person')
-  await expect(decided.locator('svg')).toBeVisible()
+  // the work's figures stand in the state columns (B3.a), each state's glyph and word in its heading
+  const row = page.locator(`tr[data-work="${FINANCE}"]`)
+  await expect(row.locator('td[data-state="decided_by_a_person"] .count')).toHaveText(String(settledPages.length))
+  const heading = page.locator('table.works th.state-head [data-state="decided_by_a_person"]')
+  await expect(heading.locator('.state-word')).toHaveText('decided by a person')
+  await expect(heading.locator('svg')).toBeVisible()
   const open = pages.filter(row => row.listed_state === 'issue').length
-  if (open) await expect(counts.locator('.state-count[data-state="issue"] .count')).toHaveText(String(open))
-  else await expect(counts.locator('.state-count[data-state="issue"]')).toHaveCount(0)
+  if (open) await expect(row.locator('td[data-state="issue"] .count')).toHaveText(String(open))
+  else await expect(row.locator('td[data-state="issue"]')).toHaveText('')
   await page.screenshot({ path: `${SHOTS}/sources_decided.png` })
   // the Issues: the settled page in the fold below, not in the open list
   const one = settledPages[0]
@@ -2339,7 +2340,7 @@ async function sourcesFaults(page: Page): Promise<string[]> {
     }
     const work = visible[0]!.getBoundingClientRect().width / rem
     if (work < 8) found.push(`the work's column is ${work.toFixed(1)} rem wide`)
-    const FIXED = ['Knowledge base', 'Structure', 'Year', 'Format', 'Topic']
+    const FIXED = ['Knowledge base', 'Pages', 'ok', 'ok unjudged', 'issue', 'blocked', 'decided by a person', 'Year', 'Format', 'Topic']
     if (scroll.scrollWidth > scroll.clientWidth) found.push(`the table scrolls ${scroll.scrollWidth - scroll.clientWidth} px sideways`)
     const right = table.getBoundingClientRect().right
     for (const row of table.querySelectorAll('tbody tr')) {
@@ -2417,8 +2418,9 @@ test('the sources table fits its width from a phone to 2,000 px, giving up colum
     shownAt[width] = await page.locator('table.works thead th:visible').allTextContents()
   }
   // the ladder as a reader sees it: at a phone's width the work and its structure, all seven columns on a wide window
-  expect(shownAt[390]).toEqual(['Work', 'Structure'])
-  expect(shownAt[2000]).toEqual(['Work', 'Knowledge base', 'Structure', 'Authors', 'Year', 'Format', 'Topic'])
+  expect(shownAt[390]).toEqual(['Work', 'Pages'])
+  expect(shownAt[2000]).toEqual(['Work', 'Knowledge base', 'Pages', 'ok', 'ok unjudged', 'issue', 'blocked', 'decided by a person',
+    'Authors', 'Year', 'Format', 'Topic'])
   await page.screenshot({ path: `${SHOTS}/sources_fit.png` })
   await page.setViewportSize({ width: 390, height: 900 })
   await page.screenshot({ path: `${SHOTS}/sources_fit_phone.png` })
@@ -2472,12 +2474,15 @@ test('the sources bar narrows without moving, groups a series, and a reload brin
   await expect(page.locator('tbody tr[data-work]')).toHaveCount(all)
 
   // F5: the reader scrolled down; a reload draws the works and brings them back there, the series still open
+  // (a place well down the page, wherever its end is: the rows grow shorter as the list does, B3.a)
   await page.setViewportSize({ width: 1400, height: 600 })
-  await page.evaluate(() => window.scrollTo(0, 700))
-  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('scroll.v1') ?? '{}')['/sources'])).toBe(700)
+  const place = await page.evaluate(() => Math.floor((document.documentElement.scrollHeight - window.innerHeight) * 0.8))
+  expect(place, 'a page long enough to scroll').toBeGreaterThan(200)
+  await page.evaluate(top => window.scrollTo(0, top), place)
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('scroll.v1') ?? '{}')['/sources'])).toBe(place)
   await page.reload()
   await settled(page)
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(700)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(place)
   await expect(page.locator('tr.in-series')).toHaveCount(3)
   // and the check can tell: a tab that kept no place opens at the top
   await page.evaluate(() => sessionStorage.removeItem('scroll.v1'))

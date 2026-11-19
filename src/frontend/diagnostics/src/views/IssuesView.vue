@@ -8,6 +8,9 @@ import FoldSection from '@/components/base/FoldSection.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import GroupedPageRows from '@/components/GroupedPageRows.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LabelledLine from '@/components/base/LabelledLine.vue'
+import LabelledLines from '@/components/base/LabelledLines.vue'
+import StateCounts from '@/components/StateCounts.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import StateMark from '@/components/StateMark.vue'
 import { applyFacets } from '@/components/base/facet_filter'
@@ -103,6 +106,11 @@ function settledSaid(count: number): string {
     <LoadingLine v-else-if="!issues" />
     <p v-else-if="issues.rows.length === 0" class="empty">No page needs a look.</p>
     <template v-else>
+      <!-- the API's totals over every listed page, whatever the bar narrows (the operator's SC1.a): each state once, how many
+           of its pages are served all the same beside it ("issue 20 · 17 served", 18 Nov) -->
+      <LabelledLines class="totals" data-part="totals">
+        <LabelledLine label="States"><StateCounts :counts="issues.states" /></LabelledLine>
+      </LabelledLines>
       <FacetBar v-model:selection="selection" :rows="issues.rows" :facets="facets" :sorts="AS_SERVED" sort="served">
         <!-- a value keeps its look in the panel (Q3.a): a state its glyph, word and colour, a verdict whose it is -->
         <template #value="{ facet, value }">
@@ -135,6 +143,10 @@ function settledSaid(count: number): string {
 <style scoped>
 .view-title {
   margin-bottom: var(--space-md);
+}
+
+.totals {
+  margin-bottom: var(--space-sm);
 }
 
 .apart,

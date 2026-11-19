@@ -86,10 +86,11 @@ describe('SourcesView', () => {
     ])
     const view = mountView()
     await flushPromises()
-    expect(view.findAll('thead th').map(cell => cell.text())).toContain('Structure')
+    expect(view.findAll('thead th').map(cell => cell.text())).toContain('Pages')
     const [pdf, html, unbuilt] = ['openstax_principles_of_finance_2e', 'wikipedia_trading_set',
       'kleppmann_accounting_for_computer_scientists'].map(id => rowOf(view, id))
-    expect(pdf.find('[data-cell="structure"]').text()).toContain('629 pages · read and judged')
+    // a work read page by page: its pages, a figure (B3.a); any other: how it is cut, in the API's words, in the same column
+    expect(pdf.find('[data-cell="structure"] [data-part="pages"]').text()).toBe('629')
     expect(html.find('[data-cell="structure"]').text()).toBe('130 sections by heading · 263 chunks')
     expect(html.find('a.work-title').attributes('href')).toBe('#/free/html/wikipedia_trading_set')
     expect(unbuilt.find('[data-cell="structure"]').text()).toBe('sections by heading · search index not built')
@@ -116,8 +117,8 @@ describe('SourcesView', () => {
     await flushPromises()
     const [read, html] = ['openstax_principles_of_finance_2e', 'wikipedia_trading_set'].map(id => rowOf(view, id))
     expect(read.find('a').attributes('href')).toBe('#/free/sources/openstax_principles_of_finance_2e')
-    expect(read.text()).toContain('15 pages')
-    expect(read.find('[data-state="blocked"]').text()).toContain('3')
+    expect(read.find('[data-part="pages"]').text()).toBe('15')
+    expect(read.find('td[data-state="blocked"]').text()).toBe('3')
     expect(html.find('a').exists()).toBe(false)
   })
 
@@ -155,8 +156,8 @@ describe('SourcesView', () => {
     await flushPromises()
     const [own, other] = ['a_licensed_book', 'another_book'].map(id => rowOf(view, id))
     expect(own.find('.work-title').text()).toBe('An Invented Book')
-    expect(own.find('[data-part="work-notes"]').text()).toBe('stand-in file')
-    // the publisher and the licence stand in the row's card only (B2), with the whole of what the row shortens
+    // the title and the id a line each (B4.a); the notes, the publisher and the licence stand in the row's card only (B2)
+    expect(own.find('[data-part="work-notes"]').exists()).toBe(false)
     expect(own.text()).not.toContain('Invented Press')
     await own.find('.work-card').trigger('mouseenter')
     const card = own.find('[data-part="hover-card"]')
@@ -165,10 +166,10 @@ describe('SourcesView', () => {
     expect(card.find('[data-row="licence"] .card-value').text()).toBe('private copy (licensed)')
     expect(card.find('[data-row="id"] .card-value').text()).toBe('a_licensed_book')
     expect(card.find('[data-row="series"]').exists()).toBe(false)
+    expect(card.find('[data-row="notes"] .card-value').text()).toBe('stand-in file')
     expect(own.text()).toContain('2001 · 2nd edition')
-    // no year: the edition alone, without a parting dot; no notes: nothing in their place
+    // no year: the edition alone, without a parting dot
     expect(other.find('[data-part="edition"]').text()).toBe('3rd edition')
-    expect(other.find('[data-part="work-notes"]').exists()).toBe(false)
   })
 
   it('lists a catalog entry not read yet with its columns and the API\'s words in place of page counts, no link (O1.a)', async () => {
@@ -208,10 +209,53 @@ describe('SourcesView', () => {
     vi.mocked(getWorks).mockResolvedValue([work])
     const view = mountView()
     await flushPromises()
-    expect(view.find('[data-state="issue"] [data-part="served"]').text()).toContain('9 served')
-    expect(view.find('[data-state="issue"] [data-part="served"] [data-icon="quoted"]').exists()).toBe(true)
-    expect(view.find('[data-state="blocked"] [data-part="served"]').exists()).toBe(false)
-    expect(view.find('[data-state="ok"] [data-part="served"]').exists()).toBe(false)
+    // beneath the issue's figure, on a line of its own, without the dot that joins it to a count elsewhere (B3.a)
+    const issue = view.find('td[data-state="issue"]')
+    expect(issue.find('.count').text()).toBe('9')
+    expect(issue.find('[data-part="served"]').text()).toBe('9 served')
+    expect(issue.find('[data-part="served"] [data-icon="quoted"]').exists()).toBe(true)
+    expect(view.find('td[data-state="blocked"] [data-part="served"]').exists()).toBe(false)
+    expect(view.find('td[data-state="ok"] [data-part="served"]').exists()).toBe(false)
+  })
+
+  it('stands five states as figure columns under their glyph and word, the rarer states in the card (B3.a)', async () => {
+    const work = aWork({ readings: { pages: 40, routes: [], people: [], reviews: [], categories: [], states: [
+      { value: 'ok', count: 20 }, { value: 'ok_unjudged', count: 9 }, { value: 'issue', count: 2 }, { value: 'blocked', count: 1 },
+      { value: 'stopped', count: 4 }, { value: 'decided_by_a_person', count: 3 }, { value: 'decided_by_an_automated_review', count: 1 },
+    ] } })
+    vi.mocked(getWorks).mockResolvedValue([work, aWork({ id: 'wikipedia_trading_set', title: 'Kelly criterion', format: 'html',
+      sections: 130, chunks: 263 })])
+    const view = mountView()
+    await flushPromises()
+    const heads = view.findAll('thead th.state-head')
+    expect(heads.map(head => head.find('.state-mark').attributes('data-state')))
+      .toEqual(['ok', 'ok_unjudged', 'issue', 'blocked', 'decided_by_a_person'])
+    const row = rowOf(view, 'openstax_principles_of_finance_2e')
+    expect(row.findAll('td[data-state]').map(cell => cell.find('.count').text())).toEqual(['20', '9', '2', '1', '3'])
+    // a work not read page by page leaves the figures empty and says its structure in the pages column
+    const html = rowOf(view, 'wikipedia_trading_set')
+    expect(html.findAll('td[data-state]').every(cell => cell.text() === '')).toBe(true)
+    expect(html.find('[data-cell="structure"]').text()).toBe('130 sections by heading · 263 chunks')
+    // the rarer states, which have no column, in the card with their counts
+    await row.find('.work-card').trigger('mouseenter')
+    expect(row.find('[data-row="stopped"] .card-value').text()).toBe('4')
+    expect(row.find('[data-row="decided by an automated review"] .card-value').text()).toBe('1')
+    expect(row.find('[data-row="ok"]').exists()).toBe(false)
+  })
+
+  it('sorts by blocked or by issue, most first, a work without pages read last (B3.a)', async () => {
+    const states = (blocked: number, issue: number) => ({ pages: 10, routes: [], people: [], reviews: [], categories: [],
+      states: [{ value: 'issue', count: issue }, { value: 'blocked', count: blocked }].filter(count => count.count > 0) })
+    vi.mocked(getWorks).mockResolvedValue([
+      aWork({ id: 'a', title: 'A', readings: states(1, 5) }), aWork({ id: 'b', title: 'B', readings: states(4, 0) }),
+      aWork({ id: 'c', title: 'C', readings: null, format: 'html' }), aWork({ id: 'd', title: 'D', readings: states(0, 2) }),
+    ])
+    const view = mountView()
+    await flushPromises()
+    await sortBy(view, 'blocked, most first')
+    expect(view.findAll('tbody tr').map(row => row.attributes('data-work'))).toEqual(['b', 'a', 'd', 'c'])
+    await sortBy(view, 'issue, most first')
+    expect(view.findAll('tbody tr').map(row => row.attributes('data-work'))).toEqual(['a', 'd', 'b', 'c'])
   })
 
   it('narrows by a facet in its panel, a knowledge base drawn with its glyph and word, and says how many of all it shows (Y1.a)', async () => {
@@ -346,9 +390,12 @@ describe('SourcesView', () => {
     vi.mocked(getWorks).mockResolvedValue([aWork(), INVENTED_PART(1), INVENTED_PART(2)])
     const view = mountView()
     await flushPromises()
-    expect(view.findAll('thead th').map(cell => cell.text())).toEqual(['Work', 'Knowledge base', 'Structure', 'Authors', 'Year', 'Format', 'Topic'])
+    expect(view.findAll('thead th').map(cell => cell.text())).toEqual(['Work', 'Knowledge base', 'Pages', 'ok', 'ok unjudged', 'issue',
+      'blocked', 'decided by a person', 'Authors', 'Year', 'Format', 'Topic'])
+    // the ladder taken again with the figures (B3.a): the work and its pages, then issue and blocked, then the knowledge base,
+    // ok and the authors, then ok unjudged and decided by a person, the year, format and topic last
     const ranks = view.findAll('col').map(col => col.attributes('data-rank') ?? '1')
-    expect(ranks).toEqual(['1', '2', '1', '3', '4', '4', '5'])
+    expect(ranks).toEqual(['1', '3', '1', '3', '4', '2', '2', '4', '3', '5', '5', '5'])
     expect(view.findAll('thead th').map(cell => cell.attributes('data-rank') ?? '1')).toEqual(ranks)
     await view.find('tr.series-head .series-toggle').trigger('click')
     // every row, a series' heading too: a cell per column, never one spanning them, which a narrow table cannot hold

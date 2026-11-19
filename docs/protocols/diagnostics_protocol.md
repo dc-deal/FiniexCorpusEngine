@@ -772,3 +772,10 @@ The record of how the diagnostics frontend came about, mistakes included.
   `--public-only`, which a test holds, and the view says the name is withheld; line 1 was told, so its names can stay
   as they are. **Before this part:** X1.a's float shares in the shelf's totals made `/api/shelf` answer 500 (the model
   read them as integers); line 2's browser checks found it, and line 1 put the one-line fix on main the same hour.
+- **B3.a, B4.a, SC1.a, SC2.a** (the operator, 19 Nov). Interrupted once by the operator's account switch: the work stayed
+  uncommitted in the worktree and its state was written to line 2's roadmap, then picked up from there. **The ladder:** the
+  agreed B2 ranks did not hold with five figure columns more; worked out with the columns' real widths, padding included, the
+  knowledge base moved a rung later and the year and format to the last. **Mistakes:** the totals test first picked a value
+  the bar rightly disables, where every page is in one state; the bar's browser check scrolled to 700 px, which the shorter
+  rows no longer reach, and now takes its place from the page's height; and a test name lost its escaped quote through a
+  heredoc a third time, so test text is written with the editor tool only from now on.

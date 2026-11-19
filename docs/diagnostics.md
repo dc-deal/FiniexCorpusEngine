@@ -1666,3 +1666,18 @@ and never under `--public-only`, as they hold licensed counts. **Found by lookin
 `--public-only` the newest line's name named a licensed work, so the API gives no milestone's name there and the view says
 it is withheld (81.a). 374 unit tests, 78 checks in the browser (3 skipped on today's data), 1,464 Python
 tests.
+
+**The sources list's figures and the lists' totals (the operator's B3.a, B4.a, SC1.a and SC2.a, 19 Nov).** A work read page
+by page stood its states stacked in one cell, 6 to 20 lines high. Its pages and five states are figure columns now, ok, ok
+unjudged, issue, blocked and decided by a person, each under its glyph and the core's word, right-aligned with its
+heading, how many of an issue's pages are served all the same on a line beneath its figure; a work cut otherwise says how
+in the same column as the pages, in the API's words, and leaves the figures empty. The rarer states, an automated
+review's, a stopped work's and the pages not checked yet, stand in the work's card with their counts. The list sorts by
+blocked or by issue, most first, a work without pages read last. The title and the id stand on a line each (B4.a), a
+licensed copy's notes now in the card. The ladder of ranks was taken again with the figures, so every width keeps the
+work's column at 8 rem at least: the work and its pages stay; then issue and blocked; then the knowledge base, ok and the
+authors; then ok unjudged and decided by a person; the year, the format and the topic last (with the knowledge base a rung
+earlier, the work's column kept 121 px at 34 rem). The Issues and a work's head carry one line of the API's totals above the
+bar (SC1.a), each state once with its served tally, whatever the bar narrows; the calls keep their cards' counts of every
+logged call beside the bar's count of the listed ones (SC2.a, as stage C left them). 377 unit tests, 78 checks in
+the browser (3 skipped on today's data), 1,464 Python tests.

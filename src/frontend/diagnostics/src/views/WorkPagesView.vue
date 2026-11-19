@@ -15,6 +15,7 @@ import PageJump from '@/components/PageJump.vue'
 import PageTable from '@/components/PageTable.vue'
 import OwnPages from '@/components/OwnPages.vue'
 import RouteTable from '@/components/RouteTable.vue'
+import StateCounts from '@/components/StateCounts.vue'
 import UnitCells from '@/components/UnitCells.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import StateMark from '@/components/StateMark.vue'
@@ -213,6 +214,8 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
         <LabelledLines :label-chars="10">
           <LabelledLine label="Work" class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></LabelledLine>
           <LabelledLine v-if="shown.summary" label="Pages"><span class="page-total">{{ pageCount(shown.summary.pages) }}</span></LabelledLine>
+          <!-- the API's totals over the work's pages, whatever the bar narrows (the operator's SC1.a), the served tally kept -->
+          <LabelledLine v-if="shown.summary" label="States" data-part="totals"><StateCounts :counts="shown.summary.states" /></LabelledLine>
           <LabelledLine v-if="shown.summary" label="PDF page"><PageJump :kb="kb" :work="work" bare /></LabelledLine>
         </LabelledLines>
       </div>
