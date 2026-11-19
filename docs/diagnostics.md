@@ -975,7 +975,11 @@ reading that failed the format check it counts the page's readings that fail it 
 wrong, from the core's validator messages: "Not served: 4 readings failed the format check, the one shown here with 2
 blocks left empty (b12, b15); the PDF's text layer is served instead." Any other page takes the why of its route: "Not
 served: the provider blocked the reading; …", "Served despite the judge's findings: the judge's findings lie on blocks
-never quoted." An ok page, or one no check has reached, says nothing more. **Found on the way:** two free pages, finance
+never quoted." An ok page, or one no check has reached, says nothing more. What stands instead is the fallback the export
+names in the row's `fallback` (H2.a, 19 Nov): a licensed work with page-numbered legacy Markdown falls back to it, never
+to its PDF's text layer, and its page reads "…; the IDE's legacy Markdown is served instead", its route's source
+"legacy markdown" in the head and the Routes table; an export written before the field keeps the text layer for every
+route that serves no reading. **Found on the way:** two free pages, finance
 p. 229 and Reg NMS p. 4, read "1 of 2 readings fails the format check today": their first reading passes today's
 validator and their format retry does not, while the text layer is served; passed to line 1. **Measured:** a test of the
 sentences for each kind of page, one that every page of the free export not plainly ok has its sentence and no ok page

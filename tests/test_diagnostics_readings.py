@@ -123,6 +123,8 @@ def test_a_route_is_parted_where_the_cores_own_route_strings_part_it():
                                             'the default model declined the page')
     assert readings.route_parts(void)[2] == "the judge's findings contradict their own evidence"
     assert readings.route_parts(served_readings.TEXT_LAYER_WHY['refused']) == ('text layer', None, 'the reader declined the page')
+    # a licensed work's legacy Markdown in the reading's place names itself as the source (H2.a)
+    assert readings.route_parts(served_readings.LEGACY_WHY['refused']) == ('legacy markdown', None, 'the reader declined the page')
 
 
 @pytest.mark.readings
@@ -359,6 +361,32 @@ def test_a_page_not_plainly_ok_says_in_one_sentence_whether_its_reading_is_serve
                   "judge's findings lie on blocks never quoted", 'noted', ['ok'])
     assert readings.said_of(noted, []) == "Served despite the judge's findings: the judge's findings lie on blocks never quoted."
     assert readings.said_of(a_row('ok', [], 'vision reading (claude-sonnet-5-5, page/1, validator page/1.2)', 'checked'), []) is None
+
+
+def test_a_page_not_served_names_the_fallback_the_export_names_and_an_older_export_the_text_layer():
+    # H2.a (the operator, 19 Nov): a licensed work with page-numbered legacy Markdown falls back to it, never to its PDF's
+    # text layer; invented rows, one per fallback, and one of an export written before the field
+    legacy = {**a_row('issue', ['judge: bad'], served_readings.LEGACY_WHY['issue'], 'fallback', ['ok']),
+              'fallback': served_readings.LEGACY_ROUTE}
+    layer = {**a_row('issue', ['judge: bad'], served_readings.TEXT_LAYER_WHY['issue'], 'fallback', ['ok']),
+             'fallback': served_readings.TEXT_LAYER}
+    older = a_row('issue', ['judge: bad'], served_readings.TEXT_LAYER_WHY['issue'], 'fallback', ['ok'])
+    assert readings.said_of(legacy, []) == ('Not served: the judge found the reading bad, a person looks at it; '
+                                            "the IDE's legacy Markdown is served instead.")
+    for row in (layer, older):
+        assert readings.said_of(row, []) == ('Not served: the judge found the reading bad, a person looks at it; '
+                                             "the PDF's text layer is served instead.")
+    assert [readings.fallback_of(row) for row in (legacy, layer, older)] == ['legacy markdown', 'text layer', 'text layer']
+    served = {**a_row('ok', [], 'vision reading (claude-sonnet-5-5, page/1, validator page/1.2)', 'checked'), 'fallback': None}
+    assert readings.fallback_of(served) is None
+    assert readings.fallback_of({'route': 'vision reading (claude-sonnet-5-5, page/1, validator page/1.2)'}) is None
+    # where nothing above says it, the findings' outcome names the same fallback
+    assert readings.findings_outcome(legacy, None) == "the page serves the IDE's legacy Markdown"
+    assert readings.findings_outcome(layer, None) == 'the page serves its text layer'
+    assert readings.findings_outcome(served, None) == 'the reading is served'
+    # and a page the legacy Markdown serves is no reading served: a state's count of served pages leaves it out
+    counted = {count.value: count.served for count in readings.counted_states([legacy, layer, {**legacy, 'route': 'vision reading (claude-sonnet-5-5, page/1, validator page/1.2): the judge\'s findings lie on blocks never quoted', 'fallback': None}])}
+    assert counted['issue'] == 1
 
 
 @pytest.mark.readings
@@ -805,7 +833,7 @@ def test_a_pages_head_says_its_route_in_parts_and_what_its_findings_come_to_and_
     standing = {'kind': 'wrong_value', 'severity': 'major', 'evidence': '1.034 read as 1.043', 'void': False}
     row['check'] = {**row['check'], 'state': 'issue', 'reasons': ['judge: bad'],
                     'verdict': {'verdict': 'bad', 'outcome': 'issue', 'findings': [{**standing, 'block': 'b03'}, {**standing, 'block': 'b02'}]}}
-    row.update(route=sorted(readings.TEXT_LAYER_ROUTES)[0], route_level='fallback', human=[])
+    row.update(route=sorted(served_readings.TEXT_LAYER_WHY.values())[0], route_level='fallback', human=[])
     corpus = a_corpus(tmp_path, [row])
     bad = corpus.page(KELLY, row['pdf_page'], 'Kelly')
     assert [(one.block, one.said, one.severity) for one in bad.findings_at] == [('b02', 'stands', 'major'), ('b03', 'stands', 'major')]

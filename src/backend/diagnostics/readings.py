@@ -36,9 +36,10 @@ KnowledgeBase = Literal['free', 'licensed']
 # The check states a person should look at: an issue the judge or a check found, a reading the provider blocked or the reader
 # declined, a work the judge stopped. Each page keeps the core's word for its state (`issue` since decision 97.a).
 LISTED_AS_ISSUE = ('issue', 'blocked', 'stopped')
-# The routes of a page whose text comes from its PDF's text layer, each in the core's own words for why. A page's route is
-# one of them exactly when its reading is not served; the core decides it, this module only asks.
-TEXT_LAYER_ROUTES = frozenset(served_readings.TEXT_LAYER_WHY.values())
+# The routes of a page whose reading is not served, each in the core's own words for why: its PDF's text layer serves it, or a
+# licensed work's legacy Markdown where it has one (H2.a, 19 Nov). A page's route is one of them exactly when its reading is
+# not served; the core decides it, this module only asks.
+NOT_SERVED_ROUTES = served_readings.FALLBACK_ROUTES
 
 
 class Count(BaseModel):
@@ -269,6 +270,7 @@ class PageRow(BaseModel):
     error_message: str | None  # the provider's own sentence where a reading failed, e.g. its content filter's
     # The page's text comes from its PDF's text layer, and its route says why: the view's answer where the provider gave
     # no sentence, as for a page the reader declined (line 1, 2026-11-04).
+    # Since H2.a it means "served by a fallback", a licensed work's legacy Markdown too; renamed in stage D
     from_text_layer: bool
     # the route's level as the export gives it, and its words after the first ': ', as the route table parts them (159.a):
     # a page list says the why in its own column and keeps the whole route for the hover
@@ -559,6 +561,7 @@ class PageDetail(BaseModel):
     route: str
     # The page's text is served from its PDF's text layer: whatever reading is shown is not what the search and the chat
     # quote, and the view says so (a reading the judge found bad, one that stayed malformed, a page the reader declined)
+    # Since H2.a it means "served by a fallback", a licensed work's legacy Markdown too; renamed in stage D
     from_text_layer: bool
     # A page that is not plainly ok says so in one sentence before its chips (`said_of`); None for an ok page
     said: str | None = None
@@ -643,6 +646,7 @@ class IssueRow(BaseModel):
     route: str
     check: Check
     error_message: str | None
+    # served by a fallback, the text layer or a licensed work's legacy Markdown (H2.a); renamed in stage D
     from_text_layer: bool
     # as a work's page row has them (159.a): the route's level and why, the whole route kept for the hover
     route_level: str | None = None
@@ -722,7 +726,7 @@ def counted_states(rows: list[dict]) -> list[StateCount]:
     standings = Counter((listed_state(row), mark.standing) for row in rows
                         if (mark := person_mark(row)) is not None and mark.by_a_person)
     served = Counter(state for row in rows if (state := listed_state(row)) in LISTED_AS_ISSUE
-                     and row.get('route') and row['route'] not in TEXT_LAYER_ROUTES)
+                     and row.get('route') and row['route'] not in NOT_SERVED_ROUTES)
     return sorted((StateCount(value=count.value, count=count.count, accepted=standings[(count.value, 'accepted')],
                               rejected=standings[(count.value, 'rejected')], noted=standings[(count.value, 'noted')],
                               served=served[count.value] or None)
@@ -796,10 +800,11 @@ DIRECT_READING = f'{served_readings.READING_ROUTE}, {served_readings.DIRECT_ROUT
 def route_parts(route: str) -> tuple[str, str | None, str | None]:
     """A route in the words a person reads it by: its source, its reader and why, split where the core's route strings
     part them (`served_readings.route_of`): 'text layer: why', or 'vision reading (reader): why', the why left out for a
-    reading served as checked, and 'vision reading, second reader (reader): why' for a reading off the default."""
+    reading served as checked, and 'vision reading, second reader (reader): why' for a reading off the default. A route that
+    serves no reading names its fallback as its source, the text layer or 'legacy markdown' (H2.a)."""
     head, _, why = route.partition(': ')
-    if route in TEXT_LAYER_ROUTES:
-        return 'text layer', None, why or None
+    if route in NOT_SERVED_ROUTES:
+        return head, None, why or None
     kind, _, reader = head.partition(' (')
     source = {SECOND_READER: 'second reader', DIRECT_READING: served_readings.DIRECT_ROUTE_KIND}.get(kind, kind)
     return source, reader.removesuffix(')') or None, why or None
@@ -929,6 +934,22 @@ def faults_said(errors: list[str]) -> str | None:
     return listed(parts) if parts else None
 
 
+def fallback_of(row: dict) -> str | None:
+    """What serves a page whose reading is not served, in the core's word (H2.a, 19 Nov): the row's `fallback`, 'legacy
+    markdown' where a licensed work's legacy Markdown serves it and 'text layer' where its PDF's text layer does, None where
+    the reading is served. An export written before the field: the text layer for every route that serves no reading."""
+    if 'fallback' in row:
+        return row['fallback']
+    return served_readings.TEXT_LAYER if row.get('route') in NOT_SERVED_ROUTES else None
+
+
+# what serves a page in a reading's place, by `fallback_of`: the sentence of a page not served, and its findings' outcome
+SERVED_INSTEAD = {served_readings.LEGACY_ROUTE: "the IDE's legacy Markdown is served instead",
+                  served_readings.TEXT_LAYER: "the PDF's text layer is served instead"}
+SERVES = {served_readings.LEGACY_ROUTE: "the page serves the IDE's legacy Markdown",
+          served_readings.TEXT_LAYER: 'the page serves its text layer'}
+
+
 def said_of(row: dict, errors: list[str]) -> str | None:
     """A page that is not plainly ok in one plain sentence (the operator on accounting p. 524: the head "reads as code"): whether
     its reading is served, why, from the route's own why or, for a reading that failed the format check, from how many of
@@ -952,7 +973,7 @@ def said_of(row: dict, errors: list[str]) -> str | None:
             return f"Served: {why.split(':', 1)[0]}."
         judged = any(reason.startswith('judge:') for reason in check['reasons'])
         return f"Served despite the judge's findings: {why}." if judged else f'Served with a note: {why}.'
-    instead = "the PDF's text layer is served instead" if row['route'] in TEXT_LAYER_ROUTES else 'nothing is served in its place'
+    instead = SERVED_INSTEAD.get(fallback_of(row), 'nothing is served in its place')
     return f'Not served: {why}; {instead}.'
 
 
@@ -1327,10 +1348,10 @@ def issues(bases: dict[str, 'Readings']) -> IssueList:
 
 
 def issue_row(store: 'Readings', row: dict) -> IssueRow:
-    """A page as a list across works shows it: its work by title, its state and reasons, and why its text layer is served."""
+    """A page as a list across works shows it: its work by title, its state and reasons, and why a fallback serves it."""
     return IssueRow(knowledge_base=row['knowledge_base'], source_id=row['source_id'], title=store.title(row['source_id']),
                     pdf_page=row['pdf_page'], route=row['route'], check=check_of(row), error_message=row.get('error_message'),
-                    from_text_layer=row['route'] in TEXT_LAYER_ROUTES, route_level=row.get('route_level'),
+                    from_text_layer=row['route'] in NOT_SERVED_ROUTES, route_level=row.get('route_level'),
                     route_why=route_parts(row['route'])[2], person=person_mark(row), category=row.get('category'),
                     page_kind=row.get('page_kind'), category_said=category_said(row), apart=apart(row),
                     focus=first_finding_block(row), listed_state=listed_state(row))
@@ -1350,10 +1371,10 @@ def first_finding_block(row: dict) -> str | None:
 def findings_outcome(row: dict, said: str | None) -> str | None:
     """What a page's findings come to, in a few words, where nothing above says it already (the operator, 11 Nov, the head said "a
     person accepted the reading" four times): the sentence above the record says it for a page that is not plainly ok,
-    and a person's line for a page a person judged; else whether the reading or the text layer is served."""
+    and a person's line for a page a person judged; else whether the reading is served or which fallback (H2.a)."""
     if said is not None or person_mark(row) is not None:
         return None
-    return "the page serves its text layer" if row['route'] in TEXT_LAYER_ROUTES else 'the reading is served'
+    return SERVES.get(fallback_of(row), 'the reading is served')
 
 
 def why_line(row: dict, said: str | None, blocks: 'list[Block]') -> str | None:
@@ -1475,7 +1496,7 @@ class Readings:
                                         check=check_of(row), class_when_collected=row['class_when_collected'],
                                         class_now=row['class_now'], attempt=row['attempt'], cost_usd=reading_cost(row),
                                         error_message=row.get('error_message'),
-                                        from_text_layer=row['route'] in TEXT_LAYER_ROUTES,
+                                        from_text_layer=row['route'] in NOT_SERVED_ROUTES,
                                         route_level=row.get('route_level'), route_why=route_parts(row['route'])[2],
                                         person=person_mark(row), category=row.get('category'),
                                         page_kind=row.get('page_kind'), category_said=category_said(row),
@@ -1565,7 +1586,7 @@ class Readings:
             printed_label=row.get('printed_label'),
             previous_page=rows[position - 1]['pdf_page'] if position > 0 else None,
             next_page=rows[position + 1]['pdf_page'] if position + 1 < len(rows) else None,
-            route=row['route'], from_text_layer=row['route'] in TEXT_LAYER_ROUTES, check=check, reading=reading, raw=raw,
+            route=row['route'], from_text_layer=row['route'] in NOT_SERVED_ROUTES, check=check, reading=reading, raw=raw,
             integrity=state, image=self.image(source_id, pdf_page)[0],
             page_findings=[finding for finding in findings if finding.block not in placed], human=people,
             trace=Trace(**{**{name: row.get(name) for name in Trace.model_fields}, 'cost_usd': reading_cost(row)}))

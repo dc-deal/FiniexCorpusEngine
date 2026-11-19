@@ -708,3 +708,11 @@ The record of how the diagnostics frontend came about, mistakes included.
   (`calc(<n>ch + var(--space-md))`), a state's words wrap inside the structure cell, and only the work, authors and
   publisher may split a word longer than a line, which the ids alone are. The browser check now holds every cell's
   content inside its box and every word of a fixed column whole, over two invented rows; shown red on the table as it was.
+- **H2.a, the fallback the export names** (line 1, 19 Nov, ahead of Y1.a's first merge). A licensed scan whose page is
+  served by the IDE's legacy Markdown read "fallback · text layer" and "the PDF's text layer is served instead": the view
+  took every route that serves no reading for a text layer. It now asks the core's `FALLBACK_ROUTES`
+  (`NOT_SERVED_ROUTES`, renamed from `TEXT_LAYER_ROUTES`, since five places read it as "no reading served"), names a
+  route's source by its own head, and words the sentence and the findings' outcome by the row's `fallback`. The API field
+  `from_text_layer` keeps its name until stage D and now means "served by a fallback". Tested with invented rows, one per
+  fallback and one of an export written before the field. Y1.a's stage A waited in a stash meanwhile, as both touch
+  `readings.py`.

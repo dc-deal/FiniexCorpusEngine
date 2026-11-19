@@ -49,7 +49,8 @@ export const ICONS = {
   'kb-licensed': IconLock,
   // a hint on demand, such as what a dashed line means; its button is named for a screen reader
   'hint': IconInfoCircle,
-  // a route served from the PDF's text layer in the reading's place, beside the word "fallback"
+  // a route served by a fallback in the reading's place, the PDF's text layer or a licensed work's legacy Markdown (H2.a),
+  // beside the word "fallback"
   'route-fallback': IconFileText,
   // the frame's menu of every view, beside the tool's name; its button is named for a screen reader
   'menu': IconMenu2,
