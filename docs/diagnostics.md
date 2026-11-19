@@ -1569,3 +1569,29 @@ reaches none of it); unit tests of the outline's links, the section's runs and i
 machine, measured without any text or image leaving the browser: ten works, every image loaded, none past a 1,400 or a
 390 px window, an inline formula on its line, no console error. 310 unit tests, 77 checks in the browser (three skipped
 on today's data), 1,442 Python tests.
+
+**The sources list narrowed, a series grouped, and a reload that returns (the operator's Y1.a, 19 Nov; stage A of three).**
+With the licensed catalog the sources list holds some eighty works, among them a lecture series in many parts, and it had
+no way to narrow them. It now has the facet bar of the operator's FiniexViewer, derived rather than copied (the
+operator, 19 Nov: "we orient on the viewer, we do not imitate it"): a facet each for the knowledge base, the format,
+the topic, the structure and the series, a search over title, authors and id folded into its button until asked for,
+and a sort by title, by author or by year, newest first, the sort in force named on its control. A facet that does not
+fit waits behind `+N`, where it keeps its values, counts and picks; a facet every row agrees on stands disabled, so under
+`--public-only` the knowledge base, all free, cannot be picked; nothing a pick changes moves the bar. The API gives each
+work its structure in the list's own words ("read page by page", "sections by heading", "not read page by page") and
+the series the local licensed catalog names (`Work.structure`, `Work.series`: its id, title, part, of, and an earlier
+version's words). A series' parts stand under one heading where the first of them stands in the sort, closed until
+opened, the heading saying the series' title and how many of its parts the bar leaves; its parts follow in their order,
+a current part before an earlier version of it, one step in. A series narrowed to one part loses its heading. A reload
+(F5) brings back the bar's picks, search and sort (`settings.v1`, written only once the bar is used), the open series
+(the tab's session) and the place the reader stood, set once the works are drawn, since the browser restores it on a page
+still too short to reach it; every storage access may fail and the view still draws. The counts beside a facet's values
+and "N of M" are counted in the browser over the rows the API served (the operator's Q4.a); every figure on a row or a
+heading stays the API's. **Measured:** unit tests of the filter, the bar (its search, its `+N`, a value drawn through a
+view's slot), the overflow row, the stored bar (a cleared bar stays cleared, an untouched one stores nothing) and the
+sources view over invented rows (facets, search, sorts, the series' heading and order, a reload, the scroll set after
+the data, a blocked storage); a browser check over three invented licensed parts: the series opens and closes with its
+toggle in place, a facet's panel in the one size, a pick moves no chip (shown failing once with the badge's reserved
+room taken away: the chips after it moved 19 px), and a reload returns to the scroll position, the open series and the
+bar, while a tab that kept no place opens at its top. 376 unit tests, 78 checks in the browser (3
+skipped on today's data), 1,461 Python tests.

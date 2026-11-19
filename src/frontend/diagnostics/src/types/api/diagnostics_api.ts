@@ -2349,6 +2349,23 @@ export interface components {
             /** Note Text */
             note_text?: string | null;
         };
+        /**
+         * Series
+         * @description A part of a series the licensed catalog names (Y1.a, 19 Nov): one author's lecture decks, say, as parts 1 to 11.
+         *     An earlier version of a part carries its own words in `version`.
+         */
+        Series: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Part */
+            part: number;
+            /** Of */
+            of: number;
+            /** Version */
+            version?: string | null;
+        };
         /** Served */
         Served: {
             /**
@@ -2809,6 +2826,9 @@ export interface components {
             not_read?: string | null;
             /** Epub Key */
             epub_key?: string | null;
+            /** Structure */
+            structure?: ("read page by page" | "sections by heading" | "not read page by page") | null;
+            series?: components["schemas"]["Series"] | null;
         };
         /** WorkPages */
         WorkPages: {

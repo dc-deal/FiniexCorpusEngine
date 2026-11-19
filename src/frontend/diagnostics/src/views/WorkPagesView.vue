@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import ApiFailure from '@/components/ApiFailure.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
 import AppButton from '@/components/base/AppButton.vue'
-import FacetBar from '@/components/base/FacetBar.vue'
+import ChipFacetBar from '@/components/base/ChipFacetBar.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
@@ -196,7 +196,7 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
           <LabelledLine v-if="shown.summary" label="Pages"><span class="page-total">{{ pageCount(shown.summary.pages) }}</span></LabelledLine>
         </LabelledLines>
         <template v-if="shown.summary">
-          <FacetBar v-model="selection" :facets="facets" :label-chars="10">
+          <ChipFacetBar v-model="selection" :facets="facets" :label-chars="10">
             <template #value="{ facet, value }">
               <StateMark v-if="facet.key === 'state'" :state="value" />
               <PersonStanding v-else-if="facet.key === 'person' || facet.key === 'review'"
@@ -209,7 +209,7 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
                 <PersonTally :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
               </template>
             </template>
-          </FacetBar>
+          </ChipFacetBar>
           <LabelledLines :label-chars="10">
             <LabelledLine label="PDF page"><PageJump :kb="kb" :work="work" bare /></LabelledLine>
           </LabelledLines>

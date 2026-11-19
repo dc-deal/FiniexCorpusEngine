@@ -716,3 +716,21 @@ The record of how the diagnostics frontend came about, mistakes included.
   `from_text_layer` keeps its name until stage D and now means "served by a fallback". Tested with invented rows, one per
   fallback and one of an export written before the field. Y1.a's stage A waited in a stash meanwhile, as both touch
   `readings.py`.
+- **Y1.a stage A, the sources list's facet bar, series and F5** (line 1's handoff of the operator's Y1.a, 19 Nov). The
+  operator chose three merges (Q1.a): A the bar, the series and F5 on the sources list; B the viewer's ranked list for it;
+  C the issues, a work's pages and the calls on the new bar. Mid-stage the operator set the rule for all three: "we orient
+  on the viewer, we do not imitate it". **Taken** from the FiniexViewer: the bar with its filter functions, the overflow
+  row with its fit, the stored bar state and its tests, their lessons kept (a facet that cannot narrow stays disabled
+  rather than gone; nothing a pick changes moves the bar). **Left out:** the viewer's translation marker `t()`, a
+  convention this app does not have, and the overflow row's end group, which no row here uses; and every browser
+  tooltip, which this app replaced by its hint and card (decision 179). **Added:** one slot for a value's look (Q3.a), so a
+  state keeps its glyph, word and colour in the panel. The old chip bar stays, renamed `ChipFacetBar`, for the three views
+  stage C moves. The counts beside the values are the browser's (Q4.a), an exception to "the UI computes nothing" the
+  operator made for a facet's counts and "N of M" alone. **Mistakes:** the browser check first counted every work while
+  the series stood closed, and so missed its three parts; it counts once the series is open. The check shown failing on
+  purpose first failed for another reason: it clicked the knowledge base, which `--public-only` rightly disables, and
+  timed out; it was run again on the format facet, and then failed where it should. A sort by title by default moved rows
+  that five unit tests read by their place; they now find a row by its work. A test name lost its escaped quote through a
+  shell heredoc, the trap `.claude/rules/machine.md` names; the scripts went into files after it. **Between:** H2.a
+  (line 1's, the fallback a page names) merged first; stage A waited in a stash, as both touch `readings.py`, and came
+  back onto the new main with only the built `dist/` in conflict, which a fresh build replaced.

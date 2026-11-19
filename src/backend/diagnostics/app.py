@@ -29,7 +29,7 @@ from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
 # the licensed catalog's fields the sources view shows beside a work's title (N1.a)
-CATALOG_FIELDS = {'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes'}
+CATALOG_FIELDS = {'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes', 'series'}
 
 # The names a request may address this server by: a page elsewhere can point a domain of its own at 127.0.0.1 (DNS
 # rebinding) and read what the GET routes serve, licensed pages and the coding sessions' questions among them, so any
@@ -120,13 +120,15 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         for name, store in bases.items():
             if name == 'free':
                 html = html_works.counts()
-                listed += [work.model_copy(update={'readings': store.summary(work.id), **html_structure(work, html)})
+                listed += [work.model_copy(update={'readings': (summary := store.summary(work.id)), **html_structure(work, html),
+                                                   'structure': sources.READ_PAGES if summary else sources.SECTIONS if work.format == 'html' else None})
                            for work in sources.works()]
             else:
                 # a licensed work's title, authors and the rest from the local licensed catalog, where this machine has one
                 # (N1.a); its store reads it, which no --public-only app has
                 listed += [sources.Work(knowledge_base=work['knowledge_base'], id=work['source_id'], title=work['title'],
-                                        readings=store.summary(work['source_id']), **catalog_fields(store, work['source_id']))
+                                        readings=store.summary(work['source_id']), structure=sources.READ_PAGES,
+                                        **catalog_fields(store, work['source_id']))
                            for work in store.works()]
                 # then the catalog's entries the export has no pages of, as the free HTML works without readings stand (O1.a);
                 # an EPUB the librarian serves by section counts its sections (123.a), the others are not read yet
@@ -137,7 +139,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                            for entry in unread]
                 # and an EPUB the catalog does not list, by its file's stem
                 listed += [sources.Work(knowledge_base=name, id=key, title=path.stem, format='epub', epub_key=key,
-                                        **epub_structure(path)) for path_name, (key, path) in epubs.items()
+                                        structure=sources.SECTIONS, **epub_structure(path))
+                           for path_name, (key, path) in epubs.items()
                            if not any(entry.file == path_name for entry in unread)]
         return listed
 
@@ -145,8 +148,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         """A catalog entry without page readings: an EPUB the librarian serves, by its sections; else not read yet."""
         served = epubs.get(entry.file or '')
         if served is None:
-            return {'not_read': sources.NOT_READ}
-        return {'epub_key': served[0], **epub_structure(served[1])}
+            return {'not_read': sources.NOT_READ, 'structure': sources.NOT_READ}
+        return {'epub_key': served[0], 'structure': sources.SECTIONS, **epub_structure(served[1])}
 
     def epub_structure(path: Path) -> dict:
         """An EPUB's sections where it is cut already; while it is not, the list says so and the cut starts in the

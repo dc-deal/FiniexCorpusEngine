@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { FacetSelection } from '@/types/facet_types'
 
 const STORAGE_KEY = 'settings.v1'
 const SCHEMA_VERSION = 1
@@ -11,6 +12,18 @@ export type WorkPagesView = 'chapters' | 'table'
 export type FoldName = 'page.history' | 'page.lab'
 const FOLD_NAMES: readonly string[] = ['page.history', 'page.lab'] satisfies FoldName[]
 
+/**
+ * What a facet bar keeps across a reload (Y1.a, F5): its picks, its search and its sort, as the FiniexViewer keeps them.
+ * `selection` is absent where the reader never narrowed, so a default could still apply; an empty one is a bar the reader
+ * cleared, and stays cleared. `scope` is what the narrowing was made for, such as one work's pages, where a bar has one.
+ */
+export interface StoredFacets {
+  selection?: FacetSelection
+  search: string
+  sort: string
+  scope?: string | null
+}
+
 /** How the reader prefers the views to behave. What they look at belongs to the URL, never here. */
 export interface Settings {
   // the page view's check and trace, open or folded
@@ -21,14 +34,40 @@ export interface Settings {
   routesOpen: boolean
   // the named folds the reader opened (true) or folded (false); a fold not named here takes its default, folded
   foldsOpen: Partial<Record<FoldName, boolean>>
+  // each facet bar's state by the bar's own name, one entry per bar (Y1.a); a bar nobody touched has none
+  bars: Record<string, StoredFacets>
 }
 
-const DEFAULTS: Settings = { pageDetailsOpen: false, workPagesView: 'chapters', routesOpen: false, foldsOpen: {} }
+const DEFAULTS: Settings = { pageDetailsOpen: false, workPagesView: 'chapters', routesOpen: false, foldsOpen: {}, bars: {} }
 const WORK_PAGES_VIEWS: readonly string[] = ['chapters', 'table'] satisfies WorkPagesView[]
 
 /** What is written to storage: the settings plus the schema they were written under. */
 interface StoredSettings extends Settings {
   version: number
+}
+
+/** A stored list of words, the words alone: anything else in it is dropped. */
+function words(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
+}
+
+/** One stored bar, field by field: a field of the wrong shape takes its empty value, a facet without a word is dropped. */
+function readFacets(value: unknown): StoredFacets {
+  const stored = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const facets: StoredFacets = {
+    search: typeof stored['search'] === 'string' ? stored['search'] : '',
+    sort: typeof stored['sort'] === 'string' ? stored['sort'] : '',
+  }
+  if (typeof stored['scope'] === 'string') facets.scope = stored['scope']
+  const selection = stored['selection']
+  if (selection && typeof selection === 'object' && !Array.isArray(selection)) {
+    facets.selection = {}
+    for (const [facet, picked] of Object.entries(selection)) {
+      const valid = words(picked)
+      if (valid.length) facets.selection[facet] = valid
+    }
+  }
+  return facets
 }
 
 /**
@@ -40,7 +79,7 @@ export function reconcile(stored: unknown): Settings {
   if (!stored || typeof stored !== 'object') return { ...DEFAULTS }
   const raw = stored as Partial<StoredSettings>
   if (raw.version !== SCHEMA_VERSION) return { ...DEFAULTS }
-  const settings: Settings = { ...DEFAULTS, foldsOpen: {} }
+  const settings: Settings = { ...DEFAULTS, foldsOpen: {}, bars: {} }
   if (typeof raw.pageDetailsOpen === 'boolean') settings.pageDetailsOpen = raw.pageDetailsOpen
   if (typeof raw.routesOpen === 'boolean') settings.routesOpen = raw.routesOpen
   if (raw.foldsOpen && typeof raw.foldsOpen === 'object') {
@@ -50,6 +89,9 @@ export function reconcile(stored: unknown): Settings {
   }
   if (typeof raw.workPagesView === 'string' && WORK_PAGES_VIEWS.includes(raw.workPagesView)) {
     settings.workPagesView = raw.workPagesView
+  }
+  if (raw.bars && typeof raw.bars === 'object' && !Array.isArray(raw.bars)) {
+    for (const [bar, facets] of Object.entries(raw.bars)) settings.bars[bar] = readFacets(facets)
   }
   return settings
 }
@@ -107,5 +149,11 @@ export const useSettingsStore = defineStore('settings', () => {
     persist()
   }
 
-  return { settings, setPageDetailsOpen, setWorkPagesView, setRoutesOpen, setFoldOpen }
+  /** A facet bar's state, written whole each time the reader changes it (Y1.a). */
+  function setFacets(bar: string, facets: StoredFacets): void {
+    settings.value.bars = { ...settings.value.bars, [bar]: facets }
+    persist()
+  }
+
+  return { settings, setPageDetailsOpen, setWorkPagesView, setRoutesOpen, setFoldOpen, setFacets }
 })

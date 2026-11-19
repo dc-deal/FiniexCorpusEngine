@@ -1285,6 +1285,17 @@ def licensed_readings() -> 'Readings | None':
     return Readings(LICENSED_EXPORT, catalog=data_paths.LICENSED_CATALOG) if (LICENSED_EXPORT / 'index.json').exists() else None
 
 
+class Series(BaseModel):
+    """A part of a series the licensed catalog names (Y1.a, 19 Nov): one author's lecture decks, say, as parts 1 to 11.
+    An earlier version of a part carries its own words in `version`."""
+
+    id: str
+    title: str
+    part: int
+    of: int
+    version: str | None = None
+
+
 class CatalogEntry(BaseModel):
     """A licensed work as the local licensed catalog lists it (`data_paths.LICENSED_CATALOG`, the operator's N1.a, 18 Nov):
     git-ignored and on this machine only, read for the licensed knowledge base alone, so no licensed title reaches a public
@@ -1301,6 +1312,7 @@ class CatalogEntry(BaseModel):
     shelf: str | None = None
     licence: str | None = None
     notes: str | None = None  # a few words: "stand-in file", "re-typeset copy; printed pages differ"
+    series: Series | None = None  # the series it is a part of, where the catalog names one (Y1.a)
 
 
 def catalog_entries(path: Path) -> list[CatalogEntry]:
