@@ -105,9 +105,24 @@ def whole_works(cells: list[str]) -> set[str]:
     return works
 
 
-def whole_work_sample(selection: check_flow.Selection, pages: list[dict], works: set[str]) -> check_flow.Selection:
-    """For a work read whole, a seeded sample of `WHOLE_WORK_SAMPLE` of its passed pages in place of every page and of 83.a's
-    unverifiable pages; a page stage 2 found suspicious is still judged."""
+def judge_shares(cells: list[str]) -> dict[str, float]:
+    """The share of its pages a work read whole is judged by, where its page list names one (`direct_reader pages --add-work
+    FILE --judge-share 0.6`, the operator's N2.a for a night's work), by the work's key."""
+    from backend.conversion.reading import reading_cells
+
+    lists = set(reading_cells.DIRECT_PAGES.values())
+    shares = {}
+    for name in cells:
+        source = Path(reading_cells.known_cells()[name].page_source)
+        if source in lists and source.exists():
+            shares.update(json.loads(source.read_text(encoding='utf-8')).get('judge_shares', {}))
+    return shares
+
+
+def whole_work_sample(selection: check_flow.Selection, pages: list[dict], works: set[str],
+                      shares: dict[str, float] | None = None) -> check_flow.Selection:
+    """For a work read whole, a seeded sample of its passed pages in place of every page and of 83.a's unverifiable pages:
+    `WHOLE_WORK_SAMPLE` pages, or the share its page list names (N2.a); a page stage 2 found suspicious is still judged."""
     if not works:
         return selection
     own = {page['key'] for page in pages if page['work'] in works}
@@ -115,7 +130,8 @@ def whole_work_sample(selection: check_flow.Selection, pages: list[dict], works:
     for work in sorted(works):
         usable = sorted(page['key'] for page in pages if page['work'] == work and page['result_class'] == 'ok'
                         and page['key'] not in selection.suspicious)
-        sample.update(random.Random(work).sample(usable, min(WHOLE_WORK_SAMPLE, len(usable))))
+        size = round((shares or {})[work] * len(usable)) if work in (shares or {}) else WHOLE_WORK_SAMPLE
+        sample.update(random.Random(work).sample(usable, min(size, len(usable))))
     return check_flow.Selection(selection.suspicious, frozenset((selection.sampled - own) | sample),
                                 frozenset(selection.unverifiable - own), selection.reread)
 
@@ -178,7 +194,7 @@ def plan(args) -> dict:
     reread = frozenset(record['reading_key'] for record in records
                        if record.get('retry_of') and classes[record['reading_key']] == 'ok')
     selection = check_flow.Selection(selection.suspicious, selection.sampled, selection.unverifiable, reread)
-    selection = whole_work_sample(selection, pages, whole_works(cells))  # V1.b: a whole scanned work by a sample
+    selection = whole_work_sample(selection, pages, whole_works(cells), judge_shares(cells))  # V1.b, N2.a: by a sample
     store.write_report(SAMPLE_FILE, {'sampled': sorted(selection.sampled | set(earlier_sample(store)))})
     entries = [page_judge.entry_for(record, parsed[record['reading_key']], JUDGE_MODEL)
                for record in records if record['reading_key'] in selection.keys]

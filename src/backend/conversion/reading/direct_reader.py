@@ -118,15 +118,17 @@ def pages(args) -> dict:
               for name in base.cells() for page in reading_cells.pages_for(reading_cells.known_cells()[name])}
     chosen, left = select(rows, listed, set(pipeline_db.protected_pages(base.name)))
     target = reading_cells.DIRECT_PAGES[args.knowledge_base]
-    added = sorted(set(json.loads(target.read_text(encoding='utf-8')).get('added_works', []) if target.exists() else [])
-                   | set(getattr(args, 'add_work', None) or []))
+    earlier = json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
+    added = sorted(set(earlier.get('added_works', [])) | set(getattr(args, 'add_work', None) or []))
+    shares = {**earlier.get('judge_shares', {}),  # the share of a work's pages its judge sees (N2.a), by the work's key
+              **({Path(name).stem: args.judge_share for name in args.add_work or []} if getattr(args, 'judge_share', None) else {})}
     known = {(page['file'], page['pdf_page']) for page in chosen}
     for file_name in added:
         chosen += [page for page in whole_work(base, file_name, rows) if (page['file'], page['pdf_page']) not in known]
     cards = {page['work']: page.pop('work_card') for page in chosen}
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({'work_cards': cards, 'added_works': added, 'pages': chosen}, indent=1, ensure_ascii=False) + '\n',
-                      encoding='utf-8')
+    target.write_text(json.dumps({'work_cards': cards, 'added_works': added, 'judge_shares': shares, 'pages': chosen}, indent=1,
+                                 ensure_ascii=False) + '\n', encoding='utf-8')
     print(f"{args.knowledge_base}: {len(chosen)} pages for a direct reading {dict(Counter(p['why'] for p in chosen))}, "
           f'written to {target.name}; left out {dict(left)}')
     return {'pages': len(chosen), 'left': dict(left)}
@@ -198,6 +200,8 @@ def prepare(args) -> list[str]:
             break
         if args.page and page['id'] != args.page:
             continue
+        if getattr(args, 'work', None) and page['file'] not in args.work:
+            continue  # a night's batch takes its own works' pages only (night_run)
         row = rows.get((page['file'], page['pdf_page']))
         if (row is None and page.get('why') != 'unread') or (row is not None and touched_by_a_filter(row)) \
                 or not reading_cells.may_send(page['file']) or page.get('protected'):
@@ -335,14 +339,34 @@ def main(argv: list[str] | None = None) -> int:
         if name == 'pages':
             command.add_argument('--add-work', action='append', metavar='FILE',
                                  help='add every unread page of this file to the cell, kept on later runs (the experiment of 18 Nov)')
+            command.add_argument('--judge-share', type=float, metavar='SHARE',
+                                 help="with --add-work: judge this share of the work's pages, e.g. 0.6 for a night's work (N2.a)")
         if name == 'prepare':
             command.add_argument('--limit', type=int, default=1, help='at most this many pages; 0 prepares all')
             command.add_argument('--page', help="one page by its id, e.g. 'work:p0103'")
+            command.add_argument('--work', action='append', metavar='FILE', help="only this file's pages (a night's works)")
             command.add_argument('--retry-malformed', action='store_true',
                                  help="prepare a new attempt where the latest direct reading is malformed, its errors as the hint")
+    checked = commands.add_parser('check', help="the format check on one prepared folder's reading.md, for the reading agent")
+    checked.add_argument('folder', type=Path)
     args = parser.parse_args(argv)
-    {'pages': pages, 'prepare': prepare, 'store': store, 'choose': choose}[args.command](args)
+    {'pages': pages, 'prepare': prepare, 'store': store, 'choose': choose, 'check': check}[args.command](args)
     return 0
+
+
+def check(args) -> bool:
+    """The format check (today's validator) on a folder's `reading.md` against its entry: valid or MALFORMED, and the errors,
+    which name lines and blocks. Run once by the agent that wrote it; the reading is not changed after, since a retry is an
+    attempt of its own. Prints no page text."""
+    from backend.conversion.contract import page_contract
+
+    entry = json.loads((args.folder / 'entry.json').read_text(encoding='utf-8'))
+    expected = page_contract.Expected(entry['work'], entry['pdf_page'], tuple(entry['image_size']))
+    page = page_contract.parse((args.folder / 'reading.md').read_text(encoding='utf-8'), 'markdown', expected)
+    print('valid' if page.valid else 'MALFORMED', f'{len(page.blocks)} blocks, {len(page.warnings)} warnings')
+    for error in page.errors:
+        print('  error:', error[:200])
+    return page.valid
 
 
 if __name__ == '__main__':

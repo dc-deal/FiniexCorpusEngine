@@ -118,3 +118,15 @@ def test_a_work_read_whole_is_judged_by_a_sample_of_sixty_and_its_suspicious_pag
     assert 'o1' in picked.sampled and not picked.unverifiable  # another work keeps every page
     assert picked == check_run.whole_work_sample(every, pages, {'book'})  # seeded: the same sample every time
     assert check_run.whole_work_sample(every, pages, set()) == every
+
+
+def test_a_work_read_whole_overnight_is_judged_by_the_share_its_page_list_names():
+    # N2.a (19 Nov): a night's work is judged by 60 % of its pages; a work without a share keeps the sample of sixty
+    from backend.conversion.checks import check_flow
+
+    pages = [{'key': f'b{n:03d}', 'work': 'book', 'result_class': 'ok'} for n in range(200)] + \
+            [{'key': f's{n:03d}', 'work': 'scan', 'result_class': 'ok'} for n in range(200)]
+    every = check_flow.Selection(frozenset(), frozenset(page['key'] for page in pages), frozenset())
+    picked = check_run.whole_work_sample(every, pages, {'book', 'scan'}, {'book': 0.6})
+    assert sum(key.startswith('b') for key in picked.sampled) == 120
+    assert sum(key.startswith('s') for key in picked.sampled) == check_run.WHOLE_WORK_SAMPLE
