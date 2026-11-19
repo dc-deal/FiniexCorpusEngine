@@ -57,6 +57,21 @@ describe('RunsView', () => {
     expect(view.find('.not-listed[data-kb="licensed"]').text()).toContain('--public-only')
     expect(view.find('.not-listed[data-kb="free"]').exists()).toBe(false)
   })
+
+  it('says a run that recorded no end in the words of the API, what that means in its card, never that it failed (D10)', async () => {
+    const why = 'the command stopped before it could record an end, or it is still running'
+    vi.mocked(getRuns).mockResolvedValue({ bases: [{ knowledge_base: 'free', why_not: null }],
+      runs: [aRun({ run_id: 19, ended_at: null, outcome: 'no end recorded', outcome_why: why }), aRun()] })
+    const view = mount(RunsView, { global: { plugins: [createPinia(), router] } })
+    await flushPromises()
+    const outcome = view.find('[data-run="free/19"] .outcome')
+    expect(outcome.text()).toBe('no end recorded')
+    await outcome.find('.hover-card-host').trigger('mouseenter')
+    expect(outcome.find('[data-row="means"] .card-value').text()).toBe(why)
+    // an outcome the run wrote itself stands as it is, without a card
+    expect(view.find('[data-run="free/17"] .outcome').text()).toBe('ok')
+    expect(view.find('[data-run="free/17"] .outcome .hover-card-host').exists()).toBe(false)
+  })
 })
 
 describe('RunView', () => {

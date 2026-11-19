@@ -1,18 +1,23 @@
-"""The overview: every figure counted in the API, each value once with its count per knowledge base, each count opening
-exactly the pages it counts, a base not served saying why."""
+"""The overview (the operator's O3.a, 19 Nov): one corpus, a headline summed in the API over the knowledge bases served with
+each base's part kept as its detail, and the latest runs of both; every count the removed tables gave stays reachable
+through the page list's filters, and the overview never asks every reading file for its integrity."""
 
+import json
 import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.conversion.store import pipeline_db
-from backend.diagnostics import overview, readings, search_hits
+from backend.diagnostics import overview, page_integrity, readings, runs
 from backend.diagnostics.app import create_app
-from backend.search import page_index, search_server
+from backend.search import shelf
 
 # TestClient's own host, "testserver", is refused like any other name that is not this machine's (app.TRUSTED_HOSTS)
 LOCAL = 'http://127.0.0.1'
+# invented shelves, as the core writes their totals: no licensed count stands in a test
+SHELVES = {'free': {'works': 15, 'planned': 1822, 'read': 1822, 'passed': 1815, 'served': 2554},
+           'licensed': {'works': 4, 'planned': 400, 'read': 390, 'passed': 380, 'served': 900}}
 
 
 @pytest.fixture
@@ -22,86 +27,147 @@ def no_runs(monkeypatch, tmp_path):
     return tmp_path
 
 
-def answer_of(client):
-    answer = client.get('/api/overview').json()
-    boxes = answer['sections'] + [answer['search']]
-    return {base['knowledge_base']: base for base in answer['bases']}, {section['title']: section for section in boxes}
+@pytest.fixture
+def shelves(monkeypatch):
+    """Each base's shelf as the core last built it, invented; a base left out of the dict has none built."""
+    built = dict(SHELVES)
+    monkeypatch.setattr(shelf, 'load', lambda name: {'totals': built[name]} if name in built else None)
+    return built
 
 
-def test_each_base_has_its_headline_and_the_licensed_one_says_it_is_not_read(monkeypatch, no_runs):
+def test_the_headline_sums_the_free_base_alone_under_public_only_and_says_so(monkeypatch, no_runs, shelves):
     def refuse():
         raise AssertionError('the licensed knowledge base was read')
 
     monkeypatch.setattr(readings, 'licensed_readings', refuse)
-    bases, _ = answer_of(TestClient(create_app(public_only=True), base_url=LOCAL))
-    free, licensed = bases['free'], bases['licensed']
+    answer = TestClient(create_app(public_only=True), base_url=LOCAL).get('/api/overview').json()
+    headline = answer['headline']
+    assert headline['bases'] == ['free']
+    assert headline['left_out'] == [{'knowledge_base': 'licensed', 'why': overview.NOT_READ}]
+    # the shelf's figures, the core's, summed over the free base alone, each with its part
+    assert headline['works'] == {'total': 15, 'by_base': {'free': 15}}
+    assert (headline['planned']['total'], headline['passed']['total'], headline['served']['total']) == (1822, 1815, 2554)
+    assert headline['share_passed'] == pytest.approx(1815 / 1822)
+    # the export's: what a person settled is no longer to look at (211.a), and what every reading and judgement cost
     rows = readings.Readings().rows()
-    assert free['served'] and free['pages'] == len(rows) and free['works'] == len({row['source_id'] for row in rows})
-    assert free['judged'] == sum(1 for row in rows if (row.get('check') or {}).get('judged'))
-    # what a person settled is no longer to look at (211.a)
-    assert free['to_look_at'] == sum(1 for row in rows if readings.listed_state(row) in readings.LISTED_AS_ISSUE)
-    assert licensed['served'] is False and '--public-only' in licensed['why_not']
-    assert free['runs'] is None  # no pipeline database here: said, not guessed
+    assert headline['to_look_at']['total'] == sum(1 for row in rows if readings.listed_state(row) in readings.LISTED_AS_ISSUE)
+    cost = sum(value or 0.0 for row in rows for value in overview.paid_by('provider', row).values())
+    assert headline['cost_usd']['total'] == pytest.approx(cost, abs=1e-3)
+    # each provider's part, which the figure's card carries where the per-model tables stood (line 1, 19 Nov)
+    assert sum(headline['cost_usd']['by_provider'].values()) == pytest.approx(cost, abs=1e-3)
+    assert answer['runs'] is None and 'pipeline database' in answer['runs_why_not']  # said, not guessed
+    # the tables are gone from the overview, whose counts the page list's filters keep (O3.a)
+    assert set(answer) == {'headline', 'runs', 'runs_why_not'}
 
 
-def test_each_value_stands_once_with_its_count_per_base(no_runs):
-    _, sections = answer_of(TestClient(create_app(public_only=True), base_url=LOCAL))
-    rows = readings.Readings().rows()
-    for title in ('How the text is made', 'State', 'Why judged, or why not'):
-        values = [row['value'] for row in sections[title]['rows']]
-        assert len(values) == len(set(values)), title
-        assert sum(row['free'] for row in sections[title]['rows']) == len(rows), title
-        assert all(row['licensed'] is None for row in sections[title]['rows'])  # not served
-    states = [row['value'] for row in sections['State']['rows']]
-    assert states == sorted(states, key=readings.STATE_ORDER.index)
+@pytest.mark.readings
+def test_the_headline_sums_both_bases_and_keeps_each_part_as_its_detail(tmp_path, no_runs, shelves):
+    from test_diagnostics_readings import a_corpus, kelly_rows
+
+    rows = kelly_rows()[:3]
+    free = a_corpus(tmp_path / 'free', rows)
+    licensed = a_corpus(tmp_path / 'licensed', [{**row, 'knowledge_base': 'licensed'} for row in rows], knowledge_base='licensed')
+    headline = overview.overview({'free': free, 'licensed': licensed}, False).headline
+    assert headline.bases == ['free', 'licensed'] and headline.left_out == []
+    assert headline.planned.total == 1822 + 400 and headline.planned.by_base == {'free': 1822, 'licensed': 400}
+    assert headline.share_passed == pytest.approx((1815 + 380) / (1822 + 400))
+    looked = sum(1 for row in rows if readings.listed_state(row) in readings.LISTED_AS_ISSUE)
+    assert headline.to_look_at.by_base == {'free': looked, 'licensed': looked} and headline.to_look_at.total == 2 * looked
 
 
-def test_every_count_opens_exactly_the_pages_it_counts(no_runs):
+@pytest.mark.readings
+def test_a_base_whose_shelf_is_not_built_is_left_out_of_the_shelfs_figures_and_says_so(tmp_path, no_runs, shelves):
+    from test_diagnostics_readings import a_corpus, kelly_rows
+
+    del shelves['free']
+    headline = overview.overview({'free': a_corpus(tmp_path, kelly_rows()[:2])}, False).headline
+    assert (headline.works, headline.planned, headline.passed, headline.served, headline.share_passed) == (None,) * 5
+    assert [(left.knowledge_base, left.why) for left in headline.shelf_left_out] == [('free', overview.NO_SHELF)]
+    assert headline.to_look_at.by_base == {'free': headline.to_look_at.total}  # the export's figures stand all the same
+
+
+def test_the_overview_never_asks_a_reading_file_for_its_integrity(monkeypatch, no_runs, shelves):
+    # each load stat-ed some 10,200 reading files for the integrity table (48.5 s in the container, 19 Nov); it is asked
+    # through the page list's filter alone now
+    monkeypatch.setattr(page_integrity, 'state', lambda export, row: pytest.fail('a reading file was asked for its integrity'))
+    overview._COUNTED.clear()  # counted afresh, so the check reaches the counting too
+    assert TestClient(create_app(public_only=True), base_url=LOCAL).get('/api/overview').status_code == 200
+
+
+def a_run(db, base: str, number: int, outcome: str | None = 'ok', ended: str | None = '2026-11-05T09:00:00+00:00'):
+    db.execute('INSERT INTO runs (knowledge_base, command, started_at, ended_at, outcome, cost_usd, batch_ids) VALUES (?, ?, ?, ?, ?, ?, ?)',
+               (base, f'python -m backend.conversion.checks.check_run {number}', f'2026-11-05T{number:02d}:00:00+00:00', ended, outcome,
+                0.01 * number, '["msgbatch_01"]' if number == 10 else None))
+
+
+def test_the_latest_runs_of_both_bases_stand_newest_first_each_with_its_base(no_runs, shelves):
+    with sqlite3.connect(no_runs / 'free.sqlite') as db:
+        db.executescript(pipeline_db.SCHEMA)
+        for number in range(1, 11, 2):
+            a_run(db, 'free', number)
+    with sqlite3.connect(no_runs / 'licensed.sqlite') as db:
+        db.executescript(pipeline_db.SCHEMA)
+        for number in range(2, 11, 2):
+            a_run(db, 'licensed', number)
+    base_list = {'free': readings.Readings(), 'licensed': readings.Readings()}
+    listed = overview.overview(base_list, False).runs
+    assert [(run.knowledge_base, int(run.command.split()[-1])) for run in listed] == [
+        ('licensed', 10), ('free', 9), ('licensed', 8), ('free', 7), ('licensed', 6), ('free', 5), ('licensed', 4), ('free', 3)]
+    assert listed[0].batch_ids == ['msgbatch_01'] and listed[1].batch_ids == []
+
+
+def test_a_new_run_stands_at_once_though_the_runs_are_kept_between_loads(no_runs):
+    # the overview keeps a base's runs while its database is unchanged (0.27 s a base each load before, 19 Nov)
+    with sqlite3.connect(no_runs / 'free.sqlite') as db:
+        db.executescript(pipeline_db.SCHEMA)
+        a_run(db, 'free', 1)
+    assert [int(run.command.split()[-1]) for run in runs.recent('free', 8)] == [1]
+    with sqlite3.connect(no_runs / 'free.sqlite') as db:
+        a_run(db, 'free', 2)
+    assert [int(run.command.split()[-1]) for run in runs.recent('free', 8)] == [2, 1]
+
+
+def test_a_run_that_recorded_no_end_says_so_and_never_that_it_failed(no_runs):
+    with sqlite3.connect(no_runs / 'free.sqlite') as db:
+        db.executescript(pipeline_db.SCHEMA)
+        a_run(db, 'free', 1, outcome=None, ended=None)
+        a_run(db, 'free', 2, outcome='failed: the provider answered 529')
+        a_run(db, 'free', 3)
+    listed = {int(run.command.split()[-1]): run for run in runs.recent('free', 8)}
+    # line 1's word (19 Nov): the process stopped before it could write its end, or it still runs; the row cannot tell which
+    assert (listed[1].outcome, listed[1].outcome_why) == (runs.NO_END, runs.NO_END_WHY) == ('no end recorded', runs.NO_END_WHY)
+    assert (listed[2].outcome, listed[2].outcome_why) == ('failed: the provider answered 529', None)
+    assert (listed[3].outcome, listed[3].outcome_why) == ('ok', None)
+
+
+@pytest.mark.readings
+def test_every_count_of_the_removed_tables_stays_reachable_through_its_page_filter(no_runs):
+    # O3.a's check (the operator, 19 Nov): each row of the removed tables linked `/api/pages?<field>=<value>`; for every field
+    # the most common values, as the rows give them, the filter lists exactly those pages. Integrity is held by its own
+    # tests below, asked only when chosen
     client = TestClient(create_app(public_only=True), base_url=LOCAL)
-    _, sections = answer_of(client)
-    for section in sections.values():
-        if not section['linked']:
-            continue
-        for row in section['rows'][:3]:
-            listed = client.get('/api/pages', params={'knowledge_base': 'free', section['field']: row['value']}).json()
-            assert len(listed['rows']) == row['free'], (section['title'], row['value'])
-
-
-def known_sum(costs) -> float | None:
-    """What `overview.add` makes of costs: None while none is known, else the sum of the known ones."""
-    known = [cost for cost in costs if cost is not None]
-    return sum(known) if known else None
-
-
-def test_each_model_counts_the_pages_it_worked_on_and_what_all_its_work_on_them_cost(no_runs):
-    client = TestClient(create_app(public_only=True), base_url=LOCAL)
-    models = {section['title']: section for section in client.get('/api/overview').json()['models']}
     rows = readings.Readings().rows()
-    attempts = [(row, attempt) for row in rows for attempt in row.get('attempts') or []]
-    judged = [(row, row['check']['judge']) for row in rows if (row.get('check') or {}).get('judge')]
-    for found in models['Readings by model']['rows']:
-        mine = [(row, attempt) for row, attempt in attempts if overview.reader_of(attempt) == found['value']]
-        assert found['free'] == len({(row['work'], row['pdf_page']) for row, _ in mine}), found['value']
-        # a reading read in a Claude Code session has no cost an API ledger holds (280.a): a model whose every reading
-        # was read so is not measurable, None, never 0
-        cost = known_sum(attempt['cost_usd'] for _, attempt in mine)
-        assert found['free_usd'] == (None if cost is None else pytest.approx(cost, abs=1e-3)), found['value']
-        assert found['licensed'] is None and found['licensed_usd'] is None  # not served
-    assert sum(found['free_usd'] or 0 for found in models['Judgements by model']['rows']) == pytest.approx(
-        known_sum(judge['cost_usd'] for _, judge in judged) or 0, abs=1e-3)
-    # a provider is paid for its readings and its judgements alike
-    providers = {found['value']: found['free_usd'] for found in models['By provider, readings and judgements']['rows']}
-    assert sum(cost or 0 for cost in providers.values()) == pytest.approx(
-        (known_sum(attempt['cost_usd'] for _, attempt in attempts) or 0) + (known_sum(judge['cost_usd'] for _, judge in judged) or 0),
-        abs=1e-3)
-    # the headline's cost is what the provider box adds up to
-    free = next(base for base in client.get('/api/overview').json()['bases'] if base['knowledge_base'] == 'free')
-    assert free['cost_usd'] == pytest.approx(sum(cost or 0 for cost in providers.values()), abs=1e-3)
-    for section in models.values():
-        assert section['linked']
-        for found in section['rows'][:2]:
-            listed = client.get('/api/pages', params={'knowledge_base': 'free', section['field']: found['value']}).json()
-            assert len(listed['rows']) == found['free'], (section['title'], found['value'])
+    for field in ('route', 'state', 'person', 'review', 'category', 'why_judged', 'verdict', 'reason', 'reader', 'judge', 'provider'):
+        counts: dict[str, int] = {}
+        for row in rows:
+            for value in overview.values_of(field, row):
+                counts[value] = counts.get(value, 0) + 1
+        for value, count in sorted(counts.items(), key=lambda pair: -pair[1])[:2]:
+            listed = client.get('/api/pages', params={'knowledge_base': 'free', field: value}).json()['rows']
+            assert len(listed) == count, (field, value)
+
+
+def test_a_page_list_resolves_each_works_title_once_not_once_per_page(monkeypatch, no_runs):
+    # asked per page, each title cost a stat of the export's index: 28,854 for the unfiltered list, 114 s over the
+    # container's bind mount (19 Nov)
+    asked = []
+    title = readings.Readings.title
+    monkeypatch.setattr(readings.Readings, 'title', lambda self, source_id: asked.append(source_id) or title(self, source_id))
+    listed = overview.pages({'free': readings.Readings()}, {}).rows
+    assert listed and len(asked) == len({page.source_id for page in listed})
+    asked.clear()
+    issues = readings.issues({'free': readings.Readings()}).rows
+    assert len(asked) == len({page.source_id for page in issues})
 
 
 def test_a_cost_the_export_does_not_give_stays_unknown_and_a_known_one_is_never_lost():
@@ -125,60 +191,19 @@ def test_filters_add_up_and_a_page_list_names_its_work(no_runs):
     assert client.get('/api/pages', params={'knowledge_base': 'other'}).status_code == 422
 
 
-def test_the_latest_runs_stand_newest_first_with_their_batches(no_runs):
-    with sqlite3.connect(no_runs / 'free.sqlite') as db:
-        db.executescript(pipeline_db.SCHEMA)
-        for number in range(1, 11):
-            db.execute('INSERT INTO runs (knowledge_base, command, started_at, outcome, cost_usd, batch_ids) VALUES (?, ?, ?, ?, ?, ?)',
-                       ('free', f'python -m backend.conversion.checks.check_run {number}', f'2026-11-05T0{number % 10}:00:00+00:00',
-                        'ok', 0.01 * number, '["msgbatch_01"]' if number == 10 else None))
-    bases, _ = answer_of(TestClient(create_app(public_only=True), base_url=LOCAL))
-    runs = bases['free']['runs']
-    assert [run['run_id'] for run in runs] == [10, 9, 8, 7, 6, 5, 4, 3]
-    assert runs[0]['batch_ids'] == ['msgbatch_01'] and runs[1]['batch_ids'] == []
-
-
-def test_the_search_is_counted_once_it_is_built_and_says_so_before(monkeypatch, no_runs):
-    page = page_index.Page('wikipedia_trading_set', 's2', 1, 'The Kelly criterion sizes a bet.', 'corpus/raw/x.html',
-                           knowledge_base='free', route='html, parsed by section')
-    service = search_server.SearchService({'free': ([page], {page.work: search_server.Work(
-        page.work, 'Wikipedia', 'free', 'CC BY-SA', page.route)})})
-    monkeypatch.setattr(search_hits, 'build_service', lambda public_only: service)
-    client = TestClient(create_app(public_only=True), base_url=LOCAL)
-    bases, before = answer_of(client)
-    assert before['In the search, every medium']['rows'] == [] and 'still being built' in before['In the search, every medium']['note']
-    # what the search serves is not known before the index stands, and not guessed
-    assert (bases['free']['served_works'], bases['free']['served_pages']) == (None, None)
-    client.get('/api/search', params={'q': 'kelly'})  # builds it
-    bases, after = answer_of(client)
-    search = after['In the search, every medium']
-    assert search['linked'] is False and search['note'] is None
-    assert search['rows'] == [{'value': 'html, parsed by section', 'free': 1, 'licensed': None}]
-    # the headline says what the search serves beside what was read, counted as the server's start banner counts it
-    # (the operator's 1.a): an HTML work the readings never hold is served all the same
-    free = bases['free']
-    assert (free['served_works'], free['served_pages']) == (1, 1)
-    assert free['works'] == len({row['source_id'] for row in readings.Readings().rows()})
-    assert 'free 1 pages in 1 works' in search_server.banner(service, [], None, True)[2]
-    assert bases['licensed']['served'] is False and bases['licensed']['served_works'] is None
-
-
 @pytest.mark.readings
-def test_the_overview_counts_a_page_a_person_settled_apart_from_what_is_to_look_at_and_opens_it_by_its_bucket(tmp_path):
+def test_a_page_a_person_settled_is_not_to_look_at_and_opens_by_its_bucket(tmp_path):
     from test_diagnostics_readings import KELLY, settled_corpus
 
     corpus, (accepted, noted, archived, untouched, passed) = settled_corpus(tmp_path)
-    counted = overview.counted(corpus)
-    states = counted.counts['state']
-    assert states[readings.DECIDED] == 2 and states['issue'] == 2
-    assert counted.to_look_at == sum(1 for row in corpus.rows() if readings.listed_state(row) in readings.LISTED_AS_ISSUE)
-    # a figure opens exactly the pages it counts, the bucket too
+    assert overview.counted(corpus).to_look_at == sum(1 for row in corpus.rows() if readings.listed_state(row) in readings.LISTED_AS_ISSUE)
+    # a bucket opens exactly its pages
     listed = overview.pages({'free': corpus}, {'state': readings.DECIDED}).rows
     assert sorted(page.pdf_page for page in listed if page.source_id == KELLY) == sorted([accepted, noted])
 
 
 @pytest.mark.readings
-def test_a_reading_file_changed_after_its_check_is_counted_at_once_and_its_page_listed(tmp_path):
+def test_a_reading_file_changed_after_its_check_is_found_by_the_integrity_filter(tmp_path):
     from test_diagnostics_readings import KELLY, a_corpus, kelly_rows
 
     rows = [row for row in kelly_rows() if row.get('text_file')][:2]
@@ -192,7 +217,6 @@ def test_a_reading_file_changed_after_its_check_is_counted_at_once_and_its_page_
 @pytest.mark.readings
 def test_a_reading_file_is_hashed_again_only_when_its_time_or_size_changed(tmp_path, monkeypatch):
     from backend.conversion.checks import integrity
-    from backend.diagnostics import page_integrity
     from test_diagnostics_readings import a_corpus, kelly_rows
 
     row = next(row for row in kelly_rows() if row.get('text_file'))
@@ -212,53 +236,12 @@ def test_a_reading_file_is_hashed_again_only_when_its_time_or_size_changed(tmp_p
 
 
 @pytest.mark.readings
-def test_the_overview_counts_an_export_anew_once_it_is_written_again(tmp_path, no_runs):
-    import json
-
+def test_the_headline_counts_an_export_anew_once_it_is_written_again(tmp_path):
     from test_diagnostics_readings import a_corpus, kelly_rows
 
     corpus = a_corpus(tmp_path, kelly_rows()[:3])
-    search = search_hits.Search(True)
-    assert overview.overview({'free': corpus}, search, True).bases[0].pages == 3
+    assert overview.counted(corpus).pages == 3
     index = json.loads(corpus.index.read_text(encoding='utf-8'))
     index['pages'] = index['pages'][:2]
     corpus.index.write_text(json.dumps(index), encoding='utf-8')
-    assert overview.overview({'free': corpus}, search, True).bases[0].pages == 2
-
-
-def test_the_overview_says_whether_each_reading_is_what_was_checked(no_runs):
-    _, sections = answer_of(TestClient(create_app(public_only=True), base_url=LOCAL))
-    box = sections['Is the reading what was checked']
-    assert box['field'] == 'integrity' and box['linked']
-    assert sum(row['free'] for row in box['rows']) == len(readings.Readings().rows())
-
-
-@pytest.mark.readings
-def test_a_persons_verdicts_are_counted_by_their_standing_and_open_their_pages(no_runs):
-    client = TestClient(create_app(public_only=True), base_url=LOCAL)
-    _, sections = answer_of(client)
-    all_marks = [mark for row in readings.Readings().rows() if (mark := readings.person_mark(row))]
-    marks = [mark.standing for mark in all_marks if mark.by_a_person]
-    counted = {row['value']: row['free'] for row in sections["A person's verdict"]['rows']}
-    assert counted == {standing: marks.count(standing) for standing in set(marks)} and counted.get('accepted')
-    listed = client.get('/api/pages', params={'person': 'accepted'}).json()['rows']
-    assert len(listed) == counted['accepted'] and all(row['person']['standing'] == 'accepted' for row in listed)
-    assert all(row['person']['by_a_person'] for row in listed)
-    # an automated review's verdicts in a section of their own, never a person's (the operator's 2.a, 18 Nov)
-    reviews = [mark.standing for mark in all_marks if not mark.by_a_person]
-    counted = {row['value']: row['free'] for row in sections["An automated review's verdict"]['rows']}
-    assert counted == {standing: reviews.count(standing) for standing in set(reviews)}
-    for standing in counted:
-        listed = client.get('/api/pages', params={'review': standing}).json()['rows']
-        assert len(listed) == counted[standing] and not any(row['person']['by_a_person'] for row in listed)
-
-
-@pytest.mark.readings
-def test_the_pages_are_counted_by_category_and_each_count_opens_its_pages(no_runs):
-    client = TestClient(create_app(public_only=True), base_url=LOCAL)
-    _, sections = answer_of(client)
-    counted = {row['value']: row['free'] for row in sections['Page category']['rows']}
-    rows = readings.Readings().rows()
-    assert sum(counted.values()) == len(rows) and counted['exercise'] == sum(row.get('category') == 'exercise' for row in rows)
-    listed = client.get('/api/pages', params={'category': 'exercise'}).json()['rows']
-    assert len(listed) == counted['exercise'] and all(row['category'] == 'exercise' for row in listed)
+    assert overview.counted(corpus).pages == 2

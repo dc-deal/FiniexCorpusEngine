@@ -1634,3 +1634,24 @@ the operator: where the API's state totals stand above the bar (SC1), and the ca
 listed calls (SC2). **Measured:** unit tests of each view's narrowing in the panel, the order, the address and the stored
 calls; the browser checks that picked a toggle pick in the panel now, and a work's chapters keep their filter across a
 reload. 375 unit tests, 78 checks in the browser (3 skipped on today's data), 1,462 Python tests.
+
+**The overview as one corpus (the operator's O3.a, 19 Nov; first part).** The overview took 35 to 65 s a load in the
+container (48.5 s measured), and stood the knowledge bases side by side in column pairs (the operator: "today there is only
+one corpus"). It is now a headline summed in the API over the bases served, each figure's part per base in its card: the
+works, the pages planned, those that passed with their share and the pages the search serves, from each base's shelf as
+the core builds it, and the pages to look at and what the work cost, from each export, the cost's card with each provider's
+part. Beneath it the latest runs of both bases in one table, newest first, each with its base's mark. A base the sums
+leave out says why (under `--public-only` the licensed one), and so does a base whose shelf is not built. The tables of
+counts by route, state, verdicts, category, why judged, reasons, model and the integrity of each reading file, and the
+search's count per medium, are gone. Every count of a page they gave is the page list's filter by the same field, which a
+test holds field by field; the costs per model and the search's count per medium have no such counterpart, and go (line 1:
+the providers stay in the cost's card, and the shelf says per work what the search serves). Three costs were found on the
+way. The integrity table stat-ed some 10,200 reading files on each load; integrity is now asked only through its filter.
+Every page list asked each page's work title anew, each a stat of the export's index, 28,854 for the unfiltered list (114 s
+in the container, 0.64 s natively); titles are resolved once per list, which the Issues use too. And the latest runs were
+read whole from each pipeline database on every load (0.27 s a base natively); they are kept while the database, and its
+write-ahead log, are unchanged. A run that recorded no end says so in line 1's words, "no end recorded", its meaning in its
+card, never "failed" (D10, here because the overview's runs show it). **Measured natively, both bases:** the overview
+1.0 s cold and 0.07 s warm, the unfiltered page list 0.45 s, the Issues 0.03 s. **Open:** the shelf's shares and history
+(X1.a, the core's data first), and a way to choose the Pages filters in the view (P1, with the operator). 372 unit tests,
+78 checks in the browser (3 skipped on today's data), 1,462 Python tests.

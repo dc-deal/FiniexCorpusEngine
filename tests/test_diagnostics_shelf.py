@@ -24,7 +24,7 @@ def a_shelf(knowledge_base='free', **row):
             'served': {'pages': 15, 'searchable': 15, 'from_readings': 11, 'by_route': {'vision reading': 11, 'text layer': 4}},
             'unplaced': {}, 'held': None, 'not_served': None, **row}
     return {'about': 'test', 'knowledge_base': knowledge_base, 'built_at': '2026-11-08T17:56:17+00:00',
-            'totals': {'works': 1, 'planned': 15, 'passed': 11}, 'works': [item]}
+            'totals': {'works': 1, 'planned': 15, 'passed': 11, 'share_passed': 0.7333}, 'works': [item]}
 
 
 @pytest.fixture
@@ -41,6 +41,8 @@ def test_every_work_stands_with_the_cores_counts_each_reason_opening_its_pages_b
     given['free'] = a_shelf(unplaced={'unexplained': 2})
     free = TestClient(create_app(public_only=True), base_url=LOCAL).get('/api/shelf').json()['bases'][0]
     assert free['built_at'] == '2026-11-08T17:56:17+00:00' and free['totals']['planned'] == 15
+    # a share the core adds to the totals since X1.a (19 Nov) stands as it is, a fraction, never refused
+    assert free['totals']['share_passed'] == 0.7333
     [row] = free['works']
     assert (row['planned'], row['passed'], row['share_passed'], row['has_pages']) == (15, 11, 0.7333, True)
     assert row['not_passed'] == [{'reason': 'blocked', 'count': 3, 'route': TEXT_LAYER_WHY['blocked']},
