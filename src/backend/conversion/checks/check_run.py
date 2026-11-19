@@ -15,6 +15,7 @@ reasons, never page text.
 
 import argparse
 import json
+import random
 import re
 import sys
 from collections import Counter
@@ -84,6 +85,39 @@ def policy_of(store, cells: list[str] = ()) -> check_flow.Policy:
 
 
 EVERY_PAGE = 10 ** 6  # a sample larger than any work
+# The operator's V1.b (19 Nov): a work the session read whole (`direct_reader pages --add-work`, a scanned book) is judged by
+# a seeded sample of this many pages, the rest served unjudged; the stop rule holds as for every sample (more than 15 % of the
+# sample bad stops the work). A scan has no text layer, so stage 2 flags none of its blocks as checked and 83.a would send
+# every page to the judge: the sample replaces that for such a work alone.
+WHOLE_WORK_SAMPLE = 60
+
+
+def whole_works(cells: list[str]) -> set[str]:
+    """The works the direct cell took whole, by their key (the file's stem), from its page list's `added_works`."""
+    from backend.conversion.reading import reading_cells
+
+    lists = set(reading_cells.DIRECT_PAGES.values())
+    works = set()
+    for name in cells:
+        source = Path(reading_cells.known_cells()[name].page_source)
+        if source in lists and source.exists():
+            works |= {Path(file_name).stem for file_name in json.loads(source.read_text(encoding='utf-8')).get('added_works', [])}
+    return works
+
+
+def whole_work_sample(selection: check_flow.Selection, pages: list[dict], works: set[str]) -> check_flow.Selection:
+    """For a work read whole, a seeded sample of `WHOLE_WORK_SAMPLE` of its passed pages in place of every page and of 83.a's
+    unverifiable pages; a page stage 2 found suspicious is still judged."""
+    if not works:
+        return selection
+    own = {page['key'] for page in pages if page['work'] in works}
+    sample = set()
+    for work in sorted(works):
+        usable = sorted(page['key'] for page in pages if page['work'] == work and page['result_class'] == 'ok'
+                        and page['key'] not in selection.suspicious)
+        sample.update(random.Random(work).sample(usable, min(WHOLE_WORK_SAMPLE, len(usable))))
+    return check_flow.Selection(selection.suspicious, frozenset((selection.sampled - own) | sample),
+                                frozenset(selection.unverifiable - own), selection.reread)
 
 
 SAMPLE_FILE = 'judge_sample.json'  # the random sample of a mirror, whatever cells a plan names
@@ -144,6 +178,7 @@ def plan(args) -> dict:
     reread = frozenset(record['reading_key'] for record in records
                        if record.get('retry_of') and classes[record['reading_key']] == 'ok')
     selection = check_flow.Selection(selection.suspicious, selection.sampled, selection.unverifiable, reread)
+    selection = whole_work_sample(selection, pages, whole_works(cells))  # V1.b: a whole scanned work by a sample
     store.write_report(SAMPLE_FILE, {'sampled': sorted(selection.sampled | set(earlier_sample(store)))})
     entries = [page_judge.entry_for(record, parsed[record['reading_key']], JUDGE_MODEL)
                for record in records if record['reading_key'] in selection.keys]

@@ -101,3 +101,20 @@ def test_the_licensed_mirror_samples_twice_as_many_pages_with_the_same_stopping_
     free, licensed = check_run.policy_of(reading_store.open_store('free')), check_run.policy_of(reading_store.open_store('licensed'))
     assert licensed.sample_per_work == 2 * free.sample_per_work
     assert licensed.stop_above / licensed.sample_per_work == free.stop_above / free.sample_per_work
+
+
+def test_a_work_read_whole_is_judged_by_a_sample_of_sixty_and_its_suspicious_pages():
+    # the operator's V1.b (19 Nov): a scanned book read whole in the session; stage 2 cannot check a scan, so 83.a would send
+    # every page to the judge: a seeded sample of 60 stands in for that, the rest served unjudged, the stop rule unchanged
+    from backend.conversion.checks import check_flow
+
+    pages = [{'key': f'b{n:03d}', 'work': 'book', 'result_class': 'ok'} for n in range(100)] + \
+            [{'key': 'o1', 'work': 'other', 'result_class': 'ok'}, {'key': 'b100', 'work': 'book', 'result_class': 'malformed'}]
+    every = check_flow.Selection(frozenset({'b007'}), frozenset(page['key'] for page in pages if page['result_class'] == 'ok'),
+                                 frozenset(f'b{n:03d}' for n in range(100)))
+    picked = check_run.whole_work_sample(every, pages, {'book'})
+    book = {key for key in picked.sampled if key.startswith('b')}
+    assert len(book) == check_run.WHOLE_WORK_SAMPLE and 'b007' not in book and 'b007' in picked.suspicious
+    assert 'o1' in picked.sampled and not picked.unverifiable  # another work keeps every page
+    assert picked == check_run.whole_work_sample(every, pages, {'book'})  # seeded: the same sample every time
+    assert check_run.whole_work_sample(every, pages, set()) == every
