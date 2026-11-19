@@ -734,3 +734,15 @@ The record of how the diagnostics frontend came about, mistakes included.
   shell heredoc, the trap `.claude/rules/machine.md` names; the scripts went into files after it. **Between:** H2.a
   (line 1's, the fallback a page names) merged first; stage A waited in a stash, as both touch `readings.py`, and came
   back onto the new main with only the built `dist/` in conflict, which a fresh build replaced.
+- **Y1.a stage B, first part: ranks and the card** (line 1 agreed B1.a and B2, 19 Nov; B3 and B4 with the operator).
+  Before choosing, a probe in Chrome settled whether a real `<table>` with a fixed layout can give up columns by a
+  container query: it can, the hidden `col` returns its width to the others. So the ranks went into the library's data
+  table rather than a second, list-shaped component beside it (the viewer's `RecordList` needs its subgrid because each
+  of its rows is a button; ours hold links). **Mistakes:** (1) a series' heading kept its one cell spanning seven columns;
+  on a phone's table, which keeps two, the browser drew five more columns for it and the work's column shrank to a
+  letter, "WorkStructure" in the head. The first fit check did not see it: it measured the body's cells only and knew no
+  floor for the work's column. It now measures the head too and holds the work's column to 8 rem, shown failing on the
+  spanning heading put back. (2) The fit check counted a row's open hover card, fixed over the page, as text running out
+  of its cell: the pointer from the series' click stood on a row after the window narrowed. The check now skips a card
+  and moves the pointer away. (3) It first measured a cell that ends in an ellipsis by its clipped text instead of its
+  box. The first was the view's, the other two the check's; all three were found before the report.

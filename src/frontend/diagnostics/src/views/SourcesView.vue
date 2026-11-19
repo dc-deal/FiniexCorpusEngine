@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import AppButton from '@/components/base/AppButton.vue'
 import DataTable from '@/components/base/DataTable.vue'
 import FacetBar from '@/components/base/FacetBar.vue'
+import HoverCard from '@/components/base/HoverCard.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
@@ -29,12 +30,38 @@ import { useScrollRestore } from '@/use_scroll_restore'
  * where the reader stood.
  */
 const store = useSourceStore()
-// Work, Authors and Publisher share what the fixed columns leave. A fixed column is as wide as its longest word and its
-// gap to the next (`--space-md`, the cells' right padding): "licensed" with its glyph, "12th edition", "trading_finance",
-// "(licensed)"; so none of their words is ever split, and nothing runs into the next cell (the operator, 18 Nov: the
-// knowledge base ran into the structure, "trading_financ|e", "5th editio|n")
-const fixed = (width: string) => ({ width: `calc(${width} + var(--space-md))` })
-const COLUMNS = [{}, fixed('11ch'), fixed('26ch'), {}, {}, fixed('12ch'), fixed('5ch'), fixed('16ch'), fixed('16ch')]
+// Work and Authors share what the fixed columns leave, each on one line, the whole text in the row's card. A fixed column is
+// as wide as its longest word and its gap to the next (`--space-md`, the cells' right padding): "licensed" with its glyph,
+// "12th edition", "trading_finance"; so none of their words is ever split, and nothing runs into the next cell (the
+// operator, 18 Nov: "trading_financ|e", "5th editio|n"). Ranked (Y1.a, B2): as the table narrows, the topic goes first, then
+// the year and the format, then the authors, then the knowledge base; the work and its structure stay. Publisher and
+// licence stand in the card only: long, and 63 of 78 works carried one licence (measured 19 Nov)
+const fixed = (width: string, rank?: 2 | 3 | 4 | 5) => ({ width: `calc(${width} + var(--space-md))`, rank })
+const COLUMNS = [{}, fixed('11ch', 2), fixed('26ch'), { rank: 3 as const }, fixed('12ch', 4), fixed('5ch', 4), fixed('16ch', 5)]
+// a series' heading stands in the work's column and leaves an empty cell in each other, each with its column's rank: a
+// cell spanning all seven made a narrow table, which keeps two, add five columns of its own and squeeze the work's to a
+// letter (measured at 390 px, 19 Nov)
+const AFTER_WORK = COLUMNS.slice(1).map(column => column.rank)
+
+/** A work's whole record under the pointer, what its row shortens or leaves out: the rows the API gave, an empty one left out. */
+function cardRows(work: Work): { label: string, value: string | null | undefined }[] {
+  const series = work.series
+    ? `${work.series.title}, part ${work.series.part} of ${work.series.of}${work.series.version ? ` (${work.series.version})` : ''}`
+    : null
+  return [
+    { label: 'id', value: work.id },
+    { label: 'authors', value: work.authors },
+    { label: 'publisher', value: work.publisher },
+    { label: 'year', value: work.year ? String(work.year) : null },
+    { label: 'edition', value: work.edition ? `${work.edition} edition` : null },
+    { label: 'licence', value: work.licence },
+    { label: 'format', value: work.format },
+    { label: 'topic', value: work.shelf },
+    { label: 'series', value: series },
+    { label: 'notes', value: work.notes },
+    { label: 'structure', value: work.structure_why_not },
+  ]
+}
 const { works, error, loaded } = storeToRefs(store)
 
 /** A facet's values, the field's own words; a work without the field states none and is matched only by an empty facet. */
@@ -142,63 +169,70 @@ onMounted(() => {
     <p v-if="loaded && works.length && !shown.length" class="empty" data-part="none-match">
       No work matches the search and the filters.
     </p>
-    <DataTable v-else-if="loaded && works.length" table-class="works ruled" fixed min-width="64rem" :columns="COLUMNS">
+    <!-- the table fits the content width at every width: below each rung of its own width it gives up a rank of columns
+         (B2), so it never scrolls sideways; each cell states its column's rank, as the column does -->
+    <DataTable v-else-if="loaded && works.length" table-class="works ruled" fixed :columns="COLUMNS">
       <template #head>
         <tr>
           <th>Work</th>
-          <th>Knowledge base</th>
+          <th data-rank="2">Knowledge base</th>
           <!-- how the work is cut, by its format's model (the operator's 4.a): a PDF by its pages, an HTML work by its headings -->
           <th>Structure</th>
-          <th>Authors</th>
-          <th>Publisher</th>
-          <th>Year</th>
-          <th>Format</th>
+          <th data-rank="3">Authors</th>
+          <th data-rank="4">Year</th>
+          <th data-rank="4">Format</th>
           <!-- the catalog's topic shelf (trading_finance, architecture), not the Shelf view's counts (the operator's 23.a) -->
-          <th>Topic</th>
-          <th>Licence</th>
+          <th data-rank="5">Topic</th>
         </tr>
       </template>
       <tbody>
         <template v-for="line in lines" :key="lineKey(line)">
           <!-- a series' heading: its title and how many of its parts the bar leaves, closed until opened -->
           <tr v-if="line.kind === 'head'" class="series-head" :data-series="line.key">
-            <td colspan="9">
-              <AppButton variant="quiet" class="series-toggle" :aria-expanded="line.open" @click="toggleGroup(line.key)">
-                <span class="series-glyph" aria-hidden="true">{{ line.open ? '▾' : '▸' }}</span>
-                <span class="series-title">{{ line.title }}</span>
-              </AppButton>
-              <span class="series-count">{{ line.works }} works</span>
+            <td>
+              <div class="series-line">
+                <AppButton variant="quiet" class="series-toggle" :aria-expanded="line.open" @click="toggleGroup(line.key)">
+                  <span class="series-glyph" aria-hidden="true">{{ line.open ? '▾' : '▸' }}</span>
+                  <span class="series-title">{{ line.title }}</span>
+                </AppButton>
+                <span class="series-count">{{ line.works }} works</span>
+              </div>
             </td>
+            <td v-for="(rank, at) in AFTER_WORK" :key="at" :data-rank="rank" />
           </tr>
           <tr v-else :class="{ 'in-series': line.under }" :data-work="line.work.id" :data-kb="line.work.knowledge_base">
-            <td class="shared">
-              <RouterLink
-                v-if="line.work.readings"
-                class="work-title"
-                :to="{ name: 'work', params: { kb: line.work.knowledge_base, work: line.work.id } }"
-              >
-                {{ line.work.title }}
-              </RouterLink>
-              <RouterLink
-                v-else-if="line.work.epub_key"
-                class="work-title"
-                :to="{ name: 'epub-work', params: { kb: line.work.knowledge_base, work: line.work.epub_key } }"
-              >
-                {{ line.work.title }}
-              </RouterLink>
-              <RouterLink
-                v-else-if="line.work.format === 'html'"
-                class="work-title"
-                :to="{ name: 'html-work', params: { kb: line.work.knowledge_base, work: line.work.id } }"
-              >
-                {{ line.work.title }}
-              </RouterLink>
-              <span v-else class="work-title">{{ line.work.title }}</span>
-              <span class="work-id">{{ line.work.id }}</span>
-              <!-- a few words about a licensed copy, from the local licensed catalog (N1.a): "stand-in file", "lecture slides" -->
-              <span v-if="line.work.notes" class="work-notes" data-part="work-notes">{{ line.work.notes }}</span>
+            <td class="work-cell">
+              <!-- the whole record under the pointer and on the keyboard's focus: the title, id and notes shortened to a line
+                   each here, the publisher and licence that stand nowhere else (B2, tip 3) -->
+              <HoverCard class="work-card" :title="line.work.title" :rows="cardRows(line.work)">
+                <RouterLink
+                  v-if="line.work.readings"
+                  class="work-title"
+                  :to="{ name: 'work', params: { kb: line.work.knowledge_base, work: line.work.id } }"
+                >
+                  {{ line.work.title }}
+                </RouterLink>
+                <RouterLink
+                  v-else-if="line.work.epub_key"
+                  class="work-title"
+                  :to="{ name: 'epub-work', params: { kb: line.work.knowledge_base, work: line.work.epub_key } }"
+                >
+                  {{ line.work.title }}
+                </RouterLink>
+                <RouterLink
+                  v-else-if="line.work.format === 'html'"
+                  class="work-title"
+                  :to="{ name: 'html-work', params: { kb: line.work.knowledge_base, work: line.work.id } }"
+                >
+                  {{ line.work.title }}
+                </RouterLink>
+                <span v-else class="work-title">{{ line.work.title }}</span>
+                <span class="work-id">{{ line.work.id }}</span>
+                <!-- a few words about a licensed copy, from the local licensed catalog (N1.a): "stand-in file", "lecture slides" -->
+                <span v-if="line.work.notes" class="work-notes" data-part="work-notes">{{ line.work.notes }}</span>
+              </HoverCard>
             </td>
-            <td><KnowledgeBaseMark :kb="line.work.knowledge_base" /></td>
+            <td data-rank="2"><KnowledgeBaseMark :kb="line.work.knowledge_base" /></td>
             <td data-cell="structure">
               <template v-if="line.work.readings">
                 <span class="page-count">{{ pageCount(line.work.readings.pages) }} · read and judged</span>
@@ -211,19 +245,18 @@ onMounted(() => {
               <span v-else-if="typeof line.work.sections === 'number' && typeof line.work.chunks === 'number'" class="page-count">
                 {{ line.work.sections.toLocaleString('en') }} sections by heading · {{ line.work.chunks.toLocaleString('en') }} chunks
               </span>
-              <span v-else-if="line.work.structure_why_not" class="not-built" :title="line.work.structure_why_not">
+              <!-- why, in the API's words, stands in the row's card, where a browser tooltip stood (decision 179) -->
+              <span v-else-if="line.work.structure_why_not" class="not-built">
                 sections by heading · search index not built
               </span>
               <!-- a licensed catalog entry the export holds no pages of (O1.a), in the API's words, until the core reads it -->
               <span v-else-if="line.work.not_read" class="page-count" data-part="not-read">{{ line.work.not_read }}</span>
             </td>
-            <td class="shared">{{ line.work.authors }}</td>
-            <td class="shared">{{ line.work.publisher }}</td>
+            <td class="authors" data-rank="3">{{ line.work.authors }}</td>
             <!-- a licensed copy's edition beside its year, where the catalog names one (N1.a) -->
-            <td>{{ line.work.year }}<span v-if="line.work.edition" class="edition" data-part="edition">{{ `${line.work.year ? ' · ' : ''}${line.work.edition} edition` }}</span></td>
-            <td>{{ line.work.format }}</td>
-            <td>{{ line.work.shelf }}</td>
-            <td>{{ line.work.licence }}</td>
+            <td data-rank="4">{{ line.work.year }}<span v-if="line.work.edition" class="edition" data-part="edition">{{ `${line.work.year ? ' · ' : ''}${line.work.edition} edition` }}</span></td>
+            <td data-rank="4">{{ line.work.format }}</td>
+            <td data-rank="5">{{ line.work.shelf }}</td>
           </tr>
         </template>
       </tbody>
@@ -247,15 +280,26 @@ onMounted(() => {
   border-bottom: 1px solid var(--color-border);
 }
 
-/* every cell wraps at its words, never past its column; only the three shared columns may split a word too long for any
-   line, a fixed column being as wide as its longest word */
+/* a fixed column's cell wraps at its words, never past its column, as wide as its longest word; the work's lines and the
+   authors stand on one line each and end in an ellipsis where the column is narrower, their whole text in the row's card
+   (Y1.a's tip 3: no word split mid-way, "openstax_principles_of_fina / nce_2e") */
 .works th,
 .works td {
   white-space: normal;
 }
 
-.works td.shared {
-  overflow-wrap: break-word;
+.works td.authors,
+.work-title,
+.work-id,
+.work-notes {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the card's host fills the work's cell, so the lines inside it know the column's width and shorten to it */
+.work-card.hover-card-host {
+  display: block;
 }
 
 .works th,
@@ -277,12 +321,8 @@ a.work-title:hover {
   text-decoration: underline;
 }
 
-/* the id is what a ticket and a reading key name, so it stays on screen beneath the title, broken anywhere where a long
-   one has no space to break at */
-.work-id {
-  overflow-wrap: anywhere;
-}
-
+/* the id is what a ticket and a reading key name, so it stays on screen beneath the title, shortened to its line there and
+   whole in the card */
 .work-id,
 .work-notes,
 .page-count,
@@ -291,22 +331,31 @@ a.work-title:hover {
   color: var(--color-text-secondary);
 }
 
-/* a series' heading spans the row: its toggle with the one disclosure glyph, its title in the heading's weight, and how
-   many of its parts the bar leaves in the colour of what stands beside */
-.series-head td {
-  padding-right: 0;
+/* a series' heading in the work's column: its toggle with the one disclosure glyph, its title in the heading's weight,
+   shortened to the column, and how many of its parts the bar leaves in the colour of what stands beside, always whole */
+.series-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
 }
 
-.series-toggle {
+.series-line .series-toggle {
   gap: var(--space-xs);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .series-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: bold;
 }
 
 .series-count {
-  margin-left: var(--space-sm);
+  flex: none;
+  white-space: nowrap;
   color: var(--color-text-secondary);
 }
 

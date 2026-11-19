@@ -1595,3 +1595,26 @@ toggle in place, a facet's panel in the one size, a pick moves no chip (shown fa
 room taken away: the chips after it moved 19 px), and a reload returns to the scroll position, the open series and the
 bar, while a tab that kept no place opens at its top. 376 unit tests, 78 checks in the browser (3
 skipped on today's data), 1,461 Python tests.
+
+**The sources table ranked, its long fields in a card (Y1.a, stage B, first part: B1.a and B2, 19 Nov).** The sources
+table scrolled sideways below 64 rem and its rows stood 6 to 20 lines high. Its columns now carry a rank, as the
+FiniexViewer's lists do, and the library's data table gives them up as the TABLE narrows, measured on its own width
+through a container query at the viewer's rungs of 34, 48, 62 and 80 rem: the topic goes first, then the year and the
+format, then the authors, then the knowledge base, while the work and its structure stay. Any table of the library may
+now rank its columns; a table that ranks none is measured by nothing and stays as it was. The rank stands on the column
+and on each of its cells, and a browser check holds the two to agree. The publisher and the licence left the table for
+the row's card, a hover card on the work that also holds its whole title, id, authors, year, edition, format, topic,
+series and notes and why a structure is not built (where a browser tooltip stood); the title, the id, the notes and the
+authors stand on one line each and end in an ellipsis. Taken from the viewer: the ladder, its rungs and the rank stated
+twice. Left out: its rows as buttons and the subgrid they need, its bands, its second grouping level, its child records
+and its detail and lead lines, since our rows hold links and a real table lines its columns up by itself. A series'
+heading now stands in the work's column with an empty cell under each other column: one cell spanning all seven made a
+phone's table, which keeps two, draw five columns of its own and squeeze the work's to 1.5 rem. **Measured:** a probe in
+Chrome before the build, a fixed table giving up `col` and cells by a container query at 1,400 to 480 px, every column's
+width returned to the others; unit tests of the table's ranks and of the view's columns, cells and card; a browser check
+at 390, 600, 900, 1,100, 1,280 and 2,000 px that each width shows exactly the ranks its table's width allows, that no
+cell, heading or ellipsis runs past its column, no word of a fixed column splits, the work's column keeps 8 rem, and the
+table never scrolls, shown failing once with the ranks switched off (five columns too many at 22.4 rem, a scroll of
+245 px) and once with the spanning heading put back (the work's column at 1.5 rem). 379 unit tests, 78 checks
+in the browser (3 skipped on today's data), 1,461 Python tests. Open with the operator: the state counts as
+figure columns (B3) and the id on its own line or in the card only (B4).

@@ -2303,7 +2303,81 @@ test('an automated review\'s verdict is named so, never a person\'s, and settles
   await expect(page.locator(`[data-part="decided"] tr[data-page="free/${NMS}/4"]`)).toHaveCount(0)
 })
 
-test('the sources table fits the window at 1,280 and 2,000 px, its last column inside it (18 Nov)', async ({ page }) => {
+// What the sources table gets wrong at a width, as words for a failing check: a cell whose content runs past its column, a
+// word split in a fixed column, a row whose cells' ranks differ from the columns', a rank shown or hidden against the
+// table's own width, a series' heading past the table, a scroll. The table's ranks (Y1.a, B1.a): rank 5 goes below 80 rem
+// of the table's width, 4 below 62, 3 below 48, 2 below 34; a line that ends in an ellipsis must end inside its cell
+async function sourcesFaults(page: Page): Promise<string[]> {
+  return page.locator('.data-scroll').evaluate(scroll => {
+    const found: string[] = []
+    const table = scroll.querySelector('table.works')!
+    const shown = (cell: Element) => getComputedStyle(cell).display !== 'none'
+    const rankOf = (cell: Element) => Number(cell.getAttribute('data-rank') ?? 1)
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize)
+    const width = scroll.getBoundingClientRect().width / rem
+    const deepest = width > 80 ? 5 : width > 62 ? 4 : width > 48 ? 3 : width > 34 ? 2 : 1
+    const heads = [...table.querySelectorAll('thead th')]
+    for (const head of heads) {
+      if (shown(head) !== (rankOf(head) <= deepest)) found.push(`"${head.textContent!.trim()}" (rank ${rankOf(head)}) ${shown(head) ? 'shown' : 'hidden'} at ${width.toFixed(1)} rem`)
+    }
+    const visible = heads.filter(shown)
+    const ranks = visible.map(rankOf).join(' ')
+    // a heading's words inside its column, and the work's column never squeezed below a readable floor (found 19 Nov: a
+    // series' heading spanning more columns than a phone's table keeps squeezed it to a letter, "WorkStructure")
+    for (const head of visible) {
+      const range = document.createRange()
+      range.selectNodeContents(head)
+      const box = head.getBoundingClientRect()
+      if ([...range.getClientRects()].some(rect => rect.width && rect.right > box.right + 0.5)) found.push(`the heading "${head.textContent!.trim()}" runs out`)
+    }
+    const work = visible[0]!.getBoundingClientRect().width / rem
+    if (work < 8) found.push(`the work's column is ${work.toFixed(1)} rem wide`)
+    const FIXED = ['Knowledge base', 'Structure', 'Year', 'Format', 'Topic']
+    if (scroll.scrollWidth > scroll.clientWidth) found.push(`the table scrolls ${scroll.scrollWidth - scroll.clientWidth} px sideways`)
+    const right = table.getBoundingClientRect().right
+    for (const row of table.querySelectorAll('tbody tr')) {
+      const name = row.getAttribute('data-work') ?? row.getAttribute('data-series')
+      if (row.lastElementChild!.getBoundingClientRect().right > right + 0.5) found.push(`${name}: the row runs past the table`)
+      const cells = [...row.children].filter(shown)
+      if (cells.map(rankOf).join(' ') !== ranks) found.push(`${name}: its cells' ranks ${cells.map(rankOf).join(' ')} against the columns' ${ranks}`)
+      cells.forEach((cell, column) => {
+        const box = cell.getBoundingClientRect()
+        const inner = box.right - parseFloat(getComputedStyle(cell).paddingRight)
+        const clipped = (node: Node) => {
+          for (let at = node.parentElement; at && at !== cell; at = at.parentElement) {
+            if (getComputedStyle(at).textOverflow === 'ellipsis') return at
+          }
+          return getComputedStyle(cell).textOverflow === 'ellipsis' ? cell : null
+        }
+        const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          // a row's card floats over the page by design, fixed to the window, and is no part of its cell's width
+          if (node.parentElement!.closest('[data-part="hover-card"]')) continue
+          const line = clipped(node)
+          // a line that ends in an ellipsis: the line itself inside the cell, its text cut at its end
+          const rects = line ? [line.getBoundingClientRect()] : [...(() => {
+            const range = document.createRange()
+            range.selectNodeContents(node)
+            return range.getClientRects()
+          })()]
+          for (const rect of rects) {
+            if (rect.width && (rect.right > (line === cell ? box.right : inner) + 0.5 || rect.left < box.left - 0.5)) found.push(`${name}: "${visible[column]!.textContent!.trim()}" runs out`)
+          }
+          if (!FIXED.includes(visible[column]!.textContent!.trim())) continue
+          for (const word of node.textContent!.matchAll(/\S+/g)) {
+            const range = document.createRange()
+            range.setStart(node, word.index!)
+            range.setEnd(node, word.index! + word[0].length)
+            if (range.getClientRects().length > 1) found.push(`${name}: "${visible[column]!.textContent!.trim()}" splits "${word[0]}"`)
+          }
+        }
+      })
+    }
+    return [...new Set(found)]
+  })
+}
+
+test('the sources table fits its width from a phone to 2,000 px, giving up columns by rank (18 Nov; Y1.a, B1.a)', async ({ page }) => {
   // the operator, on a 2,000 px window: the licence column was cut and the table's scroll bar lay out of sight at the
   // list's end. An invented work with the longest fields a licensed row has, so the check holds whatever the export holds
   const long = { knowledge_base: 'licensed', id: 'an_invented_work_whose_file_stem_runs_long_without_a_single_space_in_it',
@@ -2318,47 +2392,29 @@ test('the sources table fits the window at 1,280 and 2,000 px, its last column i
     authors: 'Author One, Author Two, Author Three, Author Four, Author Five, Author Six, Author Seven (eds.)',
     readings: { pages: 461, states: [{ value: 'ok_unjudged', count: 14 }, { value: 'decided_by_an_automated_review', count: 3 },
       { value: 'issue', count: 9, served: 9 }], routes: [], people: [], reviews: [], categories: [] } }
+  // and two parts of an invented series, its heading open, so a heading and the rows beneath it are measured too
+  const part = (number: number) => ({ ...long, id: `an_invented_course_${number}`, title: `Lecture ${number}`, edition: null,
+    series: { id: 'an_invented_course', title: 'An Invented Course', part: number, of: 2 } })
   await page.route('**/api/works', async route => {
     const response = await route.fetch()
-    await route.fulfill({ response, json: [...await response.json() as object[], long, crowded] })
+    await route.fulfill({ response, json: [...await response.json() as object[], long, crowded, part(1), part(2)] })
   })
-  for (const width of [1280, 2000]) {
+  await page.goto('/#/sources')
+  await settled(page)
+  await page.locator('tr.series-head .series-toggle').click()
+  const shownAt: Record<number, string[]> = {}
+  for (const width of [390, 600, 900, 1100, 1280, 2000]) {
     await page.setViewportSize({ width, height: 900 })
-    await page.goto('/#/sources')
-    await settled(page)
-    const last = (await page.locator('table.works thead th').last().boundingBox())!
-    expect(last.x + last.width, `the last column at ${width} px`).toBeLessThanOrEqual(width)
-    expect(await page.locator('.data-scroll').evaluate(box => box.scrollWidth <= box.clientWidth), `a hidden scroll at ${width} px`).toBe(true)
-    const faults = await page.locator('table.works').evaluate(table => {
-      const found: string[] = []
-      // the fixed columns, whose words are never split: knowledge base, structure, year, format, topic, licence
-      const FIXED = new Set([1, 2, 5, 6, 7, 8])
-      for (const row of table.querySelectorAll('tbody tr')) {
-        [...row.children].forEach((cell, column) => {
-          const box = cell.getBoundingClientRect()
-          const inner = box.right - parseFloat(getComputedStyle(cell).paddingRight)
-          const contents = document.createRange()
-          contents.selectNodeContents(cell)
-          for (const rect of contents.getClientRects()) {
-            if (rect.width && (rect.right > inner + 0.5 || rect.left < box.left - 0.5)) found.push(`${row.getAttribute('data-work')} column ${column} runs out`)
-          }
-          if (!FIXED.has(column)) return
-          const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
-          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            for (const word of node.textContent!.matchAll(/\S+/g)) {
-              const range = document.createRange()
-              range.setStart(node, word.index!)
-              range.setEnd(node, word.index! + word[0].length)
-              if (range.getClientRects().length > 1) found.push(`${row.getAttribute('data-work')} column ${column} splits "${word[0]}"`)
-            }
-          }
-        })
-      }
-      return [...new Set(found)]
-    })
-    expect(faults, `cells at ${width} px`).toEqual([])
+    await page.mouse.move(0, 0)
+    expect(await sourcesFaults(page), `the table at ${width} px`).toEqual([])
+    shownAt[width] = await page.locator('table.works thead th:visible').allTextContents()
   }
+  // the ladder as a reader sees it: at a phone's width the work and its structure, all seven columns on a wide window
+  expect(shownAt[390]).toEqual(['Work', 'Structure'])
+  expect(shownAt[2000]).toEqual(['Work', 'Knowledge base', 'Structure', 'Authors', 'Year', 'Format', 'Topic'])
   await page.screenshot({ path: `${SHOTS}/sources_fit.png` })
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.screenshot({ path: `${SHOTS}/sources_fit_phone.png` })
 })
 
 // Y1.a (the operator, 19 Nov): the sources list narrowed by the facet bar, a series' parts under one heading, and a reload
