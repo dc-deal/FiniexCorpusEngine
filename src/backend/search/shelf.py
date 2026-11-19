@@ -8,7 +8,7 @@ repository, since the licensed rows name private works. The diagnostics frontend
 
     python -m backend.search.shelf                  # both knowledge bases; about a minute, it builds every page
     python -m backend.search.shelf --public-only    # the free knowledge base alone
-    python -m backend.search.shelf --markdown FILE  # also the table for a person, between the markers in FILE
+    python -m backend.search.shelf --milestone NAME # also a line in the corpus's history (X1.a), named this
 """
 
 import argparse
@@ -25,13 +25,11 @@ SHELF = 'shelf.json'  # in each knowledge base's store reports
 # Every reason the serving rule knows, so none is dropped from the counts: a fixed list of six left the pages a person or an
 # automated review rejected out of every total (18 Nov).
 REASONS = tuple(TEXT_LAYER_WHY)
-OTHER = ('rejected', 'rejected_by_review', 'unchecked', 'reset', 'unread')  # the table's last reasons column
 NOTHING_TO_QUOTE = 'nothing to quote on the page (an index, a picture)'
 NO_NUMBERS = 'the legacy text has no PDF page numbers, so its readings cannot be matched page by page'
 BESIDE_LEGACY = 'a stand-in file beside the legacy text of its work, which stands'
 HELD = 'held back by the provenance list (send: false): never sent to a provider'
 NO_ROUTE = 'no legacy text, and no route for this format yet'
-START, END, HISTORY = '<!-- shelf:start -->', '<!-- shelf:end -->', '<!-- shelf:history -->'
 
 
 def reading_counts(rows: dict[int, dict]) -> dict:
@@ -206,7 +204,10 @@ def totals(rows: list[dict]) -> dict:
         for reason, count in row['not_passed'].items():
             total[reason] += count
         total['unplaced'] += sum(row['unplaced'].values())
-    return dict(total)
+    found = dict(total)
+    if found.get('planned'):  # X1.a: the shares the view shows, the core's own figures (the UI computes nothing)
+        found.update(share_read=round(found['read'] / found['planned'], 4), share_passed=round(found['passed'] / found['planned'], 4))
+    return found
 
 
 def write(shelves: dict[str, dict]) -> list[Path]:
@@ -223,79 +224,46 @@ def load(knowledge_base: str) -> dict | None:
     return json.loads(path.read_text(encoding='utf-8')) if path.exists() else None
 
 
-def _cell(value) -> str:
-    return '–' if value in (None, 0, {}) else f'{value:,}' if isinstance(value, int) else str(value)
+HISTORY_FIELDS = ('planned', 'read', 'passed', 'share_passed', 'served', 'served_from_readings')
 
 
-def table(shelves: dict[str, dict]) -> str:
-    """The shelf as one Markdown table for a person, with each base's totals under it."""
-    lines = ['| base | work | file | pages | planned | passed | % | blocked/refused | judge issue | malformed | rejected/other | '
-             'served | from readings | note |', '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|']
-    for name, shelf in shelves.items():
-        for row in shelf['works']:
-            lost = row['not_passed']
-            share = f"{row['share_passed']:.0%}" if row['share_passed'] is not None else '–'
-            why = '; '.join(f'{count} passed readings unused' if reason == row['not_served'] else f'{count} {reason}'
-                            for reason, count in row['unplaced'].items())
-            why = '; '.join(filter(None, [row['held'], row['not_served'] if row['not_served'] != row['held'] else None, why]))
-            lines.append(f"| {name} | {row['work'] or '–'} | {row['file'] or row['format']} | {_cell(row['pages'])} | "
-                         f"{_cell(row['planned'])} | {_cell(row['passed'])} | {share} | "
-                         f"{_cell(lost.get('blocked', 0) + lost.get('refused', 0))} | "
-                         f"{_cell(lost.get('issue', 0) + lost.get('stopped', 0))} | "
-                         f"{_cell(lost.get('malformed', 0) + lost.get('no_page', 0))} | "
-                         f"{_cell(sum(lost.get(reason, 0) for reason in OTHER))} | {_cell(row['served']['pages'])} | "
-                         f"{_cell(row['served']['from_readings'])} | {why or '–'} |")
-    for name, shelf in shelves.items():
-        total = shelf['totals']
-        lines += ['', f"**{name}, built {shelf['built_at']}:** {total['works']} works, {total.get('planned', 0):,} pages planned, "
-                      f"{total.get('passed', 0):,} passed, {total.get('served', 0):,} served "
-                      f"({total.get('served_from_readings', 0):,} from readings), "
-                      f"{total.get('blocked', 0) + total.get('refused', 0):,} blocked or refused, "
-                      f"{total.get('issue', 0) + total.get('stopped', 0):,} judge issues, "
-                      f"{total.get('malformed', 0) + total.get('no_page', 0):,} malformed, "
-                      f"{total.get('rejected', 0):,} rejected by a person, "
-                      f"{total.get('rejected_by_review', 0):,} by an automated review, "
-                      f"{sum(total.get(reason, 0) for reason in ('unchecked', 'reset', 'unread')):,} unchecked or reset, "
-                      f"{total.get('unplaced', 0):,} passed but not served."]
-    return '\n'.join(lines)
+def history() -> dict:
+    """The corpus's milestones, oldest first (X1.a, the operator, 19 Nov: the shelf in the view, in place of a person's file).
+    A row holds each knowledge base's figures apart, so a view of the free base alone never shows the other's; the rows taken
+    over from that file (up to 19 Nov) hold both bases summed, as `both`."""
+    path = data_paths.SHELF_HISTORY
+    return json.loads(path.read_text(encoding='utf-8')) if path.exists() else {
+        'about': "the corpus's milestones, written by `python -m backend.search.shelf --milestone NAME`; per row each knowledge "
+                 "base's figures, apart", 'rows': []}
 
 
-def into_markdown(path: Path, shelves: dict[str, dict], milestone: str | None = None) -> None:
-    """Put the table between the markers of a person's file, everything else in it kept; with a milestone, one line more in
-    the history under its marker. A file without the markers gets them at its end."""
-    text = path.read_text(encoding='utf-8') if path.exists() else ''
-    block = f'{START}\n{table(shelves)}\n{END}'
-    if START in text and END in text:
-        text = text[:text.index(START)] + block + text[text.index(END) + len(END):]
-    else:
-        text = text.rstrip('\n') + ('\n\n' if text else '') + block + '\n'
-    if milestone:
-        total = Counter()
-        for shelf in shelves.values():
-            total.update(shelf['totals'])
-        line = (f"| {datetime.now(UTC).date().isoformat()} | {milestone} | {total['planned']:,} | {total['passed']:,} | "
-                f"{total['served_from_readings']:,} | {total['blocked'] + total['refused']:,} | "
-                f"{total['issue'] + total['stopped']:,} | {total['malformed'] + total['no_page']:,} |")
-        if HISTORY not in text:
-            text = text.rstrip('\n') + f'\n\n## History\n\n{HISTORY}\n'
-        head, tail = text.split(HISTORY, 1)
-        text = head + HISTORY + tail.rstrip('\n') + '\n' + line + '\n'
-    path.write_bytes(text.encode('utf-8'))
+def milestone_row(shelves: dict[str, dict], name: str, at: str | None = None) -> dict:
+    """One milestone: its date, its name, and per knowledge base its shelf's totals that the history keeps."""
+    return {'at': at or datetime.now(UTC).date().isoformat(), 'milestone': name,
+            'bases': {base: {field: shelf['totals'].get(field) for field in HISTORY_FIELDS} for base, shelf in shelves.items()}}
+
+
+def add_milestone(shelves: dict[str, dict], name: str) -> Path:
+    """Append one milestone to the corpus's history; earlier rows stay as they are."""
+    kept = history()
+    kept['rows'].append(milestone_row(shelves, name))
+    path = data_paths.SHELF_HISTORY
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(kept, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
+    return path
 
 
 def main() -> None:
     sys.stdout.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--public-only', action='store_true', help='the free knowledge base alone')
-    parser.add_argument('--markdown', type=Path, help='a Markdown file whose shelf block is replaced by the table')
-    parser.add_argument('--milestone', help='with --markdown: add a line to the history, named this')
+    parser.add_argument('--milestone', help="add a line to the corpus's history, named this (after a round's gates, a choice, an export)")
     args = parser.parse_args()
     shelves = build(args.public_only)
     for path in write(shelves):
         print(f'written {path}')
-    if args.markdown:
-        into_markdown(args.markdown, shelves, args.milestone)
-        print(f'table written into {args.markdown}')
+    if args.milestone:
+        print(f'milestone written into {add_milestone(shelves, args.milestone)}')
     for name, shelf in shelves.items():
         print(f"{name}: {json.dumps(shelf['totals'])}")
 

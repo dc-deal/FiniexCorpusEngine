@@ -62,21 +62,23 @@ def test_a_new_work_and_a_held_file_are_on_the_shelf_too(tmp_path, monkeypatch):
     assert rows['held.pdf']['held'] == shelf.HELD and rows['held.pdf']['served']['pages'] == 0
 
 
-def test_the_table_replaces_only_its_block_and_a_milestone_adds_one_history_line(tmp_path, monkeypatch):
+def test_the_totals_carry_their_shares_and_a_milestone_keeps_each_base_apart(tmp_path, monkeypatch):
+    # X1.a (19 Nov): the shelf in the view, with percentages and a history, in place of a person's Markdown file
+    from backend.configuration import data_paths
+
     rows = list(licensed_shelf(tmp_path, monkeypatch).values())
-    shelves = {'licensed': {'built_at': '2026-11-08T22:00:00+00:00', 'works': rows, 'totals': shelf.totals(rows)}}
-    target = tmp_path / 'status.md'
-    target.write_text(f'# Head\n\nkept\n\n{shelf.START}\nold table\n{shelf.END}\n\n## History\n\n{shelf.HISTORY}\n| old |\n',
-                      encoding='utf-8')
-    shelf.into_markdown(target, shelves, milestone='a test')
-    text = target.read_text(encoding='utf-8')
-    assert text.startswith('# Head\n\nkept\n\n') and 'old table' not in text and '| licensed | key-a | book_a.pdf | 3 | 3 | 2 | 67% |' in text
-    assert text.rstrip().splitlines()[-2] == '| old |' and '| a test | 4 | 4 | 2 |' in text.rstrip().splitlines()[-1]
-    shelf.into_markdown(target, shelves)
-    assert target.read_text(encoding='utf-8').count('| a test |') == 1
+    total = shelf.totals(rows)
+    assert total['share_passed'] == round(total['passed'] / total['planned'], 4) and total['share_read'] == round(total['read'] / total['planned'], 4)
+    monkeypatch.setattr(data_paths, 'SHELF_HISTORY', tmp_path / 'history.json')
+    shelves = {'licensed': {'totals': total}, 'free': {'totals': {'planned': 10, 'read': 10, 'passed': 9, 'share_passed': 0.9}}}
+    shelf.add_milestone(shelves, 'a test')
+    shelf.add_milestone(shelves, 'another')
+    kept = shelf.history()['rows']
+    assert [row['milestone'] for row in kept] == ['a test', 'another']
+    assert kept[0]['bases']['free']['share_passed'] == 0.9 and kept[0]['bases']['licensed']['passed'] == total['passed']
+    assert set(kept[0]['bases']['free']) == set(shelf.HISTORY_FIELDS)
 
 
-@pytest.mark.readings
 def test_a_shelf_reason_is_by_construction_the_route_the_export_wrote_for_that_page():
     """Line 2 links a shelf count to its pages through each row's `route`. The export writes it from the reason the shelf counts
     (`route_of` of `text_layer_why`), so the two agree as long as the export was written by today's rule; this pins that for the

@@ -38,6 +38,7 @@ LICENSED_WORKING = WORKING / 'licensed'
 # from each file's own title and copyright pages (the operator's N1.a, 18 Nov). Local and git-ignored like everything under
 # `_work/`: a licensed title never stands in a tracked file (251.a). A view not run with --public-only shows it.
 LICENSED_CATALOG = LICENSED_WORKING / 'catalog.json'
+SHELF_HISTORY = WORKING / 'shelf_history.json'  # the corpus's milestones, each base's figures apart (X1.a, 19 Nov)
 INDEX = _MANAGER.resolve(_PATHS.index)
 LOGS = _MANAGER.resolve(_PATHS.logs)
 

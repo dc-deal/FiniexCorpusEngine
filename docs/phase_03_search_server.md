@@ -146,7 +146,10 @@ chat model, a stage of its own.
   how many readings passed and why the others did not, what the search serves of it by route, why a passed reading is not
   served, and the files the server serves not at all, with the reason. It counts from the very pages the server builds, so
   the two cannot disagree, and a passed reading it cannot account for is kept as `unexplained` rather than hidden (none on
-  8 Nov). The diagnostics frontend shows it and computes nothing.
+  8 Nov). The diagnostics frontend shows it and computes nothing. **Since 19 Nov (X1.a)** each base's totals carry their
+  shares of the planned pages (`share_read`, `share_passed`), and `--milestone NAME` adds a row to the corpus's history
+  (`data_paths.SHELF_HISTORY`, each base's figures apart, so a view of the free base alone never shows the other's); the view
+  shows both, in place of the table a person's file used to hold.
 - **The library tools** (decision 124.a, 8 Nov), from a request of the server's first outside consumer: five of seven
   subjects it wanted books for were already on the shelf, and finding that out took four searches and several greps, because
   the passage ranking answers *where is this sentence* and the shelf question is *do we own a book about X*. The top hit for
