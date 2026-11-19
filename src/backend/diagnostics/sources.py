@@ -9,13 +9,18 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from backend.diagnostics.readings import KnowledgeBase, WorkReadings
+from typing import Literal
+
+from backend.diagnostics.readings import KnowledgeBase, Series, WorkReadings
 
 ROOT = Path(__file__).resolve().parents[3]
 CATALOG = ROOT / 'corpus' / 'catalog.json'
 # What the sources view says, in place of page counts, of a licensed catalog entry the export has no pages of (O1.a): the
 # view's own state until the core reads it, an EPUB by its sections as the free HTML works are (123.a), which then replace it
 NOT_READ = 'not read page by page'
+# the structure facet's other two words (Y1.a): a work read page by page, and one cut by its headings
+READ_PAGES = 'read page by page'
+SECTIONS = 'sections by heading'
 # What it says of a licensed EPUB whose sections are not counted yet: cutting all of them takes about 20 s, and the list
 # never waits for it (123.a)
 EPUB_COUNTING = 'sections by heading · being counted, here in a moment'
@@ -66,6 +71,11 @@ class Work(BaseModel):
     # a licensed EPUB the librarian serves by section (123.a): the key its view and its search hits name it by, which may
     # differ from the catalog's id (a legacy work's key); None for any other work
     epub_key: str | None = None
+    # how the work is cut, as the list knows it (Y1.a): read page by page, by its sections (a free HTML work, a licensed
+    # EPUB), or not read yet; the sources view's structure facet takes it as it stands
+    structure: Literal['read page by page', 'sections by heading', 'not read page by page'] | None = None
+    # the series the local licensed catalog puts it in, None for every other work and under --public-only (Y1.a)
+    series: Series | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

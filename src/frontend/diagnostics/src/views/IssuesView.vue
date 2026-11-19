@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import ApiFailure from '@/components/ApiFailure.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
-import FacetBar from '@/components/base/FacetBar.vue'
+import ChipFacetBar from '@/components/base/ChipFacetBar.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import GroupedPageRows from '@/components/GroupedPageRows.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
@@ -96,7 +96,7 @@ function stateCount(value: string) {
     <LoadingLine v-else-if="!issues" />
     <p v-else-if="issues.rows.length === 0" class="empty">No page needs a look.</p>
     <template v-else>
-      <FacetBar v-model="selection" :facets="facets">
+      <ChipFacetBar v-model="selection" :facets="facets">
         <template #value="{ facet, value }">
           <StateMark v-if="facet.key === 'state'" :state="value" />
           <PersonStanding v-else-if="facet.key === 'person' || facet.key === 'review'"
@@ -109,7 +109,7 @@ function stateCount(value: string) {
             <PersonTally :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
           </template>
         </template>
-      </FacetBar>
+      </ChipFacetBar>
       <GroupedPageRows v-if="toRepair.length" :rows="toRepair" />
       <section v-if="apart.length" class="apart" data-part="apart">
         <h2 class="apart-title">Not content: noted, not repaired <span class="apart-hint">exercises, indexes, contents, front and back matter</span></h2>

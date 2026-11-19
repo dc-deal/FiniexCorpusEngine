@@ -16,6 +16,7 @@ import {
   IconPlayerStop,
   IconQuote,
   IconRobot,
+  IconSearch,
   IconShieldCheck,
   IconUserCheck,
   IconUserEdit,
@@ -64,6 +65,8 @@ export const ICONS = {
   'recalled': IconHistory,
   // a person checked the page and no re-read happens without a reason (191.a), always said in words too
   'protected': IconShieldCheck,
+  // a facet bar's search folded into its button (Y1.a), named for a screen reader
+  'action-search': IconSearch,
 } satisfies Record<string, Component>
 
 export type IconName = keyof typeof ICONS

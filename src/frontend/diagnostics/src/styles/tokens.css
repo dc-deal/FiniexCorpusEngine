@@ -102,4 +102,9 @@
      colour. The size the lists and tables had, so their columns keep their width. A browser check holds every visible
      text to it, a formula's own parts aside */
   --font-size: 0.85rem;
+
+  /* what floats over a view, from low to high (Y1.a, the scale the facet bar brought from the FiniexViewer): the frame's
+     menu (10) and a hover card (20) below a facet's popover, a menu opened over a popover above it */
+  --z-popover: 30;
+  --z-menu: 40;
 }

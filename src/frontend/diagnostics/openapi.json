@@ -7023,6 +7023,46 @@
         "title": "Segment",
         "description": "A piece of prose as the core parsed it: text, math, code, or an inline mark of its own (decision 206.a): a note's\nmarker (`fn`, \"[4]{.fn}\"), a superscript (`sup`) or a subscript (`sub`). A marker names the footnote on the same page\nwhose `marker` is its content (`with_notes`), and carries that note's text, so the view links the two; both None where\nthe page has no such note."
       },
+      "Series": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "part": {
+            "type": "integer",
+            "title": "Part"
+          },
+          "of": {
+            "type": "integer",
+            "title": "Of"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "part",
+          "of"
+        ],
+        "title": "Series",
+        "description": "A part of a series the licensed catalog names (Y1.a, 19 Nov): one author's lecture decks, say, as parts 1 to 11.\nAn earlier version of a part carries its own words in `version`."
+      },
       "Served": {
         "properties": {
           "pages": {
@@ -8433,6 +8473,32 @@
               }
             ],
             "title": "Epub Key"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "read page by page",
+                  "sections by heading",
+                  "not read page by page"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Series"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import DataTable from '@/components/base/DataTable.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
-import FacetBar from '@/components/base/FacetBar.vue'
+import ChipFacetBar from '@/components/base/ChipFacetBar.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
@@ -93,7 +93,7 @@ function viewOf(page: AnsweredPage) {
         </article>
       </div>
 
-      <FacetBar v-model="selection" :facets="facets" />
+      <ChipFacetBar v-model="selection" :facets="facets" />
       <p v-if="list.older" class="note">{{ list.older }} older calls are counted above but not listed.</p>
 
       <section v-for="group in days" :key="group.day" class="day" :data-day="group.day">

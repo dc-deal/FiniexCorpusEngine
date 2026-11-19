@@ -2360,3 +2360,78 @@ test('the sources table fits the window at 1,280 and 2,000 px, its last column i
   }
   await page.screenshot({ path: `${SHOTS}/sources_fit.png` })
 })
+
+// Y1.a (the operator, 19 Nov): the sources list narrowed by the facet bar, a series' parts under one heading, and a reload
+// (F5) that brings the reader back to the bar and the place they left. The free knowledge base names no series, so three
+// invented licensed parts of an invented series join the served list
+test('the sources bar narrows without moving, groups a series, and a reload brings the reader back (Y1.a)', async ({ page }) => {
+  const part = (number: number) => ({ knowledge_base: 'licensed', id: `an_invented_course_${number}`, title: `Lecture ${number}`,
+    authors: 'A. Lecturer', year: 2010 + number, format: 'pdf', shelf: 'trading_finance', structure: 'not read page by page',
+    not_read: 'not read page by page', readings: null, series: { id: 'an_invented_course', title: 'An Invented Course', part: number, of: 3 } })
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, json: [...await response.json() as object[], part(2), part(1), part(3)] })
+  })
+  await page.goto('/#/sources')
+  await settled(page)
+
+  // the series: one closed heading with its title and its count, its parts in their order once opened
+  const head = page.locator('tr.series-head')
+  await expect(head.locator('.series-title')).toHaveText('An Invented Course')
+  await expect(head.locator('.series-count')).toHaveText('3 works')
+  await expect(page.locator('tr.in-series')).toHaveCount(0)
+  const toggle = head.locator('.series-toggle')
+  const shut = await toggle.boundingBox()
+  await toggle.click()
+  await expect(page.locator('tr.in-series')).toHaveCount(3)
+  expect(await page.locator('tr.in-series').evaluateAll(rows => rows.map(row => row.getAttribute('data-work'))))
+    .toEqual(['an_invented_course_1', 'an_invented_course_2', 'an_invented_course_3'])
+  // its toggle stays under the pointer, open or closed
+  expect(await toggle.boundingBox()).toEqual(shut)
+  // every work stands as a row now, the bar's count over all of them
+  const all = await page.locator('tbody tr[data-work]').count()
+  await expect(page.locator('.facet-count-label')).toHaveText(`${all} of ${all}`)
+
+  // a facet's panel in the one size, the knowledge base with its glyph; picking a value moves no chip of the bar
+  const chips = page.locator('.facet-bar .facet-trigger')
+  const before = await chips.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON() as DOMRect))
+  await page.locator('.facet-trigger[data-facet="kb"]').click()
+  const licensed = page.locator('.facet-option[data-value="licensed"]')
+  await expect(licensed.locator('[data-icon="kb-licensed"]')).toBeVisible()
+  expect(await sizesOffScale(page)).toEqual([])
+  await page.screenshot({ path: `${SHOTS}/sources_bar.png` })
+  await licensed.click()
+  await expect(page.locator('tbody tr[data-work]')).toHaveCount(3)
+  await expect(page.locator('.facet-count-label')).toHaveText(`3 of ${all}`)
+  expect(await chips.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON() as DOMRect))).toEqual(before)
+  await licensed.click()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('tbody tr[data-work]')).toHaveCount(all)
+
+  // F5: the reader scrolled down; a reload draws the works and brings them back there, the series still open
+  await page.setViewportSize({ width: 1400, height: 600 })
+  await page.evaluate(() => window.scrollTo(0, 700))
+  await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('scroll.v1') ?? '{}')['/sources'])).toBe(700)
+  await page.reload()
+  await settled(page)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(700)
+  await expect(page.locator('tr.in-series')).toHaveCount(3)
+  // and the check can tell: a tab that kept no place opens at the top
+  await page.evaluate(() => sessionStorage.removeItem('scroll.v1'))
+  await page.reload()
+  await settled(page)
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+
+  // the bar too: a pick, a search and a sort survive a reload
+  await page.locator('.facet-trigger[data-facet="kb"]').click()
+  await licensed.click()
+  await page.keyboard.press('Escape')
+  await page.locator('.facet-search-toggle').click()
+  await page.locator('.facet-search').fill('lecture 2')
+  await page.reload()
+  await settled(page)
+  await expect(page.locator('tbody tr[data-work]')).toHaveCount(1)
+  await expect(page.locator('.facet-search')).toHaveValue('lecture 2')
+  await expect(page.locator('.facet-trigger[data-facet="kb"] .facet-badge')).toHaveText('1')
+  await page.screenshot({ path: `${SHOTS}/sources_bar_reloaded.png` })
+})

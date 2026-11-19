@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { reconcile, useSettingsStore } from '@/stores/settings_store'
 
 const KEY = 'settings.v1'
-const DEFAULTS = { pageDetailsOpen: false, workPagesView: 'chapters', routesOpen: false, foldsOpen: {} }
+const DEFAULTS = { pageDetailsOpen: false, workPagesView: 'chapters', routesOpen: false, foldsOpen: {}, bars: {} }
 
 describe('settings store', () => {
   beforeEach(() => {
@@ -24,7 +24,7 @@ describe('settings store', () => {
     useSettingsStore().setWorkPagesView('table')
     useSettingsStore().setRoutesOpen(true)
     useSettingsStore().setFoldOpen('page.history', true)
-    const chosen = { pageDetailsOpen: true, workPagesView: 'table', routesOpen: true, foldsOpen: { 'page.history': true } }
+    const chosen = { pageDetailsOpen: true, workPagesView: 'table', routesOpen: true, foldsOpen: { 'page.history': true }, bars: {} }
     expect(JSON.parse(localStorage.getItem(KEY) ?? 'null')).toEqual({ version: 1, ...chosen })
     setActivePinia(createPinia())
     expect(useSettingsStore().settings).toEqual(chosen)
@@ -37,7 +37,7 @@ describe('settings store', () => {
 
   it('reads an entry written before the routes could fold, the routes then folded', () => {
     expect(reconcile({ version: 1, pageDetailsOpen: true, workPagesView: 'table' }))
-      .toEqual({ pageDetailsOpen: true, workPagesView: 'table', routesOpen: false, foldsOpen: {} })
+      .toEqual({ pageDetailsOpen: true, workPagesView: 'table', routesOpen: false, foldsOpen: {}, bars: {} })
   })
 
   it('removes an entry of another version instead of reading it', () => {
@@ -53,6 +53,25 @@ describe('settings store', () => {
       .toEqual({ 'page.lab': true })
     expect(reconcile({ version: 1 })).toEqual(DEFAULTS)
     expect(reconcile(null)).toEqual(DEFAULTS)
+  })
+
+  it('keeps a facet bar\'s picks, search and sort, and finds them again after a reload (Y1.a)', () => {
+    useSettingsStore().setFacets('sources', { selection: { kb: ['free'] }, search: 'kelly', sort: 'year' })
+    setActivePinia(createPinia())
+    expect(useSettingsStore().settings.bars).toEqual({ sources: { selection: { kb: ['free'] }, search: 'kelly', sort: 'year' } })
+  })
+
+  it('takes a stored bar field by field: a word list of words only, a facet without one dropped, an empty pick kept', () => {
+    const bars = reconcile({ version: 1, bars: {
+      sources: { selection: { kb: ['free', 3], format: [], series: 'x' }, search: 7, sort: 'year' },
+      cleared: { selection: {}, search: '', sort: '' },
+      untouched: { search: '', sort: 'title' },
+    } }).bars
+    expect(bars['sources']).toEqual({ selection: { kb: ['free'] }, search: '', sort: 'year' })
+    // a bar the reader cleared stays cleared: its empty selection is a choice, not a missing one
+    expect(bars['cleared']!.selection).toEqual({})
+    expect(bars['untouched']!.selection).toBeUndefined()
+    expect(reconcile({ version: 1, bars: ['x'] }).bars).toEqual({})
   })
 
   it('treats a corrupt entry as none', () => {
