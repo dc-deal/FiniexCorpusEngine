@@ -103,7 +103,8 @@ def store(args) -> dict:
     each page after writing it."""
     base, ledger = find_run(args.run)
     names = set(json.loads(batch_file(base, args.run, args.number).read_text(encoding='utf-8'))) if args.number else None
-    done = [path for path in waiting_folders(base, ledger) if (path / 'reading.md').exists() and (names is None or path.name in names)]
+    done = [path for path in waiting_folders(base, ledger)  # read, or blocked by the filter: neither goes back to the pool
+            if ((path / 'reading.md').exists() or (path / direct_reader.BLOCKED_FILE).exists()) and (names is None or path.name in names)]
     outcome = direct_reader.store(SimpleNamespace(knowledge_base=base))
     for path in done:
         shutil.rmtree(path)

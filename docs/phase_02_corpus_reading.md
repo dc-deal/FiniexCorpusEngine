@@ -171,7 +171,10 @@ judge had not made. About 8 thousand tokens and 5 seconds a page. **The operator
 nights at the level measured, at least 46 of 49 planted errors and no clean reading flagged (`session_judge.CAUGHT_AT_LEAST`),
 and a work is compared with the API judge's verdicts wherever they exist. `night_run` keeps the run's ledger (per batch and per judge chunk the pages, the agents' tokens and
 minutes as their notifications report them) and its batches, so a session woken after a rate limit knows where it stands; a
-batch the limit cut short gives its unread pages back.
+batch the limit cut short gives its unread pages back. On the first night the provider's filter stopped a reading agent on a
+licensed page ("Output blocked by content filtering policy"): the session writes the API's words into the page's folder
+(`blocked.json`), and `direct_reader store` keeps the page as blocked, in the shape of a batch's blocked result, so it is never
+read in the session again and goes the way every blocked page goes (280.a).
 
 **The loop closed once: a reader prompt built from the judge's and the person's findings, measured, 11 November.** page/2
 is page/1's rules unchanged plus eight (table grids with operator columns, T-accounts as tables, a table's printed title,

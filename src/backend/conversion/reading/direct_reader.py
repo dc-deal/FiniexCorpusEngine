@@ -292,19 +292,41 @@ def record_for(entry: dict, text: str) -> tuple[dict, str]:
     return record, text
 
 
+BLOCKED_FILE = 'blocked.json'  # {"error_message": the API's words, "request_id": ...}: the filter stopped the session's reader
+
+
+def blocked_record(entry: dict, said: dict) -> dict:
+    """The record of a page the provider's filter blocked while a session's agent read it, in the shape of a batch's blocked
+    result (`vision_batches.is_block`), so the export and every check treat it alike. It costs no API money."""
+    record = {name: entry.get(name) for name in vision_batches.RECORD_FIELDS}
+    record.update(kind='reading', adapter=ADAPTER, provider=PROVIDER, deviation=entry['deviation'],
+                  stored_at=vision_batches.now(), sdk='claude-code session', result_type='errored',
+                  error_type='invalid_request_error', error_message=said['error_message'][:vision_batches.ERROR_MESSAGE_CHARS],
+                  request_id=said.get('request_id'), stop_reason=None, usage={}, cost_usd=0.0, result_class='errored')
+    return record
+
+
 def store(args) -> Counter:
     """Store every prepared page the session has written `reading.md` for, whatever its class: a failed attempt is kept
-    and shown like any other. A page already stored is left as it is."""
+    and shown like any other. A page already stored is left as it is. A page the provider's filter blocked while the session
+    read it (`blocked.json`, written by the session from the agent's error) is stored as blocked: it is never read in the
+    session again, by any route (280.a)."""
     outcome = Counter()
     for folder in sorted(session_folder(args.knowledge_base).glob('*__p*')):
-        written = folder / 'reading.md'
-        if not written.exists():
+        written, blocked = folder / 'reading.md', folder / BLOCKED_FILE
+        if not written.exists() and not blocked.exists():
             outcome['not read yet'] += 1
             continue
         entry = json.loads((folder / 'entry.json').read_text(encoding='utf-8'))
         target = open_store(entry['mirror'])
         if target.reading(entry['reading_key']) is not None:
             outcome['already stored'] += 1
+            continue
+        if not written.exists():
+            record = blocked_record(entry, json.loads(blocked.read_text(encoding='utf-8')))
+            target.save_reading(entry['reading_key'], record, None)
+            outcome['blocked'] += 1
+            print(f"stored {entry['page_id']}: blocked by the provider's filter, key {entry['reading_key'][:12]}")
             continue
         record, text = record_for(entry, written.read_text(encoding='utf-8'))
         target.save_reading(entry['reading_key'], record, text)

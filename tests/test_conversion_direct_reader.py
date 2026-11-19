@@ -151,3 +151,28 @@ def test_a_whole_work_keeps_the_pages_the_session_read_and_leaves_out_those_anot
             {'file': 'scan.pdf', 'pdf_page': 2, 'attempts': [{'mode': 'batch', 'class_now': 'ok'}]}]
     pages = direct_reader.whole_work(SimpleNamespace(name='licensed'), 'scan.pdf', rows)
     assert [(page['pdf_page'], page['why']) for page in pages] == [(1, direct_reader.READ_IN_SESSION), (3, 'unread')]
+
+
+def test_a_page_the_filter_blocked_in_the_session_is_stored_as_blocked_and_never_read_again(tmp_path, monkeypatch):
+    # 19 Nov night: an agent reading a licensed page was stopped by "Output blocked by content filtering policy" (280.a)
+    import json as json_module
+    from types import SimpleNamespace
+
+    from backend.conversion.reading import vision_batches
+    from backend.conversion.store import reading_store
+
+    store = reading_store.Store(tmp_path / 'vision')
+    folder = tmp_path / 'session' / 'w__p0041'
+    folder.mkdir(parents=True)
+    entry = {'reading_key': 'k' * 64, 'custom_id': 'c', 'cell': 'LIC-DIRECT-OPUS', 'page_id': 'w:p0041', 'file': 'w.pdf',
+             'pdf_page': 41, 'work': 'w', 'mirror': 'licensed', 'model': 'claude-opus-5-5', 'mode': 'session',
+             'deviation': DIRECT_DEVIATION}
+    (folder / 'entry.json').write_text(json_module.dumps(entry), encoding='utf-8')
+    (folder / direct_reader.BLOCKED_FILE).write_text(json_module.dumps(
+        {'error_message': 'API Error: Output blocked by content filtering policy', 'request_id': 'req_1'}), encoding='utf-8')
+    monkeypatch.setattr(direct_reader, 'session_folder', lambda base: tmp_path / 'session')
+    monkeypatch.setattr(direct_reader, 'open_store', lambda mirror: store)
+    assert direct_reader.store(SimpleNamespace(knowledge_base='licensed')) == {'blocked': 1}
+    record = store.reading('k' * 64)
+    assert vision_batches.is_block(record) and record['request_id'] == 'req_1' and record['cost_usd'] == 0.0
+    assert direct_reader.touched_by_a_filter({'class_now': 'blocked', 'attempts': []})
