@@ -1655,3 +1655,14 @@ card, never "failed" (D10, here because the overview's runs show it). **Measured
 1.0 s cold and 0.07 s warm, the unfiltered page list 0.45 s, the Issues 0.03 s. **Open:** the shelf's shares and history
 (X1.a, the core's data first), and a way to choose the Pages filters in the view (P1, with the operator). 372 unit tests,
 78 checks in the browser (3 skipped on today's data), 1,462 Python tests.
+
+**The shelf's shares and the corpus's history in the overview (O3.a, second part, on line 1's X1.a, 19 Nov).** The
+headline adds the pages read beside those planned and passed, each with its share of the planned pages, summed in the API
+over the shelves of the bases served. Beneath it the corpus's history as the core keeps it (`shelf.history`), a line per
+milestone line 1 records, newest first: its date, its name, and its pages planned, read, passed with their share, and
+served, summed over the bases served, each base's part in the milestone's card. The lines taken over from the person's
+file before 19 Nov hold both bases summed; they stand as kept, what they did not keep left empty and their card saying so,
+and never under `--public-only`, as they hold licensed counts. **Found by looking at the screenshot:** under
+`--public-only` the newest line's name named a licensed work, so the API gives no milestone's name there and the view says
+it is withheld (81.a). 374 unit tests, 78 checks in the browser (3 skipped on today's data), 1,464 Python
+tests.
