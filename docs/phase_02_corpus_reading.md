@@ -149,6 +149,24 @@ first such work and were closed with tests: the export listed only pages a defau
 session stood in no export (`reading_export.with_session_pages`), and the shelf planned only the rollout's pages, so the work
 counted as read against nothing planned.
 
+**A night's run, and the judge in the session (the operator's N1.a, N2.a, N3.a, 19 November).** Once the API credit ends, a
+work read whole is still judged: `session_judge` writes the check plan's own judge requests (the image the reader saw, the
+formulas rendered, the transcription as the judge sees it, the active judge's instructions and schema) as folders for a Sonnet
+agent of the session, and stores its answers in the shape a batch's judge record has, `mode: session`, so the check report reads
+them unchanged. The request itself stays out of the agent's folder; a calibration folder is named by its key alone, since the
+plan names the planted error and lists the clean readings first. A night's work is judged by 60 % of its pages
+(`direct_reader pages --add-work FILE --judge-share 0.6`), in six chunks of a tenth each, stage 2's suspects first and then a
+seeded order, so every chunk is a sample of its own; after each chunk `session_judge gate` stops a work whose bad share passes
+the check flow's 15 %, and no further chunk of it is prepared until a person has looked. A page a provider's filter blocked or
+a reader refused is never prepared, to judge no more than to read. Before its first night the session's judge answers judge/1's
+calibration set and must hold the API judge's own gate: at least 48 of 49 planted errors, no clean reading flagged
+(`session_judge score`). Its first run, two agents of 28 and 29 pages, about 9 thousand tokens and 6 seconds a page: all 57
+answered, 0 of 8 clean readings flagged, 46 of 49 planted errors caught, so **not passed**. It missed one of three word swaps,
+called a dropped figure label minor where the API judge called it major, and missed one changed code indentation, which the API
+judge missed too (that plant changed nothing a reader sees). `night_run` keeps the run's ledger (per batch and per judge chunk the pages, the agents' tokens and
+minutes as their notifications report them) and its batches, so a session woken after a rate limit knows where it stands; a
+batch the limit cut short gives its unread pages back.
+
 **The loop closed once: a reader prompt built from the judge's and the person's findings, measured, 11 November.** page/2
 is page/1's rules unchanged plus eight (table grids with operator columns, T-accounts as tables, a table's printed title,
 legible images of tables read, chart values read against the axis, counts only as counted, a photo's own text left out,
