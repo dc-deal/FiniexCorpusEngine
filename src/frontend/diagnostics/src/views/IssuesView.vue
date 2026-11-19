@@ -21,6 +21,7 @@ import { useIssuesStore } from '@/stores/issues_store'
 import type { IssueRow } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 import type { FacetDefinition, FacetSelection, SortDefinition } from '@/types/facet_types'
+import { counted } from '@/counted'
 
 /**
  * The pages a person should look at, over every work of every knowledge base served: an issue the judge or a check found,
@@ -95,7 +96,7 @@ const apart = computed(() => open.value.filter(row => row.apart))
 // no page waits for a person: said only where every listed page is settled, never because a filter hid the open ones
 const noneOpen = computed(() => (issues.value?.rows ?? []).every(row => isDecided(row.listed_state)))
 function settledSaid(count: number): string {
-  return `${count} ${count === 1 ? 'page' : 'pages'}, the check's state kept in each`
+  return `${counted(count, 'page')}, the check's state kept in each`
 }
 </script>
 

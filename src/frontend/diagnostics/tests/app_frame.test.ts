@@ -45,6 +45,12 @@ describe('the frame (decision 149.c, the operator 2026-11-10)', () => {
     expect(document.title).toBe('Capstone · Overview')
   })
 
+  it('says once, in the head of every view, which clock the times are on: the reader\u2019s own zone (stage D11.a)', async () => {
+    const frame = mountFrame()
+    await flushPromises()
+    expect(frame.find('[data-part="clock"]').text()).toBe(`times in ${Intl.DateTimeFormat().resolvedOptions().timeZone}`)
+  })
+
   it('says a name that did not load, and still names the view', async () => {
     vi.mocked(getAppInfo).mockRejectedValue(new ApiError(500, 'the config is not readable'))
     const frame = mountFrame()

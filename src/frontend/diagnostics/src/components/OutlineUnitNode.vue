@@ -7,6 +7,7 @@ import { useOpenUnitsStore } from '@/stores/open_units_store'
 import { unitKey as keyOf } from '@/chapter_marks'
 import type { OutlineUnit, PageRow } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
+import { counted } from '@/counted'
 
 /**
  * One unit of a work's own order, a row of the chapters table (decision 159.a), folded by default: its title, its PDF
@@ -42,7 +43,7 @@ const indent = computed(() => props.unit.level * STEP)
 const caption = computed(() => {
   const count = props.unit.own_pages
   const outside = (props.childrenOf.get(props.unit.id) ?? []).length ? ', outside its sections' : ''
-  return `${count.toLocaleString('en')} ${count === 1 ? 'page' : 'pages'} of ${props.unit.title} itself${outside}`
+  return `${counted(count, 'page')} of ${props.unit.title} itself${outside}`
 })
 
 // known by its first page and title, which stay when the core renumbers the outline's ids

@@ -1484,8 +1484,8 @@ export interface components {
             check: components["schemas"]["Check"];
             /** Error Message */
             error_message: string | null;
-            /** From Text Layer */
-            from_text_layer: boolean;
+            /** From Fallback */
+            from_fallback: boolean;
             /** Route Level */
             route_level?: string | null;
             /** Route Why */
@@ -1715,8 +1715,8 @@ export interface components {
             next_page: number | null;
             /** Route */
             route: string;
-            /** From Text Layer */
-            from_text_layer: boolean;
+            /** From Fallback */
+            from_fallback: boolean;
             /** Said */
             said?: string | null;
             person?: components["schemas"]["PersonMark"] | null;
@@ -1836,8 +1836,8 @@ export interface components {
             cost_usd: number | null;
             /** Error Message */
             error_message: string | null;
-            /** From Text Layer */
-            from_text_layer: boolean;
+            /** From Fallback */
+            from_fallback: boolean;
             /** Route Level */
             route_level?: string | null;
             /** Route Why */

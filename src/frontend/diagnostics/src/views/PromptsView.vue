@@ -6,6 +6,8 @@ import DataTable from '@/components/base/DataTable.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
+import HintPanel from '@/components/base/HintPanel.vue'
+import HintToggle from '@/components/base/HintToggle.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import { usePromptsStore } from '@/stores/prompts_store'
@@ -42,6 +44,8 @@ const tabs = computed(() => {
 })
 
 const picked = ref<string | null>(null)
+// what the view holds, a hint on demand (stage D6)
+const hintOpen = ref(false)
 // the tab picked, else the one holding the version a link asked for, else the first
 const tab = computed(() => {
   if (picked.value) return picked.value
@@ -89,11 +93,15 @@ watch([prompts, chosen], async ([list, wanted]) => {
 
 <template>
   <section class="prompts-view">
-    <h1 class="view-title">Prompts</h1>
+    <!-- what the view holds is a hint on demand, the core's own words in its panel (the viewer's tip 8: a paragraph atop the
+         view stood there on every visit) -->
+    <h1 class="view-title">Prompts <HintToggle v-model:open="hintOpen" id="prompts" /></h1>
     <ApiFailure v-if="error" :error="error" @retry="store.loadPrompts()" />
     <LoadingLine v-else-if="!prompts" />
     <template v-else>
-      <p v-if="prompts.about" class="about">{{ prompts.about }}</p>
+      <HintPanel v-if="hintOpen" id="prompts" @close="hintOpen = false">
+        <p v-if="prompts.about" class="about" data-part="about">{{ prompts.about }}</p>
+      </HintPanel>
       <div class="tabs" role="tablist" aria-label="Parts of the instructions">
         <AppButton
           v-for="one in tabs"
@@ -298,7 +306,10 @@ watch([prompts, chosen], async ([list, wanted]) => {
   white-space: nowrap;
 }
 
-.badge.active {
+/* a state a version is in, in primary ink: muted ink is for what is really disabled (the viewer's tip 7), and a prototype is
+   a version being tried, not a disabled one */
+.badge.active,
+.badge.prototype {
   color: var(--color-text-primary);
 }
 

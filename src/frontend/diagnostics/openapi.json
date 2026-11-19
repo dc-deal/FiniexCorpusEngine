@@ -4155,9 +4155,9 @@
             ],
             "title": "Error Message"
           },
-          "from_text_layer": {
+          "from_fallback": {
             "type": "boolean",
-            "title": "From Text Layer"
+            "title": "From Fallback"
           },
           "route_level": {
             "anyOf": [
@@ -4261,7 +4261,7 @@
           "route",
           "check",
           "error_message",
-          "from_text_layer"
+          "from_fallback"
         ],
         "title": "IssueRow"
       },
@@ -4901,9 +4901,9 @@
             "type": "string",
             "title": "Route"
           },
-          "from_text_layer": {
+          "from_fallback": {
             "type": "boolean",
-            "title": "From Text Layer"
+            "title": "From Fallback"
           },
           "said": {
             "anyOf": [
@@ -5169,7 +5169,7 @@
           "previous_page",
           "next_page",
           "route",
-          "from_text_layer",
+          "from_fallback",
           "trace",
           "check",
           "page_findings",
@@ -5407,9 +5407,9 @@
             ],
             "title": "Error Message"
           },
-          "from_text_layer": {
+          "from_fallback": {
             "type": "boolean",
-            "title": "From Text Layer"
+            "title": "From Fallback"
           },
           "route_level": {
             "anyOf": [
@@ -5500,7 +5500,7 @@
           "attempt",
           "cost_usd",
           "error_message",
-          "from_text_layer"
+          "from_fallback"
         ],
         "title": "PageRow"
       },

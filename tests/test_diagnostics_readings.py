@@ -98,16 +98,16 @@ def test_a_page_served_from_its_text_layer_is_marked_by_the_cores_own_routes(tmp
     from backend.conversion.store import served_readings
 
     for page in store.pages('free', KELLY, 'Kelly').pages:
-        assert page.from_text_layer == (page.route in served_readings.TEXT_LAYER_WHY.values())
+        assert page.from_fallback == (page.route in served_readings.TEXT_LAYER_WHY.values())
         # a page to look at is served from its text layer; a page that is ok, judged or not, from its reading
-        assert page.from_text_layer == (page.check.state in readings.LISTED_AS_ISSUE)
+        assert page.from_fallback == (page.check.state in readings.LISTED_AS_ISSUE)
     # a page the reader declined has no sentence of the provider's, and is still listed as served from its text layer;
     # invented, since the free export may hold no such page (a second reader may stand for it)
     row = copy.deepcopy(kelly_rows()[0])
     row.update(class_now='refused', route=served_readings.TEXT_LAYER_WHY['refused'], error_message=None,
                check={**(row.get('check') or {}), 'state': 'blocked'})
     listed = readings.issues({'free': a_corpus(tmp_path, [row])}).rows
-    assert [(page.from_text_layer, page.error_message) for page in listed] == [(True, None)]
+    assert [(page.from_fallback, page.error_message) for page in listed] == [(True, None)]
 
 
 def test_a_route_is_parted_where_the_cores_own_route_strings_part_it():
@@ -417,8 +417,8 @@ def test_a_page_whose_export_lists_no_attempts_says_none_rather_than_none_bought
 def test_a_page_says_whether_its_text_layer_is_served_instead_of_its_reading(tmp_path):
     blocked = a_blocked_row()
     served = next(row for row in kelly_rows() if row['check']['state'] in ('ok', 'ok_unjudged'))
-    assert a_corpus(tmp_path, [blocked]).page(KELLY, blocked['pdf_page'], 'Kelly').from_text_layer is True
-    assert store.page(KELLY, served['pdf_page'], 'Kelly').from_text_layer is False  # its reading is what is quoted
+    assert a_corpus(tmp_path, [blocked]).page(KELLY, blocked['pdf_page'], 'Kelly').from_fallback is True
+    assert store.page(KELLY, served['pdf_page'], 'Kelly').from_fallback is False  # its reading is what is quoted
 
 
 @pytest.mark.corpus

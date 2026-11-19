@@ -96,6 +96,34 @@ test('a count the overview once tabled stays reachable through its page filter (
   await page.screenshot({ path: `${SHOTS}/pages_filtered.png` })
 })
 
+// Stage D2 (the viewer measured the runs table 85 px past its box at 800 px, the USD column out of sight): ranked, it fits,
+// the base and a run's note given up first, then the start and the cost
+test('the runs table fits its box from 800 px up, giving up the base and the note first (stage D2)', async ({ page, request }) => {
+  const listed = await (await request.get('/api/runs')).json() as { runs: unknown[] }
+  test.skip(!listed.runs.length, 'no pipeline database on this machine, as on a clone')
+  // and an invented licensed run whose command holds a word as long as the longest a real run's does (measured with both
+  // bases, 19 Nov: unranked, the table ran 85 px past its box at 800 px; ranked, 0), so the check holds under --public-only
+  const invented = { knowledge_base: 'licensed', run_id: 9999, started_at: '2026-11-19T09:00:00+00:00', ended_at: null,
+    command: 'python -m backend.conversion.reading.direct_reader prepare --cells=LIC-DIRECT-OPUS,FREE-DIRECT-OP',
+    outcome: 'no end recorded', outcome_why: 'the command stopped before it could record an end, or it is still running',
+    cost_usd: null, batch_ids: [], note: 'an invented run with a note of some length' }
+  await page.route('**/api/runs', async route => {
+    const response = await route.fetch()
+    const answer = await response.json() as { runs: unknown[] }
+    await route.fulfill({ response, json: { ...answer, runs: [invented, ...answer.runs] } })
+  })
+  for (const width of [800, 1400]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/#/runs')
+    await settled(page)
+    const scroll = page.locator('.data-scroll').first()
+    expect(await scroll.evaluate(box => box.scrollWidth - box.clientWidth), `a sideways scroll at ${width} px`).toBeLessThanOrEqual(0)
+    await expect(page.locator('table.run-rows thead th:visible')).toHaveText(
+      width === 800 ? ['Run', 'Started', 'Command', 'Outcome', 'USD'] : ['Run', 'Base', 'Started', 'Command', 'Outcome', 'USD'])
+  }
+  await page.screenshot({ path: `${SHOTS}/runs_800.png` })
+})
+
 test('the runs list every run, and a run that chose readings opens their pages', async ({ page, request }) => {
   type Line = { knowledge_base: string, run_id: number }
   const listed = await (await request.get('/api/runs')).json() as { runs: Line[] }
@@ -1236,9 +1264,9 @@ test('a blocked page says why in the provider\'s own words, in its line and in i
 test('a page the reader declined says so by its route, where the provider gave no sentence', async ({ page, request }) => {
   const ACCOUNTING = 'openstax_principles_of_accounting_v1'
   const listed = await (await request.get(`/api/free/works/${ACCOUNTING}/pages`)).json() as {
-    pages: { pdf_page: number, route: string, error_message: string | null, from_text_layer: boolean }[]
+    pages: { pdf_page: number, route: string, error_message: string | null, from_fallback: boolean }[]
   }
-  const declined = listed.pages.find(row => row.from_text_layer && !row.error_message && row.route.includes('declined'))
+  const declined = listed.pages.find(row => row.from_fallback && !row.error_message && row.route.includes('declined'))
   test.skip(!declined, 'the export holds no declined page for this work')
   await page.goto(`/#/free/sources/${ACCOUNTING}`)
   await settled(page)
@@ -2048,9 +2076,9 @@ test('a page without a reading opens on the text the search and the chat quote, 
 // p. 398 is served from its text layer (its reading stayed malformed), Kelly p. 4 from its reading
 test('a page served from its text layer opens on its reading as a served page does, the quoted text a click away', async ({ page, request }) => {
   const ACCOUNTING = 'openstax_principles_of_accounting_v1'
-  type Detail = { from_text_layer: boolean, reading: unknown | null }
+  type Detail = { from_fallback: boolean, reading: unknown | null }
   const textLayer = await (await request.get(`/api/free/works/${ACCOUNTING}/pages/398`)).json() as Detail
-  test.skip(!textLayer.from_text_layer || !textLayer.reading, 'accounting p. 398 is no longer a text-layer page with a reading')
+  test.skip(!textLayer.from_fallback || !textLayer.reading, 'accounting p. 398 is no longer a text-layer page with a reading')
   for (const [work, number] of [[ACCOUNTING, 398], [KELLY, 4]] as const) {
     await page.goto(`/#/free/sources/${work}/page/${number}`)
     await settled(page)
@@ -2069,9 +2097,9 @@ test('a page served from its text layer opens on its reading as a served page do
 
 test('a finding of the judge stands beneath the block it names, and the line above leads to it', async ({ page, request }) => {
   // a page chosen by its state when the check runs, not by its number: a person's walk changes the real pages
-  type Issue = { source_id: string, pdf_page: number, from_text_layer: boolean, focus: string | null }
+  type Issue = { source_id: string, pdf_page: number, from_fallback: boolean, focus: string | null }
   const issues = (await (await request.get('/api/issues')).json() as { rows: Issue[] }).rows
-  const chosen = issues.find(row => row.from_text_layer && row.focus)
+  const chosen = issues.find(row => row.from_fallback && row.focus)
   test.skip(!chosen, 'the export holds no page served from its text layer with a finding on a block')
   const detail = await (await request.get(`/api/free/works/${chosen!.source_id}/pages/${chosen!.pdf_page}`)).json() as {
     reading: { blocks: { id: string, findings: unknown[] }[] } | null
@@ -2134,7 +2162,7 @@ test('a question no page answers says so, as an answer', async ({ page }) => {
   await expect(page.locator('.nothing')).toContainText('Nothing found', { timeout: 120_000 })
 })
 
-type IssueRow = { knowledge_base: string, source_id: string, pdf_page: number, route: string, from_text_layer: boolean,
+type IssueRow = { knowledge_base: string, source_id: string, pdf_page: number, route: string, from_fallback: boolean,
   route_why: string | null, check: { state: string }, listed_state: string }
 
 // The operator's 24.a: the walk through the issues goes page, back, next page; the choice made above the list must survive it
@@ -2162,7 +2190,7 @@ test('the issues list the pages to look at, one click from each, and keep their 
 test('a page the judge found bad but whose reading is served says why in the issues', async ({ page, request }) => {
   const issues = await (await request.get('/api/issues')).json() as { rows: IssueRow[] }
   // an open one where there is, else one a person settled, in its fold (211.a): its row says the same
-  const candidates = issues.rows.filter(row => row.check.state === 'issue' && !row.from_text_layer)
+  const candidates = issues.rows.filter(row => row.check.state === 'issue' && !row.from_fallback)
   const served = candidates.find(row => row.listed_state === 'issue') ?? candidates[0]
   test.skip(!served, 'the export holds no issue whose reading is served')
   await page.goto('/#/issues')

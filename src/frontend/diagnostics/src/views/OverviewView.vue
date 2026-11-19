@@ -30,6 +30,8 @@ onMounted(() => {
 })
 
 const headline = computed(() => overview.value?.headline ?? null)
+// the runs table as the Runs view ranks it (stage D): the base and the note go first, then the start and the cost
+const RUN_COLUMNS = [{}, { rank: 3 as const }, { rank: 2 as const }, {}, {}, { rank: 2 as const }]
 
 /** A figure's detail, each knowledge base's part of it, as its card's rows. */
 function parts(figure: Figure | { by_base: Record<string, number> } | null | undefined, say = (value: number) => value.toLocaleString('en')) {
@@ -171,25 +173,25 @@ const number = (value: number | null | undefined): string => (typeof value === '
       <section class="band" data-band="runs">
         <h2 class="band-title">Runs <span class="band-hint">the latest, newest first</span></h2>
         <p v-if="!overview.runs" class="note">{{ overview.runs_why_not }}</p>
-        <DataTable v-else table-class="run-rows ruled" wide>
+        <DataTable v-else table-class="run-rows ruled" wide :columns="RUN_COLUMNS">
           <template #head>
             <tr>
               <th />
-              <th>Base</th>
-              <th>Started</th>
+              <th data-rank="3">Base</th>
+              <th data-rank="2">Started</th>
               <th>Command</th>
               <th>Outcome</th>
-              <th class="cost">USD</th>
+              <th class="cost" data-rank="2">USD</th>
             </tr>
           </template>
           <tbody>
             <tr v-for="run in overview.runs" :key="`${run.knowledge_base}/${run.run_id}`" :data-run="`${run.knowledge_base}/${run.run_id}`">
               <td class="run-id"><RouterLink :to="{ name: 'run', params: { kb: run.knowledge_base, run: run.run_id } }">#{{ run.run_id }}</RouterLink></td>
-              <td><KnowledgeBaseMark :kb="run.knowledge_base" /></td>
-              <td class="when"><HumanTime :at="run.started_at" /></td>
+              <td data-rank="3"><KnowledgeBaseMark :kb="run.knowledge_base" /></td>
+              <td class="when" data-rank="2"><HumanTime :at="run.started_at" /></td>
               <td>
                 <span class="command" :title="run.command">{{ shortCommand(run.command) }}</span>
-                <span v-if="run.note" class="run-note">{{ run.note }}</span>
+                <span v-if="run.note" class="run-note" data-rank="3">{{ run.note }}</span>
                 <FoldSection v-if="run.batch_ids.length" class="batches" :title="counted(run.batch_ids.length, 'batch', 'batches')">
                   <span class="batch-ids">{{ run.batch_ids.join(', ') }}</span>
                 </FoldSection>
@@ -201,7 +203,7 @@ const number = (value: number | null | undefined): string => (typeof value === '
                 </HoverCard>
                 <template v-else>{{ run.outcome ?? '' }}</template>
               </td>
-              <td class="cost">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
+              <td class="cost" data-rank="2">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
             </tr>
           </tbody>
         </DataTable>

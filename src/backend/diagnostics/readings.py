@@ -268,10 +268,10 @@ class PageRow(BaseModel):
     attempt: int
     cost_usd: float | None  # None for a reading read in a Claude Code session (280.a): see `reading_cost`
     error_message: str | None  # the provider's own sentence where a reading failed, e.g. its content filter's
-    # The page's text comes from its PDF's text layer, and its route says why: the view's answer where the provider gave
-    # no sentence, as for a page the reader declined (line 1, 2026-11-04).
-    # Since H2.a it means "served by a fallback", a licensed work's legacy Markdown too; renamed in stage D
-    from_text_layer: bool
+    # The page's text comes from a fallback, not its reading: its PDF's text layer, or a licensed work's legacy Markdown
+    # (H2.a), and its route says why: the view's answer where the provider gave no sentence, as for a page the reader
+    # declined (line 1, 2026-11-04). `from_text_layer` until stage D, 19 Nov
+    from_fallback: bool
     # the route's level as the export gives it, and its words after the first ': ', as the route table parts them (159.a):
     # a page list says the why in its own column and keeps the whole route for the hover
     route_level: str | None = None
@@ -559,10 +559,10 @@ class PageDetail(BaseModel):
     previous_page: int | None
     next_page: int | None
     route: str
-    # The page's text is served from its PDF's text layer: whatever reading is shown is not what the search and the chat
-    # quote, and the view says so (a reading the judge found bad, one that stayed malformed, a page the reader declined)
-    # Since H2.a it means "served by a fallback", a licensed work's legacy Markdown too; renamed in stage D
-    from_text_layer: bool
+    # The page's text is served from a fallback, its PDF's text layer or a licensed work's legacy Markdown (H2.a): whatever
+    # reading is shown is not what the search and the chat quote, and the view says so (a reading the judge found bad, one
+    # that stayed malformed, a page the reader declined). `from_text_layer` until stage D, 19 Nov
+    from_fallback: bool
     # A page that is not plainly ok says so in one sentence before its chips (`said_of`); None for an ok page
     said: str | None = None
     person: PersonMark | None = None  # a person's standing verdict beside the state (166.a)
@@ -646,8 +646,8 @@ class IssueRow(BaseModel):
     route: str
     check: Check
     error_message: str | None
-    # served by a fallback, the text layer or a licensed work's legacy Markdown (H2.a); renamed in stage D
-    from_text_layer: bool
+    # served by a fallback, the text layer or a licensed work's legacy Markdown (H2.a); `from_text_layer` until stage D
+    from_fallback: bool
     # as a work's page row has them (159.a): the route's level and why, the whole route kept for the hover
     route_level: str | None = None
     route_why: str | None = None
@@ -1367,7 +1367,7 @@ def issue_row(store: 'Readings', row: dict, title: str | None = None) -> IssueRo
     return IssueRow(knowledge_base=row['knowledge_base'], source_id=row['source_id'],
                     title=title if title is not None else store.title(row['source_id']),
                     pdf_page=row['pdf_page'], route=row['route'], check=check_of(row), error_message=row.get('error_message'),
-                    from_text_layer=row['route'] in NOT_SERVED_ROUTES, route_level=row.get('route_level'),
+                    from_fallback=row['route'] in NOT_SERVED_ROUTES, route_level=row.get('route_level'),
                     route_why=route_parts(row['route'])[2], person=person_mark(row), category=row.get('category'),
                     page_kind=row.get('page_kind'), category_said=category_said(row), apart=apart(row),
                     focus=first_finding_block(row), listed_state=listed_state(row))
@@ -1512,7 +1512,7 @@ class Readings:
                                         check=check_of(row), class_when_collected=row['class_when_collected'],
                                         class_now=row['class_now'], attempt=row['attempt'], cost_usd=reading_cost(row),
                                         error_message=row.get('error_message'),
-                                        from_text_layer=row['route'] in NOT_SERVED_ROUTES,
+                                        from_fallback=row['route'] in NOT_SERVED_ROUTES,
                                         route_level=row.get('route_level'), route_why=route_parts(row['route'])[2],
                                         person=person_mark(row), category=row.get('category'),
                                         page_kind=row.get('page_kind'), category_said=category_said(row),
@@ -1602,7 +1602,7 @@ class Readings:
             printed_label=row.get('printed_label'),
             previous_page=rows[position - 1]['pdf_page'] if position > 0 else None,
             next_page=rows[position + 1]['pdf_page'] if position + 1 < len(rows) else None,
-            route=row['route'], from_text_layer=row['route'] in NOT_SERVED_ROUTES, check=check, reading=reading, raw=raw,
+            route=row['route'], from_fallback=row['route'] in NOT_SERVED_ROUTES, check=check, reading=reading, raw=raw,
             integrity=state, image=self.image(source_id, pdf_page)[0],
             page_findings=[finding for finding in findings if finding.block not in placed], human=people,
             trace=Trace(**{**{name: row.get(name) for name in Trace.model_fields}, 'cost_usd': reading_cost(row)}))

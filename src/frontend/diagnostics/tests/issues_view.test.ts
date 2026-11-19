@@ -44,7 +44,7 @@ function withALicensedWork(): IssueList {
       route: DECLINED_ROUTE,
       check: aCheck({ state: 'blocked', judged: false, verdict: null, reasons: [{ value: 'refused', count: 1 }] }),
       error_message: null,
-      from_text_layer: true,
+      from_fallback: true,
       apart: false,
     }],
   }
@@ -90,7 +90,7 @@ describe('IssuesView', () => {
 
   it('says why a page the judge found bad is served all the same, by its route (25.a)', async () => {
     const list = anIssueList()
-    list.rows.push({ ...list.rows[1], pdf_page: 11, route: SERVED_DESPITE, from_text_layer: false })
+    list.rows.push({ ...list.rows[1], pdf_page: 11, route: SERVED_DESPITE, from_fallback: false })
     vi.mocked(getIssues).mockResolvedValue(list)
     const view = mountView()
     await flushPromises()

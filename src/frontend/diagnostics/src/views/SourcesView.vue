@@ -17,6 +17,7 @@ import type { KnowledgeBase, Work } from '@/types/api/source_types'
 import type { FacetDefinition, SortDefinition } from '@/types/facet_types'
 import { useFacetState } from '@/use_facet_state'
 import { useScrollRestore } from '@/use_scroll_restore'
+import { counted } from '@/counted'
 
 /**
  * Every work of every knowledge base served, one row each, each marked with its knowledge base: the free catalog in its
@@ -272,10 +273,10 @@ onMounted(() => {
               </template>
               <!-- a licensed EPUB by its sections (123.a), or why they are not counted yet, in the API's words -->
               <span v-else-if="line.work.epub_key" class="page-count" data-part="epub-sections">
-                {{ typeof line.work.sections === 'number' ? `${line.work.sections.toLocaleString('en')} sections by heading` : line.work.structure_why_not }}
+                {{ typeof line.work.sections === 'number' ? `${counted(line.work.sections, 'section')} by heading` : line.work.structure_why_not }}
               </span>
               <span v-else-if="typeof line.work.sections === 'number' && typeof line.work.chunks === 'number'" class="page-count">
-                {{ line.work.sections.toLocaleString('en') }} sections by heading · {{ line.work.chunks.toLocaleString('en') }} chunks
+                {{ counted(line.work.sections, 'section') }} by heading · {{ counted(line.work.chunks, 'chunk') }}
               </span>
               <!-- why, in the API's words, stands in the row's card, where a browser tooltip stood (decision 179) -->
               <span v-else-if="line.work.structure_why_not" class="not-built">

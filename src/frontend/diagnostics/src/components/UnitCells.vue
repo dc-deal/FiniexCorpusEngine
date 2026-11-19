@@ -79,9 +79,14 @@ function pagesSaid(state: string): string {
   font-variant-numeric: tabular-nums;
 }
 
-/* a count that opens its pages keeps the state's colour, and says it is a way by its underline, as a link does */
+/* a count that opens its pages is a way, so it wears a link's look, the accent's ink and an underline under the pointer
+   (line 1's D9.a, 19 Nov: an underlined figure in a state's colour read as a link) */
 .state-cell .state-jump {
-  color: inherit;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.state-cell .state-jump:hover {
   text-decoration: underline;
   text-underline-offset: 2px;
 }

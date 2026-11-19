@@ -4,6 +4,7 @@ import AppIcon from '@/components/base/AppIcon.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
 import { renderStripped } from '@/render_html'
 import type { HtmlSection } from '@/types/api/html_types'
+import { counted } from '@/counted'
 
 /**
  * One section of an HTML work beside its chunks (the operator's 6.a). On the left, the section's original as line 1's function
@@ -45,7 +46,7 @@ function paragraphsOf(text: string, overlap: number): { shared: string, rest: st
         Dropped as noise: not indexed, so no chunks. Its text never stands in a search answer.
       </p>
       <p v-else class="chunks-head">
-        {{ section.chunks.length }} {{ section.chunks.length === 1 ? 'chunk' : 'chunks' }} · {{ section.text.length.toLocaleString('en') }}
+        {{ counted(section.chunks.length, 'chunk') }} · {{ section.text.length.toLocaleString('en') }}
         characters, as indexed
       </p>
       <p v-if="section.not_found" class="not-found" role="alert">

@@ -7,7 +7,7 @@ const TEXT_LAYER = 'text layer: the provider blocked the reading'
 const READ = 'vision reading (claude-sonnet-5-5, page/1, validator page/1.2)'
 
 function aRow(overrides: Record<string, unknown> = {}) {
-  return { error_message: null, route: READ, route_level: 'checked', route_why: null, from_text_layer: false, check: { state: 'ok' }, ...overrides }
+  return { error_message: null, route: READ, route_level: 'checked', route_why: null, from_fallback: false, check: { state: 'ok' }, ...overrides }
 }
 
 describe('RouteWhy (159.a)', () => {
@@ -18,7 +18,7 @@ describe('RouteWhy (159.a)', () => {
   })
 
   it('says a fallback by its glyph and its why, the whole route in its card, never on the row', async () => {
-    const cell = mount(RouteWhy, { props: { row: aRow({ route: TEXT_LAYER, route_level: 'fallback', route_why: 'the provider blocked the reading', from_text_layer: true }) } })
+    const cell = mount(RouteWhy, { props: { row: aRow({ route: TEXT_LAYER, route_level: 'fallback', route_why: 'the provider blocked the reading', from_fallback: true }) } })
     expect(cell.text()).toBe('the provider blocked the reading')
     expect(cell.find('[data-icon="route-fallback"]').exists()).toBe(true)
     // the library's card, no browser tooltip (203.a)
@@ -38,7 +38,7 @@ describe('RouteWhy (159.a)', () => {
     const noted = mount(RouteWhy, { props: { row: aRow({ route: `${READ}: the judge's findings lie on blocks never quoted`, route_level: 'noted',
       route_why: 'the judge\'s findings lie on blocks never quoted', check: { state: 'issue' } }) } })
     expect(noted.text()).toBe('the judge\'s findings lie on blocks never quoted')
-    const older = mount(RouteWhy, { props: { row: aRow({ route: TEXT_LAYER, route_level: null, from_text_layer: true }) } })
+    const older = mount(RouteWhy, { props: { row: aRow({ route: TEXT_LAYER, route_level: null, from_fallback: true }) } })
     expect(older.text()).toBe(TEXT_LAYER)
   })
 })

@@ -779,3 +779,11 @@ The record of how the diagnostics frontend came about, mistakes included.
   the bar rightly disables, where every page is in one state; the bar's browser check scrolled to 700 px, which the shorter
   rows no longer reach, and now takes its place from the page's height; and a test name lost its escaped quote through a
   heredoc a third time, so test text is written with the editor tool only from now on.
+- **Y1.a stage D, the polish** (agreed with line 1, 19 Nov; D8.a, D9.a and D11.a its choices). **D2 changed on
+  measuring:** the viewer's "one precision per figure column" would have undone the operator's two-significant-digit rule of
+  18 Nov, and the headings already stood over their figures; what the viewer saw at 800 px was the runs table overflowing,
+  85 px, which ranks fix. **A check that could not go red:** the first runs check passed with the ranks switched off, as
+  the free base's runs are short; measured with both bases natively, the overflow came from a long unbroken word in a
+  licensed run's command, so the check now adds an invented run as long and was shown failing on it. **Found:** the
+  decision numbers the viewer saw on the Prompts view are the core's registry's text, which line 1 keeps: they trace each
+  prompt version to its decision.

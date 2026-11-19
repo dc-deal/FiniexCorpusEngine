@@ -56,6 +56,9 @@ describe('RunsView', () => {
     expect(rows[0].find('.batches').text()).toBe('2 batches')
     expect(view.find('.not-listed[data-kb="licensed"]').text()).toContain('--public-only')
     expect(view.find('.not-listed[data-kb="free"]').exists()).toBe(false)
+    // ranked, so a narrow window keeps the run, its command and how it ended (stage D2): the base and a note first
+    expect(view.findAll('col').map(col => col.attributes('data-rank') ?? '1')).toEqual(['1', '3', '2', '1', '1', '2'])
+    expect(view.findAll('thead th').map(head => head.text())).toEqual(['Run', 'Base', 'Started', 'Command', 'Outcome', 'USD'])
   })
 
   it('says a run that recorded no end in the words of the API, what that means in its card, never that it failed (D10)', async () => {

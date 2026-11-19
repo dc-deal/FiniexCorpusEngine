@@ -12,6 +12,7 @@ import { useSettingsStore } from '@/stores/settings_store'
 import { useViewName } from '@/view_name'
 import type { HtmlNode } from '@/types/api/html_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
+import { counted } from '@/counted'
 
 /**
  * A licensed EPUB work (decision 123.a, the operator's P1.a), shown as a free HTML work is: its outline by heading in the
@@ -54,7 +55,7 @@ const childrenOf = computed(() => {
       <h1 class="view-title">{{ shown.title }}</h1>
       <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> {{ shown.source_id }}</p>
       <p class="summary" data-part="summary">
-        <span>{{ shown.sections.toLocaleString('en') }} sections by heading · {{ shown.images.toLocaleString('en') }} images</span>
+        <span>{{ counted(shown.sections, 'section') }} by heading · {{ counted(shown.images, 'image') }}</span>
         <span class="route">{{ shown.route }}</span>
         <!-- the catalog's licence, as the sources list shows it -->
         <span v-if="shown.licence" class="licence" data-part="licence">{{ shown.licence }}</span>

@@ -4,7 +4,12 @@
  * "toc 1 calls"), so no two views say a count differently; English only, as every label here is.
  */
 export function counted(count: number, one: string, many = `${one}s`): string {
-  return `${count.toLocaleString('en')} ${count === 1 ? one : many}`
+  return `${count.toLocaleString('en')} ${noun(count, one, many)}`
+}
+
+/** The noun alone that agrees with a count standing apart, a figure in a span of its own: "1,156 calls", "1 call". */
+export function noun(count: number, one: string, many = `${one}s`): string {
+  return count === 1 ? one : many
 }
 
 /** A count of pages, the count said most often. */

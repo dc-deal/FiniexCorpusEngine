@@ -17,6 +17,11 @@ export const HINTS = {
     lead: 'How each page\'s text is served: its reading as checked, its reading with a note, or in its place the PDF\'s text layer, '
       + 'or a licensed work\'s legacy Markdown where it has one.',
   },
+  prompts: {
+    label: 'What the Prompts view holds',
+    lead: 'Every version of the instructions a model is given, part by part, each with its state, when it was frozen and why it '
+      + 'was made; the core\'s own words on them follow.',
+  },
   overlap: {
     label: 'What the dashed line means',
     lead: 'Text a chunk shares with the chunk before it, repeated so a sentence cut at the border stays findable in both.',

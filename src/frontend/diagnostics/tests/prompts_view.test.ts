@@ -53,6 +53,15 @@ describe('PromptsView', () => {
     await router.push('/prompts')
   })
 
+  it('says what the view holds on demand, the core\u2019s words in the hint, never as a paragraph on every visit (stage D6)', async () => {
+    vi.mocked(getPrompts).mockResolvedValue(aList())
+    const view = mountView()
+    await flushPromises()
+    expect(view.find('[data-part="about"]').exists()).toBe(false)
+    await view.find('[data-part="prompts-hint-button"]').trigger('click')
+    expect(view.find('[data-part="about"]').text()).toBe('Every version of the instructions.')
+  })
+
   it('gives each part of the registry a tab, and a version of two files stands in two of them', async () => {
     vi.mocked(getPrompts).mockResolvedValue(aList())
     const view = mountView()
