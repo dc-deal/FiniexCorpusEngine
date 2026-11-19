@@ -765,3 +765,10 @@ The record of how the diagnostics frontend came about, mistakes included.
   the operator). **Mistakes:** a test that cleared the export counts through a function's `__globals__`, written so in a
   hurry, became a plain module access before the report; a heredoc lost an escaped quote in a test name a second time,
   the trap `.claude/rules/machine.md` names, and the test files were written with the editor after it.
+- **O3.a, second part: the shelf's shares and the history** (on line 1's X1.a, 19 Nov). Built on the core's fields
+  as line 1 named them; the corpus's shares are summed in the API from both bases' totals, passed and read of planned.
+  **Found by looking:** the first screenshot of the overview under `--public-only` showed the newest milestone's name,
+  which named a licensed work: the names are line 1's free text and may name anything. The API now gives no name under
+  `--public-only`, which a test holds, and the view says the name is withheld; line 1 was told, so its names can stay
+  as they are. **Before this part:** X1.a's float shares in the shelf's totals made `/api/shelf` answer 500 (the model
+  read them as integers); line 2's browser checks found it, and line 1 put the one-line fix on main the same hour.

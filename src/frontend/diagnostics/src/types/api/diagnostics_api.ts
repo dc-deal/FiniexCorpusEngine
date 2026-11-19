@@ -1186,6 +1186,9 @@ export interface components {
             left_out: components["schemas"]["LeftOut"][];
             works: components["schemas"]["Figure"] | null;
             planned: components["schemas"]["Figure"] | null;
+            read: components["schemas"]["Figure"] | null;
+            /** Share Read */
+            share_read: number | null;
             passed: components["schemas"]["Figure"] | null;
             /** Share Passed */
             share_passed: number | null;
@@ -1611,6 +1614,35 @@ export interface components {
             /** Why */
             why: string;
         };
+        /**
+         * Milestone
+         * @description One line of the corpus's history (X1.a, line 1, 19 Nov): its date, its name, and its figures summed over the knowledge
+         *     bases it holds that this app serves, each base's part beside them. A line taken over from the person's file before
+         *     19 Nov holds both bases summed (`summed`, no parts), and is never shown under `--public-only`, as it holds licensed
+         *     counts.
+         */
+        Milestone: {
+            /** At */
+            at: string;
+            /** Milestone */
+            milestone: string | null;
+            /** Planned */
+            planned: number | null;
+            /** Read */
+            read: number | null;
+            /** Passed */
+            passed: number | null;
+            /** Share Passed */
+            share_passed: number | null;
+            /** Served */
+            served: number | null;
+            /** Summed */
+            summed: boolean;
+            /** Parts */
+            parts: {
+                [key: string]: components["schemas"]["Shares"];
+            };
+        };
         /** Option */
         Option: {
             /** Value */
@@ -1655,6 +1687,8 @@ export interface components {
         /** Overview */
         Overview: {
             headline: components["schemas"]["Headline"];
+            /** History */
+            history: components["schemas"]["Milestone"][];
             /** Runs */
             runs: components["schemas"]["RunLine"][] | null;
             /** Runs Why Not */
@@ -2394,6 +2428,22 @@ export interface components {
             image_src?: string | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * Shares
+         * @description A milestone's figures for one knowledge base, as the core kept them (X1.a): None where it kept none.
+         */
+        Shares: {
+            /** Planned */
+            planned?: number | null;
+            /** Read */
+            read?: number | null;
+            /** Passed */
+            passed?: number | null;
+            /** Share Passed */
+            share_passed?: number | null;
+            /** Served */
+            served?: number | null;
         };
         /** Shelf */
         Shelf: {

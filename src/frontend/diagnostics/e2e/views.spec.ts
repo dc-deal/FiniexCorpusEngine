@@ -64,6 +64,7 @@ test('the overview heads the corpus in one line, the free base alone under --pub
   const started = Date.now()
   const answer = await (await request.get('/api/overview')).json() as {
     headline: { bases: string[], to_look_at: { total: number }, cost_usd: { by_base: Record<string, number>, by_provider: Record<string, number> } }
+    history: { milestone: string, parts: Record<string, unknown> }[]
   }
   expect(Date.now() - started, 'the overview\'s own answer, warm').toBeLessThan(1000)
   expect(answer.headline.bases).toEqual(['free'])
@@ -77,7 +78,12 @@ test('the overview heads the corpus in one line, the free base alone under --pub
   await page.locator('[data-tile="cost"]').hover()
   const rows = page.locator('[data-part="hover-card"] .card-row')
   await expect(rows).toHaveCount(Object.keys(answer.headline.cost_usd.by_base).length + Object.keys(answer.headline.cost_usd.by_provider).length)
-  await page.screenshot({ path: `${SHOTS}/overview.png` })
+  // the corpus's history, the free base's lines alone under --public-only, never one that holds licensed counts (X1.a)
+  expect(answer.history.every(line => Object.keys(line.parts).every(base => base === 'free'))).toBe(true)
+  if (answer.history.length) await expect(page.locator('[data-band="history"] tbody tr')).toHaveCount(answer.history.length)
+  else await expect(page.locator('[data-band="history"] .note')).toBeVisible()
+  await page.mouse.move(0, 0)
+  await page.screenshot({ path: `${SHOTS}/overview.png`, fullPage: true })
 })
 
 // O3.a: the tables of counts left the overview; each count is the page list's filter by the same field, which gives the same

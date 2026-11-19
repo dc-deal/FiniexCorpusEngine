@@ -5,7 +5,7 @@ import { getOverview, getPages } from '@/api/api_client'
 import { router } from '@/router'
 import OverviewView from '@/views/OverviewView.vue'
 import PagesView from '@/views/PagesView.vue'
-import type { Headline, Overview } from '@/types/api/overview_types'
+import type { Headline, Milestone, Overview } from '@/types/api/overview_types'
 import { anIssueList } from './page_fixture'
 import { sayTime } from '@/human_time'
 
@@ -26,6 +26,8 @@ function aHeadline(overrides: Partial<Headline> = {}): Headline {
     bases: ['free', 'licensed'], left_out: [], shelf_left_out: [],
     works: { total: 19, by_base: { free: 15, licensed: 4 } },
     planned: { total: 2222, by_base: { free: 1822, licensed: 400 } },
+    read: { total: 2212, by_base: { free: 1822, licensed: 390 } },
+    share_read: 2212 / 2222,
     passed: { total: 2195, by_base: { free: 1815, licensed: 380 } },
     share_passed: 2195 / 2222,
     served: { total: 3454, by_base: { free: 2554, licensed: 900 } },
@@ -36,7 +38,7 @@ function aHeadline(overrides: Partial<Headline> = {}): Headline {
 }
 
 function anOverview(overrides: Partial<Overview> = {}): Overview {
-  return { headline: aHeadline(), runs: null, runs_why_not: 'No runs recorded on this machine: the pipeline database is local and not tracked.',
+  return { headline: aHeadline(), history: [], runs: null, runs_why_not: 'No runs recorded on this machine: the pipeline database is local and not tracked.',
     ...overrides }
 }
 
@@ -55,7 +57,8 @@ describe('OverviewView', () => {
     const view = mountOverview()
     await flushPromises()
     const tiles = view.findAll('[data-tile]')
-    expect(tiles.map(tile => tile.attributes('data-tile'))).toEqual(['works', 'planned', 'passed', 'served', 'to_look_at', 'cost'])
+    expect(tiles.map(tile => tile.attributes('data-tile'))).toEqual(['works', 'planned', 'read', 'passed', 'served', 'to_look_at', 'cost'])
+    expect(view.find('[data-part="share-read"]').text()).toBe('99.5 % of planned')
     expect(view.find('[data-tile="planned"] .tile-value').text()).toBe('2,222')
     expect(view.find('[data-part="share"]').text()).toBe('98.8 % of planned')
     expect(view.find('[data-tile="to_look_at"]').attributes('href')).toBe('#/issues')
@@ -80,7 +83,7 @@ describe('OverviewView', () => {
   it('says which base the sums leave out and why, and which has no shelf built', async () => {
     vi.mocked(getOverview).mockResolvedValue(anOverview({ headline: aHeadline({
       bases: ['free'], left_out: [{ knowledge_base: 'licensed', why: 'not read: the app was started with --public-only' }],
-      works: null, planned: null, passed: null, served: null, share_passed: null,
+      works: null, planned: null, read: null, share_read: null, passed: null, served: null, share_passed: null,
       shelf_left_out: [{ knowledge_base: 'free', why: NO_SHELF }],
       to_look_at: { total: 7, by_base: { free: 7 } }, cost_usd: { total: 0.1956, by_base: { free: 0.1956 }, by_provider: { anthropic: 0.1956 } },
     }) }))
@@ -89,6 +92,39 @@ describe('OverviewView', () => {
     expect(view.find('[data-part="left-out"][data-kb="licensed"]').text()).toContain('--public-only')
     expect(view.find('[data-part="shelf-left-out"][data-kb="free"]').text()).toContain('no shelf built')
     expect(view.findAll('[data-tile]').map(tile => tile.attributes('data-tile'))).toEqual(['to_look_at', 'cost'])
+  })
+
+  it('lists the corpus\'s history a line per milestone, newest first, each base\'s part in the milestone\'s card (X1.a)', async () => {
+    const both: Milestone = { at: '2026-11-19', milestone: 'both apart', planned: 2222, read: 2212, passed: 2195, share_passed: 0.9878,
+      served: 3454, summed: false, parts: { free: { planned: 1822, read: 1822, passed: 1815, share_passed: 0.9962, served: 2554 },
+        licensed: { planned: 400, read: 390, passed: 380, share_passed: 0.95, served: 900 } } }
+    const taken: Milestone = { at: '2026-11-08', milestone: 'taken over', planned: 2000, read: null, passed: 1900, share_passed: 0.95,
+      served: null, summed: true, parts: {} }
+    vi.mocked(getOverview).mockResolvedValueOnce(anOverview()).mockResolvedValueOnce(anOverview({ history: [both, taken] }))
+    const none = mountOverview()
+    await flushPromises()
+    expect(none.find('[data-band="history"] .note').text()).toBe('No milestone recorded on this machine yet.')
+
+    const view = mountOverview()
+    await flushPromises()
+    const lines = view.findAll('[data-band="history"] tbody tr')
+    expect(lines.map(line => line.attributes('data-milestone'))).toEqual(['both apart', 'taken over'])
+    expect(lines[0].findAll('td').map(cell => cell.text()).slice(1)).toEqual(['both apart', '2,222', '2,212', '2,195', '98.8 %', '3,454'])
+    // a line taken over summed keeps what it did not keep empty, and its card says so
+    expect(lines[1].findAll('td').map(cell => cell.text()).slice(2)).toEqual(['2,000', '', '1,900', '95.0 %', ''])
+    await lines[0].find('.milestone .hover-card-host').trigger('mouseenter')
+    expect(lines[0].findAll('.card-row').map(row => row.text()).slice(1)).toEqual(['free1,815 of 1,822 passed', 'licensed380 of 400 passed'])
+    await lines[1].find('.milestone .hover-card-host').trigger('mouseenter')
+    expect(lines[1].find('[data-row="bases"] .card-value').text()).toBe('both summed, as taken over before 19 Nov')
+  })
+
+  it('withholds the name of a milestone where the API gives none, under --public-only (81.a)', async () => {
+    const free: Milestone = { at: '2026-11-19', milestone: null, planned: 1822, read: 1822, passed: 1815, share_passed: 0.9962,
+      served: 2554, summed: false, parts: { free: { planned: 1822, read: 1822, passed: 1815, share_passed: 0.9962, served: 2554 } } }
+    vi.mocked(getOverview).mockResolvedValue(anOverview({ history: [free] }))
+    const view = mountOverview()
+    await flushPromises()
+    expect(view.find('[data-band="history"] [data-part="withheld"]').text()).toBe('name withheld under --public-only')
   })
 
   it('lists the latest runs of both bases in one table, each with its base, and says a run that recorded no end', async () => {

@@ -3235,6 +3235,27 @@
               }
             ]
           },
+          "read": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Figure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "share_read": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Read"
+          },
           "passed": {
             "anyOf": [
               {
@@ -3286,6 +3307,8 @@
           "left_out",
           "works",
           "planned",
+          "read",
+          "share_read",
           "passed",
           "share_passed",
           "served",
@@ -4573,6 +4596,111 @@
         "title": "LeftOut",
         "description": "A knowledge base a sum leaves out, and why: not served, no export, or no shelf built here."
       },
+      "Milestone": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "milestone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Milestone"
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned"
+          },
+          "read": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "share_passed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Passed"
+          },
+          "served": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served"
+          },
+          "summed": {
+            "type": "boolean",
+            "title": "Summed"
+          },
+          "parts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Shares"
+            },
+            "propertyNames": {
+              "enum": [
+                "free",
+                "licensed"
+              ]
+            },
+            "type": "object",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "milestone",
+          "planned",
+          "read",
+          "passed",
+          "share_passed",
+          "served",
+          "summed",
+          "parts"
+        ],
+        "title": "Milestone",
+        "description": "One line of the corpus's history (X1.a, line 1, 19 Nov): its date, its name, and its figures summed over the knowledge\nbases it holds that this app serves, each base's part beside them. A line taken over from the person's file before\n19 Nov holds both bases summed (`summed`, no parts), and is never shown under `--public-only`, as it holds licensed\ncounts."
+      },
       "Option": {
         "properties": {
           "value": {
@@ -4673,6 +4801,13 @@
           "headline": {
             "$ref": "#/components/schemas/Headline"
           },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/Milestone"
+            },
+            "type": "array",
+            "title": "History"
+          },
           "runs": {
             "anyOf": [
               {
@@ -4702,6 +4837,7 @@
         "type": "object",
         "required": [
           "headline",
+          "history",
           "runs"
         ],
         "title": "Overview"
@@ -7161,6 +7297,68 @@
           "tool"
         ],
         "title": "ServerTurn"
+      },
+      "Shares": {
+        "properties": {
+          "planned": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned"
+          },
+          "read": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "share_passed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Passed"
+          },
+          "served": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served"
+          }
+        },
+        "type": "object",
+        "title": "Shares",
+        "description": "A milestone's figures for one knowledge base, as the core kept them (X1.a): None where it kept none."
       },
       "Shelf": {
         "properties": {

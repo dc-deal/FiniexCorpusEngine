@@ -10,14 +10,15 @@ import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import { counted } from '@/counted'
 import { usd } from '@/cost_format'
+import { sayDate } from '@/human_time'
 import { shortCommand } from '@/run_format'
 import { useOverviewStore } from '@/stores/overview_store'
-import type { Figure } from '@/types/api/overview_types'
+import type { Figure, Milestone } from '@/types/api/overview_types'
 
 /**
  * The corpus at a glance (the operator's O3.a, 19 Nov: "today there is only one corpus"): one headline, summed in the API over
- * the knowledge bases served, each figure's part per base in its card; then the latest runs of both, newest first, each with
- * its base's mark. A base the sums leave out says why, under `--public-only` the licensed one. The tables of counts by route,
+ * the knowledge bases served, each figure's part per base in its card; then the corpus's history, a line per milestone the
+ * core recorded (X1.a); then the latest runs of both, newest first, each with its base's mark. A base the sums leave out says why, under `--public-only` the licensed one. The tables of counts by route,
  * state, verdict, category, model and the integrity of each reading file are gone: each of their counts stays in the
  * Pages list's filters, and the integrity of some 10,200 files is no longer asked on every load. Every figure is the API's.
  */
@@ -40,10 +41,31 @@ function parts(figure: Figure | { by_base: Record<string, number> } | null | und
 const costRows = computed(() => [...parts(headline.value?.cost_usd, usd),
   ...Object.entries(headline.value?.cost_usd.by_provider ?? {}).map(([provider, value]) => ({ label: `${provider} (provider)`, value: usd(value) }))])
 
-// the share of the planned pages that passed, the API's, said as a person reads a share
-const share = computed(() => (typeof headline.value?.share_passed === 'number'
-  ? `${(headline.value.share_passed * 100).toFixed(1)} % of planned`
-  : null))
+/** A share the API gave, 0 to 1, said as a person reads a share. */
+function percent(share: number | null | undefined): string {
+  return typeof share === 'number' ? `${(share * 100).toFixed(1)} %` : ''
+}
+
+// the shares of the planned pages that were read and that passed, the API's
+const shareRead = computed(() => (typeof headline.value?.share_read === 'number' ? `${percent(headline.value.share_read)} of planned` : null))
+const share = computed(() => (typeof headline.value?.share_passed === 'number' ? `${percent(headline.value.share_passed)} of planned` : null))
+
+// the history's columns: the date and the figures as wide as their longest, the milestone's words the rest, ranked so a
+// narrow window keeps the date, the milestone, what passed and its share
+const figure = (width: string, rank?: 2 | 3) => ({ width: `calc(${width} + var(--space-md))`, rank })
+const HISTORY_COLUMNS = [figure('9ch'), {}, figure('7ch', 2), figure('7ch', 3), figure('7ch'), figure('7ch'), figure('7ch', 3)]
+
+/** A history line's detail: each base's part, or that it was taken over with both bases summed. */
+function lineRows(line: Milestone) {
+  const date = { label: 'date', value: sayDate(line.at).title }
+  if (line.summed) return [date, { label: 'bases', value: 'both summed, as taken over before 19 Nov' }]
+  return [date, ...Object.entries(line.parts).map(([base, part]) => ({
+    label: base,
+    value: part.passed === null || part.passed === undefined || !part.planned ? '' : `${part.passed.toLocaleString('en')} of ${part.planned.toLocaleString('en')} passed`,
+  }))]
+}
+
+const number = (value: number | null | undefined): string => (typeof value === 'number' ? value.toLocaleString('en') : '')
 </script>
 
 <template>
@@ -75,6 +97,13 @@ const share = computed(() => (typeof headline.value?.share_passed === 'number'
             <span class="tile-label">pages planned</span>
           </RouterLink>
         </HoverCard>
+        <HoverCard v-if="headline.read" class="tile-card" title="Pages read" :rows="parts(headline.read)">
+          <RouterLink class="tile" to="/shelf" data-tile="read">
+            <span class="tile-value">{{ headline.read.total.toLocaleString('en') }}</span>
+            <span class="tile-label">read</span>
+            <span v-if="shareRead" class="tile-share" data-part="share-read">{{ shareRead }}</span>
+          </RouterLink>
+        </HoverCard>
         <HoverCard v-if="headline.passed" class="tile-card" title="Pages passed" :rows="parts(headline.passed)">
           <RouterLink class="tile" to="/shelf" data-tile="passed">
             <span class="tile-value">{{ headline.passed.total.toLocaleString('en') }}</span>
@@ -101,6 +130,43 @@ const share = computed(() => (typeof headline.value?.share_passed === 'number'
           </div>
         </HoverCard>
       </div>
+
+      <!-- the corpus's history, a line per milestone the core recorded (X1.a), newest first: each line's figures summed over
+           the bases served, each base's part in the milestone's card -->
+      <section class="band" data-band="history">
+        <h2 class="band-title">History <span class="band-hint">a line per milestone, newest first</span></h2>
+        <p v-if="!overview.history.length" class="note">No milestone recorded on this machine yet.</p>
+        <DataTable v-else table-class="history-rows ruled" fixed :columns="HISTORY_COLUMNS">
+          <template #head>
+            <tr>
+              <th>Date</th>
+              <th>Milestone</th>
+              <th class="number" data-rank="2">Planned</th>
+              <th class="number" data-rank="3">Read</th>
+              <th class="number">Passed</th>
+              <th class="number">Share</th>
+              <th class="number" data-rank="3">Served</th>
+            </tr>
+          </template>
+          <tbody>
+            <tr v-for="(line, at) in overview.history" :key="`${line.at}/${at}`" :data-milestone="line.milestone ?? undefined">
+              <td class="when">{{ sayDate(line.at).text }}</td>
+              <td class="milestone">
+                <HoverCard :title="line.milestone ?? 'Milestone'" :rows="lineRows(line)">
+                  <span v-if="line.milestone" class="milestone-name">{{ line.milestone }}</span>
+                  <!-- under --public-only the API gives no name, which may name a licensed work (81.a) -->
+                  <span v-else class="milestone-name withheld" data-part="withheld">name withheld under --public-only</span>
+                </HoverCard>
+              </td>
+              <td class="number" data-rank="2">{{ number(line.planned) }}</td>
+              <td class="number" data-rank="3">{{ number(line.read) }}</td>
+              <td class="number">{{ number(line.passed) }}</td>
+              <td class="number" data-part="share">{{ percent(line.share_passed) }}</td>
+              <td class="number" data-rank="3">{{ number(line.served) }}</td>
+            </tr>
+          </tbody>
+        </DataTable>
+      </section>
 
       <section class="band" data-band="runs">
         <h2 class="band-title">Runs <span class="band-hint">the latest, newest first</span></h2>
@@ -270,5 +336,30 @@ a.tile:hover {
 .batch-ids {
   display: block;
   word-break: break-all;
+}
+
+.history-rows th {
+  font-weight: normal;
+  color: var(--color-text-secondary);
+}
+
+.history-rows th,
+.history-rows td {
+  padding: 2px var(--space-md) 2px 0;
+  vertical-align: top;
+}
+
+.history-rows .when {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+/* the milestone's words wrap in their column; its card holds each base's part */
+.history-rows .milestone .hover-card-host {
+  display: block;
+}
+
+.withheld {
+  color: var(--color-text-secondary);
 }
 </style>

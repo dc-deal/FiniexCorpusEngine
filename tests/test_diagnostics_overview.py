@@ -18,6 +18,16 @@ LOCAL = 'http://127.0.0.1'
 # invented shelves, as the core writes their totals: no licensed count stands in a test
 SHELVES = {'free': {'works': 15, 'planned': 1822, 'read': 1822, 'passed': 1815, 'served': 2554},
            'licensed': {'works': 4, 'planned': 400, 'read': 390, 'passed': 380, 'served': 900}}
+# an invented history as the core keeps it (X1.a): a line taken over with both bases summed, then lines with each base apart
+HISTORY = {'about': 'invented', 'rows': [
+    {'at': '2026-11-08', 'milestone': 'taken over', 'bases': {'both': {'planned': 2000, 'read': None, 'passed': 1900,
+                                                                   'share_passed': 0.95, 'served': None, 'judge_issues': 3}}},
+    {'at': '2026-11-18', 'milestone': 'licensed alone', 'bases': {'licensed': {'planned': 400, 'read': 390, 'passed': 380,
+                                                                            'share_passed': 0.95, 'served': 900}}},
+    {'at': '2026-11-19', 'milestone': 'both apart', 'bases': {
+        'free': {'planned': 1822, 'read': 1822, 'passed': 1815, 'share_passed': 0.9962, 'served': 2554},
+        'licensed': {'planned': 400, 'read': 390, 'passed': 380, 'share_passed': 0.95, 'served': 900}}},
+]}
 
 
 @pytest.fixture
@@ -29,9 +39,11 @@ def no_runs(monkeypatch, tmp_path):
 
 @pytest.fixture
 def shelves(monkeypatch):
-    """Each base's shelf as the core last built it, invented; a base left out of the dict has none built."""
+    """Each base's shelf as the core last built it, invented, and the corpus's history; a base left out of the dict has no
+    shelf built."""
     built = dict(SHELVES)
     monkeypatch.setattr(shelf, 'load', lambda name: {'totals': built[name]} if name in built else None)
+    monkeypatch.setattr(shelf, 'history', lambda: HISTORY)
     return built
 
 
@@ -57,7 +69,11 @@ def test_the_headline_sums_the_free_base_alone_under_public_only_and_says_so(mon
     assert sum(headline['cost_usd']['by_provider'].values()) == pytest.approx(cost, abs=1e-3)
     assert answer['runs'] is None and 'pipeline database' in answer['runs_why_not']  # said, not guessed
     # the tables are gone from the overview, whose counts the page list's filters keep (O3.a)
-    assert set(answer) == {'headline', 'runs', 'runs_why_not'}
+    assert set(answer) == {'headline', 'history', 'runs', 'runs_why_not'}
+    # the history under --public-only: the free base's figures alone, never a line that holds licensed counts (X1.a)
+    assert [(line['at'], line['planned'], list(line['parts'])) for line in answer['history']] == [('2026-11-19', 1822, ['free'])]
+    # and never a line's name, which may name a licensed work (81.a)
+    assert [line['milestone'] for line in answer['history']] == [None]
 
 
 @pytest.mark.readings
@@ -71,8 +87,23 @@ def test_the_headline_sums_both_bases_and_keeps_each_part_as_its_detail(tmp_path
     assert headline.bases == ['free', 'licensed'] and headline.left_out == []
     assert headline.planned.total == 1822 + 400 and headline.planned.by_base == {'free': 1822, 'licensed': 400}
     assert headline.share_passed == pytest.approx((1815 + 380) / (1822 + 400))
+    assert headline.read.total == 1822 + 390 and headline.share_read == pytest.approx((1822 + 390) / (1822 + 400))
     looked = sum(1 for row in rows if readings.listed_state(row) in readings.LISTED_AS_ISSUE)
     assert headline.to_look_at.by_base == {'free': looked, 'licensed': looked} and headline.to_look_at.total == 2 * looked
+
+
+def test_the_history_sums_each_line_over_the_bases_served_newest_first_and_keeps_a_summed_line_as_it_is(shelves):
+    found = overview.milestones(['free', 'licensed'], False)
+    assert [line.milestone for line in found] == ['both apart', 'licensed alone', 'taken over']
+    newest = found[0]
+    assert (newest.planned, newest.read, newest.passed, newest.served) == (2222, 2212, 2195, 3454)
+    assert newest.share_passed == pytest.approx(2195 / 2222, abs=1e-4) and not newest.summed
+    assert newest.parts['licensed'].passed == 380
+    # a line taken over summed stands as the core kept it, without parts; what it did not keep stays unknown
+    taken = found[2]
+    assert taken.summed and taken.parts == {} and (taken.planned, taken.read, taken.served) == (2000, None, None)
+    # a base this app does not serve is left out of every line, and a line of it alone is left out whole
+    assert [line.milestone for line in overview.milestones(['free'], False)] == ['both apart', 'taken over']
 
 
 @pytest.mark.readings

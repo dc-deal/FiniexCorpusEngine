@@ -2,10 +2,11 @@
 every figure.
 
 Every figure is counted here, never in the browser. A headline sums the knowledge bases served: the works, the pages
-planned, those that passed and their share, the pages the search serves, from each base's shelf as the core builds it,
-and the pages to look at and what the work cost, from each export; each figure keeps each base's part beside it as its
-detail. Beneath it the latest runs of both bases, newest first, each marked with its base. A base not served is left out
-of every sum and says why: under `--public-only` the licensed one is never read (81.a).
+planned, those read and those that passed with their shares, the pages the search serves, from each base's shelf as the
+core builds it, and the pages to look at and what the work cost, from each export; each figure keeps each base's part
+beside it as its detail. Beneath it the corpus's history, a line per milestone the core recorded (X1.a), and the latest
+runs of both bases, newest first, each marked with its base. A base not served is left out of every sum and says why:
+under `--public-only` the licensed one is never read (81.a).
 
 The overview counted every page by route, state, verdict, category, model and the integrity of its reading file in tables
 until O3.a. Those counts stay reachable through the page list's filters (`pages`), each asked only when chosen; the
@@ -58,6 +59,35 @@ class LeftOut(BaseModel):
     why: str
 
 
+class Shares(BaseModel):
+    """A milestone's figures for one knowledge base, as the core kept them (X1.a): None where it kept none."""
+
+    planned: int | None = None
+    read: int | None = None
+    passed: int | None = None
+    share_passed: float | None = None
+    served: int | None = None
+
+
+class Milestone(BaseModel):
+    """One line of the corpus's history (X1.a, line 1, 19 Nov): its date, its name, and its figures summed over the knowledge
+    bases it holds that this app serves, each base's part beside them. A line taken over from the person's file before
+    19 Nov holds both bases summed (`summed`, no parts), and is never shown under `--public-only`, as it holds licensed
+    counts."""
+
+    at: str  # YYYY-MM-DD
+    # its name as line 1 wrote it; None under `--public-only`, as a name may name a licensed work (found 19 Nov: the newest
+    # line named one), and nothing of the licensed base is shown there (81.a)
+    milestone: str | None
+    planned: int | None
+    read: int | None
+    passed: int | None
+    share_passed: float | None  # passed of planned, 0 to 1
+    served: int | None
+    summed: bool  # both bases summed as taken over, so no part per base
+    parts: dict[KnowledgeBase, Shares]
+
+
 class Headline(BaseModel):
     """The corpus in one line: summed over the knowledge bases served, each base's part kept as the detail. The shelf's
     figures are summed over the bases whose shelf is built (`shelf_left_out` names the others); the export's over the
@@ -68,6 +98,8 @@ class Headline(BaseModel):
     # from each base's shelf, the core's: works on the shelf, pages planned, passed and the search serves
     works: Figure | None
     planned: Figure | None
+    read: Figure | None
+    share_read: float | None  # read of planned over the summed shelves, 0 to 1, above 1 where pages were read outside the plan
     passed: Figure | None
     share_passed: float | None  # passed of planned over the summed shelves, 0 to 1; None without a page planned
     served: Figure | None
@@ -79,6 +111,7 @@ class Headline(BaseModel):
 
 class Overview(BaseModel):
     headline: Headline
+    history: list[Milestone]  # newest first; [] where no history is kept on this machine
     # the latest runs of both bases, newest first, each with its base; None where no base keeps a pipeline database here
     runs: list[RunLine] | None
     runs_why_not: str | None = None
@@ -204,9 +237,10 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
     def from_shelf(key: str) -> Figure | None:
         return summed({name: int(totals.get(key) or 0) for name, totals in shelves.items()}) if shelves else None
 
-    planned, passed = from_shelf('planned'), from_shelf('passed')
+    planned, read, passed = from_shelf('planned'), from_shelf('read'), from_shelf('passed')
     headline = Headline(
-        bases=served, left_out=left_out, works=from_shelf('works'), planned=planned, passed=passed,
+        bases=served, left_out=left_out, works=from_shelf('works'), planned=planned, read=read,
+        share_read=read.total / planned.total if planned and read and planned.total else None, passed=passed,
         share_passed=passed.total / planned.total if planned and passed and planned.total else None,
         served=from_shelf('served'), shelf_left_out=shelf_left_out,
         to_look_at=summed({name: found.to_look_at for name, found in exported.items()}),
@@ -215,7 +249,37 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
                       by_provider={provider: round(sum(found.cost_by_provider.get(provider, 0.0) for found in exported.values()), 4)
                                    for provider in sorted({name for found in exported.values() for name in found.cost_by_provider})}))
     runs = latest_runs(served)
-    return Overview(headline=headline, runs=runs, runs_why_not=NO_RUNS if runs is None else None)
+    return Overview(headline=headline, history=milestones(served, public_only), runs=runs,
+                    runs_why_not=NO_RUNS if runs is None else None)
+
+
+def milestones(served: list[KnowledgeBase], public_only: bool) -> list[Milestone]:
+    """The corpus's history as the core keeps it (`shelf.history`), newest first, each line summed over the bases it holds
+    that this app serves. A line taken over summed (`both`) stands as it is, never under `--public-only`, and a line that
+    holds none of the bases served is left out."""
+    found = []
+    for row in shelf.history().get('rows') or []:
+        kept = row.get('bases') or {}
+        name = None if public_only else row['milestone']
+        if 'both' in kept:
+            if public_only:
+                continue
+            both = Shares(**{field: kept['both'].get(field) for field in Shares.model_fields})
+            found.append(Milestone(at=row['at'], milestone=name, summed=True, parts={}, **both.model_dump()))
+            continue
+        parts = {name: Shares(**{field: kept[name].get(field) for field in Shares.model_fields}) for name in served if name in kept}
+        if not parts:
+            continue
+
+        def total(field: str) -> int | None:
+            values = [getattr(part, field) for part in parts.values()]
+            return None if any(value is None for value in values) else sum(values)
+
+        planned, passed = total('planned'), total('passed')
+        found.append(Milestone(at=row['at'], milestone=name, planned=planned, read=total('read'), passed=passed,
+                               share_passed=round(passed / planned, 4) if planned and passed is not None else None,
+                               served=total('served'), summed=False, parts=parts))
+    return list(reversed(found))
 
 
 FILTERS = ('knowledge_base', 'state', 'person', 'review', 'category', 'route', 'integrity', 'why_judged', 'verdict', 'reason', 'reader',
