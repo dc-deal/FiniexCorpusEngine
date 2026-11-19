@@ -167,7 +167,9 @@ judge missed too (that plant changed nothing a reader sees). On a real work the 
 once more the requests the API judge had answered for the scanned work's sample (`session_judge again`, `compare`; such an
 answer never counts). The two agree on all but two pages, and those two are the pages the API judge sent to an issue that a
 review and the operator then found to be false alarms; the session's judge called both ok and added one minor finding the API
-judge had not made. About 8 thousand tokens and 5 seconds a page. `night_run` keeps the run's ledger (per batch and per judge chunk the pages, the agents' tokens and
+judge had not made. About 8 thousand tokens and 5 seconds a page. **The operator's C1.a:** the session's judge serves the
+nights at the level measured, at least 46 of 49 planted errors and no clean reading flagged (`session_judge.CAUGHT_AT_LEAST`),
+and a work is compared with the API judge's verdicts wherever they exist. `night_run` keeps the run's ledger (per batch and per judge chunk the pages, the agents' tokens and
 minutes as their notifications report them) and its batches, so a session woken after a rate limit knows where it stands; a
 batch the limit cut short gives its unread pages back.
 

@@ -56,7 +56,7 @@ def test_the_calibration_passes_only_on_the_api_judge_s_own_gate():
                 'clean': {'n': 8, 'issue': 0}, 'answered': 57}
     assert session_judge.calibration_gate(measures, 57)['passed']
     assert not session_judge.calibration_gate({**measures, 'clean': {'n': 8, 'issue': 1}}, 57)['passed']
-    assert not session_judge.calibration_gate({**measures, 'groups': {'values': {'n': 49, 'to_issue': 47}}}, 57)['passed']
+    assert not session_judge.calibration_gate({**measures, 'groups': {'values': {'n': 49, 'to_issue': 45}}}, 57)['passed']  # C1.a: 46 the least
     assert not session_judge.calibration_gate(measures, 58)['passed']  # one request left unanswered
 
 

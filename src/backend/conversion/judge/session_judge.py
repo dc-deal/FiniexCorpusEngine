@@ -34,9 +34,11 @@ MODE = 'session'
 ADAPTER = 'claude-code-session'
 PROVIDER = 'anthropic, in a Claude Code session (a Sonnet agent)'
 CALIBRATION = 'calibration'  # the folder of judge/1's calibration set, judged once on the free mirror
-# N1.a: the session's judge serves only after it holds the API judge's own gate on the same set (judge/1, 30 Oct: 48 of 49 planted
-# errors caught, 0 of 8 clean readings flagged)
-CAUGHT_AT_LEAST = 48
+# N1.a set the API judge's own gate (judge/1, 30 Oct: 48 of 49 planted errors caught, 0 of 8 clean readings flagged). The session's
+# judge caught 46 and flagged none; on a real scanned work it agreed with the API judge on 58 of 60 pages, the two others being the
+# API judge's false alarms. The operator's C1.a (19 Nov): it serves at the measured level, at least 46 caught and none flagged, and
+# its first work is compared with the API judge's verdicts where they exist (`again`, `compare`).
+CAUGHT_AT_LEAST = 46
 CLEAN_FLAGGED_AT_MOST = 0
 
 
