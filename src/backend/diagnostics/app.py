@@ -310,8 +310,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
 
     @app.get('/api/overview')
     def show_overview() -> overview.Overview:
-        """The whole pipeline at a glance, each knowledge base beside the other; a base not served says why."""
-        return overview.overview(bases, search, public_only)
+        """The corpus at a glance (O3.a): a headline summed over the knowledge bases served, and the latest runs."""
+        return overview.overview(bases, public_only)
 
     @app.get('/api/pages')
     def list_pages_across(knowledge_base: readings.KnowledgeBase | None = None, state: str | None = None,

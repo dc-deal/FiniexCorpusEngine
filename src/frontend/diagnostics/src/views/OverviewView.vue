@@ -4,24 +4,22 @@ import { storeToRefs } from 'pinia'
 import DataTable from '@/components/base/DataTable.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
+import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
-import OverviewSection from '@/components/OverviewSection.vue'
+import { counted } from '@/counted'
 import { usd } from '@/cost_format'
 import { shortCommand } from '@/run_format'
 import { useOverviewStore } from '@/stores/overview_store'
-import type { KnowledgeBase } from '@/types/api/source_types'
+import type { Figure } from '@/types/api/overview_types'
 
 /**
- * The whole pipeline at a glance, the knowledge bases side by side (the operator, 2026-11-05; compact boxes, 16.a), in bands
- * with a heading each, their boxes flowing in two balanced columns (18.a). On top, a row of key figures per knowledge
- * base, the works and pages read each with what the search serves beneath (1.a); then which model did what, in pages and
- * in USD (17.a). Then boxes in which each value stands once, its count in
- * each knowledge base
- * beside it: how each page's text was made, its state, why it was judged or not, the verdicts, the reasons a page carries,
- * and what the search holds of every medium. Every count of pages opens the pages it counts. Last, the latest runs.
- * Every figure is the API's; a knowledge base this app does not serve says why.
+ * The corpus at a glance (the operator's O3.a, 19 Nov: "today there is only one corpus"): one headline, summed in the API over
+ * the knowledge bases served, each figure's part per base in its card; then the latest runs of both, newest first, each with
+ * its base's mark. A base the sums leave out says why, under `--public-only` the licensed one. The tables of counts by route,
+ * state, verdict, category, model and the integrity of each reading file are gone: each of their counts stays in the
+ * Pages list's filters, and the integrity of some 10,200 files is no longer asked on every load. Every figure is the API's.
  */
 const store = useOverviewStore()
 const { overview, overviewError } = storeToRefs(store)
@@ -30,109 +28,117 @@ onMounted(() => {
   void store.loadOverview()
 })
 
-const bases = computed<KnowledgeBase[]>(() => (overview.value?.bases ?? []).map(base => base.knowledge_base))
+const headline = computed(() => overview.value?.headline ?? null)
 
-// the search's own count, as its start banner gives it; while its index is still being built, said so rather than guessed
-function inTheSearch(count: number | null | undefined): string {
-  return typeof count === 'number' ? `${count.toLocaleString('en')} in the search` : 'search index building'
+/** A figure's detail, each knowledge base's part of it, as its card's rows. */
+function parts(figure: Figure | { by_base: Record<string, number> } | null | undefined, say = (value: number) => value.toLocaleString('en')) {
+  return Object.entries(figure?.by_base ?? {}).map(([base, value]) => ({ label: base, value: say(value as number) }))
 }
+
+// what the work cost, each base's part and then each provider's, the API's sums (line 1, 19 Nov: the per-model tables go,
+// the providers stay in this card)
+const costRows = computed(() => [...parts(headline.value?.cost_usd, usd),
+  ...Object.entries(headline.value?.cost_usd.by_provider ?? {}).map(([provider, value]) => ({ label: `${provider} (provider)`, value: usd(value) }))])
+
+// the share of the planned pages that passed, the API's, said as a person reads a share
+const share = computed(() => (typeof headline.value?.share_passed === 'number'
+  ? `${(headline.value.share_passed * 100).toFixed(1)} % of planned`
+  : null))
 </script>
 
 <template>
   <section class="overview">
     <h1 class="view-title">Overview</h1>
     <ApiFailure v-if="overviewError" :error="overviewError" @retry="store.loadOverview()" />
-    <LoadingLine v-else-if="!overview" />
+    <LoadingLine v-else-if="!overview || !headline" />
     <template v-else>
-      <div class="headlines">
-        <article v-for="base in overview.bases" :key="base.knowledge_base" class="headline" :data-kb="base.knowledge_base">
-          <h2 class="headline-title"><KnowledgeBaseMark :kb="base.knowledge_base" /></h2>
-          <p v-if="!base.served" class="not-served">{{ base.why_not }}</p>
-          <div v-else class="tiles">
-            <!-- what was read beside what the search serves (the operator's 1.a): the server's banner counts every route, an HTML
-                 source and legacy Markdown too, so its 15 works and these 11 are both right and must not look alike -->
-            <RouterLink class="tile" to="/sources" data-tile="works">
-              <span class="tile-value">{{ base.works.toLocaleString('en') }}</span>
-              <span class="tile-label">works read page by page</span>
-              <span class="tile-served" data-part="served">{{ inTheSearch(base.served_works) }}</span>
-            </RouterLink>
-            <RouterLink class="tile" :to="{ name: 'pages', query: { knowledge_base: base.knowledge_base } }" data-tile="pages">
-              <span class="tile-value">{{ base.pages.toLocaleString('en') }}</span>
-              <span class="tile-label">pages read</span>
-              <span class="tile-served" data-part="served">{{ inTheSearch(base.served_pages) }}</span>
-            </RouterLink>
-            <div class="tile" data-tile="judged">
-              <span class="tile-value">{{ base.judged.toLocaleString('en') }}</span>
-              <span class="tile-label">judged</span>
-            </div>
-            <RouterLink class="tile" to="/issues" data-tile="to_look_at">
-              <span class="tile-value">{{ base.to_look_at.toLocaleString('en') }}</span>
-              <span class="tile-label">to look at</span>
-            </RouterLink>
-            <div class="tile" data-tile="cost">
-              <span class="tile-value">{{ usd(base.cost_usd) }}</span>
-              <span class="tile-label">USD spent</span>
-            </div>
+      <!-- a knowledge base the sums leave out, and why: under --public-only the licensed one, so the free one stands alone -->
+      <p v-for="left in headline.left_out" :key="left.knowledge_base" class="left-out" data-part="left-out" :data-kb="left.knowledge_base">
+        <KnowledgeBaseMark :kb="left.knowledge_base" /> {{ left.why }}
+      </p>
+      <p v-for="left in headline.shelf_left_out" :key="`shelf-${left.knowledge_base}`" class="left-out" data-part="shelf-left-out"
+         :data-kb="left.knowledge_base">
+        <KnowledgeBaseMark :kb="left.knowledge_base" /> {{ left.why }}
+      </p>
+
+      <!-- the corpus in one line: each figure the sum over the bases served, its part per base in its card (O3.a) -->
+      <div class="tiles" data-part="headline">
+        <HoverCard v-if="headline.works" class="tile-card" title="Works on the shelf" :rows="parts(headline.works)">
+          <RouterLink class="tile" to="/sources" data-tile="works">
+            <span class="tile-value">{{ headline.works.total.toLocaleString('en') }}</span>
+            <span class="tile-label">works</span>
+          </RouterLink>
+        </HoverCard>
+        <HoverCard v-if="headline.planned" class="tile-card" title="Pages planned" :rows="parts(headline.planned)">
+          <RouterLink class="tile" to="/shelf" data-tile="planned">
+            <span class="tile-value">{{ headline.planned.total.toLocaleString('en') }}</span>
+            <span class="tile-label">pages planned</span>
+          </RouterLink>
+        </HoverCard>
+        <HoverCard v-if="headline.passed" class="tile-card" title="Pages passed" :rows="parts(headline.passed)">
+          <RouterLink class="tile" to="/shelf" data-tile="passed">
+            <span class="tile-value">{{ headline.passed.total.toLocaleString('en') }}</span>
+            <span class="tile-label">passed</span>
+            <span v-if="share" class="tile-share" data-part="share">{{ share }}</span>
+          </RouterLink>
+        </HoverCard>
+        <HoverCard v-if="headline.served" class="tile-card" title="Pages the search serves" :rows="parts(headline.served)">
+          <RouterLink class="tile" to="/shelf" data-tile="served">
+            <span class="tile-value">{{ headline.served.total.toLocaleString('en') }}</span>
+            <span class="tile-label">pages served</span>
+          </RouterLink>
+        </HoverCard>
+        <HoverCard class="tile-card" title="Pages to look at" :rows="parts(headline.to_look_at)">
+          <RouterLink class="tile" to="/issues" data-tile="to_look_at">
+            <span class="tile-value">{{ headline.to_look_at.total.toLocaleString('en') }}</span>
+            <span class="tile-label">to look at</span>
+          </RouterLink>
+        </HoverCard>
+        <HoverCard class="tile-card" title="USD spent" :rows="costRows">
+          <div class="tile" data-tile="cost">
+            <span class="tile-value">{{ usd(headline.cost_usd.total) }}</span>
+            <span class="tile-label">USD spent</span>
           </div>
-        </article>
+        </HoverCard>
       </div>
-
-      <section class="band" data-band="cost">
-        <h2 class="band-title">Cost <span class="band-hint">which model did what</span></h2>
-        <div class="band-boxes">
-          <OverviewSection v-for="section in overview.models" :key="section.title" :section="section" :bases="bases" paid />
-        </div>
-      </section>
-
-      <section class="band" data-band="pipeline">
-        <h2 class="band-title">Pages through the pipeline</h2>
-        <div class="band-boxes">
-          <OverviewSection v-for="section in overview.sections" :key="section.title" :section="section" :bases="bases" />
-        </div>
-      </section>
-
-      <section class="band" data-band="search">
-        <h2 class="band-title">Search</h2>
-        <div class="band-boxes">
-          <OverviewSection :section="overview.search" :bases="bases" />
-        </div>
-      </section>
 
       <section class="band" data-band="runs">
         <h2 class="band-title">Runs <span class="band-hint">the latest, newest first</span></h2>
-        <div class="runs-grid">
-          <section v-for="base in overview.bases" :key="base.knowledge_base" class="box runs" :data-kb="base.knowledge_base">
-            <h3 class="box-title"><KnowledgeBaseMark :kb="base.knowledge_base" /></h3>
-            <p v-if="!base.served" class="note">{{ base.why_not }}</p>
-            <p v-else-if="!base.runs" class="note">No runs recorded on this machine: the pipeline database is local and not tracked.</p>
-            <DataTable v-else table-class="run-rows ruled" wide>
-              <template #head>
-                <tr>
-                  <th />
-                  <th>started</th>
-                  <th>command</th>
-                  <th>outcome</th>
-                  <th class="cost">USD</th>
-                </tr>
-              </template>
-              <tbody>
-                <tr v-for="run in base.runs" :key="run.run_id" :data-run="run.run_id">
-                  <td class="run-id"><RouterLink :to="{ name: 'run', params: { kb: base.knowledge_base, run: run.run_id } }">#{{ run.run_id }}</RouterLink></td>
-                  <td class="when"><HumanTime :at="run.started_at" /></td>
-                  <td>
-                    <span class="command" :title="run.command">{{ shortCommand(run.command) }}</span>
-                    <span v-if="run.note" class="run-note">{{ run.note }}</span>
-                    <FoldSection v-if="run.batch_ids.length" class="batches" :title="`${run.batch_ids.length} ${run.batch_ids.length === 1 ? 'batch' : 'batches'}`">
-                      <span class="batch-ids">{{ run.batch_ids.join(', ') }}</span>
-                    </FoldSection>
-                  </td>
-                  <td>{{ run.outcome ?? '' }}</td>
-                  <td class="cost">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
-                </tr>
-              </tbody>
-            </DataTable>
-          </section>
-        </div>
+        <p v-if="!overview.runs" class="note">{{ overview.runs_why_not }}</p>
+        <DataTable v-else table-class="run-rows ruled" wide>
+          <template #head>
+            <tr>
+              <th />
+              <th>Base</th>
+              <th>Started</th>
+              <th>Command</th>
+              <th>Outcome</th>
+              <th class="cost">USD</th>
+            </tr>
+          </template>
+          <tbody>
+            <tr v-for="run in overview.runs" :key="`${run.knowledge_base}/${run.run_id}`" :data-run="`${run.knowledge_base}/${run.run_id}`">
+              <td class="run-id"><RouterLink :to="{ name: 'run', params: { kb: run.knowledge_base, run: run.run_id } }">#{{ run.run_id }}</RouterLink></td>
+              <td><KnowledgeBaseMark :kb="run.knowledge_base" /></td>
+              <td class="when"><HumanTime :at="run.started_at" /></td>
+              <td>
+                <span class="command" :title="run.command">{{ shortCommand(run.command) }}</span>
+                <span v-if="run.note" class="run-note">{{ run.note }}</span>
+                <FoldSection v-if="run.batch_ids.length" class="batches" :title="counted(run.batch_ids.length, 'batch', 'batches')">
+                  <span class="batch-ids">{{ run.batch_ids.join(', ') }}</span>
+                </FoldSection>
+              </td>
+              <!-- a run that recorded no end says so in the API's words, what that means in its card (line 1, 19 Nov) -->
+              <td class="outcome">
+                <HoverCard v-if="run.outcome_why" title="Outcome" :rows="[{ label: 'means', value: run.outcome_why }]">
+                  <span class="no-end">{{ run.outcome }}</span>
+                </HoverCard>
+                <template v-else>{{ run.outcome ?? '' }}</template>
+              </td>
+              <td class="cost">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
+            </tr>
+          </tbody>
+        </DataTable>
       </section>
     </template>
   </section>
@@ -143,77 +149,32 @@ function inTheSearch(count: number | null | undefined): string {
   margin-bottom: var(--space-md);
 }
 
-/* the knowledge bases side by side; one above the other on a narrow screen */
-.headlines,
-.runs-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-md);
-  align-items: start;
-}
-
-.headlines {
-  margin-bottom: var(--space-lg);
-}
-
-/* a band: a heading over the boxes of one subject */
-.band {
-  margin-bottom: var(--space-lg);
-}
-
-.band-title {
-  font-weight: normal;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.left-out,
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   color: var(--color-text-secondary);
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: var(--space-xs);
   margin-bottom: var(--space-sm);
 }
 
-.band-hint {
-  text-transform: none;
-  letter-spacing: normal;
-  margin-left: var(--space-sm);
-}
-
-/* a band's boxes flow down two columns the browser balances, so a short box leaves no hole beside a long one */
-.band-boxes {
-  columns: 2;
-  column-gap: var(--space-md);
-}
-
-.band-boxes > .box {
-  break-inside: avoid;
-  margin-bottom: var(--space-md);
-}
-
-@media (max-width: 900px) {
-  .headlines,
-  .runs-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .band-boxes {
-    columns: 1;
-  }
-}
-
-.headline-title {
-  margin-bottom: var(--space-xs);
-}
-
-/* key figures: the number large, its word small beneath; a figure that opens a list looks like a link */
+/* the corpus in one line of figures: the number above, its word beneath; a figure that opens a list looks like a link */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.tile-card.hover-card-host {
+  display: block;
 }
 
 .tile {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  height: 100%;
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--color-border);
   border-radius: 6px;
@@ -236,32 +197,29 @@ a.tile:hover {
 }
 
 .tile-label,
-.tile-served,
-.not-served,
-.note {
+.tile-share {
   color: var(--color-text-secondary);
 }
 
-/* the search's count stands beneath what was read, set apart by a rule so the two figures never read as one */
-.tile-served {
-  border-top: 1px solid var(--color-border);
-  padding-top: 2px;
-  margin-top: 2px;
+/* a band: a heading over the boxes of one subject */
+.band {
+  margin-bottom: var(--space-lg);
 }
 
-.box {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background-color: var(--color-bg-surface);
-  padding: var(--space-sm) var(--space-md);
-}
-
-.box-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
+.band-title {
   font-weight: normal;
-  margin-bottom: var(--space-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.band-hint {
+  text-transform: none;
+  letter-spacing: normal;
+  margin-left: var(--space-sm);
 }
 
 .run-rows th {

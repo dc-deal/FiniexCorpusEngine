@@ -755,3 +755,13 @@ The record of how the diagnostics frontend came about, mistakes included.
   check expected every page after a reload; with the choice now in the address the filter stays, which is the operator's
   F5 wish, so the check now expects it and clears it with the bar. **Removed:** the chip bar and its test, the person tally
   (its only use was beside a state), and the stored bar's default selection and scope.
+- **O3.a, the overview as one corpus, first part** (the operator decided O3.a, 19 Nov; line 1's handoff). Measured first,
+  in the container: the overview 48.5 s, the unfiltered page list 113.7 s for 10,224 rows, a filtered one 0.3 s. A profile
+  natively found the page list's time in 28,854 stats of the export's index, one per page's title; the overview's in the
+  integrity of every reading file, and once that was gone, in reading every run of each pipeline database. **The check
+  line 1 asked for**, each removed row against a Pages filter, is a test now, field by field; two kinds of row had no
+  filter (the costs per model and the search's media), named to line 1, which let them go. **A gap named, not built:** the
+  Pages view can drop a filter but not choose one, so without the tables a count is reached only by its address (P1, with
+  the operator). **Mistakes:** a test that cleared the export counts through a function's `__globals__`, written so in a
+  hurry, became a plain module access before the report; a heredoc lost an escaped quote in a test name a second time,
+  the trap `.claude/rules/machine.md` names, and the test files were written with the editor after it.

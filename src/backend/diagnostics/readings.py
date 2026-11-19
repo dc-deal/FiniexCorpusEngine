@@ -1350,18 +1350,22 @@ def issues(bases: dict[str, 'Readings']) -> IssueList:
     listed = sorted(((store, row) for store in bases.values() for row in store.rows()
                      if state_of(row) in LISTED_AS_ISSUE),
                     key=lambda pair: (apart(pair[1]), pair[1]['knowledge_base'], pair[1]['source_id'], pair[1]['pdf_page']))
+    titles = {(store.index, source_id): store.title(source_id) for store, source_id in {(store, row['source_id']) for store, row in listed}}
     return IssueList(
         knowledge_bases=counted([row['knowledge_base'] for _, row in listed]),
         states=counted_states([row for _, row in listed]),
         people=counted_people([row for _, row in listed]),
         reviews=counted_people([row for _, row in listed], by_a_person=False),
         categories=counted_categories([row for _, row in listed]),
-        rows=[issue_row(store, row) for store, row in listed])
+        rows=[issue_row(store, row, titles[(store.index, row['source_id'])]) for store, row in listed])
 
 
-def issue_row(store: 'Readings', row: dict) -> IssueRow:
-    """A page as a list across works shows it: its work by title, its state and reasons, and why a fallback serves it."""
-    return IssueRow(knowledge_base=row['knowledge_base'], source_id=row['source_id'], title=store.title(row['source_id']),
+def issue_row(store: 'Readings', row: dict, title: str | None = None) -> IssueRow:
+    """A page as a list across works shows it: its work by title, its state and reasons, and why a fallback serves it. A
+    list of many pages gives each work's title it resolved once (O3.a: a title asked per page costs a stat of the export's
+    index each time, slow over the container's bind mount)."""
+    return IssueRow(knowledge_base=row['knowledge_base'], source_id=row['source_id'],
+                    title=title if title is not None else store.title(row['source_id']),
                     pdf_page=row['pdf_page'], route=row['route'], check=check_of(row), error_message=row.get('error_message'),
                     from_text_layer=row['route'] in NOT_SERVED_ROUTES, route_level=row.get('route_level'),
                     route_why=route_parts(row['route'])[2], person=person_mark(row), category=row.get('category'),

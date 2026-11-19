@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import DataTable from '@/components/base/DataTable.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
+import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
@@ -55,7 +56,13 @@ onMounted(() => {
               <span v-if="run.note" class="run-note">{{ run.note }}</span>
               <span v-if="run.batch_ids.length" class="batches">{{ run.batch_ids.length }} {{ run.batch_ids.length === 1 ? 'batch' : 'batches' }}</span>
             </td>
-            <td>{{ run.outcome ?? '' }}</td>
+            <!-- a run that recorded no end says so in the API's words, what that means in its card (line 1, 19 Nov) -->
+            <td class="outcome">
+              <HoverCard v-if="run.outcome_why" title="Outcome" :rows="[{ label: 'means', value: run.outcome_why }]">
+                <span class="no-end">{{ run.outcome }}</span>
+              </HoverCard>
+              <template v-else>{{ run.outcome ?? '' }}</template>
+            </td>
             <td class="cost">{{ run.cost_usd === null ? '' : usd(run.cost_usd) }}</td>
           </tr>
         </tbody>

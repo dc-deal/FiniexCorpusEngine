@@ -63,7 +63,7 @@ class ShelfBase(BaseModel):
     # `export_sha256`); False where they part, so the counts and the pages a reason opens may disagree until a rebuild;
     # None where either side names none
     in_step: bool | None = None
-    totals: dict[str, int] = {}
+    totals: dict[str, int | float] = {}  # counts, and since X1.a the shares of the planned pages
     works: list[ShelfRow] = []
 
 

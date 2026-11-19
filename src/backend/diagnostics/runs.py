@@ -16,6 +16,11 @@ from backend.diagnostics.readings import KnowledgeBase, Readings
 BASES: tuple[KnowledgeBase, ...] = ('free', 'licensed')
 NO_DATABASE = 'No runs recorded on this machine: the pipeline database is local and not tracked.'
 NOT_READ = 'not read: the app was started with --public-only'
+# A run that recorded no end (line 1's word, 19 Nov): `pipeline_db.run` writes its end and outcome in its `finally`, so
+# both are missing only where the process stopped before that, killed or a session's script that never left the run, or
+# where it still runs; the row alone cannot tell which. Never "failed": a failed run records "failed: <error>" itself
+NO_END = 'no end recorded'
+NO_END_WHY = 'the command stopped before it could record an end, or it is still running'
 
 
 class RunLine(BaseModel):
@@ -26,7 +31,8 @@ class RunLine(BaseModel):
     command: str
     started_at: str
     ended_at: str | None
-    outcome: str | None
+    outcome: str | None  # the run's own word, or `NO_END` for a run that recorded no end
+    outcome_why: str | None = None  # what an outcome the run did not write itself means, `NO_END_WHY`
     cost_usd: float | None
     batch_ids: list[str]
     note: str | None
@@ -63,16 +69,37 @@ class RunDetail(RunLine):
 
 
 def line_of(run: dict) -> RunLine:
+    no_end = run['ended_at'] is None and run['outcome'] is None
     return RunLine(knowledge_base=run['knowledge_base'], run_id=run['run_id'], command=run['command'],
-                   started_at=run['started_at'], ended_at=run['ended_at'], outcome=run['outcome'], cost_usd=run['cost_usd'],
+                   started_at=run['started_at'], ended_at=run['ended_at'], outcome=NO_END if no_end else run['outcome'],
+                   outcome_why=NO_END_WHY if no_end else None, cost_usd=run['cost_usd'],
                    batch_ids=json.loads(run['batch_ids'] or '[]'), note=run['note'])
 
 
+# a base's runs by the state of its database: the overview, the landing page, asked for every run on each load, 0.27 s a
+# base natively and more over the container's bind mount (O3.a, 19 Nov)
+_RUNS: dict[KnowledgeBase, tuple[tuple, list[dict]]] = {}
+
+
+def database_state(path) -> tuple:
+    """The pipeline database's time and size, and its write-ahead log's, which takes a new run before the database file
+    itself changes: a new run, or its end, changes one of them."""
+    return tuple((found.st_mtime_ns, found.st_size) if (found := part.stat() if part.exists() else None) else None
+                 for part in (path, path.with_name(path.name + '-wal')))
+
+
 def recent(knowledge_base: KnowledgeBase, shown: int) -> list[RunLine] | None:
-    """A base's latest runs, newest first; None where this machine keeps no pipeline database."""
-    if not pipeline_db.PATHS[knowledge_base].exists():
+    """A base's latest runs, newest first; None where this machine keeps no pipeline database. Read again only when the
+    database changed (`database_state`)."""
+    path = pipeline_db.PATHS[knowledge_base]
+    if not path.exists():
         return None
-    return [line_of(run) for run in reversed(pipeline_db.runs(knowledge_base)[-shown:])]
+    state = (path, database_state(path))
+    known = _RUNS.get(knowledge_base)
+    if known is None or known[0] != state:
+        known = (state, pipeline_db.runs(knowledge_base))
+        _RUNS[knowledge_base] = known
+    return [line_of(run) for run in reversed(known[1][-shown:])]
 
 
 def run_list(bases: dict[str, Readings], public_only: bool) -> RunList:

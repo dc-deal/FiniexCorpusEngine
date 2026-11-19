@@ -796,7 +796,7 @@
     "/api/overview": {
       "get": {
         "summary": "Show Overview",
-        "description": "The whole pipeline at a glance, each knowledge base beside the other; a base not served says why.",
+        "description": "The corpus at a glance (O3.a): a headline summed over the knowledge bases served, and the latest runs.",
         "operationId": "show_overview",
         "responses": {
           "200": {
@@ -1760,100 +1760,6 @@
         "title": "AttemptCheck",
         "description": "What the check made of one reading: its state, the judge's verdict where it judged, and the check's outcome."
       },
-      "BaseHeadline": {
-        "properties": {
-          "knowledge_base": {
-            "type": "string",
-            "enum": [
-              "free",
-              "licensed"
-            ],
-            "title": "Knowledge Base"
-          },
-          "served": {
-            "type": "boolean",
-            "title": "Served"
-          },
-          "why_not": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Why Not"
-          },
-          "works": {
-            "type": "integer",
-            "title": "Works",
-            "default": 0
-          },
-          "pages": {
-            "type": "integer",
-            "title": "Pages",
-            "default": 0
-          },
-          "served_works": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Served Works"
-          },
-          "served_pages": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Served Pages"
-          },
-          "judged": {
-            "type": "integer",
-            "title": "Judged",
-            "default": 0
-          },
-          "to_look_at": {
-            "type": "integer",
-            "title": "To Look At",
-            "default": 0
-          },
-          "cost_usd": {
-            "type": "number",
-            "title": "Cost Usd",
-            "default": 0.0
-          },
-          "runs": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/RunLine"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Runs"
-          }
-        },
-        "type": "object",
-        "required": [
-          "knowledge_base",
-          "served"
-        ],
-        "title": "BaseHeadline"
-      },
       "Block": {
         "properties": {
           "id": {
@@ -2644,6 +2550,42 @@
         "type": "object",
         "title": "CitedPage"
       },
+      "Cost": {
+        "properties": {
+          "total": {
+            "type": "number",
+            "title": "Total"
+          },
+          "by_base": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "free",
+                "licensed"
+              ]
+            },
+            "type": "object",
+            "title": "By Base"
+          },
+          "by_provider": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "By Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "by_base",
+          "by_provider"
+        ],
+        "title": "Cost",
+        "description": "What every reading and judgement cost, retries included, in USD: its sum, each base's part, and each provider's over\nthe bases, a cost the export does not give counted as none (line 1, 19 Nov: the per-model tables go, the providers stay\nin the figure's card)."
+      },
       "Count": {
         "properties": {
           "value": {
@@ -3125,6 +3067,34 @@
         "title": "ExportStatus",
         "description": "The background export of one knowledge base: whether one runs or waits, how many have finished (a view reloads its\ndata when this number moves), and the last one's error, said rather than hidden."
       },
+      "Figure": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "by_base": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "free",
+                "licensed"
+              ]
+            },
+            "type": "object",
+            "title": "By Base"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "by_base"
+        ],
+        "title": "Figure",
+        "description": "A headline figure: its sum over the knowledge bases it was counted in, and each base's part, the detail."
+      },
       "Finding": {
         "properties": {
           "kind": {
@@ -3224,6 +3194,107 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "Headline": {
+        "properties": {
+          "bases": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "free",
+                "licensed"
+              ]
+            },
+            "type": "array",
+            "title": "Bases"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array",
+            "title": "Left Out"
+          },
+          "works": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Figure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Figure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Figure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "share_passed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Passed"
+          },
+          "served": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Figure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shelf_left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array",
+            "title": "Shelf Left Out"
+          },
+          "to_look_at": {
+            "$ref": "#/components/schemas/Figure"
+          },
+          "cost_usd": {
+            "$ref": "#/components/schemas/Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bases",
+          "left_out",
+          "works",
+          "planned",
+          "passed",
+          "share_passed",
+          "served",
+          "shelf_left_out",
+          "to_look_at",
+          "cost_usd"
+        ],
+        "title": "Headline",
+        "description": "The corpus in one line: summed over the knowledge bases served, each base's part kept as the detail. The shelf's\nfigures are summed over the bases whose shelf is built (`shelf_left_out` names the others); the export's over the\nbases served (`left_out`)."
       },
       "Hit": {
         "properties": {
@@ -4479,109 +4550,28 @@
         ],
         "title": "KnowledgeTurn"
       },
-      "ModelRow": {
+      "LeftOut": {
         "properties": {
-          "value": {
+          "knowledge_base": {
             "type": "string",
-            "title": "Value"
-          },
-          "free": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "free",
+              "licensed"
             ],
-            "title": "Free"
+            "title": "Knowledge Base"
           },
-          "licensed": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Licensed"
-          },
-          "free_usd": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Free Usd"
-          },
-          "licensed_usd": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Licensed Usd"
+          "why": {
+            "type": "string",
+            "title": "Why"
           }
         },
         "type": "object",
         "required": [
-          "value",
-          "free",
-          "licensed",
-          "free_usd",
-          "licensed_usd"
+          "knowledge_base",
+          "why"
         ],
-        "title": "ModelRow",
-        "description": "A model or a provider: the pages it worked on in each knowledge base and what all its work on them cost, retries\nincluded. A cost is None where it did not work there, or where the export gives no cost."
-      },
-      "ModelSection": {
-        "properties": {
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "field": {
-            "type": "string",
-            "title": "Field"
-          },
-          "linked": {
-            "type": "boolean",
-            "title": "Linked"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "rows": {
-            "items": {
-              "$ref": "#/components/schemas/ModelRow"
-            },
-            "type": "array",
-            "title": "Rows"
-          }
-        },
-        "type": "object",
-        "required": [
-          "title",
-          "field",
-          "linked",
-          "rows"
-        ],
-        "title": "ModelSection"
+        "title": "LeftOut",
+        "description": "A knowledge base a sum leaves out, and why: not served, no export, or no shelf built here."
       },
       "Option": {
         "properties": {
@@ -4680,40 +4670,41 @@
       },
       "Overview": {
         "properties": {
-          "bases": {
-            "items": {
-              "$ref": "#/components/schemas/BaseHeadline"
-            },
-            "type": "array",
-            "title": "Bases"
+          "headline": {
+            "$ref": "#/components/schemas/Headline"
           },
-          "models": {
-            "items": {
-              "$ref": "#/components/schemas/ModelSection"
-            },
-            "type": "array",
-            "title": "Models"
+          "runs": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RunLine"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs"
           },
-          "sections": {
-            "items": {
-              "$ref": "#/components/schemas/Section"
-            },
-            "type": "array",
-            "title": "Sections"
-          },
-          "search": {
-            "$ref": "#/components/schemas/Section"
+          "runs_why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs Why Not"
           }
         },
         "type": "object",
         "required": [
-          "bases",
-          "models",
-          "sections",
-          "search"
+          "headline",
+          "runs"
         ],
-        "title": "Overview",
-        "description": "The overview in its bands (the operator's 18.a): the key figures, which model did what, the pages through the pipeline,\nwhat the search holds; the latest runs stand with each base's key figures."
+        "title": "Overview"
       },
       "PageDetail": {
         "properties": {
@@ -6486,6 +6477,17 @@
             ],
             "title": "Outcome"
           },
+          "outcome_why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Why"
+          },
           "cost_usd": {
             "anyOf": [
               {
@@ -6632,6 +6634,17 @@
               }
             ],
             "title": "Outcome"
+          },
+          "outcome_why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Why"
           },
           "cost_usd": {
             "anyOf": [
@@ -6863,86 +6876,6 @@
           "view"
         ],
         "title": "SearchHit"
-      },
-      "Section": {
-        "properties": {
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "field": {
-            "type": "string",
-            "title": "Field"
-          },
-          "linked": {
-            "type": "boolean",
-            "title": "Linked"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "rows": {
-            "items": {
-              "$ref": "#/components/schemas/SectionRow"
-            },
-            "type": "array",
-            "title": "Rows"
-          }
-        },
-        "type": "object",
-        "required": [
-          "title",
-          "field",
-          "linked",
-          "rows"
-        ],
-        "title": "Section"
-      },
-      "SectionRow": {
-        "properties": {
-          "value": {
-            "type": "string",
-            "title": "Value"
-          },
-          "free": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Free"
-          },
-          "licensed": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Licensed"
-          }
-        },
-        "type": "object",
-        "required": [
-          "value",
-          "free",
-          "licensed"
-        ],
-        "title": "SectionRow",
-        "description": "One value of a section's field, with its count in each knowledge base; None where it does not occur there."
       },
       "SecurityCheck": {
         "properties": {
@@ -7290,7 +7223,14 @@
           },
           "totals": {
             "additionalProperties": {
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
             },
             "type": "object",
             "title": "Totals",

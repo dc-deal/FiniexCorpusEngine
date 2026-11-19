@@ -1,94 +1,87 @@
-"""The whole pipeline at a glance, the knowledge bases side by side (the operator, 2026-11-05), and the pages behind every figure.
+"""The overview, one corpus at a glance (the operator's O3.a, 19 Nov: "today there is only one corpus"), and the pages behind
+every figure.
 
-Every figure is counted here, from the exports, the search index and the pipeline databases, never in the browser. The
-overview has a headline per knowledge base (works, pages, judged, pages to look at, cost, latest runs) and sections in
-which each value stands once, with its count in each knowledge base beside it (the operator's 16.a), so nothing is labelled twice.
-A section names the field it counts, the page list filters by that field, and so every count of pages opens the pages it
-counts. Under the headlines stands which model did what (the operator's 17.a): the pages each reader and judge worked on, by model
-and by provider, and what that work cost. A knowledge base this app does not serve says why: under `--public-only` the
-licensed one is never read (81.a).
+Every figure is counted here, never in the browser. A headline sums the knowledge bases served: the works, the pages
+planned, those that passed and their share, the pages the search serves, from each base's shelf as the core builds it,
+and the pages to look at and what the work cost, from each export; each figure keeps each base's part beside it as its
+detail. Beneath it the latest runs of both bases, newest first, each marked with its base. A base not served is left out
+of every sum and says why: under `--public-only` the licensed one is never read (81.a).
+
+The overview counted every page by route, state, verdict, category, model and the integrity of its reading file in tables
+until O3.a. Those counts stay reachable through the page list's filters (`pages`), each asked only when chosen; the
+integrity of every reading file above all, which stat-ed some 10,200 files on each load (48.5 s in the container, 19 Nov).
 """
 
 import threading
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from backend.diagnostics import page_integrity
-from backend.diagnostics.readings import (LISTED_AS_ISSUE, STATE_ORDER, IssueRow, KnowledgeBase, Readings, check_of,
-                                          category_of, issue_row, listed_state, person_mark)
+from backend.diagnostics.readings import (LISTED_AS_ISSUE, IssueRow, KnowledgeBase, Readings, check_of, category_of,
+                                          issue_row, listed_state, person_mark)
 from backend.diagnostics.runs import RunLine, recent
-from backend.diagnostics.search_hits import Search
+from backend.search import shelf
 
 BASES: tuple[KnowledgeBase, ...] = ('free', 'licensed')
 RUNS_SHOWN = 8
-# The sections, in the order they stand: their title and the field of a page each one counts.
-SECTIONS = (('How the text is made', 'route'), ('State', 'state'), ("A person's verdict", 'person'),
-            ("An automated review's verdict", 'review'), ('Page category', 'category'),
-            ('Is the reading what was checked', 'integrity'),
-            ('Why judged, or why not', 'why_judged'), ("The judge's verdicts", 'verdict'), ('Reasons a page carries', 'reason'))
-# Which model did what (the operator's 17.a): the pages each one worked on, and what that work cost.
-MODEL_SECTIONS = (('Readings by model', 'reader'), ('Judgements by model', 'judge'),
-                  ('By provider, readings and judgements', 'provider'))
-PAID = frozenset(field for _, field in MODEL_SECTIONS)
+NOT_READ = 'not read: the app was started with --public-only'
+NO_EXPORT = 'no export of it on this machine'
+NO_SHELF = 'no shelf built on this machine: `python -m backend.search.shelf` builds it'
+NO_RUNS = 'No runs recorded on this machine: the pipeline database is local and not tracked.'
+# the fields a page's work is paid for by, which the page list filters by: a reading's model, a judgement's, both by provider
+PAID = frozenset({'reader', 'judge', 'provider'})
 
 
-class BaseHeadline(BaseModel):
+class Figure(BaseModel):
+    """A headline figure: its sum over the knowledge bases it was counted in, and each base's part, the detail."""
+
+    total: int
+    by_base: dict[KnowledgeBase, int]
+
+
+class Cost(BaseModel):
+    """What every reading and judgement cost, retries included, in USD: its sum, each base's part, and each provider's over
+    the bases, a cost the export does not give counted as none (line 1, 19 Nov: the per-model tables go, the providers stay
+    in the figure's card)."""
+
+    total: float
+    by_base: dict[KnowledgeBase, float]
+    by_provider: dict[str, float]
+
+
+class LeftOut(BaseModel):
+    """A knowledge base a sum leaves out, and why: not served, no export, or no shelf built here."""
+
     knowledge_base: KnowledgeBase
-    served: bool
-    why_not: str | None = None  # why a knowledge base is not served: never read, or no export on this machine
-    works: int = 0  # the works its export holds page readings of: read page by page
-    pages: int = 0  # the pages read: every row of the export
-    # What the search serves of it, every route counted (an HTML source, legacy Markdown, a text layer), as the search
-    # server's start banner counts it (the operator's 1.a): the banner said 15 works where the tile said 11, both right. None while
-    # the index is still being built.
-    served_works: int | None = None
-    served_pages: int | None = None
-    judged: int = 0
-    to_look_at: int = 0  # the pages the Issues list
-    # what every reading of the pages and every judgement of them cost, retries included: the provider box's sum
-    cost_usd: float = 0.0
-    runs: list[RunLine] | None = None  # the latest runs, newest first; None where this machine keeps no pipeline database
+    why: str
 
 
-class SectionRow(BaseModel):
-    """One value of a section's field, with its count in each knowledge base; None where it does not occur there."""
+class Headline(BaseModel):
+    """The corpus in one line: summed over the knowledge bases served, each base's part kept as the detail. The shelf's
+    figures are summed over the bases whose shelf is built (`shelf_left_out` names the others); the export's over the
+    bases served (`left_out`)."""
 
-    value: str
-    free: int | None
-    licensed: int | None
-
-
-class Section(BaseModel):
-    title: str
-    field: str  # the page list's filter that opens the pages behind each count
-    linked: bool  # the search's counts have no page list behind them
-    note: str | None = None  # why a section has no rows yet
-    rows: list[SectionRow]
-
-
-class ModelRow(SectionRow):
-    """A model or a provider: the pages it worked on in each knowledge base and what all its work on them cost, retries
-    included. A cost is None where it did not work there, or where the export gives no cost."""
-
-    free_usd: float | None
-    licensed_usd: float | None
-
-
-class ModelSection(Section):
-    rows: list[ModelRow]
+    bases: list[KnowledgeBase]  # the knowledge bases served, which every export figure sums
+    left_out: list[LeftOut]  # a base not served, and why
+    # from each base's shelf, the core's: works on the shelf, pages planned, passed and the search serves
+    works: Figure | None
+    planned: Figure | None
+    passed: Figure | None
+    share_passed: float | None  # passed of planned over the summed shelves, 0 to 1; None without a page planned
+    served: Figure | None
+    shelf_left_out: list[LeftOut]
+    # from each export: the pages the Issues list, and what all the readings and judgements cost
+    to_look_at: Figure
+    cost_usd: Cost
 
 
 class Overview(BaseModel):
-    """The overview in its bands (the operator's 18.a): the key figures, which model did what, the pages through the pipeline,
-    what the search holds; the latest runs stand with each base's key figures."""
-
-    bases: list[BaseHeadline]
-    models: list[ModelSection]
-    sections: list[Section]  # the pages through the pipeline
-    search: Section
+    headline: Headline
+    # the latest runs of both bases, newest first, each with its base; None where no base keeps a pipeline database here
+    runs: list[RunLine] | None
+    runs_why_not: str | None = None
 
 
 class PageList(BaseModel):
@@ -123,9 +116,9 @@ def paid_by(field: str, row: dict) -> dict[str, float | None]:
 
 
 def values_of(field: str, row: dict, export: Path | None = None) -> list[str]:
-    """The values a page has in a field: one each, none for a verdict it lacks, each reason, model or provider once. A
-    page's integrity is asked of its reading file in `export` on every count, so a file changed a moment ago counts; it is
-    hashed again only when its modification time or size changed (`page_integrity`)."""
+    """The values a page has in a field, as the page list filters by it: one each, none for a verdict it lacks, each
+    reason, model or provider once. A page's integrity is asked of its reading file in `export`, only when the filter is
+    chosen; the file is hashed again only when its modification time or size changed (`page_integrity`)."""
     if field in PAID:
         return sorted(paid_by(field, row))
     if field == 'integrity':
@@ -148,106 +141,81 @@ def values_of(field: str, row: dict, export: Path | None = None) -> list[str]:
     return sorted(set((row.get('check') or {}).get('reasons') or []))
 
 
-def merged(field: str, counts: dict[str, Counter]) -> list[SectionRow]:
-    """Each value once, its count per knowledge base beside it: states in their one order, the rest by their total."""
-    values = set().union(*(counter.keys() for counter in counts.values())) if counts else set()
-    rank = {state: at for at, state in enumerate(STATE_ORDER)}
-
-    def order(value: str):
-        if field == 'state':
-            return (rank.get(value, len(rank)), value)
-        return (-sum(counter.get(value, 0) for counter in counts.values()), value)
-
-    return [SectionRow(value=value, **{name: counts[name].get(value) if name in counts else None for name in BASES})
-            for value in sorted(values, key=order)]
-
-
-def spent(field: str, rows: list[dict]) -> dict[str, float | None]:
-    """What every model or provider's work on these pages cost."""
-    total: dict[str, float | None] = {}
-    for row in rows:
-        for value, cost in paid_by(field, row).items():
-            add(total, value, cost)
-    return total
-
-
-def model_rows(field: str, counts: dict[str, Counter], costs: dict[str, dict]) -> list[ModelRow]:
-    return [ModelRow(**row.model_dump(), **{f'{name}_usd': None if costs.get(name, {}).get(row.value) is None
-                                            else round(costs[name][row.value], 4) for name in BASES})
-            for row in merged(field, counts)]
-
-
 @dataclass(frozen=True)
 class Counted:
-    """What an export's rows give the overview apart from their integrity, counted once per state of the export."""
+    """What an export's rows give the headline, counted once per state of the export."""
 
-    counts: dict[str, Counter]
-    costs: dict[str, dict[str, float | None]]
     works: int
     pages: int
     judged: int
     to_look_at: int
+    cost_usd: float
+    cost_by_provider: dict[str, float]
 
 
 # one export's counts by its index file's modification time: the rows change only when the export is written again
 _COUNTED: dict[Path, tuple[int, Counted]] = {}
 _COUNTING = threading.Lock()
-STABLE_FIELDS = tuple(field for _, field in MODEL_SECTIONS + SECTIONS if field != 'integrity')
 
 
 def counted(store: Readings) -> Counted:
-    """The export's rows counted in every field but integrity, again only after the export was written anew. The time is
-    taken before the rows, so rows newer than it are counted again on the next call, never older rows kept as new."""
+    """The export's rows counted for the headline, again only after the export was written anew. The time is taken before
+    the rows, so rows newer than it are counted again on the next call, never older rows kept as new."""
     modified = store.index.stat().st_mtime_ns if store.index.exists() else 0
     rows = store.rows()
     with _COUNTING:
         known = _COUNTED.get(store.index)
     if known is not None and known[0] == modified:
         return known[1]
-    found = Counted(counts={field: Counter(value for row in rows for value in values_of(field, row)) for field in STABLE_FIELDS},
-                    costs={field: spent(field, rows) for field in PAID}, works=len({row['source_id'] for row in rows}),
-                    pages=len(rows), judged=sum(1 for row in rows if (row.get('check') or {}).get('judged')),
-                    to_look_at=sum(1 for row in rows if listed_state(row) in LISTED_AS_ISSUE))
+    by_provider: dict[str, float] = {}
+    for row in rows:
+        for provider, value in paid_by('provider', row).items():
+            by_provider[provider] = by_provider.get(provider, 0.0) + (value or 0.0)
+    found = Counted(works=len({row['source_id'] for row in rows}), pages=len(rows),
+                    judged=sum(1 for row in rows if (row.get('check') or {}).get('judged')),
+                    to_look_at=sum(1 for row in rows if listed_state(row) in LISTED_AS_ISSUE), cost_usd=sum(by_provider.values()),
+                    cost_by_provider=by_provider)
     with _COUNTING:
         _COUNTED[store.index] = (modified, found)
     return found
 
 
-def overview(bases: dict[str, Readings], search: Search, public_only: bool) -> Overview:
-    """The overview, counted from the exports: their rows once per state of each export (`counted`), every page's integrity
-    on every call, from a stat unless the file changed (`page_integrity`), so a reading file changed a moment ago counts."""
-    fields = [field for _, field in MODEL_SECTIONS + SECTIONS]
-    headlines, counts, costs = [], {field: {} for field in fields}, {field: {} for field in PAID}
-    service = search.ready()
-    # what the search serves, counted exactly as `search_server.banner` counts it, so a tile and the banner never part
-    served_pages = None if service is None else Counter(page.knowledge_base for page in service.index.pages)
-    served_works = None if service is None else Counter(work.knowledge_base for work in service.works.values())
-    for name in BASES:
-        if name not in bases:
-            why = 'not read: the app was started with --public-only' if public_only else 'no export of it on this machine'
-            headlines.append(BaseHeadline(knowledge_base=name, served=False, why_not=why))
-            continue
-        store = bases[name]
-        known = counted(store)
-        for field in STABLE_FIELDS:
-            counts[field][name] = known.counts[field]
-        counts['integrity'][name] = Counter(value for row in store.rows() for value in values_of('integrity', row, store.export))
-        for field in PAID:
-            costs[field][name] = known.costs[field]
-        cost_usd = sum(cost or 0.0 for cost in costs['provider'][name].values())
-        headlines.append(BaseHeadline(
-            knowledge_base=name, served=True, works=known.works, pages=known.pages,
-            served_works=None if served_works is None else served_works[name],
-            served_pages=None if served_pages is None else served_pages[name],
-            judged=known.judged, to_look_at=known.to_look_at, cost_usd=round(cost_usd, 4), runs=recent(name, RUNS_SHOWN)))
-    sections = [Section(title=title, field=field, linked=True, rows=merged(field, counts[field])) for title, field in SECTIONS]
-    indexed = {} if service is None else {
-        name: Counter(page.route for page in service.index.pages if page.knowledge_base == name) for name in bases}
-    searched = Section(title='In the search, every medium', field='route', linked=False, rows=merged('route', indexed),
-                       note=None if service else 'The search index is still being built; it counts here once it stands.')
-    models = [ModelSection(title=title, field=field, linked=True, rows=model_rows(field, counts[field], costs[field]))
-              for title, field in MODEL_SECTIONS]
-    return Overview(bases=headlines, models=models, sections=sections, search=searched)
+def summed(parts: dict[KnowledgeBase, int]) -> Figure:
+    return Figure(total=sum(parts.values()), by_base=parts)
+
+
+def latest_runs(served: list[KnowledgeBase]) -> list[RunLine] | None:
+    """The latest runs of the bases served, newest first, both together; None where none keeps a pipeline database."""
+    kept = [lines for name in served if (lines := recent(name, RUNS_SHOWN)) is not None]
+    if not kept:
+        return None
+    return sorted((line for lines in kept for line in lines), key=lambda line: line.started_at, reverse=True)[:RUNS_SHOWN]
+
+
+def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
+    """The overview: the export's figures counted once per state of each export (`counted`), the shelf's as the core last
+    built each base's shelf, every figure summed over the bases it was counted in."""
+    served = [name for name in BASES if name in bases]
+    left_out = [LeftOut(knowledge_base=name, why=NOT_READ if public_only else NO_EXPORT) for name in BASES if name not in bases]
+    exported = {name: counted(bases[name]) for name in served}
+    shelves = {name: data.get('totals') or {} for name in served if (data := shelf.load(name)) is not None}
+    shelf_left_out = [LeftOut(knowledge_base=name, why=NO_SHELF) for name in served if name not in shelves]
+
+    def from_shelf(key: str) -> Figure | None:
+        return summed({name: int(totals.get(key) or 0) for name, totals in shelves.items()}) if shelves else None
+
+    planned, passed = from_shelf('planned'), from_shelf('passed')
+    headline = Headline(
+        bases=served, left_out=left_out, works=from_shelf('works'), planned=planned, passed=passed,
+        share_passed=passed.total / planned.total if planned and passed and planned.total else None,
+        served=from_shelf('served'), shelf_left_out=shelf_left_out,
+        to_look_at=summed({name: found.to_look_at for name, found in exported.items()}),
+        cost_usd=Cost(total=round(sum(found.cost_usd for found in exported.values()), 4),
+                      by_base={name: round(found.cost_usd, 4) for name, found in exported.items()},
+                      by_provider={provider: round(sum(found.cost_by_provider.get(provider, 0.0) for found in exported.values()), 4)
+                                   for provider in sorted({name for found in exported.values() for name in found.cost_by_provider})}))
+    runs = latest_runs(served)
+    return Overview(headline=headline, runs=runs, runs_why_not=NO_RUNS if runs is None else None)
 
 
 FILTERS = ('knowledge_base', 'state', 'person', 'review', 'category', 'route', 'integrity', 'why_judged', 'verdict', 'reason', 'reader',
@@ -259,9 +227,12 @@ def matches(row: dict, filters: dict[str, str], export: Path) -> bool:
 
 
 def pages(bases: dict[str, Readings], filters: dict[str, str]) -> PageList:
-    """The pages every figure counts: those of the knowledge bases served that match every filter given, by base, work
-    and page."""
+    """The pages a filter names: those of the knowledge bases served that match every filter given, by base, work and
+    page. Each work's title is resolved once per list: asked per page, each asked for a stat of the export's index, 28,854
+    of them for the unfiltered list, 114 s over the container's bind mount (O3.a, 19 Nov)."""
     chosen = {name: store for name, store in bases.items() if filters.get('knowledge_base') in (None, name)}
     found = sorted(((store, row) for store in chosen.values() for row in store.rows() if matches(row, filters, store.export)),
                    key=lambda pair: (pair[1]['knowledge_base'], pair[1]['source_id'], pair[1]['pdf_page']))
-    return PageList(filters=filters, rows=[issue_row(store, row) for store, row in found])
+    titles = {(store.index, source_id): store.title(source_id)
+              for store, source_id in {(store, row['source_id']) for store, row in found}}
+    return PageList(filters=filters, rows=[issue_row(store, row, titles[(store.index, row['source_id'])]) for store, row in found])

@@ -328,7 +328,7 @@ export interface paths {
         };
         /**
          * Show Overview
-         * @description The whole pipeline at a glance, each knowledge base beside the other; a base not served says why.
+         * @description The corpus at a glance (O3.a): a headline summed over the knowledge bases served, and the latest runs.
          */
         get: operations["show_overview"];
         put?: never;
@@ -663,49 +663,6 @@ export interface components {
             /** Came From */
             came_from?: string | null;
         };
-        /** BaseHeadline */
-        BaseHeadline: {
-            /**
-             * Knowledge Base
-             * @enum {string}
-             */
-            knowledge_base: "free" | "licensed";
-            /** Served */
-            served: boolean;
-            /** Why Not */
-            why_not?: string | null;
-            /**
-             * Works
-             * @default 0
-             */
-            works: number;
-            /**
-             * Pages
-             * @default 0
-             */
-            pages: number;
-            /** Served Works */
-            served_works?: number | null;
-            /** Served Pages */
-            served_pages?: number | null;
-            /**
-             * Judged
-             * @default 0
-             */
-            judged: number;
-            /**
-             * To Look At
-             * @default 0
-             */
-            to_look_at: number;
-            /**
-             * Cost Usd
-             * @default 0
-             */
-            cost_usd: number;
-            /** Runs */
-            runs?: components["schemas"]["RunLine"][] | null;
-        };
         /**
          * Block
          * @description One block of a reading, in the form the view draws it; which of the body fields is set depends on the class.
@@ -966,6 +923,24 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * Cost
+         * @description What every reading and judgement cost, retries included, in USD: its sum, each base's part, and each provider's over
+         *     the bases, a cost the export does not give counted as none (line 1, 19 Nov: the per-model tables go, the providers stay
+         *     in the figure's card).
+         */
+        Cost: {
+            /** Total */
+            total: number;
+            /** By Base */
+            by_base: {
+                [key: string]: number;
+            };
+            /** By Provider */
+            by_provider: {
+                [key: string]: number;
+            };
+        };
         /** Count */
         Count: {
             /** Value */
@@ -1154,6 +1129,18 @@ export interface components {
             /** Last Finished At */
             last_finished_at?: string | null;
         };
+        /**
+         * Figure
+         * @description A headline figure: its sum over the knowledge bases it was counted in, and each base's part, the detail.
+         */
+        Figure: {
+            /** Total */
+            total: number;
+            /** By Base */
+            by_base: {
+                [key: string]: number;
+            };
+        };
         /** Finding */
         Finding: {
             /** Kind */
@@ -1185,6 +1172,28 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * Headline
+         * @description The corpus in one line: summed over the knowledge bases served, each base's part kept as the detail. The shelf's
+         *     figures are summed over the bases whose shelf is built (`shelf_left_out` names the others); the export's over the
+         *     bases served (`left_out`).
+         */
+        Headline: {
+            /** Bases */
+            bases: ("free" | "licensed")[];
+            /** Left Out */
+            left_out: components["schemas"]["LeftOut"][];
+            works: components["schemas"]["Figure"] | null;
+            planned: components["schemas"]["Figure"] | null;
+            passed: components["schemas"]["Figure"] | null;
+            /** Share Passed */
+            share_passed: number | null;
+            served: components["schemas"]["Figure"] | null;
+            /** Shelf Left Out */
+            shelf_left_out: components["schemas"]["LeftOut"][];
+            to_look_at: components["schemas"]["Figure"];
+            cost_usd: components["schemas"]["Cost"];
         };
         /** Hit */
         Hit: {
@@ -1590,34 +1599,17 @@ export interface components {
             [key: string]: unknown;
         };
         /**
-         * ModelRow
-         * @description A model or a provider: the pages it worked on in each knowledge base and what all its work on them cost, retries
-         *     included. A cost is None where it did not work there, or where the export gives no cost.
+         * LeftOut
+         * @description A knowledge base a sum leaves out, and why: not served, no export, or no shelf built here.
          */
-        ModelRow: {
-            /** Value */
-            value: string;
-            /** Free */
-            free: number | null;
-            /** Licensed */
-            licensed: number | null;
-            /** Free Usd */
-            free_usd: number | null;
-            /** Licensed Usd */
-            licensed_usd: number | null;
-        };
-        /** ModelSection */
-        ModelSection: {
-            /** Title */
-            title: string;
-            /** Field */
-            field: string;
-            /** Linked */
-            linked: boolean;
-            /** Note */
-            note?: string | null;
-            /** Rows */
-            rows: components["schemas"]["ModelRow"][];
+        LeftOut: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Why */
+            why: string;
         };
         /** Option */
         Option: {
@@ -1660,19 +1652,13 @@ export interface components {
              */
             state_pages: components["schemas"]["StatePages"][];
         };
-        /**
-         * Overview
-         * @description The overview in its bands (the operator's 18.a): the key figures, which model did what, the pages through the pipeline,
-         *     what the search holds; the latest runs stand with each base's key figures.
-         */
+        /** Overview */
         Overview: {
-            /** Bases */
-            bases: components["schemas"]["BaseHeadline"][];
-            /** Models */
-            models: components["schemas"]["ModelSection"][];
-            /** Sections */
-            sections: components["schemas"]["Section"][];
-            search: components["schemas"]["Section"];
+            headline: components["schemas"]["Headline"];
+            /** Runs */
+            runs: components["schemas"]["RunLine"][] | null;
+            /** Runs Why Not */
+            runs_why_not?: string | null;
         };
         /** PageDetail */
         PageDetail: {
@@ -2185,6 +2171,8 @@ export interface components {
             ended_at: string | null;
             /** Outcome */
             outcome: string | null;
+            /** Outcome Why */
+            outcome_why?: string | null;
             /** Cost Usd */
             cost_usd: number | null;
             /** Batch Ids */
@@ -2224,6 +2212,8 @@ export interface components {
             ended_at: string | null;
             /** Outcome */
             outcome: string | null;
+            /** Outcome Why */
+            outcome_why?: string | null;
             /** Cost Usd */
             cost_usd: number | null;
             /** Batch Ids */
@@ -2287,31 +2277,6 @@ export interface components {
             /** Reading Key */
             reading_key: string | null;
             view: components["schemas"]["PageLink"] | null;
-        };
-        /** Section */
-        Section: {
-            /** Title */
-            title: string;
-            /** Field */
-            field: string;
-            /** Linked */
-            linked: boolean;
-            /** Note */
-            note?: string | null;
-            /** Rows */
-            rows: components["schemas"]["SectionRow"][];
-        };
-        /**
-         * SectionRow
-         * @description One value of a section's field, with its count in each knowledge base; None where it does not occur there.
-         */
-        SectionRow: {
-            /** Value */
-            value: string;
-            /** Free */
-            free: number | null;
-            /** Licensed */
-            licensed: number | null;
         };
         /** SecurityCheck */
         SecurityCheck: {

@@ -48,9 +48,9 @@ async function openEveryFold(page: Page, limit = 300): Promise<void> {
   }
 }
 
-// The overview asks every reading file whether it changed, so a file changed a moment ago counts (69.a). Since 10 Nov a file
-// is hashed once at start and then known by its time and size, and the search reads its pages in a process of its own:
-// 0.6 to 0.8 s once warm, about 4 s while the start still hashes. The bound stays wide for a cold disk.
+// The overview no longer asks every reading file whether it changed (O3.a, 19 Nov: 48.5 s a load in the container, for the
+// integrity table): it sums each export's counts, kept while the export is unchanged, and each shelf's totals. The bound
+// stays wide for a cold disk and the app's warm-up; the check below holds the overview's own answer to a second
 const OVERVIEW_LOADS = 20_000
 
 // A work with an outline opens on its chapters, where a page in two units stands twice: a check of the flat list asks for it
@@ -59,39 +59,35 @@ async function asTable(page: Page): Promise<void> {
   if (await table.count()) await table.click()
 }
 
-test('the overview shows the pipeline at a glance, and a figure opens exactly the pages it counts', async ({ page, request }) => {
-  type Row = { value: string, free: number | null }
-  const sections = (await (await request.get('/api/overview')).json() as { sections: { title: string, rows: Row[] }[] }).sections
-  const blocked = sections.find(section => section.title === 'State')!.rows.find(row => row.value === 'blocked')!
+test('the overview heads the corpus in one line, the free base alone under --public-only, in under a second (O3.a)', async ({ page, request }) => {
+  await request.get('/api/overview')  // warm: the export's counts are kept while it is unchanged
+  const started = Date.now()
+  const answer = await (await request.get('/api/overview')).json() as {
+    headline: { bases: string[], to_look_at: { total: number }, cost_usd: { by_base: Record<string, number>, by_provider: Record<string, number> } }
+  }
+  expect(Date.now() - started, 'the overview\'s own answer, warm').toBeLessThan(1000)
+  expect(answer.headline.bases).toEqual(['free'])
   await page.goto('/#/')
   await expect(page).toHaveURL(/#\/overview$/)
   await settled(page, OVERVIEW_LOADS)
-  // the app runs with --public-only: the licensed base is said not to be read, and nothing of it shows
-  await expect(page.locator('.headline[data-kb="licensed"] .not-served')).toContainText('--public-only')
+  // the app runs with --public-only: the licensed base is said to be left out, and nothing of it shows
+  await expect(page.locator('[data-part="left-out"][data-kb="licensed"]')).toContainText('--public-only')
+  await expect(page.locator('[data-tile="to_look_at"] .tile-value')).toHaveText(answer.headline.to_look_at.total.toLocaleString('en'))
+  // the cost's card: each base's part and each provider's, the API's
+  await page.locator('[data-tile="cost"]').hover()
+  const rows = page.locator('[data-part="hover-card"] .card-row')
+  await expect(rows).toHaveCount(Object.keys(answer.headline.cost_usd.by_base).length + Object.keys(answer.headline.cost_usd.by_provider).length)
   await page.screenshot({ path: `${SHOTS}/overview.png` })
-  await page.locator('[data-section="State"] [data-value="blocked"] [data-kb="free"] a').click()
-  await expect(page).toHaveURL(/#\/pages\?knowledge_base=free&state=blocked$/)
-  await settled(page)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(blocked.free!)
-  await page.screenshot({ path: `${SHOTS}/pages_filtered.png` })
 })
 
-test('the overview says which model did what, and a model\'s count opens the pages it read', async ({ page, request }) => {
-  type Row = { value: string, free: number | null, free_usd: number | null }
-  const models = (await (await request.get('/api/overview')).json() as { models: { title: string, rows: Row[] }[] }).models
-  // the fewest pages a model read in the free base: a short list to count in the browser
-  const fewest = models.find(section => section.title === 'Readings by model')!.rows.filter(row => row.free !== null)
-    .sort((one, other) => one.free! - other.free!)[0]
-  await page.goto('/#/overview')
-  await settled(page, OVERVIEW_LOADS)
-  const box = page.locator('[data-band="cost"] [data-section="Readings by model"]')
-  await expect(box.locator('thead th')).toHaveText(['Readings by model', 'free', 'USD', 'licensed', 'USD'])
-  const row = box.locator(`tr[data-value="${fewest.value}"]`)
-  await expect(row.locator('[data-kb-usd="free"]')).toHaveText(fewest.free_usd === null ? '—' : usd(fewest.free_usd))
-  await row.locator('[data-kb="free"] a').click()
+// O3.a: the tables of counts left the overview; each count is the page list's filter by the same field, which gives the same
+// pages as the API counts them
+test('a count the overview once tabled stays reachable through its page filter (O3.a)', async ({ page, request }) => {
+  const blocked = (await (await request.get('/api/pages', { params: { knowledge_base: 'free', state: 'blocked' } })).json() as { rows: unknown[] }).rows
+  await page.goto('/#/pages?knowledge_base=free&state=blocked')
   await settled(page)
-  await expect(page.locator('[data-filter="reader"]')).toContainText(fewest.value)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(fewest.free!)
+  await expect(page.locator('tbody tr[data-page]')).toHaveCount(blocked.length)
+  await page.screenshot({ path: `${SHOTS}/pages_filtered.png` })
 })
 
 test('the runs list every run, and a run that chose readings opens their pages', async ({ page, request }) => {
@@ -1333,15 +1329,11 @@ test('a person\'s verdict stands beside the state in the page, its work, the Iss
   await pick(page, 'person', 'noted')
   await expect(page.locator(`tr[data-page="free/${ACCOUNTING}/524"]`)).toBeVisible()
   await expect(page.locator('tbody tr[data-page] [data-person="noted"]')).toHaveCount(await page.locator('tbody tr[data-page]').count())
-  // the overview: a person's verdicts by standing, each count opening exactly its pages
-  await page.goto('/#/overview')
-  await settled(page, OVERVIEW_LOADS)
-  const box = page.locator('[data-section="A person\'s verdict"]')
-  const count = Number(await box.locator('tr[data-value="accepted"] [data-kb="free"] a').textContent())
-  await box.locator('tr[data-value="accepted"] [data-kb="free"] a').click()
-  await expect(page).toHaveURL(/person=accepted/)
+  // the pages a person accepted, through the page list's filter, as many as the API lists (O3.a: the overview's table is gone)
+  const acceptedPages = (await (await request.get('/api/pages', { params: { person: 'accepted' } })).json() as { rows: unknown[] }).rows
+  await page.goto('/#/pages?person=accepted')
   await settled(page)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(count)
+  await expect(page.locator('tbody tr[data-page]')).toHaveCount(acceptedPages.length)
 })
 
 // 178.a (the operator on finance p. 5, b12: "a pity that 'The judge's evidence:' is not on a new line beneath"): a
@@ -1839,15 +1831,11 @@ test('a page that is not content says its category beside its state, and the lis
     expect(Math.max(...at) - Math.min(...at)).toBeLessThanOrEqual(1)
   }
   await page.screenshot({ path: `${SHOTS}/issues_apart.png`, fullPage: true })
-  // the overview: the pages by category, each count opening exactly its pages
-  await page.goto('/#/overview')
-  await settled(page, OVERVIEW_LOADS)
-  const box = page.locator('[data-section="Page category"] tr[data-value="exercise"] [data-kb="free"] a')
-  const count = Number(await box.textContent())
-  await box.click()
-  await expect(page).toHaveURL(/category=exercise/)
+  // the exercise pages through the page list's filter, as many as the API lists (O3.a: the overview's table is gone)
+  const exercise = (await (await request.get('/api/pages', { params: { category: 'exercise' } })).json() as { rows: unknown[] }).rows
+  await page.goto('/#/pages?category=exercise')
   await settled(page)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(count)
+  await expect(page.locator('tbody tr[data-page]')).toHaveCount(exercise.length)
 })
 
 // The operator on accounting p. 524: its head "reads as code", and its readings said "attempt 0, 1, 0, 2". The sentence and each
