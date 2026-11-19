@@ -133,3 +133,21 @@ def test_a_page_outside_a_passed_sample_is_chosen_and_an_issue_or_an_unchecked_p
     outcome = direct_reader.choose(SimpleNamespace(knowledge_base='licensed'))
     assert chosen == [1, 2]
     assert outcome == {'chosen': 2, 'not chosen: issue': 1, 'not chosen: not checked': 1}
+
+
+def test_a_whole_work_keeps_the_pages_the_session_read_and_leaves_out_those_another_reader_read(tmp_path, monkeypatch):
+    # found 19 Nov: the page list written anew after the night dropped every read page, and with them the work's readings
+    # from the cell, so the next export would have lost the whole work
+    import pymupdf
+    from types import SimpleNamespace
+
+    document = pymupdf.open()
+    for _ in range(3):
+        document.new_page()
+    document.save(tmp_path / 'scan.pdf')
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: True)
+    rows = [{'file': 'scan.pdf', 'pdf_page': 1, 'attempts': [{'mode': 'session', 'class_now': 'ok'}]},
+            {'file': 'scan.pdf', 'pdf_page': 2, 'attempts': [{'mode': 'batch', 'class_now': 'ok'}]}]
+    pages = direct_reader.whole_work(SimpleNamespace(name='licensed'), 'scan.pdf', rows)
+    assert [(page['pdf_page'], page['why']) for page in pages] == [(1, direct_reader.READ_IN_SESSION), (3, 'unread')]

@@ -147,9 +147,12 @@ def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
 
     if not reading_cells.may_send(file_name):
         raise SystemExit(f'{file_name} is held back by the provenance list (send: false): never sent to a provider')
-    read = {row['pdf_page'] for row in rows if row['file'] == file_name}
-    if any(touched_by_a_filter(row) for row in rows if row['file'] == file_name):
-        read |= {row['pdf_page'] for row in rows if row['file'] == file_name and touched_by_a_filter(row)}
+    own = [row for row in rows if row['file'] == file_name]
+    # A page the session read stays in the list, so its readings and its check stay the cell's (found 19 Nov: the list written
+    # anew after the reading had dropped every read page, and the export would have lost the whole work); a page another reader
+    # read, or one a filter or a reader turned away, stays out.
+    in_session = {row['pdf_page'] for row in own if read_in_session(row)}
+    read = {row['pdf_page'] for row in own if row['pdf_page'] not in in_session} | {row['pdf_page'] for row in own if touched_by_a_filter(row)}
     path = data_paths.LICENSED_ARCHIVE / file_name if base.name == 'licensed' else data_paths.locate(file_name)
     work = Path(file_name).stem
     with pymupdf.open(path) as document:
@@ -157,8 +160,17 @@ def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
         count = document.page_count
     card = WORK_CARD + (SCAN_NOTE if scan else '')
     return [{'file': file_name, 'pdf_page': number, 'work': work, 'gold': False, 'class_note': '',
-             'expected_output_tokens': 1900, 'deviation': DIRECT_DEVIATION, 'why': 'unread', 'work_card': card}
+             'expected_output_tokens': 1900, 'deviation': DIRECT_DEVIATION,
+             'why': READ_IN_SESSION if number in in_session else 'unread', 'work_card': card}
             for number in range(1, count + 1) if number not in read]
+
+
+READ_IN_SESSION = 'read in the session'  # a page of a work read whole that the session read already: kept, never read again
+
+
+def read_in_session(row: dict) -> bool:
+    """Whether a page's history holds a reading made in a Claude Code session."""
+    return any(attempt.get('mode') == 'session' for attempt in row.get('attempts') or [])
 
 
 def entry_for(cell: reading_cells.Cell, page: dict, image: page_render.PageImage, mirror: str, store,
