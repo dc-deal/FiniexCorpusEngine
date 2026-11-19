@@ -50,8 +50,13 @@ function jump(): void {
   padding: 2px var(--space-xs);
   color: var(--color-text-primary);
   background-color: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  /* the border a control's surface has, so the field reads as one to type in, never as disabled (the viewer's tip 7) */
+  border: 1px solid var(--color-border-overlay);
   border-radius: 4px;
+}
+
+.page-jump input:hover {
+  border-color: var(--color-accent);
 }
 
 .page-jump input:focus-visible {

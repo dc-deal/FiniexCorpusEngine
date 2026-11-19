@@ -8,6 +8,7 @@ import { usd } from '@/cost_format'
 import { renderMarkdown } from '@/render_markdown'
 import type { ChatResult, SecurityCheck } from '@/types/api/chat_types'
 import type { components } from '@/types/api/diagnostics_api'
+import { counted } from '@/counted'
 
 /**
  * One turn of the chat, by its kind (decision 100.a). A knowledge turn shows its answer, its quotes word for word with
@@ -96,7 +97,7 @@ function articleOf(article: ArticleLink) {
         <!-- eslint-disable-next-line vue/no-v-html -- model output, sanitised in render_markdown -->
         <div class="markdown" v-html="followUpHtml" />
       </div>
-      <FoldSection v-if="turn.sources.length" class="sources" title="Sources" :count="`${turn.sources.length} ${turn.sources.length === 1 ? 'passage' : 'passages'}`">
+      <FoldSection v-if="turn.sources.length" class="sources" title="Sources" :count="counted(turn.sources.length, 'passage')">
         <ol class="ruled">
           <li v-for="source in turn.sources" :key="source.number" :data-source="source.number">
             [{{ source.number }}] {{ source.citation.text }}

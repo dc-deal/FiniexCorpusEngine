@@ -11,6 +11,7 @@ import ReadingTable from '@/components/reading/ReadingTable.vue'
 import MathTex from '@/components/reading/MathTex.vue'
 import { correctionLabel, lookedSaid } from '@/person_words'
 import type { ReadingBlock, ReadingError, StandingCorrection } from '@/types/api/page_types'
+import { counted } from '@/counted'
 
 /**
  * A reading block by block, in the reader's order, each drawn by its class: prose as segments, a formula typeset, a table
@@ -70,7 +71,7 @@ function describedBy(block: ReadingBlock): string | null {
 
 function labelsCount(block: ReadingBlock): string {
   const count = labelsOf(block).length
-  return `${count} ${count === 1 ? 'label' : 'labels'}${block.attrs.kind === 'photo' ? ' read from the photo' : ''}`
+  return `${counted(count, 'label')}${block.attrs.kind === 'photo' ? ' read from the photo' : ''}`
 }
 
 // the block under the pointer, so the page beside it can show where the reader placed that block

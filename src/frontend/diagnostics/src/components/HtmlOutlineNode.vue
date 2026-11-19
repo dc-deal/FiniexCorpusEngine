@@ -4,6 +4,7 @@ import FoldSection from '@/components/base/FoldSection.vue'
 import { useOpenUnitsStore } from '@/stores/open_units_store'
 import type { HtmlNode } from '@/types/api/html_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
+import { counted } from '@/counted'
 
 /**
  * One heading of an HTML work's outline (the operator's 6.a), folded where it has sub-headings: its title, the range of its section
@@ -33,9 +34,6 @@ function onToggle(opened: boolean): void {
 }
 const range = computed(() => props.node.first === props.node.last ? props.node.first : `${props.node.first}–${props.node.last}`)
 
-function counted(count: number, word: string): string {
-  return `${count.toLocaleString('en')} ${word}${count === 1 ? '' : 's'}`
-}
 </script>
 
 <template>

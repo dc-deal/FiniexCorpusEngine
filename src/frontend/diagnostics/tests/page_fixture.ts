@@ -31,7 +31,7 @@ export function aPageRow(overrides: Partial<PageRow> = {}): PageRow {
     attempt: 0,
     cost_usd: 0.0163,
     error_message: null,
-    from_text_layer: false,
+    from_fallback: false,
     ...overrides,
   }
 }
@@ -116,7 +116,7 @@ export function aPageDetail(overrides: Partial<PageDetail> = {}): PageDetail {
     previous_page: 3,
     next_page: 5,
     route: VISION_ROUTE,
-    from_text_layer: false,
+    from_fallback: false,
     trace: {
       reading_key: '2b2d48e77b246c95',
       model: 'claude-sonnet-5-5',
@@ -164,7 +164,7 @@ export function anIssueList(): IssueList {
         route: BLOCKED_ROUTE,
         check: aCheck({ state: 'blocked', judged: false, verdict: null, reasons: [{ value: 'errored', count: 1 }] }),
         error_message: CONTENT_FILTER,
-        from_text_layer: true,
+        from_fallback: true,
         apart: false,
       },
       {
@@ -175,7 +175,7 @@ export function anIssueList(): IssueList {
         route: JUDGED_BAD_ROUTE,
         check: aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }, { value: 'omission', count: 3 }] }),
         error_message: null,
-        from_text_layer: true,
+        from_fallback: true,
         apart: false,
       },
     ],

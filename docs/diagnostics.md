@@ -1681,3 +1681,20 @@ earlier, the work's column kept 121 px at 34 rem). The Issues and a work's head 
 bar (SC1.a), each state once with its served tally, whatever the bar narrows; the calls keep their cards' counts of every
 logged call beside the bar's count of the listed ones (SC2.a, as stage C left them). 377 unit tests, 78 checks in
 the browser (3 skipped on today's data), 1,464 Python tests.
+
+**Polish from the viewer's tips (Y1.a, stage D, 19 Nov; D1 to D11 agreed with line 1).** Every count is said with the noun
+that agrees with it through one helper (`counted`, `noun`): "1 section by heading", "1 call", where a view wrote "1
+sections" and "1 calls"; the helpers the views held each are merged into it. The runs tables, the Runs view's and the
+overview's, rank their columns: the base and a run's note go first, then the start and the cost (measured with both bases:
+the table ran 85 px past its box at 800 px, now 0). The costs keep the operator's rule of two significant digits rather
+than fixed decimals per column; their headings already stood over their figures. The PDF page field has the border of a
+control, a prototype's state the primary ink, the Runs view's headings sentence case. What the Prompts view holds is a
+hint on demand, the core's words in its panel, where a paragraph stood on every visit. A count in the chapter table that
+opens its pages wears a link's look, the accent's ink. The frame's head says once which clock every time is on, the
+reader's own zone. A dotted underline stays the one sign of a card under the pointer, and each of the two that carry it
+opens one. The API's `from_text_layer` is `from_fallback` now, as it means since H2.a. **Measured:** unit tests of the
+helper and of each view's words, ranks, hint and clock; a browser check that the runs table fits its box at 800 and
+1,400 px over an invented run as long as the longest real one, shown failing once with the ranks switched off (11 px).
+The decision numbers in the Prompts text (147.a, 148.a, …) are the core's registry's words, which trace each version to its
+decision, and stay as given (line 1). 381 unit tests, 79 checks in the browser (3 skipped on today's
+data), 1,464 Python tests.

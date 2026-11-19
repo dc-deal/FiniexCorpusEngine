@@ -34,6 +34,8 @@ const groups = MENU.map(({ group, routes }) => ({
 
 // a view of two panes side by side takes the wider container (160)
 const wide = computed(() => route.meta.wide === true)
+// the zone every human time is said in, the browser's own (`human_time`)
+const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 // the view's own name where it gave one for this address, else its route's label
 const viewName = computed(() => (named.value?.path === route.path ? named.value.name : route.meta.label) ?? null)
@@ -110,6 +112,9 @@ onBeforeUnmount(() => {
       <span v-else-if="infoError" class="frame-subtitle" :title="infoError.message">name not loaded</span>
       <RouterLink to="/overview" class="frame-overview">Overview</RouterLink>
       <span v-if="route.name !== 'overview' && viewName" class="frame-view" :title="viewName">{{ viewName }}</span>
+      <!-- which clock every time is said on, once for every view (line 1's D11.a, the viewer's tip 9): the reader's own zone,
+           in which each time is said and its full stamp given -->
+      <span class="frame-clock" data-part="clock">times in {{ zone }}</span>
     </div>
   </header>
   <main class="frame-main" :class="{ wide }">
@@ -172,6 +177,21 @@ onBeforeUnmount(() => {
 /* the view on show is the one place this link is not an invitation */
 .frame-overview.router-link-active {
   color: var(--color-text-primary);
+}
+
+/* which clock the times are on: quiet, at the row's end; on a narrow screen it gives way, as the row has no room beside the
+   tool's name (found by the browser check at 390 px, stage D: the page scrolled sideways), and each time's hover still
+   names its zone */
+.frame-clock {
+  margin-left: auto;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 48rem) {
+  .frame-clock {
+    display: none;
+  }
 }
 
 /* the name of the view on show: plain ink, cut with an ellipsis where a work's title is long, whole in its hover */

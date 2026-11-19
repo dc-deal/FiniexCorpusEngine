@@ -12,6 +12,7 @@ import { useSettingsStore } from '@/stores/settings_store'
 import { useViewName } from '@/view_name'
 import type { HtmlNode } from '@/types/api/html_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
+import { counted } from '@/counted'
 
 /**
  * An HTML work (the operator's 6.a, an exception to the feature seal named as such): its outline by heading in the work's own flow,
@@ -56,7 +57,7 @@ const childrenOf = computed(() => {
       <p v-if="shown.why_not" class="why-not">{{ shown.why_not }}</p>
       <template v-else>
         <p class="summary">
-          <span>{{ shown.sections.toLocaleString('en') }} sections by heading · {{ shown.chunks.toLocaleString('en') }} chunks</span>
+          <span>{{ counted(shown.sections, 'section') }} by heading · {{ counted(shown.chunks, 'chunk') }}</span>
           <span class="route">{{ shown.route }}</span>
           <span v-if="shown.licence" class="licence">{{ shown.licence }}</span>
         </p>

@@ -210,7 +210,7 @@ describe('WorkPagesView', () => {
         route: DECLINED_ROUTE,
         check: aCheck({ state: 'blocked', verdict: null, judged: false, reasons: [{ value: 'refused', count: 1 }] }),
         class_now: 'refused',
-        from_text_layer: true,
+        from_fallback: true,
       }),
       aPageRow({ pdf_page: 750, route: servedDespite, check: aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }] }) }),
     ]))

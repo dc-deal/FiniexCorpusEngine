@@ -83,6 +83,7 @@ describe('SourcesView', () => {
       aWork({ readings: { pages: 629, states: [{ value: 'ok', count: 629 }], routes: [], people: [], reviews: [], categories: [] } }),
       aWork({ id: 'wikipedia_trading_set', title: 'Wikipedia articles', format: 'html', year: null, sections: 130, chunks: 263 }),
       aWork({ id: 'kleppmann_accounting_for_computer_scientists', format: 'html', structure_why_not: 'No search index on this machine yet' }),
+      aWork({ id: 'one_section', title: 'One section', format: 'html', sections: 1, chunks: 1 }),
     ])
     const view = mountView()
     await flushPromises()
@@ -92,6 +93,8 @@ describe('SourcesView', () => {
     // a work read page by page: its pages, a figure (B3.a); any other: how it is cut, in the API's words, in the same column
     expect(pdf.find('[data-cell="structure"] [data-part="pages"]').text()).toBe('629')
     expect(html.find('[data-cell="structure"]').text()).toBe('130 sections by heading · 263 chunks')
+    // a count's noun agrees with it (stage D1, the viewer's tip 9: "1 sections by heading")
+    expect(rowOf(view, 'one_section').find('[data-cell="structure"]').text()).toBe('1 section by heading · 1 chunk')
     expect(html.find('a.work-title').attributes('href')).toBe('#/free/html/wikipedia_trading_set')
     expect(unbuilt.find('[data-cell="structure"]').text()).toBe('sections by heading · search index not built')
     // why, in the API's words, in the row's card where a browser tooltip stood (decision 179)

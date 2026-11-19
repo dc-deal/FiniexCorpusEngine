@@ -8,6 +8,7 @@ import LoadingLine from '@/components/base/LoadingLine.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import { useErrorsStore } from '@/stores/errors_store'
 import type { ErrorClass } from '@/types/api/errors_types'
+import { counted } from '@/counted'
 
 /**
  * Error classes (line 1's order for the operator's 146.a, 147.a): what kind of error recurs, in which class of block and in which
@@ -35,11 +36,11 @@ function onToggle(one: ErrorClass, open: boolean): void {
 }
 
 const judged = computed(() => (errors.value?.classes ?? []).filter(one => one.stage === 'judge'))
-const counted = computed(() => judged.value.filter(one => !one.void))
+const countingFindings = computed(() => judged.value.filter(one => !one.void))
 const voided = computed(() => judged.value.filter(one => one.void))
 const layer = computed(() => (errors.value?.classes ?? []).filter(one => one.stage === 'stage 2'))
 const tables = computed(() => [
-  { key: 'judge', title: "The judge's findings that count", note: 'by kind, block class and work', rows: counted.value, classes: true },
+  { key: 'judge', title: "The judge's findings that count", note: 'by kind, block class and work', rows: countingFindings.value, classes: true },
   { key: 'void', title: 'Void: findings that name no difference', note: 'kept apart, never counted', rows: voided.value, classes: true },
   { key: 'stage2', title: 'Stage 2, the reading against the text layer', note: 'by kind and work', rows: layer.value, classes: false },
 ])
@@ -71,7 +72,7 @@ const tables = computed(() => [
               <td><KnowledgeBaseMark :kb="one.knowledge_base" /> {{ one.title }}</td>
               <td class="number">{{ one.findings.toLocaleString('en') }}</td>
               <td>
-                <FoldSection class="pages" :title="`${one.pages.length} ${one.pages.length === 1 ? 'page' : 'pages'}`" @toggle="open => onToggle(one, open)">
+                <FoldSection class="pages" :title="counted(one.pages.length, 'page')" @toggle="open => onToggle(one, open)">
                   <span v-if="opened.has(keyOf(one))" class="page-links">
                     <RouterLink
                       v-for="page in one.pages"

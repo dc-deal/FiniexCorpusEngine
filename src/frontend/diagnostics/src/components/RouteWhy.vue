@@ -9,7 +9,7 @@ interface Served {
   route: string
   route_level?: string | null
   route_why?: string | null
-  from_text_layer: boolean
+  from_fallback: boolean
   check: { state: string }
 }
 

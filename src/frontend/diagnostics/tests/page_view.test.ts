@@ -277,7 +277,7 @@ describe('PageView', () => {
   it('opens a page quoted from its text layer on its reading, as every page, the quoted text one click away (227.a)', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
       route: JUDGED_BAD_ROUTE,
-      from_text_layer: true,
+      from_fallback: true,
       check: aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }], verdict: { verdict: 'bad', outcome: 'issue', findings: [], void: 0 } }),
     }))
     const view = mountView()
@@ -314,7 +314,7 @@ describe('PageView', () => {
   })
 
   it('says so where the core holds no quoted text for a page', async () => {
-    vi.mocked(getPage).mockResolvedValue(aPageDetail({ route: JUDGED_BAD_ROUTE, from_text_layer: true }))
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ route: JUDGED_BAD_ROUTE, from_fallback: true }))
     vi.mocked(getQuoted).mockResolvedValue({ knowledge_base: 'free', source_id: KELLY, pdf_page: 4, text: null })
     const view = mountView()
     await flushPromises()

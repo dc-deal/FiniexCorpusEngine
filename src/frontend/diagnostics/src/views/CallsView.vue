@@ -15,6 +15,7 @@ import type { AnsweredPage, Call } from '@/types/api/calls_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 import type { FacetDefinition, SortDefinition } from '@/types/facet_types'
 import { useFacetState } from '@/use_facet_state'
+import { counted, noun } from '@/counted'
 
 /**
  * The search server's call log (19.a, decision 98.c): who asked what, which pages answered, how long it took. On top, each
@@ -92,7 +93,7 @@ function viewOf(page: AnsweredPage) {
       <div class="tools">
         <article v-for="tool in list.tools" :key="tool.tool" class="tool" :data-tool="tool.tool">
           <h2 class="tool-name">{{ tool.tool }}</h2>
-          <p class="tool-figure"><span class="value">{{ tool.calls.toLocaleString('en') }}</span> calls</p>
+          <p class="tool-figure"><span class="value">{{ tool.calls.toLocaleString('en') }}</span> {{ noun(tool.calls, 'call') }}</p>
           <p v-if="tool.median_ms !== null" class="tool-figure"><span class="value">{{ duration(tool.median_ms) }}</span> median</p>
           <p class="tool-states">
             <span v-for="state in tool.states" :key="state.value" :data-state="state.value">{{ state.value }} {{ state.count }}</span>
@@ -146,7 +147,7 @@ function viewOf(page: AnsweredPage) {
                 </FoldSection>
                 <!-- a search over works answers with works, each opening its pages where this app holds them -->
                 <span v-if="call.answered_works.length" class="answered" data-answered="works">
-                  {{ call.answered_works.length }} {{ call.answered_works.length === 1 ? 'work' : 'works' }} answered:
+                  {{ counted(call.answered_works.length, 'work') }} answered:
                   <template v-for="(work, number) in call.answered_works" :key="number">
                     <RouterLink v-if="work.source_id && work.knowledge_base" :to="{ name: 'work', params: { kb: work.knowledge_base, work: work.source_id } }">
                       {{ work.title ?? work.work }}

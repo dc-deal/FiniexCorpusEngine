@@ -36,6 +36,7 @@ import { useVerdictStore } from '@/stores/verdict_store'
 import { useViewName } from '@/view_name'
 import { lookedSaid, verdictBy } from '@/person_words'
 import { readingCost, usd } from '@/cost_format'
+import { counted, noun } from '@/counted'
 import type { Attempt, Judgement, PersonVerdict } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
@@ -226,15 +227,12 @@ function labReadingOf(attempt: Attempt): string {
 }
 
 // what the history and the Lab hold, in their fold's title: "2 readings · shown: reading 2 · 1 judgement counts"
-function counted(count: number, word: string): string {
-  return `${count} ${word}${count === 1 ? '' : 's'}`
-}
 const historySaid = computed(() => {
   const attempts = pipelineAttempts.value
   const current = attempts.find(attempt => attempt.shown)
   const counting = attempts.flatMap(attempt => attempt.judgements).filter(judgement => judgement.counts).length
   return [counted(attempts.length, 'reading'), current ? `shown: reading ${current.number}` : '',
-    counting ? `${counted(counting, 'judgement')} ${counting === 1 ? 'counts' : 'count'}` : ''].filter(Boolean).join(' · ')
+    counting ? `${counted(counting, 'judgement')} ${noun(counting, 'counts', 'count')}` : ''].filter(Boolean).join(' · ')
 })
 // "1 reading and 4 judgements tried beside the pipeline, never served"
 const labSaid = computed(() => `${[prototypeReadings.value.length ? counted(prototypeReadings.value.length, 'reading') : '',
@@ -277,10 +275,10 @@ function labKindOf(judgement: Judgement): { word: string, part: string } {
 function judgementsWord(judgements: Judgement[]): string {
   const kept = judgements.filter(judgement => !inLab(judgement))
   const tried = judgements.length - kept.length
-  const counted = kept.filter(judgement => judgement.counts).map(judgement => `${judgement.version ?? 'judge'} counts`)
-  const others = kept.length - counted.length
+  const counting = kept.filter(judgement => judgement.counts).map(judgement => `${judgement.version ?? 'judge'} counts`)
+  const others = kept.length - counting.length
   const head = kept.length
-    ? `${kept.length} ${kept.length === 1 ? 'judgement' : 'judgements'}: ${[...counted, others ? `${others} not counted` : ''].filter(Boolean).join(' · ')}`
+    ? `${counted(kept.length, 'judgement')}: ${[...counting, others ? `${others} not counted` : ''].filter(Boolean).join(' · ')}`
     : ''
   return [head, tried ? `${tried} in the Lab` : ''].filter(Boolean).join(' · ')
 }
@@ -297,7 +295,7 @@ function findingsWord(judgement: Judgement): string {
     .map(severity => ({ severity, count: standing.filter(finding => (finding.severity ?? 'unrated') === severity).length }))
   const parts = [...severities.map(one => (all === 1 ? one.severity : `${one.count} ${one.severity}`)),
     nothing ? (all === 1 ? 'void' : `${nothing} void`) : '']
-  return `${all} ${all === 1 ? 'finding' : 'findings'}: ${parts.filter(Boolean).join(', ')}`
+  return `${counted(all, 'finding')}: ${parts.filter(Boolean).join(', ')}`
 }
 
 // stage 2's figures as a reader says them: a share to three places

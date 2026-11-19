@@ -56,6 +56,8 @@ describe('CallsView', () => {
     await flushPromises()
     expect(view.find('[data-tool="semantic_search"].tool').text()).toContain('9.9 s median')
     expect(view.find('[data-tool="search"].tool').text()).toContain('3.2 ms median')
+    // one call is a call (stage D1, the viewer's tip 9: "toc 1 calls")
+    expect(view.find('[data-tool="search"].tool .tool-figure').text()).toBe('1 call')
     expect(view.find('[data-note="hidden"]').text()).toContain('15 calls not shown')
   })
 
