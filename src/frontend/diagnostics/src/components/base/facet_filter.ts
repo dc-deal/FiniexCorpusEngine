@@ -71,9 +71,15 @@ export function facetOptions<T>(
     if (!counts.has(value)) counts.set(value, 0)
   }
 
+  // in the facet's own order where it gives one (the core's state order), else alphabetically; a value it does not name
+  // follows the named ones
+  const rank = (value: string) => {
+    const at = definition.order?.indexOf(value) ?? -1
+    return at < 0 ? Number.MAX_SAFE_INTEGER : at
+  }
   return [...counts.entries()]
     .map(([value, count]) => ({ value, count, active: picked.includes(value) }))
-    .sort((a, b) => a.value.localeCompare(b.value))
+    .sort((a, b) => rank(a.value) - rank(b.value) || a.value.localeCompare(b.value))
 }
 
 /** A copy of the selection with one value switched on or off. Never mutates the input. */

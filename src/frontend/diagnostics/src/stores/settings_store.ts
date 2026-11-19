@@ -14,14 +14,12 @@ const FOLD_NAMES: readonly string[] = ['page.history', 'page.lab'] satisfies Fol
 
 /**
  * What a facet bar keeps across a reload (Y1.a, F5): its picks, its search and its sort, as the FiniexViewer keeps them.
- * `selection` is absent where the reader never narrowed, so a default could still apply; an empty one is a bar the reader
- * cleared, and stays cleared. `scope` is what the narrowing was made for, such as one work's pages, where a bar has one.
+ * An empty `selection` is a bar the reader cleared, and stays cleared.
  */
 export interface StoredFacets {
   selection?: FacetSelection
   search: string
   sort: string
-  scope?: string | null
 }
 
 /** How the reader prefers the views to behave. What they look at belongs to the URL, never here. */
@@ -58,7 +56,6 @@ function readFacets(value: unknown): StoredFacets {
     search: typeof stored['search'] === 'string' ? stored['search'] : '',
     sort: typeof stored['sort'] === 'string' ? stored['sort'] : '',
   }
-  if (typeof stored['scope'] === 'string') facets.scope = stored['scope']
   const selection = stored['selection']
   if (selection && typeof selection === 'object' && !Array.isArray(selection)) {
     facets.selection = {}

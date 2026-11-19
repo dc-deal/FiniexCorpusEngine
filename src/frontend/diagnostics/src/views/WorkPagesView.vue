@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, provide, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import ApiFailure from '@/components/ApiFailure.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
 import AppButton from '@/components/base/AppButton.vue'
-import ChipFacetBar from '@/components/base/ChipFacetBar.vue'
+import FacetBar from '@/components/base/FacetBar.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
@@ -17,9 +17,8 @@ import OwnPages from '@/components/OwnPages.vue'
 import RouteTable from '@/components/RouteTable.vue'
 import UnitCells from '@/components/UnitCells.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
-import PersonTally from '@/components/PersonTally.vue'
-import ServedTally from '@/components/ServedTally.vue'
 import StateMark from '@/components/StateMark.vue'
+import { applyFacets } from '@/components/base/facet_filter'
 import { queryValues } from '@/address_query'
 import { CHAPTER_MARKS, unitKey } from '@/chapter_marks'
 import { standingOf } from '@/listed_state'
@@ -31,7 +30,7 @@ import { useSettingsStore } from '@/stores/settings_store'
 import { useViewName } from '@/view_name'
 import type { OutlineUnit, PageRow } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
-import type { Facet, FacetSelection } from '@/types/facet_types'
+import type { FacetDefinition, FacetSelection, SortDefinition } from '@/types/facet_types'
 
 /**
  * Every read page of one work, narrowed by check state and route. Where the work has an order of its own (a PDF's
@@ -48,8 +47,8 @@ const store = usePageStore()
 const { pagesError } = storeToRefs(store)
 const settingsStore = useSettingsStore()
 const { settings } = storeToRefs(settingsStore)
-const selection = ref<FacetSelection>({})
 const address = useRoute()
+const router = useRouter()
 // the pages outside every chapter fold like a chapter, and are remembered like one (the operator, 2026-11-10)
 const openUnits = useOpenUnitsStore()
 
@@ -61,38 +60,54 @@ watch(() => [props.kb, props.work] as const, ([kb, work]) => {
   void store.loadWorkPages(kb, work)
 }, { immediate: true })
 
-// A link may choose the filter: the shelf's "39 blocked" opens the work with `?route=<that route>`, so exactly the
-// pages it counted stand here. Set again whenever the address changes, also for the same work.
-watch(() => [props.kb, props.work, address.query.state, address.query.person, address.query.review, address.query.category,
-  address.query.route] as const, () => {
-  const chosen: FacetSelection = {}
-  for (const key of ['state', 'person', 'review', 'category', 'route']) {
-    const values = queryValues(address.query, key)
-    if (values.length) chosen[key] = values
-  }
-  selection.value = chosen
-}, { immediate: true })
+// The choice lives in the address, both ways (Y1.a, stage C, as the Issues keep it, 24.a): a link may choose it, the shelf's
+// "39 blocked" opening the work with `?route=<that route>` so exactly the pages it counted stand here; a toggle writes it
+// back, so a reload (F5) and the browser's back find the list as it was left. A toggle replaces the address rather than
+// adding a step, so back leaves the list instead of undoing its toggles one by one.
+const FACET_KEYS = ['state', 'person', 'review', 'category', 'route']
+const selection = computed<FacetSelection>({
+  get: () => Object.fromEntries(FACET_KEYS.map(key => [key, queryValues(address.query, key)])),
+  set: chosen => {
+    const query = Object.fromEntries(FACET_KEYS.map(key => [key, chosen[key] ?? []] as const).filter(([, values]) => values.length > 0))
+    void router.replace({ name: 'work', params: { kb: props.kb, work: props.work }, query })
+  },
+})
 
 // an answer for another work, still on screen while this one loads, is not shown as this one: matched by the request it
 // answers, not by its fields
 const shown = computed(() => store.pagesOf(props.kb, props.work))
 useViewName(() => shown.value?.title ?? null)
 
-// the states stay a facet; the routes have their table, whose rows narrow the list the same way (the operator, 10 Nov)
-const facets = computed<Facet[]>(() => shown.value?.summary ? [
-  { key: 'state', label: 'State', values: shown.value.summary.states },
-  // a person's standing verdict (166.a), where a person judged any of the work's pages
-  ...(shown.value.summary.people?.length ? [{ key: 'person', label: 'A person', values: shown.value.summary.people }] : []),
-  // an automated review's, beside it and never counted as a person's (the operator's 2.a, 18 Nov)
-  ...(shown.value.summary.reviews?.length ? [{ key: 'review', label: 'Automated review', values: shown.value.summary.reviews }] : []),
-  // what kind of page (172.a): every category shown, none chosen, so a click narrows; a work of one category has no choice
-  ...((shown.value.summary.categories?.length ?? 0) > 1 ? [{ key: 'category', label: 'Category', values: shown.value.summary.categories }] : []),
-] : [])
+/** A facet's value as the row states it; a row without one states none, and is matched only while nothing is picked. */
+const said = (value: string): string[] => (value ? [value] : [])
+// each facet's values in the order the API lists them, the core's state order among them
+const orderOf = (counts: { value: string }[] | null | undefined): string[] => (counts ?? []).map(count => count.value)
 
-// a state's count of pages a person accepted or rejected, as the API counted it
-function stateCount(value: string) {
-  return shown.value?.summary?.states.find(count => count.value === value)
-}
+// The facet bar of the sources list, here too (Y1.a, stage C): the facets the work's pages hold, each value with how many of the
+// rows the other facets leave carry it (the operator's Q4.a). The routes have their table, whose rows narrow the list the
+// same way (the operator, 10 Nov): the bar is handed the pages on the chosen routes, and keeps the route choice as it is.
+const facets = computed<FacetDefinition<PageRow>[]>(() => {
+  const summary = shown.value?.summary
+  if (!summary) return []
+  const listed: FacetDefinition<PageRow>[] = [
+    { id: 'state', label: 'State', valuesOf: row => [row.listed_state ?? row.check.state], order: orderOf(summary.states) },
+  ]
+  // a person's standing verdict (166.a), where a person judged any of the work's pages
+  if (summary.people?.length) {
+    listed.push({ id: 'person', label: 'A person', valuesOf: row => said(standingOf(row.person, true)), order: orderOf(summary.people) })
+  }
+  // an automated review's, beside it and never counted as a person's (the operator's 2.a, 18 Nov)
+  if (summary.reviews?.length) {
+    listed.push({ id: 'review', label: 'Automated review', valuesOf: row => said(standingOf(row.person, false)), order: orderOf(summary.reviews) })
+  }
+  // what kind of page (172.a); a work of one category has no choice
+  if ((summary.categories?.length ?? 0) > 1) {
+    listed.push({ id: 'category', label: 'Category', valuesOf: row => [categoryOf(row)], order: orderOf(summary.categories) })
+  }
+  return listed
+})
+// the pages stand in the work's order: one order, so the bar draws no sort control
+const IN_ORDER: SortDefinition<PageRow>[] = [{ id: 'order', label: 'the work\'s order', compare: () => 0 }]
 
 const chosenRoutes = computed<string[]>({
   get: () => selection.value.route ?? [],
@@ -100,15 +115,19 @@ const chosenRoutes = computed<string[]>({
     selection.value = { ...selection.value, route: routes }
   },
 })
+// the bar's own facets: it neither sees nor clears the route the Routes table chose
+const barSelection = computed<FacetSelection>({
+  get: () => Object.fromEntries(Object.entries(selection.value).filter(([key]) => key !== 'route')),
+  set: chosen => {
+    selection.value = { ...chosen, route: selection.value.route ?? [] }
+  },
+})
 
-function kept(key: string, value: string): boolean {
-  const chosen = selection.value[key] ?? []
-  return chosen.length === 0 || chosen.includes(value)
-}
-
-const rows = computed<PageRow[]>(() => (shown.value?.pages ?? [])
-  .filter(row => kept('state', row.listed_state ?? row.check.state) && kept('person', standingOf(row.person, true))
-    && kept('review', standingOf(row.person, false)) && kept('category', categoryOf(row)) && kept('route', row.route)))
+const onRoutes = computed<PageRow[]>(() => {
+  const routes = selection.value.route ?? []
+  return (shown.value?.pages ?? []).filter(row => routes.length === 0 || routes.includes(row.route))
+})
+const rows = computed<PageRow[]>(() => applyFacets({ rows: onRoutes.value, definitions: facets.value, selection: selection.value }))
 const filtering = computed(() => Object.values(selection.value).some(chosen => chosen.length > 0))
 
 const outline = computed<OutlineUnit[]>(() => shown.value?.outline ?? [])
@@ -194,30 +213,21 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
         <LabelledLines :label-chars="10">
           <LabelledLine label="Work" class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></LabelledLine>
           <LabelledLine v-if="shown.summary" label="Pages"><span class="page-total">{{ pageCount(shown.summary.pages) }}</span></LabelledLine>
+          <LabelledLine v-if="shown.summary" label="PDF page"><PageJump :kb="kb" :work="work" bare /></LabelledLine>
         </LabelledLines>
-        <template v-if="shown.summary">
-          <ChipFacetBar v-model="selection" :facets="facets" :label-chars="10">
-            <template #value="{ facet, value }">
-              <StateMark v-if="facet.key === 'state'" :state="value" />
-              <PersonStanding v-else-if="facet.key === 'person' || facet.key === 'review'"
-                              :mark="{ standing: value as 'accepted' | 'rejected' | 'noted', by_a_person: facet.key === 'person' }" />
-              <template v-else>{{ value }}</template>
-            </template>
-            <template #after="{ facet, value }">
-              <template v-if="facet.key === 'state'">
-                <ServedTally :served="stateCount(value)?.served" />
-                <PersonTally :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
-              </template>
-            </template>
-          </ChipFacetBar>
-          <LabelledLines :label-chars="10">
-            <LabelledLine label="PDF page"><PageJump :kb="kb" :work="work" bare /></LabelledLine>
-          </LabelledLines>
-        </template>
       </div>
       <p v-if="!shown.summary" class="empty">This work has no page readings.</p>
       <template v-else>
         <RouteTable v-if="shown.routes.length" v-model="chosenRoutes" :routes="shown.routes" :levels="shown.route_levels" />
+        <!-- the bar narrows the pages below, on the routes the table above chose; a value keeps its look in the panel (Q3.a) -->
+        <FacetBar v-model:selection="barSelection" :rows="onRoutes" :facets="facets" :sorts="IN_ORDER" sort="order">
+          <template #value="{ facet, value }">
+            <StateMark v-if="facet === 'state'" :state="value" />
+            <PersonStanding v-else-if="facet === 'person' || facet === 'review'"
+                            :mark="{ standing: value as 'accepted' | 'rejected' | 'noted', by_a_person: facet === 'person' }" />
+            <template v-else>{{ value }}</template>
+          </template>
+        </FacetBar>
         <div v-if="outline.length" class="view-switch">
           <AppButton size="compact" :active="asChapters" @click="settingsStore.setWorkPagesView('chapters')">chapters</AppButton>
           <AppButton size="compact" :active="!asChapters" @click="settingsStore.setWorkPagesView('table')">table</AppButton>

@@ -1618,3 +1618,19 @@ table never scrolls, shown failing once with the ranks switched off (five column
 245 px) and once with the spanning heading put back (the work's column at 1.5 rem). 379 unit tests, 78 checks
 in the browser (3 skipped on today's data), 1,461 Python tests. Open with the operator: the state counts as
 figure columns (B3) and the id on its own line or in the card only (B4).
+
+**Every list on the one facet bar (Y1.a, stage C, 19 Nov).** The Issues, a work's pages and the calls left the chip bar,
+which stood every value of every facet on screen as a toggle, for the sources list's bar: one line of facets, each value in
+its panel with how many of the rows the other facets leave carry it, the rest behind `+N`, "N of M" and clear. A value
+keeps its look in the panel, a state its glyph, word and colour, a verdict whose it is, a knowledge base its glyph; a
+facet lists its values in the order the API gives them (the core's state order), an addition to the viewer's bar, which
+lists them alphabetically. The Issues and a work's pages keep their choice in the address (24.a), now both ways for a
+work's pages too, so a reload (F5) and the browser's back find the list as it was left; there the Routes table keeps its
+own route choice, and the bar narrows the pages on the chosen routes. The calls keep theirs with the stored settings.
+The tally of a person's verdicts that stood beside a state left the bar: the "A person" facet says it, once (the viewer's
+tip 5). The Why of a page row and a derived block's marking are in plain ink now, the colour left to the state (tip 6). The
+chip bar, its tally component and the stored bar's default selection and scope, which no view used, are gone. Open with
+the operator: where the API's state totals stand above the bar (SC1), and the calls' cards against the bar's count of the
+listed calls (SC2). **Measured:** unit tests of each view's narrowing in the panel, the order, the address and the stored
+calls; the browser checks that picked a toggle pick in the panel now, and a work's chapters keep their filter across a
+reload. 375 unit tests, 78 checks in the browser (3 skipped on today's data), 1,462 Python tests.

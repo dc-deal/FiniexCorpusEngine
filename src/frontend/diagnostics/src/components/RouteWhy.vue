@@ -47,10 +47,6 @@ function showsWhy(): boolean {
   color: var(--color-text-secondary);
 }
 
-.route-why[data-level='fallback'] {
-  color: var(--color-warning);
-}
-
 .route-why :deep(.app-icon) {
   width: 1em;
   height: 1em;

@@ -3,19 +3,21 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import ApiFailure from '@/components/ApiFailure.vue'
+import FacetBar from '@/components/base/FacetBar.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
-import ChipFacetBar from '@/components/base/ChipFacetBar.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import GroupedPageRows from '@/components/GroupedPageRows.vue'
+import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
-import PersonTally from '@/components/PersonTally.vue'
-import ServedTally from '@/components/ServedTally.vue'
 import StateMark from '@/components/StateMark.vue'
+import { applyFacets } from '@/components/base/facet_filter'
 import { queryValues } from '@/address_query'
 import { DECIDED, DECIDED_BY_REVIEW, isDecided, standingOf } from '@/listed_state'
 import { categoryOf } from '@/page_category'
 import { useIssuesStore } from '@/stores/issues_store'
-import type { Facet, FacetSelection } from '@/types/facet_types'
+import type { IssueRow } from '@/types/api/page_types'
+import type { KnowledgeBase } from '@/types/api/source_types'
+import type { FacetDefinition, FacetSelection, SortDefinition } from '@/types/facet_types'
 
 /**
  * The pages a person should look at, over every work of every knowledge base served: an issue the judge or a check found,
@@ -44,30 +46,40 @@ const selection = computed<FacetSelection>({
   },
 })
 
-// the knowledge base is a choice only where more than one is served
-const facets = computed<Facet[]>(() => {
+/** A facet's value as the row states it; a row without one states none, and is matched only while nothing is picked. */
+const said = (value: string): string[] => (value ? [value] : [])
+// each facet's values in the order the API lists them, the core's state order among them
+const orderOf = (counts: { value: string }[]): string[] => counts.map(count => count.value)
+
+// The facet bar of the sources list, here too (Y1.a, stage C): the facets the data holds, each value with how many of the rows the other
+// facets leave carry it (the operator's Q4.a); the knowledge base a choice only where more than one is served
+const facets = computed<FacetDefinition<IssueRow>[]>(() => {
   if (!issues.value) return []
-  const listed: Facet[] = [{ key: 'state', label: 'State', values: issues.value.states }]
+  const listed: FacetDefinition<IssueRow>[] = [
+    { id: 'state', label: 'State', valuesOf: row => [row.listed_state ?? row.check.state], order: orderOf(issues.value.states) },
+  ]
   // a person's standing verdict (166.a): "judged by a person" is one click, where a person judged any listed page
-  if (issues.value.people.length) listed.push({ key: 'person', label: 'A person', values: issues.value.people })
+  if (issues.value.people.length) {
+    listed.push({ id: 'person', label: 'A person', valuesOf: row => said(standingOf(row.person, true)), order: orderOf(issues.value.people) })
+  }
   // an automated review's, never counted as a person's (the operator's 2.a, 18 Nov)
-  if (issues.value.reviews.length) listed.push({ key: 'review', label: 'Automated review', values: issues.value.reviews })
-  // what kind of page (172.a): every category shown, none chosen, so a click narrows
-  if (issues.value.categories.length > 1) listed.push({ key: 'category', label: 'Category', values: issues.value.categories })
+  if (issues.value.reviews.length) {
+    listed.push({ id: 'review', label: 'Automated review', valuesOf: row => said(standingOf(row.person, false)),
+      order: orderOf(issues.value.reviews) })
+  }
+  // what kind of page (172.a)
+  if (issues.value.categories.length > 1) {
+    listed.push({ id: 'category', label: 'Category', valuesOf: row => [categoryOf(row)], order: orderOf(issues.value.categories) })
+  }
   if (issues.value.knowledge_bases.length > 1) {
-    listed.push({ key: 'kb', label: 'Knowledge base', values: issues.value.knowledge_bases })
+    listed.push({ id: 'kb', label: 'Knowledge base', valuesOf: row => [row.knowledge_base], order: orderOf(issues.value.knowledge_bases) })
   }
   return listed
 })
+// the pages stand in the order the API serves them: one order, so the bar draws no sort control
+const AS_SERVED: SortDefinition<IssueRow>[] = [{ id: 'served', label: 'as served', compare: () => 0 }]
 
-function kept(key: string, value: string): boolean {
-  const chosen = selection.value[key] ?? []
-  return chosen.length === 0 || chosen.includes(value)
-}
-
-const rows = computed(() => (issues.value?.rows ?? [])
-  .filter(row => kept('state', row.listed_state ?? row.check.state) && kept('person', standingOf(row.person, true))
-    && kept('review', standingOf(row.person, false)) && kept('category', categoryOf(row)) && kept('kb', row.knowledge_base)))
+const rows = computed(() => applyFacets({ rows: issues.value?.rows ?? [], definitions: facets.value, selection: selection.value }))
 // the pages a person settled leave the open list for a fold of their own (211.a, the operator: "take pages judged by a person out of the issues"), kept there as a record; the API says which (`listed_state`)
 const open = computed(() => rows.value.filter(row => !isDecided(row.listed_state)))
 const decided = computed(() => rows.value.filter(row => row.listed_state === DECIDED))
@@ -82,11 +94,6 @@ const noneOpen = computed(() => (issues.value?.rows ?? []).every(row => isDecide
 function settledSaid(count: number): string {
   return `${count} ${count === 1 ? 'page' : 'pages'}, the check's state kept in each`
 }
-
-// a state's count of pages a person accepted or rejected, as the API counted it
-function stateCount(value: string) {
-  return issues.value?.states.find(count => count.value === value)
-}
 </script>
 
 <template>
@@ -96,20 +103,16 @@ function stateCount(value: string) {
     <LoadingLine v-else-if="!issues" />
     <p v-else-if="issues.rows.length === 0" class="empty">No page needs a look.</p>
     <template v-else>
-      <ChipFacetBar v-model="selection" :facets="facets">
+      <FacetBar v-model:selection="selection" :rows="issues.rows" :facets="facets" :sorts="AS_SERVED" sort="served">
+        <!-- a value keeps its look in the panel (Q3.a): a state its glyph, word and colour, a verdict whose it is -->
         <template #value="{ facet, value }">
-          <StateMark v-if="facet.key === 'state'" :state="value" />
-          <PersonStanding v-else-if="facet.key === 'person' || facet.key === 'review'"
-                          :mark="{ standing: value as 'accepted' | 'rejected' | 'noted', by_a_person: facet.key === 'person' }" />
+          <StateMark v-if="facet === 'state'" :state="value" />
+          <PersonStanding v-else-if="facet === 'person' || facet === 'review'"
+                          :mark="{ standing: value as 'accepted' | 'rejected' | 'noted', by_a_person: facet === 'person' }" />
+          <KnowledgeBaseMark v-else-if="facet === 'kb'" :kb="value as KnowledgeBase" />
           <template v-else>{{ value }}</template>
         </template>
-        <template #after="{ facet, value }">
-          <template v-if="facet.key === 'state'">
-            <ServedTally :served="stateCount(value)?.served" />
-            <PersonTally :accepted="stateCount(value)?.accepted" :rejected="stateCount(value)?.rejected" :noted="stateCount(value)?.noted" />
-          </template>
-        </template>
-      </ChipFacetBar>
+      </FacetBar>
       <GroupedPageRows v-if="toRepair.length" :rows="toRepair" />
       <section v-if="apart.length" class="apart" data-part="apart">
         <h2 class="apart-title">Not content: noted, not repaired <span class="apart-hint">exercises, indexes, contents, front and back matter</span></h2>

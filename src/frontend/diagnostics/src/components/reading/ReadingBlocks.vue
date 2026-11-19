@@ -361,8 +361,9 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
   color: var(--color-text-secondary);
 }
 
+/* a marking, not a state: its words in the ink of what stands beside, the colour left to the state that has one (tip 6) */
 .derived {
-  color: var(--color-warning);
+  color: var(--color-text-secondary);
 }
 
 .furniture,
