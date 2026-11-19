@@ -111,3 +111,25 @@ def test_a_whole_unread_work_joins_the_cell_without_its_read_or_filtered_pages(t
     assert pages[0]['work'] == 'scan' and pages[0]['work_card'].endswith(direct_reader.SCAN_NOTE)
     with pytest.raises(SystemExit):
         direct_reader.whole_work(SimpleNamespace(name='licensed'), 'held.pdf', [])
+
+
+def test_a_page_outside_a_passed_sample_is_chosen_and_an_issue_or_an_unchecked_page_is_not(monkeypatch):
+    # the operator's V1.b (19 Nov): a work read whole is judged by a sample, and the rest is served unjudged once it passed
+    from types import SimpleNamespace
+
+    from backend.conversion.checks import check_run
+    from backend.conversion.store import pipeline_db
+
+    records = [{'file': 'scan.pdf', 'pdf_page': page, 'reading_key': key, 'model': 'claude-opus-5-5', 'deviation': DIRECT_DEVIATION}
+               for page, key in ((1, 'k1'), (2, 'k2'), (3, 'k3'), (4, 'k4'))]
+    states = {'k1': {'state': 'ok'}, 'k2': {'state': 'ok_unjudged'}, 'k3': {'state': 'issue'}}
+    chosen = []
+    monkeypatch.setattr(direct_reader, 'open_store', lambda name: None)
+    monkeypatch.setattr(direct_reader.vision_batches, 'readings_of', lambda cells, store: records)
+    monkeypatch.setattr(check_run, 'latest_per_page', lambda readings: readings)
+    monkeypatch.setattr(reading_export, 'check_states', lambda store, cells: states)
+    monkeypatch.setattr(pipeline_db, 'chosen', lambda base: {})
+    monkeypatch.setattr(pipeline_db, 'choose', lambda base, file, page, key, why: chosen.append(page))
+    outcome = direct_reader.choose(SimpleNamespace(knowledge_base='licensed'))
+    assert chosen == [1, 2]
+    assert outcome == {'chosen': 2, 'not chosen: issue': 1, 'not chosen: not checked': 1}

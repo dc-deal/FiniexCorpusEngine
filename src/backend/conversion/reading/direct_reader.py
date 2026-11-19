@@ -42,6 +42,7 @@ REASONS = ('malformed',)  # the hard case this cell takes; a judge's issue goes 
 # and the session never reads such a page (280.a: never the same model by another door).
 FILTER_WORDS = ('blocked', 'refus', 'declin', 'content_filter', 'policy', 'no_page')
 SOFT_REFUSAL = 'no page found: a reader declined it in prose'
+PASSED = ('ok', 'ok_unjudged')  # the check states a direct reading is chosen with (`choose`)
 
 
 def cell_name(knowledge_base: str) -> str:
@@ -298,8 +299,10 @@ def store(args) -> Counter:
 
 
 def choose(args) -> dict:
-    """Let a direct reading stand for its page where the judge found it ok, as for a second reader (47.a): one append-only row
-    per page; a page whose direct reading is an issue, malformed or not yet judged keeps what it had."""
+    """Let a direct reading stand for its page where the check passed it, as for a second reader (47.a): one append-only row
+    per page; a page whose direct reading is an issue, malformed or not yet checked keeps what it had. Passed is the judge's
+    ok, or `ok_unjudged` where the page lay outside the judge's sample of a work read whole and that sample passed (the
+    operator's V1.b, 19 Nov), as on every other cell."""
     from backend.conversion.checks import check_run
     from backend.conversion.store import pipeline_db, reading_export
 
@@ -310,8 +313,8 @@ def choose(args) -> dict:
     outcome = Counter()
     for record in check_run.latest_per_page(vision_batches.readings_of([name], target)):
         state = (states.get(record['reading_key']) or {}).get('state')
-        if state != 'ok':
-            outcome[f'not chosen: {state or "not judged"}'] += 1
+        if state not in PASSED:
+            outcome[f'not chosen: {state or "not checked"}'] += 1
         elif (current.get((record['file'], record['pdf_page'])) or {}).get('reading_key') == record['reading_key']:
             outcome['already chosen'] += 1
         else:
