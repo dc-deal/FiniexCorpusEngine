@@ -14,7 +14,8 @@ export interface Hint {
 export const HINTS = {
   routes: {
     label: 'What the route levels mean',
-    lead: 'How each page\'s text is served: its reading as checked, its reading with a note, or the PDF\'s text layer in its place.',
+    lead: 'How each page\'s text is served: its reading as checked, its reading with a note, or in its place the PDF\'s text layer, '
+      + 'or a licensed work\'s legacy Markdown where it has one.',
   },
   overlap: {
     label: 'What the dashed line means',
