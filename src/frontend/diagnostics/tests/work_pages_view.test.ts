@@ -115,16 +115,22 @@ describe('WorkPagesView', () => {
     expect(view.findAll('tr[data-page]').map(row => row.attributes('data-page'))).toEqual(['1', '2'])
   })
 
-  it('counts the work\'s pages once, its states a facet of the bar above its pages (stage C)', async () => {
-    vi.mocked(getWorkPages).mockResolvedValue(aWorkPages([aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 4 })]))
+  it('counts the work\'s pages once and its states in one line of the API\'s totals, the bar narrowing below (SC1.a)', async () => {
+    const pages = [aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 4, check: aCheck({ state: 'issue' }) })]
+    vi.mocked(getWorkPages).mockResolvedValue({ ...aWorkPages(pages), summary: { pages: 2, routes: [], people: [], reviews: [],
+      categories: [], states: [{ value: 'ok', count: 1 }, { value: 'issue', count: 1, served: 1 }] } })
     const view = mountView()
     await flushPromises()
     const head = view.find('.summary')
     expect(head.find('.page-total').text()).toBe('2 pages')
-    expect(view.find('.facet-trigger[data-facet="state"]').exists()).toBe(true)
-    expect(view.find('.facet-count-label').text()).toBe('2 of 2')
-    // no second count of the states in the head
-    expect(head.find('.state-counts').exists()).toBe(false)
+    // the head's line of totals, the API's over every page of the work, the served tally kept beside its state
+    const totals = () => head.find('[data-part="totals"]')
+    expect(totals().findAll('.state-count').map(count => count.attributes('data-state'))).toEqual(['ok', 'issue'])
+    expect(totals().find('.state-count[data-state="issue"] [data-part="served"]').text()).toContain('1 served')
+    // whatever the bar narrows, the totals stand
+    await pickFacet(view, 'state', 'issue')
+    expect(view.find('.facet-count-label').text()).toBe('1 of 2')
+    expect(totals().find('.state-count[data-state="ok"] .count').text()).toBe('1')
   })
 
   it('lists every read page, each opening its page view within the knowledge base', async () => {
@@ -246,7 +252,7 @@ describe('WorkPagesView', () => {
     const view = mountView()
     await flushPromises()
     const labels = view.findAll('[data-part="work-facts"] .line-label').map(label => label.text())
-    expect(labels).toEqual(['Work:', 'Pages:', 'PDF page:'])
+    expect(labels).toEqual(['Work:', 'Pages:', 'States:', 'PDF page:'])
     // the jump's field named for a reader that cannot see the line's label
     expect(view.find('[data-label="PDF page"] .page-jump-label').exists()).toBe(false)
     expect(view.find('[data-label="PDF page"] input').attributes('aria-label')).toBe('PDF page')

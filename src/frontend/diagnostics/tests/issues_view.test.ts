@@ -149,6 +149,21 @@ describe('IssuesView', () => {
     expect(listed(view)).toHaveLength(1)
   })
 
+  it('heads the list with the totals of the API in one line, each state once, the served tally kept, whatever the bar narrows (SC1.a)', async () => {
+    const list = anIssueList()
+    list.states = [{ value: 'issue', count: 1, served: 1 }, { value: 'blocked', count: 1 }]
+    vi.mocked(getIssues).mockResolvedValue(list)
+    const view = mountView()
+    await flushPromises()
+    const totals = () => view.find('[data-part="totals"]')
+    expect(totals().find('.line-label').text()).toBe('States:')
+    expect(totals().findAll('.state-count').map(count => count.attributes('data-state'))).toEqual(['issue', 'blocked'])
+    expect(totals().find('.state-count[data-state="issue"] [data-part="served"]').text()).toContain('1 served')
+    await pickFacet(view, 'state', 'blocked')
+    expect(listed(view)).toHaveLength(1)
+    expect(totals().find('.state-count[data-state="issue"] .count').text()).toBe('1')
+  })
+
   it('narrows the list to the chosen state', async () => {
     vi.mocked(getIssues).mockResolvedValue(anIssueList())
     const view = mountView()

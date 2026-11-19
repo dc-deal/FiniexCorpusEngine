@@ -9,11 +9,13 @@ import AppIcon from '@/components/base/AppIcon.vue'
  */
 defineProps<{
   served: number | null | undefined
+  // on a line of its own, beneath a figure (the sources list's columns, B3.a): without the dot that joins it to a count
+  alone?: boolean
 }>()
 </script>
 
 <template>
-  <span v-if="served" class="served-tally" data-part="served">· <AppIcon name="quoted" /> {{ served }} served</span>
+  <span v-if="served" class="served-tally" data-part="served"><template v-if="!alone">· </template><AppIcon name="quoted" /> {{ served }} served</span>
 </template>
 
 <style scoped>
