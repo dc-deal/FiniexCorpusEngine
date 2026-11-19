@@ -25,6 +25,17 @@ def test_a_work_counts_what_was_planned_what_passed_why_the_rest_did_not_and_wha
     assert row['unplaced'] == {} and row['held'] is None and row['not_served'] is None
 
 
+def test_a_work_a_session_reads_whole_plans_every_page_of_its_file(tmp_path, monkeypatch):
+    # found 19 Nov: a scan read whole in the session counted its pages as read and passed against nothing planned
+    from backend.conversion.reading import reading_cells
+
+    whole = tmp_path / 'direct_pages.json'
+    whole.write_text(json.dumps({'added_works': ['book_c.pdf', 'gone.pdf'], 'pages': []}), encoding='utf-8')
+    monkeypatch.setattr(reading_cells, 'DIRECT_PAGES', {'licensed': whole})
+    row = licensed_shelf(tmp_path, monkeypatch)['key-c']
+    assert (row['pages'], row['planned']) == (2, 2)  # the plan named one of its two pages
+
+
 def test_every_reason_the_serving_rule_knows_is_counted(monkeypatch):
     # 18 Nov: a fixed list of six left the pages a person or an automated review rejected out of every total
     from backend.conversion.store.served_readings import TEXT_LAYER_WHY

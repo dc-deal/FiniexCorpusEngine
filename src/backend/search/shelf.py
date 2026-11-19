@@ -120,6 +120,12 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
     plan_path = rollout.FOLDER / 'plan.json'
     planned = Counter(page['file'] for page in json.loads(plan_path.read_text(encoding='utf-8'))['order']) if plan_path.exists() else Counter()
     archive = {path.name: path for path in sorted(search_server.LICENSED_ARCHIVE.glob('*')) if path.suffix.lower() in ('.pdf', '.epub')}
+    # a work a session reads whole plans every page of it (280.a), a scan no rollout round took (found 19 Nov: its pages
+    # counted as read and passed against nothing planned)
+    whole = reading_cells.DIRECT_PAGES['licensed']
+    for file in (json.loads(whole.read_text(encoding='utf-8')).get('added_works', []) if whole.exists() else []):
+        if file in archive:
+            planned[file] = max(planned[file], page_count(archive[file]) or 0)
     new = search_server.new_licensed_pdfs(keys)
     standing_in = search_server.stand_ins(keys)  # a stand-in serving its work whole (126.a)
     by_work = defaultdict(list)
