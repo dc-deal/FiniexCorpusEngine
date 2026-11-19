@@ -45,10 +45,11 @@ def session_root(knowledge_base: str) -> Path:
     return reading_cells.DIRECT_PAGES[knowledge_base].parent / 'judge_session'
 
 
-def session_key(entry: dict) -> str:
+def session_key(entry: dict, again: int = 0) -> str:
     """The key of the session's answer to one request: the request's own key and the door, so the API's answer to the same
-    request, should one ever be bought, never collides with it."""
-    spec = {'mode': MODE, 'request': entry['reading_key']}
+    request, should one ever be bought, never collides with it. `again` asks a request the API judge answered once more, to
+    compare the two judges on the same pages; such an answer never counts."""
+    spec = {'mode': MODE, 'request': entry['reading_key'], **({'again': again} if again else {})}
     return hashlib.sha256(json.dumps(spec, sort_keys=True, separators=(',', ':')).encode('utf-8')).hexdigest()
 
 
@@ -88,11 +89,11 @@ def folder_name(entry: dict, calibration: bool = False) -> str:
     return f'cal_{session_key(entry)[:10]}' if calibration else f"{entry['work']}__p{entry['pdf_page']:04d}"
 
 
-def write_folder(root: Path, entry: dict, store, calibration: bool = False) -> Path | None:
+def write_folder(root: Path, entry: dict, store, calibration: bool = False, again: int = 0) -> Path | None:
     """One request as files for the agent: the page, the rendered formulas, the transcription as the judge sees it. The entry
     itself lies in `_entries/`, out of the agent's folder: for a calibration it names the planted error and its block. None
     where it was answered already or waits in a folder."""
-    key = session_key(entry)
+    key = session_key(entry, again)
     if store.reading(key) is not None:
         return None
     name = folder_name(entry, calibration)
@@ -106,7 +107,7 @@ def write_folder(root: Path, entry: dict, store, calibration: bool = False) -> P
         (folder / f'formulas_{number:02d}.png').write_bytes(store.get_input(sha, '.png'))
     (folder / 'transcription.txt').write_bytes(store.get_input(entry['view_sha256'], '.txt'))
     session_entry = {**entry, 'request_key': entry['reading_key'], 'reading_key': key, 'custom_id': reader_requests.custom_id(key),
-                     'mode': MODE, 'replicate': 1 if calibration else entry.get('replicate', 0)}  # 1: a calibration never counts
+                     'mode': MODE, 'replicate': 1 if calibration or again else entry.get('replicate', 0)}  # 1: never counts
     kept.parent.mkdir(parents=True, exist_ok=True)
     kept.write_text(json.dumps(session_entry, indent=1) + '\n', encoding='utf-8')
     return folder
@@ -159,6 +160,63 @@ def prepare(args) -> list[str]:
                 made.append(str(folder))
     print(f"chunk {args.chunk} of {args.chunks}: {len(made)} folders in {root}{f', never judged here: {dict(refused)}' if refused else ''}")
     return made
+
+
+COMPARE = 'compare'  # the folder of requests the API judge answered, asked of the session once more
+
+
+def api_judged(store) -> dict[str, dict]:
+    """The counted verdicts the API gave, by the reading they judged: what the session's answers are compared with."""
+    return {target: record for target, record in check_run.verdicts_by_target(store).items() if record.get('mode') != MODE}
+
+
+def again(args) -> list[str]:
+    """The requests of a check plan the API judge answered, for one work, asked of the session once more (the operator, 19 Nov:
+    a test of the session's judge on a real work); its answers never count, `compare` sets them beside the API's."""
+    cells = check_run._cells(args)
+    store = check_run.store_of(cells)
+    plan = json.loads(store.path('reports', check_run._plan_name(cells)).read_text(encoding='utf-8'))
+    knowledge_base = 'licensed' if store.root == open_store('licensed').root else 'free'
+    root = session_root(knowledge_base) / COMPARE
+    write_instructions(root, page_judge.active_version())
+    judged, turned_away, made = api_judged(store), filtered_pages(knowledge_base), []
+    for entry in plan['entries']:
+        if entry['work'] != args.work or entry['target_key'] not in judged:
+            continue
+        if (entry['file'], entry['pdf_page']) in turned_away or not reading_cells.may_send(entry['file']):
+            continue
+        folder = write_folder(root, entry, store, again=1)
+        if folder is not None:
+            made.append(str(folder))
+    print(f'{args.work}: {len(made)} folders of requests the API judge answered, in {root}')
+    return made
+
+
+def compare(args) -> dict:
+    """The session's second answers beside the API's on the same requests: whether each sends the page to an issue, and the
+    blocks each names. Ids and counts only."""
+    cells = check_run._cells(args)
+    store = check_run.store_of(cells)
+    plan = json.loads(store.path('reports', check_run._plan_name(cells)).read_text(encoding='utf-8'))
+    judged, pages, counts = api_judged(store), [], Counter()
+    for entry in plan['entries']:
+        api = judged.get(entry['target_key'])
+        session = store.reading(session_key(entry, 1))
+        if entry['work'] != args.work or api is None or session is None or session.get('verdict') is None:
+            continue
+        mine = check_run.voided(store, session['verdict'], entry['target_key'])
+        theirs = check_run.voided(store, api['verdict'], entry['target_key'])
+        pair = (theirs['outcome'], mine['outcome'])
+        counts[f'api {pair[0]}, session {pair[1]}'] += 1
+        blocks = {name: sorted({finding.get('block') for finding in verdict['findings'] if not finding.get('void')})
+                  for name, verdict in (('api', theirs), ('session', mine))}
+        pages.append({'pdf_page': entry['pdf_page'], 'api': pair[0], 'session': pair[1], **{f'{name}_blocks': found
+                                                                                             for name, found in blocks.items()}})
+    agree = sum(1 for page in pages if page['api'] == page['session'])
+    result = {'work': args.work, 'pages': len(pages), 'agree': agree, 'counts': dict(counts), 'by_page': pages}
+    path = store.write_report(f"judge_compare_session_{'_'.join(cells)}.json", result)
+    print(f"{args.work}: {len(pages)} pages, the judges agree on {agree}; {dict(counts)}; {path.name}")
+    return result
 
 
 def filtered_pages(knowledge_base: str) -> set[tuple[str, int]]:
@@ -287,13 +345,19 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser('score', help="the calibration's measures and gate")
     gated = commands.add_parser('gate', help="each work's bad share so far")
     gated.add_argument('--cells', required=True)
+    for name, said in (('again', "one work's requests the API judge answered, asked of the session once more"),
+                       ('compare', "the session's second answers beside the API judge's")):
+        command = commands.add_parser(name, help=said)
+        command.add_argument('--cells', required=True)
+        command.add_argument('--work', required=True, help="the work's key, its file's stem")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding='utf-8')
     args = build_parser().parse_args(argv)
-    {'prepare': prepare, 'calibrate': calibrate, 'store': store, 'score': score, 'gate': gate}[args.command](args)
+    {'prepare': prepare, 'calibrate': calibrate, 'store': store, 'score': score, 'gate': gate, 'again': again,
+     'compare': compare}[args.command](args)
     return 0
 
 

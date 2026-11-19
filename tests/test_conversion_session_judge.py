@@ -104,3 +104,26 @@ def test_a_calibration_folder_says_nothing_of_its_planted_error(tmp_path):
     assert sorted(path.name for path in folder.iterdir()) == ['page.png', 'transcription.txt']
     kept = json.loads((tmp_path / 'session' / session_judge.ENTRIES / f'{folder.name}.json').read_text(encoding='utf-8'))
     assert kept['planted'] == 'wrong_value' and kept['replicate'] == 1
+
+
+def test_a_second_answer_to_an_api_judged_request_never_counts_and_is_compared_page_by_page(tmp_path, monkeypatch):
+    # the operator, 19 Nov: the session's judge tested on a real work, beside the API judge's verdicts on the same pages
+    store = reading_store.Store(tmp_path / 'vision')
+    asked = entry(store, 'w', 1)
+    store.save_reading('a' * 64, {'kind': 'judge', 'model': check_run.JUDGE_MODEL, 'mode': 'batch', 'target_key': asked['target_key'],
+                                  'judge_version': page_judge.FIRST_VERSION, 'replicate': 0, 'stored_at': '1',
+                                  'verdict': page_judge.parse_verdict(BAD).as_dict()}, BAD)
+    store.write_report(check_run._plan_name(['C']), {'entries': [asked], 'suspicious': [], 'policy': {}})
+    monkeypatch.setattr(check_run, 'store_of', lambda cells: store)
+    monkeypatch.setattr(session_judge, 'open_store', lambda mirror: store)
+    monkeypatch.setattr(session_judge, 'session_root', lambda base: tmp_path / 'session')
+    monkeypatch.setattr(session_judge, 'filtered_pages', lambda base: set())
+    monkeypatch.setattr(session_judge.reading_cells, 'may_send', lambda name: True)
+    monkeypatch.setattr(check_run, 'voided', lambda store, verdict, key: page_judge.with_void(verdict))
+    assert session_judge.session_key(asked, 1) != session_judge.session_key(asked)
+    [folder] = session_judge.again(SimpleNamespace(cells='C', work='w'))
+    (session_judge.Path(folder) / 'verdict.json').write_text(OK, encoding='utf-8')
+    session_judge.store(SimpleNamespace(knowledge_base='free'))
+    assert check_run.verdicts_by_target(store)[asked['target_key']]['mode'] == 'batch'  # the API's verdict still stands
+    result = session_judge.compare(SimpleNamespace(cells='C', work='w'))
+    assert result['counts'] == {'api issue, session ok': 1} and result['by_page'][0]['api_blocks'] == ['b02']

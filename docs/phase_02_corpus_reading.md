@@ -163,7 +163,11 @@ calibration set and must hold the API judge's own gate: at least 48 of 49 plante
 (`session_judge score`). Its first run, two agents of 28 and 29 pages, about 9 thousand tokens and 6 seconds a page: all 57
 answered, 0 of 8 clean readings flagged, 46 of 49 planted errors caught, so **not passed**. It missed one of three word swaps,
 called a dropped figure label minor where the API judge called it major, and missed one changed code indentation, which the API
-judge missed too (that plant changed nothing a reader sees). `night_run` keeps the run's ledger (per batch and per judge chunk the pages, the agents' tokens and
+judge missed too (that plant changed nothing a reader sees). On a real work the picture turns: the session's judge answered
+once more the requests the API judge had answered for the scanned work's sample (`session_judge again`, `compare`; such an
+answer never counts). The two agree on all but two pages, and those two are the pages the API judge sent to an issue that a
+review and the operator then found to be false alarms; the session's judge called both ok and added one minor finding the API
+judge had not made. About 8 thousand tokens and 5 seconds a page. `night_run` keeps the run's ledger (per batch and per judge chunk the pages, the agents' tokens and
 minutes as their notifications report them) and its batches, so a session woken after a rate limit knows where it stands; a
 batch the limit cut short gives its unread pages back.
 
