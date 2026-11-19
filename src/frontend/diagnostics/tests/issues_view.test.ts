@@ -1,19 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { getIssues } from '@/api/api_client'
 import { router } from '@/router'
 import IssuesView from '@/views/IssuesView.vue'
 import type { IssueList } from '@/types/api/page_types'
 import { aCheck, anIssueList, JUDGED_BAD_ROUTE, CONTENT_FILTER, DECLINED_ROUTE, KELLY } from './page_fixture'
+import { facetOption, pickFacet } from './facet_harness'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
   getIssues: vi.fn(),
 }))
 
+// attached, so the bar's panels, portalled to the document, can be opened; unmounted after each test, so none stays behind
+enableAutoUnmount(afterEach)
+
 function mountView() {
-  return mount(IssuesView, { global: { plugins: [createPinia(), router] } })
+  return mount(IssuesView, { global: { plugins: [createPinia(), router] }, attachTo: document.body })
 }
 
 function listed(view: ReturnType<typeof mountView>): (string | undefined)[] {
@@ -94,7 +98,7 @@ describe('IssuesView', () => {
     expect(view.find(`[data-page="free/${KELLY}/11"] .why .route-why`).text()).toBe(SERVED_DESPITE)
   })
 
-  it('marks a page a person judged beside its state, counts it in its state\'s chip, and narrows to it in one click (166.a)', async () => {
+  it('marks a page a person judged beside its state, and narrows to it in one click (166.a)', async () => {
     const list = anIssueList()
     const accepted = list.rows.find(row => row.check.state === 'issue')!
     accepted.person = { standing: 'accepted', reason: 'the judge miscounted', note: 'eleven T-accounts, as printed', by_a_person: true }
@@ -111,11 +115,10 @@ describe('IssuesView', () => {
     const card = view.find('[data-part="hover-card"]')
     expect(card.find('[data-row="reason"] .card-value').text()).toBe('the judge miscounted')
     expect(card.find('[data-row="note"] .card-value').text()).toBe('eleven T-accounts, as printed')
-    // the state's chip: "issue 1 · 1 accepted"; a state no person decided says nothing more
-    expect(view.find('[data-facet="state"] [data-value="issue"] .person-tally').text().replace(/\s+/g, ' ')).toBe('· 1 accepted')
-    expect(view.find('[data-facet="state"] [data-value="blocked"] .person-tally').exists()).toBe(false)
-    await view.find('[data-facet="person"] [data-value="accepted"]').trigger('click')
-    await flushPromises()
+    // the person's verdicts are counted once, in their own facet, never again beside a state (the viewer's tip 5, stage C)
+    expect((await facetOption(view, 'state', 'issue')).textContent).not.toContain('accepted')
+    expect((await facetOption(view, 'person', 'accepted')).querySelector('.facet-count')!.textContent).toBe('1')
+    await pickFacet(view, 'person', 'accepted')
     expect(listed(view)).toEqual([`free/${KELLY}/${accepted.pdf_page}`])
   })
 
@@ -141,8 +144,7 @@ describe('IssuesView', () => {
     expect(card.find('[data-row="the reader called it"] .card-value').text()).toBe('body')
     // a content page says nothing of its category
     expect(view.findAll('[data-category="content"]')).toHaveLength(0)
-    await view.find('[data-facet="category"] [data-value="content"]').trigger('click')
-    await flushPromises()
+    await pickFacet(view, 'category', 'content')
     expect(view.find('[data-part="apart"]').exists()).toBe(false)
     expect(listed(view)).toHaveLength(1)
   })
@@ -151,26 +153,26 @@ describe('IssuesView', () => {
     vi.mocked(getIssues).mockResolvedValue(anIssueList())
     const view = mountView()
     await flushPromises()
-    await view.find('[data-facet="state"] [data-value="blocked"]').trigger('click')
-    await flushPromises()
+    await pickFacet(view, 'state', 'blocked')
     expect(listed(view)).toEqual([`free/${KELLY}/2`])
+    // the bar says how many of all it shows, and the state's chip that it holds a pick
+    expect(view.find('.facet-count-label').text()).toBe('1 of 2')
+    expect(view.find('.facet-trigger[data-facet="state"] .facet-badge').text()).toBe('1')
   })
 
   it('keeps the choice in the address, so back from a page, or a link, opens the same narrowed list (24.a)', async () => {
     vi.mocked(getIssues).mockResolvedValue(anIssueList())
     const view = mountView()
     await flushPromises()
-    await view.find('[data-facet="state"] [data-value="blocked"]').trigger('click')
-    await flushPromises()
+    await pickFacet(view, 'state', 'blocked')
     expect(router.currentRoute.value.fullPath).toBe('/issues?state=blocked')
     // the list opened afresh at that address, as the browser's back or a link would, is the same narrowed list
     const again = mountView()
     await flushPromises()
     expect(listed(again)).toEqual([`free/${KELLY}/2`])
-    expect(again.find('[data-facet="state"] [data-value="blocked"]').classes()).toContain('active')
+    expect(again.find('.facet-trigger[data-facet="state"]').classes()).toContain('active')
     // choosing nothing leaves an address without a filter
-    await view.find('[data-facet="state"] [data-value="blocked"]').trigger('click')
-    await flushPromises()
+    await pickFacet(view, 'state', 'blocked')
     expect(router.currentRoute.value.fullPath).toBe('/issues')
     expect(listed(view)).toHaveLength(2)
   })
@@ -179,12 +181,14 @@ describe('IssuesView', () => {
     vi.mocked(getIssues).mockResolvedValueOnce(anIssueList()).mockResolvedValueOnce(withALicensedWork())
     const single = mountView()
     await flushPromises()
-    expect(single.find('[data-facet="kb"]').exists()).toBe(false)
+    expect(single.find('.facet-trigger[data-facet="kb"]').exists()).toBe(false)
+    single.unmount()
 
     const both = mountView()
     await flushPromises()
-    await both.find('[data-facet="kb"] [data-value="licensed"]').trigger('click')
-    await flushPromises()
+    // a knowledge base keeps its glyph and its word in the panel, as in a row (Q3.a)
+    expect((await facetOption(both, 'kb', 'licensed')).querySelector('[data-kb="licensed"] [data-icon="kb-licensed"]')).not.toBeNull()
+    await pickFacet(both, 'kb', 'licensed')
     const rows = both.findAll('tbody tr[data-page]')
     expect(rows.map(row => row.attributes('data-page'))).toEqual(['licensed/a_licensed_book/5'])
     expect(rows[0].find('a').attributes('href')).toBe('#/licensed/sources/a_licensed_book/page/5')
@@ -214,14 +218,12 @@ describe('IssuesView', () => {
     expect(fold.find('summary').text()).toBe("Decided by a person · 1 page, the check's state kept in each")
     expect(fold.find(`tr[data-page="free/${KELLY}/9"] .state-mark`).classes()).toContain('quiet')
     expect(view.find('[data-part="none-open"]').exists()).toBe(false)
-    // the bucket's chip: its own glyph and word, and the verdicts that settled it
-    const chip = view.find('[data-facet="state"] [data-value="decided_by_a_person"]')
-    expect(chip.find('.state-word').text()).toBe('decided by a person')
-    expect(chip.find('.state-mark').classes()).toContain('quiet')
-    expect(view.find('[data-facet="state"] .person-tally [data-person="noted"]').text()).toContain('1 noted')
+    // the bucket's value in the state's panel: its own glyph and word
+    const value = await facetOption(view, 'state', 'decided_by_a_person')
+    expect(value.querySelector('.state-word')!.textContent).toBe('decided by a person')
+    expect(value.querySelector('.state-mark')!.classList).toContain('quiet')
     // narrowed to the bucket, the open list is empty and the fold holds the page
-    await view.find('[data-facet="state"] [data-value="decided_by_a_person"]').trigger('click')
-    await flushPromises()
+    await pickFacet(view, 'state', 'decided_by_a_person')
     expect(listed(view)).toEqual([`free/${KELLY}/9`])
   })
 
@@ -247,15 +249,14 @@ describe('IssuesView', () => {
     const mark = fold.find(`tr[data-page="free/${KELLY}/9"] .person-standing`)
     expect(mark.find('[data-icon="review"]').exists()).toBe(true)
     expect(mark.find('[data-icon="person-accepted"]').exists()).toBe(false)
-    // the bucket's chip, its own glyph and word; no "A person" facet, an "Automated review" one
-    const chip = view.find('[data-facet="state"] [data-value="decided_by_an_automated_review"]')
-    expect(chip.find('.state-word').text()).toBe('decided by an automated review')
-    expect(chip.find('[data-icon="status-reviewed"]').exists()).toBe(true)
-    expect(view.find('[data-facet="person"]').exists()).toBe(false)
-    expect(view.find('[data-facet="review"] .line-label').text()).toBe('Automated review:')
+    // the bucket's value, its own glyph and word; no "A person" facet, an "Automated review" one
+    const value = await facetOption(view, 'state', 'decided_by_an_automated_review')
+    expect(value.querySelector('.state-word')!.textContent).toBe('decided by an automated review')
+    expect(value.querySelector('[data-icon="status-reviewed"]')).not.toBeNull()
+    expect(view.find('.facet-trigger[data-facet="person"]').exists()).toBe(false)
+    expect(view.find('.facet-trigger[data-facet="review"]').text()).toContain('Automated review')
     // narrowed to what the review accepted, only its page stands
-    await view.find('[data-facet="review"] [data-value="accepted"]').trigger('click')
-    await flushPromises()
+    await pickFacet(view, 'review', 'accepted')
     expect(listed(view)).toEqual([`free/${KELLY}/9`])
   })
 

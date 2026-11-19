@@ -97,6 +97,14 @@ describe('applyFacets', () => {
 })
 
 describe('facetOptions', () => {
+  // an addition to the viewer's bar (stage C): a facet with an order of its own lists its values in it
+  it('lists the values in the facet\'s own order where it gives one, a value it does not name after, alphabetically', () => {
+    // alphabetically crypto, forex; the facet names forex first, and a value no row holds (stocks) is not listed
+    const ordered = { ...FACETS.find(facet => facet.id === 'market')!, order: ['forex', 'stocks'] }
+    const listed = facetOptions({ rows: ROWS, definitions: [ordered], selection: {} }, 'market').map(option => option.value)
+    expect(listed).toEqual(['forex', 'crypto'])
+  })
+
   function options(selection: Record<string, string[]>, facetId: string) {
     return facetOptions(
       { rows: ROWS, definitions: FACETS, selection, searchOf: row => row.name },

@@ -13,6 +13,12 @@ export interface FacetDefinition<T> {
    * the facet has nothing selected: a row with no value cannot honestly answer a question about that value.
    */
   valuesOf: (row: T) => string[]
+  /**
+   * The order its values are listed in, where they have one of their own, such as the core's order of the check states
+   * (stage C, an addition to the viewer's bar, which lists every facet alphabetically). A value it does not name follows,
+   * alphabetically. Absent: alphabetical.
+   */
+  order?: string[]
 }
 
 /** One way to order the list. `compare` is a plain comparator, so a caller can sort by anything. */
@@ -35,17 +41,4 @@ export interface FacetOption {
   value: string
   count: number
   active: boolean
-}
-
-/** One value of a facet with how often it occurs, as the API counted it: the chip bar's, until its views move (Y1.a, C). */
-export interface FacetValue {
-  value: string
-  count: number
-}
-
-/** A facet of a flat list as the chip bar draws it: what it shows for one field, with the API's counts. */
-export interface Facet {
-  key: string
-  label: string
-  values: FacetValue[]
 }

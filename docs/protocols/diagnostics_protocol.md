@@ -746,3 +746,12 @@ The record of how the diagnostics frontend came about, mistakes included.
   of its cell: the pointer from the series' click stood on a row after the window narrowed. The check now skips a card
   and moves the pointer away. (3) It first measured a cell that ends in an ellipsis by its clipped text instead of its
   box. The first was the view's, the other two the check's; all three were found before the report.
+- **Y1.a stage C: the other lists on the bar** (line 1 agreed what moves and decided C3.a, 19 Nov; SC1 and SC2 with the
+  operator). Measured first: the calls list 500 of 1,266 logged calls, so the bar counts the listed ones while the cards
+  count all; the Issues hold 176 rows. **Kept from our own rules against the viewer's:** a facet the DATA cannot fill (a
+  second knowledge base, a person's verdict) still stays away, while the bar disables one the SELECTION leaves empty: the
+  viewer's lesson is about a bar that changes shape while it is used, which a data-given facet never does. **Added to the
+  viewer's bar:** a facet's own order, as the core orders its states. **Found by the browser check:** a work's chapters
+  check expected every page after a reload; with the choice now in the address the filter stays, which is the operator's
+  F5 wish, so the check now expects it and clears it with the bar. **Removed:** the chip bar and its test, the person tally
+  (its only use was beside a state), and the stored bar's default selection and scope.

@@ -1,19 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { getWorkPages } from '@/api/api_client'
 import { router } from '@/router'
 import WorkPagesView from '@/views/WorkPagesView.vue'
 import type { KnowledgeBase } from '@/types/api/source_types'
 import { aCheck, anOutlinedWork, aPageRow, aWorkPages, BLOCKED_ROUTE, CONTENT_FILTER, DECLINED_ROUTE, KELLY } from './page_fixture'
+import { facetOption, pickFacet } from './facet_harness'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
   getWorkPages: vi.fn(),
 }))
 
+// attached, so the bar's panels, portalled to the document, can be opened; unmounted after each test, so none stays behind
+enableAutoUnmount(afterEach)
+
 function mountView(kb: KnowledgeBase = 'free', work = KELLY) {
-  return mount(WorkPagesView, { props: { kb, work }, global: { plugins: [createPinia(), router] } })
+  return mount(WorkPagesView, { props: { kb, work }, global: { plugins: [createPinia(), router] }, attachTo: document.body })
 }
 
 function cells(view: ReturnType<typeof mountView>): string[][] {
@@ -85,10 +89,14 @@ describe('WorkPagesView', () => {
     expect(view.find('[data-facet="route"]').exists()).toBe(false)
     const pages = () => view.findAll('tr[data-page]').map(row => row.attributes('data-page'))
     await rows[1].trigger('click')
+    await flushPromises()
     expect(pages()).toEqual(['2'])
-    expect(rows[1].classes()).toContain('chosen')
-    expect(rows[1].find('button').attributes('aria-pressed')).toBe('true')
-    await rows[1].find('button').trigger('click')
+    expect(router.currentRoute.value.query.route).toEqual([BLOCKED_ROUTE])
+    const chosen = view.findAll('.route-table tbody tr')[1]!
+    expect(chosen.classes()).toContain('chosen')
+    expect(chosen.find('button').attributes('aria-pressed')).toBe('true')
+    await chosen.find('button').trigger('click')
+    await flushPromises()
     expect(pages()).toEqual(['1', '2', '3'])
   })
 
@@ -103,17 +111,19 @@ describe('WorkPagesView', () => {
     await flushPromises()
     expect(view.find('[data-part="route-filter"]').text()).toContain('one route chosen')
     await view.find('[data-part="route-filter-clear"]').trigger('click')
+    await flushPromises()
     expect(view.findAll('tr[data-page]').map(row => row.attributes('data-page'))).toEqual(['1', '2'])
   })
 
-  it('counts the work\'s pages once, its states as the chips that filter them', async () => {
+  it('counts the work\'s pages once, its states a facet of the bar above its pages (stage C)', async () => {
     vi.mocked(getWorkPages).mockResolvedValue(aWorkPages([aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 4 })]))
     const view = mountView()
     await flushPromises()
     const head = view.find('.summary')
     expect(head.find('.page-total').text()).toBe('2 pages')
-    expect(head.find('[data-facet="state"]').exists()).toBe(true)
-    // no second count of the states beside the chips
+    expect(view.find('.facet-trigger[data-facet="state"]').exists()).toBe(true)
+    expect(view.find('.facet-count-label').text()).toBe('2 of 2')
+    // no second count of the states in the head
     expect(head.find('.state-counts').exists()).toBe(false)
   })
 
@@ -215,8 +225,13 @@ describe('WorkPagesView', () => {
     })
     const view = mountView()
     await flushPromises()
-    await view.find('[data-facet="state"] [data-value="issue"]').trigger('click')
+    // in the core's order, ok before issue, each with how many of the work's pages carry it
+    const states = await facetOption(view, 'state', 'ok')
+    expect([...states.parentElement!.querySelectorAll('.facet-option')].map(option => option.getAttribute('data-value'))).toEqual(['ok', 'issue'])
+    await pickFacet(view, 'state', 'issue')
     expect(view.findAll('tbody tr').map(row => row.attributes('data-page'))).toEqual(['9'])
+    // the choice stands in the address, so a reload (F5) or the browser's back finds the list as it was left
+    expect(router.currentRoute.value.query.state).toEqual(['issue'])
   })
 
   it('offers a jump straight to a PDF page by its number', async () => {
@@ -226,21 +241,18 @@ describe('WorkPagesView', () => {
     expect(view.find('.summary .page-jump input').exists()).toBe(true)
   })
 
-  it('says its record in labelled lines as a page does, a facet a line, the jump named by its line (219.a)', async () => {
+  it('says its record in labelled lines as a page does, the jump named by its line (219.a)', async () => {
     vi.mocked(getWorkPages).mockResolvedValue(aWorkPages([aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 4 })]))
     const view = mountView()
     await flushPromises()
     const labels = view.findAll('[data-part="work-facts"] .line-label').map(label => label.text())
-    expect(labels[0]).toBe('Work:')
-    expect(labels.slice(1, 3)).toEqual(['Pages:', 'State:'])
-    expect(labels.at(-1)).toBe('PDF page:')
-    // the facet's toggles in its line's value, and the jump's field named for a reader that cannot see the line's label
-    expect(view.find('[data-facet="state"] .line-value [data-value]').exists()).toBe(true)
+    expect(labels).toEqual(['Work:', 'Pages:', 'PDF page:'])
+    // the jump's field named for a reader that cannot see the line's label
     expect(view.find('[data-label="PDF page"] .page-jump-label').exists()).toBe(false)
     expect(view.find('[data-label="PDF page"] input').attributes('aria-label')).toBe('PDF page')
-    // every grid of the head holds its label column to the page head's ten characters
+    // the head's grid holds its label column to the page head's ten characters
     const widths = view.findAll('[data-part="work-facts"] .labelled-lines').map(grid => grid.attributes('style'))
-    expect(widths.length).toBeGreaterThan(1)
+    expect(widths.length).toBe(1)
     expect(widths.every(style => style?.includes('--label-width: 10ch'))).toBe(true)
   })
 
@@ -342,7 +354,7 @@ describe('WorkPagesView', () => {
       vi.mocked(getWorkPages).mockResolvedValue(anOutlinedWork())
       const view = mountView()
       await flushPromises()
-      await view.find('[data-facet="state"] [data-value="issue"]').trigger('click')
+      await pickFacet(view, 'state', 'issue')
       expect(view.findAll('[data-unit]').map(unit => unit.attributes('data-unit'))).toEqual(['u002', 'u003'])
       expect([isOpen(view, 'u002'), isOpen(view, 'u003')]).toEqual([true, true])
       expect(view.findAll('tbody tr').map(row => row.attributes('data-page'))).toEqual(['5'])

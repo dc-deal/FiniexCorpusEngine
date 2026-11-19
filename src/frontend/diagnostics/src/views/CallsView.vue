@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import DataTable from '@/components/base/DataTable.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
-import ChipFacetBar from '@/components/base/ChipFacetBar.vue'
+import FacetBar from '@/components/base/FacetBar.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
+import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import { applyFacets } from '@/components/base/facet_filter'
 import { localDay, sayDate } from '@/human_time'
 import { useCallsStore } from '@/stores/calls_store'
 import type { AnsweredPage, Call } from '@/types/api/calls_types'
-import type { Facet, FacetSelection } from '@/types/facet_types'
+import type { KnowledgeBase } from '@/types/api/source_types'
+import type { FacetDefinition, SortDefinition } from '@/types/facet_types'
+import { useFacetState } from '@/use_facet_state'
 
 /**
  * The search server's call log (19.a, decision 98.c): who asked what, which pages answered, how long it took. On top, each
@@ -20,7 +24,8 @@ import type { Facet, FacetSelection } from '@/types/facet_types'
  */
 const store = useCallsStore()
 const { list, error } = storeToRefs(store)
-const selection = ref<FacetSelection>({})
+// the bar's picks are kept across a reload (F5, Y1.a stage C), as the sources list keeps its own
+const { selection, search, sort } = useFacetState('calls', 'newest')
 // a call answered by many pages lists them on request, not on its line
 const INLINE_PAGES = 3
 
@@ -28,22 +33,24 @@ onMounted(() => {
   void store.loadCalls()
 })
 
-const facets = computed<Facet[]>(() => list.value ? [
-  { key: 'tool', label: 'Tool', values: list.value.tools.map(tool => ({ value: tool.tool, count: tool.calls })) },
-  { key: 'state', label: 'State', values: list.value.states },
-  { key: 'client', label: 'Caller', values: list.value.clients },
-  { key: 'kb', label: 'Knowledge base', values: list.value.knowledge_bases },
+// The facet bar of the sources list, here too (Y1.a, stage C): each value with how many of the calls listed carry it, among
+// those the other facets leave (the operator's Q4.a); the tools' figures above count every logged call, the API's. A
+// call's words are the API's (`filtered_by`), in the order the API lists them
+const facetOf = (id: string, label: string, order: string[]): FacetDefinition<Call> =>
+  ({ id, label, valuesOf: call => call.filtered_by[id] ?? [], order })
+const facets = computed<FacetDefinition<Call>[]>(() => list.value ? [
+  facetOf('tool', 'Tool', list.value.tools.map(tool => tool.tool)),
+  facetOf('state', 'State', list.value.states.map(count => count.value)),
+  facetOf('client', 'Caller', list.value.clients.map(count => count.value)),
+  facetOf('kb', 'Knowledge base', list.value.knowledge_bases.map(count => count.value)),
 ] : [])
-
-function kept(call: Call): boolean {
-  return Object.entries(selection.value).every(([key, chosen]) =>
-    chosen.length === 0 || (call.filtered_by[key] ?? []).some(word => chosen.includes(word)))
-}
+// newest first, as the API serves them: one order, so the bar draws no sort control
+const NEWEST: SortDefinition<Call>[] = [{ id: 'newest', label: 'newest first', compare: () => 0 }]
 
 // the calls by the reader's own calendar day, newest first, as the API ordered them
 const days = computed(() => {
   const grouped: { day: string, calls: Call[] }[] = []
-  for (const call of (list.value?.calls ?? []).filter(kept)) {
+  for (const call of applyFacets({ rows: list.value?.calls ?? [], definitions: facets.value, selection: selection.value })) {
     const day = localDay(call.at)
     if (grouped.at(-1)?.day !== day) grouped.push({ day, calls: [] })
     grouped.at(-1)!.calls.push(call)
@@ -93,7 +100,20 @@ function viewOf(page: AnsweredPage) {
         </article>
       </div>
 
-      <ChipFacetBar v-model="selection" :facets="facets" />
+      <FacetBar
+        v-model:selection="selection"
+        v-model:search="search"
+        v-model:sort="sort"
+        :rows="list.calls"
+        :facets="facets"
+        :sorts="NEWEST"
+      >
+        <!-- a knowledge base keeps its glyph and its word in the panel, as everywhere (Q3.a); "none" is a word -->
+        <template #value="{ facet, value }">
+          <KnowledgeBaseMark v-if="facet === 'kb' && (value === 'free' || value === 'licensed')" :kb="value as KnowledgeBase" />
+          <template v-else>{{ value }}</template>
+        </template>
+      </FacetBar>
       <p v-if="list.older" class="note">{{ list.older }} older calls are counted above but not listed.</p>
 
       <section v-for="group in days" :key="group.day" class="day" :data-day="group.day">

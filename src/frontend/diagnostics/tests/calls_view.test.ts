@@ -5,6 +5,7 @@ import { getCalls } from '@/api/api_client'
 import { router } from '@/router'
 import CallsView from '@/views/CallsView.vue'
 import type { Call, CallList } from '@/types/api/calls_types'
+import { pickFacet } from './facet_harness'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
@@ -38,13 +39,15 @@ function aList(): CallList {
     knowledge_bases: [{ value: 'free', count: 2 }], calls: [aCall(), search] }
 }
 
+// attached, so the bar's panels, portalled to the document, can be opened
 function mountCalls() {
-  return mount(CallsView, { global: { plugins: [createPinia(), router] } })
+  return mount(CallsView, { global: { plugins: [createPinia(), router] }, attachTo: document.body })
 }
 
 describe('CallsView', () => {
   beforeEach(() => {
     vi.mocked(getCalls).mockReset()
+    localStorage.clear()
   })
 
   it('heads the log with each tool\'s figures and says how many calls public-only left out', async () => {
@@ -76,8 +79,14 @@ describe('CallsView', () => {
     vi.mocked(getCalls).mockResolvedValue(aList())
     const view = mountCalls()
     await flushPromises()
-    await view.find('[data-facet="client"] [data-value="claude-code"]').trigger('click')
+    await pickFacet(view, 'client', 'claude-code')
     expect(view.findAll('tbody tr').map(row => row.attributes('data-client'))).toEqual(['claude-code'])
+    expect(view.find('.facet-count-label').text()).toBe('1 of 2')
+    // and keeps the choice across a reload (F5, stage C), as the sources list does
+    view.unmount()
+    const again = mountCalls()
+    await flushPromises()
+    expect(again.findAll('tbody tr').map(row => row.attributes('data-client'))).toEqual(['claude-code'])
   })
 
   it('names the works a search over works answered with, each opening its pages where this app holds them', async () => {

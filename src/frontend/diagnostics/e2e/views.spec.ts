@@ -29,6 +29,14 @@ async function settled(page: Page, timeout?: number): Promise<void> {
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout })
 }
 
+// Picks a facet's value in its panel, as a reader does, and closes the panel again (Y1.a, stage C: every list's facets are
+// chips whose values stand in a panel)
+async function pick(page: Page, facet: string, value: string): Promise<void> {
+  await page.locator(`.facet-trigger[data-facet="${facet}"]`).click()
+  await page.locator(`.facet-option[data-facet="${facet}"][data-value="${value}"]`).click()
+  await page.keyboard.press('Escape')
+}
+
 // Opens every fold a view shows, nested ones too, looked up anew after each click: opening a fold may draw the view again,
 // and a list taken once can hold a row that is gone by the time it is clicked. `limit` stops after that many, in reading
 // order, for a check that needs each kind of fold opened rather than each fold
@@ -235,7 +243,7 @@ test('a work lists its pages and narrows them by state', async ({ page, request 
   await settled(page)
   await asTable(page)
   await expect(page.locator('tr[data-page]')).toHaveCount(listed.pages.length)
-  await page.locator('[data-facet="state"] [data-value="blocked"]').click()
+  await pick(page, 'state', 'blocked')
   await expect(page.locator('tr[data-page]')).toHaveCount(listed.pages.filter(row => row.check.state === 'blocked').length)
   await page.screenshot({ path: `${SHOTS}/work_pages.png` })
 })
@@ -367,18 +375,21 @@ test('a work with an order of its own stands its pages under its chapters, folde
   await page.screenshot({ path: `${SHOTS}/work_chapters_open.png` })
 
   // with a filter, only the chapters holding a matching page stand, opened down to the page (the operator's 6.a)
-  await page.locator('[data-facet="state"] [data-value="blocked"]').click()
+  await pick(page, 'state', 'blocked')
   const blocked = pages.filter(row => row.check.state === 'blocked')
   await expect(page.locator('tr[data-page]')).toHaveCount(blocked.length)
   for (const row of blocked) await expect(page.locator(`tr[data-page="${row.pdf_page}"]`)).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/work_chapters_filtered.png` })
 
-  // the flat table, one click away, and remembered across a reload
+  // the flat table, one click away, and remembered across a reload, the filter too: it stands in the address (stage C, F5)
   await page.locator('.view-switch button', { hasText: 'table' }).click()
   await expect(page.locator('.outline')).toHaveCount(0)
   await page.reload()
   await settled(page)
   await expect(page.locator('.outline')).toHaveCount(0)
+  await expect(page.locator('tr[data-page]')).toHaveCount(blocked.length)
+  // and the bar's clear lets every page stand again
+  await page.locator('.facet-clear').click()
   await expect(page.locator('tr[data-page]')).toHaveCount(pages.length)
 })
 
@@ -1229,7 +1240,7 @@ test('a page the reader declined says so by its route, where the provider gave n
   await page.goto(`/#/free/sources/${ACCOUNTING}`)
   await settled(page)
   await asTable(page)
-  await page.locator('[data-facet="state"] [data-value="blocked"]').click()
+  await pick(page, 'state', 'blocked')
   await expect(page.locator(`tr[data-page="${declined!.pdf_page}"] .why`)).toHaveText(declined!.route)
   await page.screenshot({ path: `${SHOTS}/work_pages_declined.png` })
 })
@@ -1300,15 +1311,16 @@ test('a person\'s verdict stands beside the state in the page, its work, the Iss
   await page.goto(`/#/free/sources/${ACCOUNTING}/page/524`)
   await settled(page)
   await expect(page.locator('.summary [data-person="noted"]')).toHaveText('noted')
-  // the work: each page's row, and the chip of the state it is listed in counting what a person accepted, as the API counted
-  // it; a page the check listed to look at that a person settled is listed as decided (211.a)
-  type Count = { value: string, accepted?: number | null }
-  const summary = (await (await request.get(`/api/free/works/${ACCOUNTING}/pages`)).json() as { summary: { states: Count[] } }).summary
-  const state = summary.states.find(count => count.value === accepted.listed_state)!
+  // the work: each page's row, and a person's verdicts counted once, in their own facet, as many as the API counted (stage C:
+  // never again beside a state as well, the viewer's tip 5)
+  type Count = { value: string, count: number }
+  const summary = (await (await request.get(`/api/free/works/${ACCOUNTING}/pages`)).json() as { summary: { people: Count[] } }).summary
+  const accepts = summary.people.find(count => count.value === 'accepted')!
   await page.goto(`/#/free/sources/${ACCOUNTING}`)
   await settled(page)
-  await expect(page.locator(`.facet-bar [data-facet="state"] [data-value="${state.value}"] .person-tally [data-person="accepted"]`))
-    .toContainText(`${state.accepted} accepted`)
+  await page.locator('.facet-trigger[data-facet="person"]').click()
+  await expect(page.locator('.facet-option[data-facet="person"][data-value="accepted"] .facet-count')).toHaveText(String(accepts.count))
+  await page.keyboard.press('Escape')
   await asTable(page)
   await expect(page.locator('tr[data-page="635"] [data-person="accepted"]')).toHaveText('accepted')
   await expect(page.locator('tr[data-page="524"] [data-person="noted"]')).toHaveText('noted')
@@ -1318,7 +1330,7 @@ test('a person\'s verdict stands beside the state in the page, its work, the Iss
   await settled(page)
   if (noted.listed_state === 'decided_by_a_person') await page.locator('[data-part="decided"] > summary').click()
   await expect(page.locator(`tr[data-page="free/${ACCOUNTING}/524"] [data-person="noted"]`)).toHaveText('noted')
-  await page.locator('[data-facet="person"] [data-value="noted"]').click()
+  await pick(page, 'person', 'noted')
   await expect(page.locator(`tr[data-page="free/${ACCOUNTING}/524"]`)).toBeVisible()
   await expect(page.locator('tbody tr[data-page] [data-person="noted"]')).toHaveCount(await page.locator('tbody tr[data-page]').count())
   // the overview: a person's verdicts by standing, each count opening exactly its pages
@@ -1789,15 +1801,16 @@ test('a page that is not content says its category beside its state, and the lis
   const card = page.locator('[data-part="hover-card"]')
   await expect(card.locator('[data-row="means"] .card-value')).toHaveText(index.category_said!)
   await expect(card.locator('[data-row="the reader called it"] .card-value')).toHaveText(index.page_kind!.replace(/_/g, ' '))
-  // the work: every category a chip, none chosen; a click narrows the table to exactly its pages
+  // the work: every category a value of its facet, none chosen; a pick narrows the table to exactly its pages
   await page.goto(`/#/free/sources/${ACCOUNTING}`)
   await settled(page)
   await asTable(page)
-  const chips = page.locator('.facet-bar [data-facet="category"] button')
-  await expect(chips).toHaveCount(work.summary.categories.length)
-  await expect(page.locator('.facet-bar [data-facet="category"] button[aria-pressed="true"]')).toHaveCount(0)
+  await page.locator('.facet-trigger[data-facet="category"]').click()
+  await expect(page.locator('.facet-option[data-facet="category"]')).toHaveCount(work.summary.categories.length)
+  await expect(page.locator('.facet-option[data-facet="category"].chosen')).toHaveCount(0)
+  await page.keyboard.press('Escape')
   await expect(page.locator(`tr[data-page="${index.pdf_page}"] [data-category="index"]`)).toHaveText('index')
-  await page.locator('.facet-bar [data-facet="category"] [data-value="exercise"]').click()
+  await pick(page, 'category', 'exercise')
   await expect(page.locator('tbody tr[data-page]')).toHaveCount(exercises.count)
   await expect(page.locator('tbody tr[data-page] [data-category="exercise"]')).toHaveCount(exercises.count)
   // the Issues: the open pages that are not content after the rest, under their own heading, as the API ordered them; a
@@ -2140,7 +2153,7 @@ test('the issues list the pages to look at, one click from each, and keep their 
   // a state the open list holds, as the facet narrows by it: the state a page is listed in (211.a)
   const state = issues.rows.find(row => row.listed_state !== 'decided_by_a_person')!.listed_state
   const chosen = issues.rows.filter(row => row.listed_state === state).length
-  await page.locator(`[data-facet="state"] [data-value="${state}"]`).click()
+  await pick(page, 'state', state)
   await expect(page).toHaveURL(new RegExp(`#/issues\\?state=${state}$`))
   await expect(page.locator('tbody tr[data-page]')).toHaveCount(chosen)
   await page.locator('tbody tr[data-page] a').first().click()
