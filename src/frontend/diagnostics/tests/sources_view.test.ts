@@ -93,13 +93,18 @@ describe('SourcesView', () => {
     expect(html.find('[data-cell="structure"]').text()).toBe('130 sections by heading · 263 chunks')
     expect(html.find('a.work-title').attributes('href')).toBe('#/free/html/wikipedia_trading_set')
     expect(unbuilt.find('[data-cell="structure"]').text()).toBe('sections by heading · search index not built')
+    // why, in the API's words, in the row's card where a browser tooltip stood (decision 179)
+    expect(unbuilt.find('[data-cell="structure"] [title]').exists()).toBe(false)
+    await unbuilt.find('.work-card').trigger('mouseenter')
+    expect(unbuilt.find('[data-row="structure"] .card-value').text()).toBe('No search index on this machine yet')
   })
 
   it('leaves the year empty for a work without one, such as a set of living articles', async () => {
     vi.mocked(getWorks).mockResolvedValue([aWork({ id: 'wikipedia_trading_set', year: null })])
     const view = mountView()
     await flushPromises()
-    expect(view.findAll('tbody td')[5].text()).toBe('')
+    const headings = view.findAll('thead th').map(cell => cell.text())
+    expect(view.findAll('tbody td')[headings.indexOf('Year')].text()).toBe('')
   })
 
   it('opens the page list of a work read page by page, and shows its states', async () => {
@@ -151,9 +156,16 @@ describe('SourcesView', () => {
     const [own, other] = ['a_licensed_book', 'another_book'].map(id => rowOf(view, id))
     expect(own.find('.work-title').text()).toBe('An Invented Book')
     expect(own.find('[data-part="work-notes"]').text()).toBe('stand-in file')
-    expect(own.text()).toContain('Invented Press')
+    // the publisher and the licence stand in the row's card only (B2), with the whole of what the row shortens
+    expect(own.text()).not.toContain('Invented Press')
+    await own.find('.work-card').trigger('mouseenter')
+    const card = own.find('[data-part="hover-card"]')
+    expect(card.find('.card-title').text()).toBe('An Invented Book')
+    expect(card.find('[data-row="publisher"] .card-value').text()).toBe('Invented Press')
+    expect(card.find('[data-row="licence"] .card-value').text()).toBe('private copy (licensed)')
+    expect(card.find('[data-row="id"] .card-value').text()).toBe('a_licensed_book')
+    expect(card.find('[data-row="series"]').exists()).toBe(false)
     expect(own.text()).toContain('2001 · 2nd edition')
-    expect(own.text()).toContain('private copy (licensed)')
     // no year: the edition alone, without a parting dot; no notes: nothing in their place
     expect(other.find('[data-part="edition"]').text()).toBe('3rd edition')
     expect(other.find('[data-part="work-notes"]').exists()).toBe(false)
@@ -328,6 +340,32 @@ describe('SourcesView', () => {
     await flushPromises()
     expect(view.findAll('tbody tr')).toHaveLength(1)
     expect(scrolled).not.toHaveBeenCalled()
+  })
+
+  it('ranks its columns, each cell stating its column\'s rank, and Publisher and Licence stand in no column (B1.a, B2)', async () => {
+    vi.mocked(getWorks).mockResolvedValue([aWork(), INVENTED_PART(1), INVENTED_PART(2)])
+    const view = mountView()
+    await flushPromises()
+    expect(view.findAll('thead th').map(cell => cell.text())).toEqual(['Work', 'Knowledge base', 'Structure', 'Authors', 'Year', 'Format', 'Topic'])
+    const ranks = view.findAll('col').map(col => col.attributes('data-rank') ?? '1')
+    expect(ranks).toEqual(['1', '2', '1', '3', '4', '4', '5'])
+    expect(view.findAll('thead th').map(cell => cell.attributes('data-rank') ?? '1')).toEqual(ranks)
+    await view.find('tr.series-head .series-toggle').trigger('click')
+    // every row, a series' heading too: a cell per column, never one spanning them, which a narrow table cannot hold
+    for (const row of view.findAll('tbody tr')) {
+      expect(row.findAll('td').map(cell => cell.attributes('data-rank') ?? '1'), row.attributes('data-work')).toEqual(ranks)
+    }
+    expect(view.find('tr.series-head td[colspan]').exists()).toBe(false)
+  })
+
+  it('names a part\'s series in its card, with its part and an earlier version\'s words', async () => {
+    vi.mocked(getWorks).mockResolvedValue([INVENTED_PART(1), INVENTED_PART(1, 'earlier version')])
+    const view = mountView()
+    await flushPromises()
+    await view.find('tr.series-head .series-toggle').trigger('click')
+    const earlier = view.find('tr[data-work="an_invented_course_1_earlier"]')
+    await earlier.find('.work-card').trigger('mouseenter')
+    expect(earlier.find('[data-row="series"] .card-value').text()).toBe('An Invented Course, part 1 of 3 (earlier version)')
   })
 
   it('says so when the catalog lists nothing, rather than drawing an empty table', async () => {
