@@ -787,3 +787,9 @@ The record of how the diagnostics frontend came about, mistakes included.
   licensed run's command, so the check now adds an invented run as long and was shown failing on it. **Found:** the
   decision numbers the viewer saw on the Prompts view are the core's registry's text, which line 1 keeps: they trace each
   prompt version to its decision.
+- **P1.a, the Pages view's facet bar** (the operator, 19 Nov). Measured first: the field words added 3.4 MB and 0.8 s
+  natively to a list of 10,224 pages; they stay plain words, readable, rather than numbers into a vocabulary, and the whole
+  unfiltered list is kept per export state instead. Drawing every page took 147,000 elements, so the list draws its first
+  500. **A probe that lied:** a timing script given the view's address on the command line saw only the page's empty shell
+  for five minutes, on the old and the new build alike; the address had not survived the shell, and with it written into
+  the script both views drew at once. The bar's counts now stand in English figures ("1,822"), as every count here does.

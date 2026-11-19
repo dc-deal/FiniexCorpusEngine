@@ -90,10 +90,20 @@ test('the overview heads the corpus in one line, the free base alone under --pub
 // pages as the API counts them
 test('a count the overview once tabled stays reachable through its page filter (O3.a)', async ({ page, request }) => {
   const blocked = (await (await request.get('/api/pages', { params: { knowledge_base: 'free', state: 'blocked' } })).json() as { rows: unknown[] }).rows
+  const every = (await (await request.get('/api/pages')).json() as { rows: unknown[] }).rows
   await page.goto('/#/pages?knowledge_base=free&state=blocked')
   await settled(page)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(blocked.length)
+  // the list loads every page once and the bar narrows it in the browser (P1.a): its count is the API's for the filter
+  await expect(page.locator('.facet-count-label')).toHaveText(`${blocked.length.toLocaleString('en')} of ${every.length.toLocaleString('en')}`)
+  await expect(page.locator('tbody tr[data-page]')).toHaveCount(Math.min(blocked.length, 500))
   await page.screenshot({ path: `${SHOTS}/pages_filtered.png` })
+  // a pick in the bar writes the address and narrows the list, which the browser's back takes back
+  await page.goto('/#/pages')
+  await settled(page)
+  await expect(page.locator('tbody tr[data-page]')).toHaveCount(Math.min(every.length, 500))
+  await pick(page, 'state', 'blocked')
+  await expect(page).toHaveURL(/#\/pages\?state=blocked$/)
+  await page.screenshot({ path: `${SHOTS}/pages_bar.png` })
 })
 
 // Stage D2 (the viewer measured the runs table 85 px past its box at 800 px, the USD column out of sight): ranked, it fits,
@@ -1368,7 +1378,7 @@ test('a person\'s verdict stands beside the state in the page, its work, the Iss
   const acceptedPages = (await (await request.get('/api/pages', { params: { person: 'accepted' } })).json() as { rows: unknown[] }).rows
   await page.goto('/#/pages?person=accepted')
   await settled(page)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(acceptedPages.length)
+  await expect(page.locator('.facet-count-label')).toHaveText(new RegExp(`^${acceptedPages.length.toLocaleString('en')} of `))
 })
 
 // 178.a (the operator on finance p. 5, b12: "a pity that 'The judge's evidence:' is not on a new line beneath"): a
@@ -1870,7 +1880,7 @@ test('a page that is not content says its category beside its state, and the lis
   const exercise = (await (await request.get('/api/pages', { params: { category: 'exercise' } })).json() as { rows: unknown[] }).rows
   await page.goto('/#/pages?category=exercise')
   await settled(page)
-  await expect(page.locator('tbody tr[data-page]')).toHaveCount(exercise.length)
+  await expect(page.locator('.facet-count-label')).toHaveText(new RegExp(`^${exercise.length.toLocaleString('en')} of `))
 })
 
 // The operator on accounting p. 524: its head "reads as code", and its readings said "attempt 0, 1, 0, 2". The sentence and each

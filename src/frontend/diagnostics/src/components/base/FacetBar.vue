@@ -30,7 +30,8 @@ import type { FacetDefinition, FacetOption, FacetSelection, SortDefinition } fro
  * - one size for every text (the operator, 11 Nov): the bar takes the body's size and font, never a smaller one;
  * - its words stand as they are, without the viewer's translation marker `t()`: this app has no such convention, and a
  *   marker in two files would only suggest one (the operator, 19 Nov: "we orient on the viewer, we do not imitate it");
- * - `data-facet` and `data-value` on a facet's chip and on its values, as the chip bar had them, for the tests.
+ * - `data-facet` and `data-value` on a facet's chip and on its values, as the chip bar had them, for the tests;
+ * - its counts in English figures, "1,822", as every count of this app (P1.a: the Pages view's 10,224 pages).
  *
  * The counts and "N of M" are counted here, over the rows the view holds (the operator's Q4.a, an exception to "the UI
  * computes nothing"): they arrange what the API served and derive no value of their own.
@@ -126,7 +127,7 @@ const sortLabel = computed(() => props.sorts.find(option => option.id === props.
  * room or less, and a chip would go behind `+N` or come back out from under the pointer. The bar is
  * monospace, so a width in `ch` is a width in characters.
  */
-const countWidth = computed(() => `${String(props.rows.length).length * 2 + 4}ch`)
+const countWidth = computed(() => `${props.rows.length.toLocaleString('en').length * 2 + 4}ch`)
 const sortWidth = computed(() => `${Math.max(0, ...props.sorts.map(option => option.label.length))}ch`)
 
 const searchOpen = ref(false)
@@ -244,7 +245,7 @@ function stayOpen(event: Event): void {
                   <span class="facet-value">
                     <slot name="value" :facet="entry.facet.id" :value="option.value">{{ option.value }}</slot>
                   </span>
-                  <span class="facet-count">{{ option.count }}</span>
+                  <span class="facet-count">{{ option.count.toLocaleString('en') }}</span>
                 </button>
               </PopoverContent>
             </PopoverPortal>
@@ -278,7 +279,7 @@ function stayOpen(event: Event): void {
                   <span class="menu-label">
                     <slot name="value" :facet="entry.facet.id" :value="option.value">{{ option.value }}</slot>
                   </span>
-                  <span class="facet-menu-count">{{ option.count }}</span>
+                  <span class="facet-menu-count">{{ option.count.toLocaleString('en') }}</span>
                 </DropdownMenuCheckboxItem>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
@@ -302,7 +303,7 @@ function stayOpen(event: Event): void {
 
       <!-- the count is the honest half of a filter: it says what is NOT being shown -->
       <span class="facet-count-label" :style="{ minWidth: countWidth }">
-        {{ shownCount }} of {{ rows.length }}
+        {{ shownCount.toLocaleString('en') }} of {{ rows.length.toLocaleString('en') }}
       </span>
 
       <!-- one order only, as a report table served: nothing to choose, so no control -->

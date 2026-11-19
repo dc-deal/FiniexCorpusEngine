@@ -20,8 +20,8 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from backend.diagnostics import page_integrity
-from backend.diagnostics.readings import (LISTED_AS_ISSUE, IssueRow, KnowledgeBase, Readings, check_of, category_of,
-                                          issue_row, listed_state, person_mark)
+from backend.diagnostics.readings import (LISTED_AS_ISSUE, STATE_ORDER, IssueRow, KnowledgeBase, Readings, check_of,
+                                          category_of, issue_row, listed_state, person_mark)
 from backend.diagnostics.runs import RunLine, recent
 from backend.search import shelf
 
@@ -118,8 +118,12 @@ class Overview(BaseModel):
 
 
 class PageList(BaseModel):
+    """The pages a filter names, each with its words in every field the Pages view narrows by (P1.a), and the order the
+    core gives the check states in, for the view's state facet."""
+
     filters: dict[str, str]
     rows: list[IssueRow]
+    state_order: list[str] = list(STATE_ORDER)
 
 
 def reader_of(attempt: dict) -> str:
@@ -282,6 +286,10 @@ def milestones(served: list[KnowledgeBase], public_only: bool) -> list[Milestone
     return list(reversed(found))
 
 
+# the fields the Pages view narrows by in the browser (the operator's P1.a): every filter but the knowledge base, which each
+# row names itself, and the integrity of a reading file, asked of the disk only when chosen, never counted on load
+WORDED = ('route', 'state', 'verdict', 'reason', 'reader', 'judge', 'provider', 'category', 'why_judged', 'person', 'review')
+
 FILTERS = ('knowledge_base', 'state', 'person', 'review', 'category', 'route', 'integrity', 'why_judged', 'verdict', 'reason', 'reader',
            'judge', 'provider')
 
@@ -290,13 +298,36 @@ def matches(row: dict, filters: dict[str, str], export: Path) -> bool:
     return all(filters[field] in values_of(field, row, export) for field in FILTERS[1:] if field in filters)
 
 
+# the unfiltered list, the Pages view's one load (P1.a), by the state of each export's index: 1.4 s to build natively for
+# 10,224 pages with their field words, and the same until an export is written again
+_EVERY_PAGE: dict[tuple, PageList] = {}
+
+
 def pages(bases: dict[str, Readings], filters: dict[str, str]) -> PageList:
     """The pages a filter names: those of the knowledge bases served that match every filter given, by base, work and
     page. Each work's title is resolved once per list: asked per page, each asked for a stat of the export's index, 28,854
-    of them for the unfiltered list, 114 s over the container's bind mount (O3.a, 19 Nov)."""
+    of them for the unfiltered list, 114 s over the container's bind mount (O3.a, 19 Nov). The unfiltered list is kept
+    while no export changed (`_EVERY_PAGE`)."""
+    if not filters:
+        state = tuple((name, store.index, store.index.stat().st_mtime_ns if store.index.exists() else 0)
+                      for name, store in sorted(bases.items()))
+        with _COUNTING:
+            kept = _EVERY_PAGE.get(state)
+        if kept is None:
+            kept = listed(bases, filters)
+            with _COUNTING:
+                _EVERY_PAGE.clear()
+                _EVERY_PAGE[state] = kept
+        return kept
+    return listed(bases, filters)
+
+
+def listed(bases: dict[str, Readings], filters: dict[str, str]) -> PageList:
+    """The pages that match every filter given, each with its field words (P1.a)."""
     chosen = {name: store for name, store in bases.items() if filters.get('knowledge_base') in (None, name)}
     found = sorted(((store, row) for store in chosen.values() for row in store.rows() if matches(row, filters, store.export)),
                    key=lambda pair: (pair[1]['knowledge_base'], pair[1]['source_id'], pair[1]['pdf_page']))
     titles = {(store.index, source_id): store.title(source_id)
               for store, source_id in {(store, row['source_id']) for store, row in found}}
-    return PageList(filters=filters, rows=[issue_row(store, row, titles[(store.index, row['source_id'])]) for store, row in found])
+    return PageList(filters=filters, rows=[issue_row(store, row, titles[(store.index, row['source_id'])],
+                                                     {field: values_of(field, row) for field in WORDED}) for store, row in found])

@@ -59,6 +59,7 @@ def warm(bases: dict[str, readings.Readings], search: search_hits.Search) -> Non
     page_integrity.warm((store.export, store.rows()) for store in bases.values())
     for store in bases.values():
         overview.counted(store)
+    overview.pages(bases, {})  # the Pages view's one load (P1.a), 1.9 s natively when cold
     search.service()
     if 'licensed' in bases:  # the licensed EPUBs cut ahead, so the sources list counts their sections (123.a)
         epub_works.warm()

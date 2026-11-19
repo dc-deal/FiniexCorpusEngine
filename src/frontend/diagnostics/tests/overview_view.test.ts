@@ -5,8 +5,9 @@ import { getOverview, getPages } from '@/api/api_client'
 import { router } from '@/router'
 import OverviewView from '@/views/OverviewView.vue'
 import PagesView from '@/views/PagesView.vue'
-import type { Headline, Milestone, Overview } from '@/types/api/overview_types'
-import { anIssueList } from './page_fixture'
+import type { Headline, Milestone, Overview, PageList } from '@/types/api/overview_types'
+import { anIssueList, KELLY } from './page_fixture'
+import { facetOption, pickFacet } from './facet_harness'
 import { sayTime } from '@/human_time'
 
 vi.mock('@/api/api_client', async importOriginal => ({
@@ -163,25 +164,80 @@ describe('OverviewView', () => {
 })
 
 describe('PagesView', () => {
+  const ORDER = ['ok', 'ok_unjudged', 'not_yet_checked', 'decided_by_a_person', 'decided_by_an_automated_review', 'blocked', 'issue', 'stopped']
+
+  /** The page list as the API serves it (P1.a): each page with its words in every field; invented over a free work. */
+  function aPageList(states: string[]): PageList {
+    const template = anIssueList().rows[0]!
+    return {
+      filters: {}, state_order: ORDER,
+      rows: states.map((state, at) => ({ ...template, pdf_page: at + 1, listed_state: state,
+        filtered_by: { state: [state], route: [template.route], verdict: state === 'issue' ? ['bad'] : [], reason: [], reader: [],
+          judge: [], provider: [], category: ['content'], why_judged: [], person: [], review: [] } })),
+    }
+  }
+
+  function mountPages() {
+    return mount(PagesView, { global: { plugins: [createPinia(), router] }, attachTo: document.body })
+  }
+
   beforeEach(() => {
     vi.mocked(getPages).mockReset()
   })
 
-  it('lists the pages the address filters for, each filter standing above, removable', async () => {
-    vi.mocked(getPages).mockResolvedValue({ filters: { knowledge_base: 'free', state: 'blocked' }, rows: anIssueList().rows.slice(0, 1) })
+  it('loads every page once and narrows them in the browser by the choice in the address (P1.a)', async () => {
+    vi.mocked(getPages).mockResolvedValue(aPageList(['ok', 'blocked', 'issue', 'blocked']))
     await router.push('/pages?knowledge_base=free&state=blocked')
-    const view = mount(PagesView, { global: { plugins: [createPinia(), router] } })
+    const view = mountPages()
     await flushPromises()
-    expect(vi.mocked(getPages)).toHaveBeenCalledWith({ knowledge_base: 'free', state: 'blocked' })
-    expect(view.findAll('.filter').map(filter => filter.attributes('data-filter'))).toEqual(['knowledge_base', 'state'])
-    expect(view.find('[data-filter="state"] .remove').attributes('href')).toBe('#/pages?knowledge_base=free')
-    expect(view.findAll('tbody tr[data-page]')).toHaveLength(1)
+    // the API is asked for every page, never for a field the bar can narrow by
+    expect(vi.mocked(getPages)).toHaveBeenCalledWith({})
+    expect(view.findAll('tbody tr[data-page]')).toHaveLength(2)
+    expect(view.find('.facet-count-label').text()).toBe('2 of 4')
+    expect(view.find('.facet-trigger[data-facet="state"] .facet-badge').text()).toBe('1')
+    // the states in the core's order, as the API gives it, each with how many pages carry it
+    const options = [...(await facetOption(view, 'state', 'ok')).parentElement!.querySelectorAll('.facet-option')]
+    expect(options.map(option => option.getAttribute('data-value'))).toEqual(['ok', 'blocked', 'issue'])
+  })
+
+  it('writes a pick to the address, so a link or the browser\'s back opens the same pages (P1.a)', async () => {
+    vi.mocked(getPages).mockResolvedValue(aPageList(['ok', 'blocked', 'issue']))
+    await router.push('/pages')
+    const view = mountPages()
+    await flushPromises()
+    await pickFacet(view, 'verdict', 'bad')
+    expect(router.currentRoute.value.fullPath).toBe('/pages?verdict=bad')
+    expect(view.findAll('tbody tr[data-page]').map(row => row.attributes('data-page'))).toEqual([`free/${KELLY}/3`])
+    expect(vi.mocked(getPages)).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks the API for a reading file\'s state only when the address names it, and lets it be dropped', async () => {
+    vi.mocked(getPages).mockResolvedValue(aPageList(['ok']))
+    await router.push('/pages?integrity=tampered&state=ok')
+    const view = mountPages()
+    await flushPromises()
+    expect(vi.mocked(getPages)).toHaveBeenCalledWith({ integrity: 'tampered' })
+    const filter = view.find('[data-filter="integrity"]')
+    expect(filter.text()).toContain('reading file: tampered')
+    expect(filter.find('.remove').attributes('href')).toBe('#/pages?state=ok')
+  })
+
+  it('draws the first 500 pages of a long list, says how many there are, and draws every page on request', async () => {
+    vi.mocked(getPages).mockResolvedValue(aPageList(Array.from({ length: 620 }, () => 'ok')))
+    await router.push('/pages')
+    const view = mountPages()
+    await flushPromises()
+    expect(view.findAll('tbody tr[data-page]')).toHaveLength(500)
+    expect(view.find('[data-part="more"]').text()).toContain('the first 500 of 620 pages')
+    await view.find('[data-part="show-every-page"]').trigger('click')
+    expect(view.findAll('tbody tr[data-page]')).toHaveLength(620)
+    expect(view.find('[data-part="more"]').exists()).toBe(false)
   })
 
   it('says so when no page matches', async () => {
-    vi.mocked(getPages).mockResolvedValue({ filters: { reason: 'nothing like it' }, rows: [] })
-    await router.push('/pages?reason=nothing%20like%20it')
-    const view = mount(PagesView, { global: { plugins: [createPinia(), router] } })
+    vi.mocked(getPages).mockResolvedValue(aPageList(['ok']))
+    await router.push('/pages?state=blocked')
+    const view = mountPages()
     await flushPromises()
     expect(view.text()).toContain('No page matches these filters.')
   })

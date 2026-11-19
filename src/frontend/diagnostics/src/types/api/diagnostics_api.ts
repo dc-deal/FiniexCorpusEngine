@@ -1506,6 +1506,10 @@ export interface components {
             focus?: string | null;
             /** Listed State */
             listed_state?: string | null;
+            /** Filtered By */
+            filtered_by?: {
+                [key: string]: string[];
+            } | null;
         };
         /**
          * Judge
@@ -1794,7 +1798,11 @@ export interface components {
             /** Pdf Page */
             pdf_page: number;
         };
-        /** PageList */
+        /**
+         * PageList
+         * @description The pages a filter names, each with its words in every field the Pages view narrows by (P1.a), and the order the
+         *     core gives the check states in, for the view's state facet.
+         */
         PageList: {
             /** Filters */
             filters: {
@@ -1802,6 +1810,20 @@ export interface components {
             };
             /** Rows */
             rows: components["schemas"]["IssueRow"][];
+            /**
+             * State Order
+             * @default [
+             *       "ok",
+             *       "ok_unjudged",
+             *       "not_yet_checked",
+             *       "decided_by_a_person",
+             *       "decided_by_an_automated_review",
+             *       "blocked",
+             *       "issue",
+             *       "stopped"
+             *     ]
+             */
+            state_order: string[];
         };
         /**
          * PageReset

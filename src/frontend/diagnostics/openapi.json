@@ -4250,6 +4250,23 @@
               }
             ],
             "title": "Listed State"
+          },
+          "filtered_by": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filtered By"
           }
         },
         "type": "object",
@@ -5286,6 +5303,23 @@
             },
             "type": "array",
             "title": "Rows"
+          },
+          "state_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "State Order",
+            "default": [
+              "ok",
+              "ok_unjudged",
+              "not_yet_checked",
+              "decided_by_a_person",
+              "decided_by_an_automated_review",
+              "blocked",
+              "issue",
+              "stopped"
+            ]
           }
         },
         "type": "object",
@@ -5293,7 +5327,8 @@
           "filters",
           "rows"
         ],
-        "title": "PageList"
+        "title": "PageList",
+        "description": "The pages a filter names, each with its words in every field the Pages view narrows by (P1.a), and the order the\ncore gives the check states in, for the view's state facet."
       },
       "PageReset": {
         "properties": {

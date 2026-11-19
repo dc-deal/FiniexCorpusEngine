@@ -1698,3 +1698,17 @@ helper and of each view's words, ranks, hint and clock; a browser check that the
 The decision numbers in the Prompts text (147.a, 148.a, …) are the core's registry's words, which trace each version to its
 decision, and stay as given (line 1). 381 unit tests, 79 checks in the browser (3 skipped on today's
 data), 1,464 Python tests.
+
+**The Pages view's facet bar (the operator's P1.a, 19 Nov).** With the overview's tables gone, the Pages view could drop a
+filter but not choose one, so a count was reached only by its address. It now loads every page once, each with its words
+in every field it is narrowed by (`filtered_by`: route, state, verdict, reasons, readers, judge, providers, category, why
+judged, a person's and an automated review's standing), and the facet bar narrows them in the browser, counting as it goes
+(Q4.a), the knowledge base among the facets and the states in the core's order. The choice stands in the address, as in the
+Issues, so every link into the list (`?state=blocked`, `?person=accepted`) opens the pages it names. The integrity of a
+reading file stays a filter the API answers from the disk, asked only when the address names it and never counted on a
+load. A long list draws its first 500 pages and says how many there are, every page one click away. The unfiltered list,
+10,224 pages with their words (10.3 MB), is kept while no export changes and built ahead at the app's start: 1.9 s to build
+natively, then 0.1 s. **Measured, both bases:** before, in the container, `/api/pages` 1.6 s cold and 0.7 s warm (6.9 MB),
+and the unfiltered view drew all 10,224 rows after 3.1 s; after, natively, the API 0.11 s warm and the view's first 500
+pages after 1.1 s; the container after the merge is line 1's to measure. 384 unit tests, 79 checks in the browser
+(3 skipped on today's data), 1,466 Python tests.

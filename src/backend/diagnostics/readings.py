@@ -663,6 +663,10 @@ class IssueRow(BaseModel):
     focus: str | None = None
     # the state the lists count it by (`listed_state`, 211.a): its check's, or `DECIDED`, which the Issues fold apart
     listed_state: str | None = None
+    # the page's words in each field the Pages view narrows by (the operator's P1.a, 19 Nov): its route, state, verdict,
+    # reasons, readers, judge, providers, category, why judged, a person's and an automated review's standing, as the page
+    # list's filters read them (`overview.values_of`); None in the Issues, which narrow by their own fields
+    filtered_by: dict[str, list[str]] | None = None
 
 
 class IssueList(BaseModel):
@@ -1360,7 +1364,8 @@ def issues(bases: dict[str, 'Readings']) -> IssueList:
         rows=[issue_row(store, row, titles[(store.index, row['source_id'])]) for store, row in listed])
 
 
-def issue_row(store: 'Readings', row: dict, title: str | None = None) -> IssueRow:
+def issue_row(store: 'Readings', row: dict, title: str | None = None,
+              filtered_by: dict[str, list[str]] | None = None) -> IssueRow:
     """A page as a list across works shows it: its work by title, its state and reasons, and why a fallback serves it. A
     list of many pages gives each work's title it resolved once (O3.a: a title asked per page costs a stat of the export's
     index each time, slow over the container's bind mount)."""
@@ -1370,7 +1375,7 @@ def issue_row(store: 'Readings', row: dict, title: str | None = None) -> IssueRo
                     from_fallback=row['route'] in NOT_SERVED_ROUTES, route_level=row.get('route_level'),
                     route_why=route_parts(row['route'])[2], person=person_mark(row), category=row.get('category'),
                     page_kind=row.get('page_kind'), category_said=category_said(row), apart=apart(row),
-                    focus=first_finding_block(row), listed_state=listed_state(row))
+                    focus=first_finding_block(row), listed_state=listed_state(row), filtered_by=filtered_by)
 
 
 def block_number(block: str) -> int:

@@ -201,6 +201,36 @@ def test_a_page_list_resolves_each_works_title_once_not_once_per_page(monkeypatc
     assert len(asked) == len({page.source_id for page in issues})
 
 
+@pytest.mark.readings
+def test_every_page_of_the_list_carries_its_words_in_each_field_the_pages_view_narrows_by(no_runs):
+    # P1.a (the operator, 19 Nov): the view narrows in the browser by these words, so they are the page list's filters' own
+    client = TestClient(create_app(public_only=True), base_url=LOCAL)
+    answer = client.get('/api/pages').json()
+    rows = {(row['source_id'], row['pdf_page']): row for row in readings.Readings().rows()}
+    assert len(answer['rows']) == len(rows) and answer['state_order'] == list(readings.STATE_ORDER)
+    for page in answer['rows'][:50]:
+        row = rows[(page['source_id'], page['pdf_page'])]
+        assert page['filtered_by'] == {field: overview.values_of(field, row) for field in overview.WORDED}
+    # never the integrity of a reading file, which is asked of the disk only through its own filter
+    assert all('integrity' not in page['filtered_by'] for page in answer['rows'])
+    # the Issues narrow by their own fields and carry none
+    assert all(page['filtered_by'] is None for page in client.get('/api/issues').json()['rows'])
+
+
+@pytest.mark.readings
+def test_the_unfiltered_list_is_kept_while_no_export_changes_and_built_anew_after_one(tmp_path):
+    from test_diagnostics_readings import a_corpus, kelly_rows
+
+    corpus = a_corpus(tmp_path, kelly_rows()[:3])
+    first = overview.pages({'free': corpus}, {})
+    assert overview.pages({'free': corpus}, {}) is first  # kept, not built again
+    assert overview.pages({'free': corpus}, {'state': 'ok'}) is not first  # a filter is answered afresh
+    index = json.loads(corpus.index.read_text(encoding='utf-8'))
+    index['pages'] = index['pages'][:2]
+    corpus.index.write_text(json.dumps(index), encoding='utf-8')
+    assert len(overview.pages({'free': corpus}, {}).rows) == 2
+
+
 def test_a_cost_the_export_does_not_give_stays_unknown_and_a_known_one_is_never_lost():
     row = {'attempts': [{'model': 'claude-sonnet-5-5', 'provider': 'anthropic', 'upstream': None},
                         {'model': 'mistralai/mistral-large-4-0', 'provider': 'openrouter', 'upstream': 'Mistral', 'cost_usd': 0.02},
