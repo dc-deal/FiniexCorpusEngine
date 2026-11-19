@@ -296,3 +296,24 @@ def test_an_export_without_its_store_refuses_instead_of_emptying_the_export(tmp_
     (tmp_path / 'index.json').write_text(json_module.dumps({'pages': [{}] * 1822}), encoding='utf-8')
     assert 'clone' in reading_export.too_few_to_export(base, 0)
     assert reading_export.too_few_to_export(base, 900) is not None and reading_export.too_few_to_export(base, 1822) is None
+
+
+def test_a_page_only_a_session_read_joins_the_export_and_a_page_a_default_cell_holds_keeps_its_record(licensed, monkeypatch):
+    # found 19 Nov: a scan read whole in a session stood in no export, neither its served pages nor the judge's issues on it
+    base, store = licensed
+    alone, beside = record('d' * 64, pdf_page=7, model='claude-opus-5-5'), record('e' * 64, model='claude-opus-5-5')
+    monkeypatch.setattr(reading_export, 'cells_beside', lambda base: ('LIC-2ND-X', 'LIC-DIRECT-OPUS'))
+    monkeypatch.setattr(vision_batches, 'readings_of',
+                        lambda cells, store: [alone, beside] if cells == ('LIC-DIRECT-OPUS',) else [])
+    out = reading_export.with_session_pages(base, store, [record(KEY_READ)], valid=lambda r: True)
+    assert [(row['pdf_page'], row['reading_key']) for row in out] == [(2, KEY_READ), (7, 'd' * 64)]
+
+
+def test_each_row_names_what_stands_where_its_reading_is_not_served(licensed, monkeypatch):
+    # H2.a: the blocked page 3 has legacy Markdown, so its route says so; a served page has no fallback
+    base, store = licensed
+    monkeypatch.setattr(reading_export, 'legacy_fallback_pages', lambda: {'w_book.pdf': {3}})
+    monkeypatch.setattr(reading_export, 'outlines_of', lambda base, store, works, rows: {row['file']: None for row in rows})
+    rows = {row['pdf_page']: row for row in reading_export.export(base, store)['pages']}
+    assert rows[3]['fallback'] == served_readings.LEGACY_ROUTE and rows[3]['route'].startswith('legacy markdown: ')
+    assert rows[2]['fallback'] in (None, served_readings.TEXT_LAYER)

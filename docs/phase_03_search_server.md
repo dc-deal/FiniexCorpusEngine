@@ -196,3 +196,10 @@ chat model, a stage of its own.
   Measured on the private shelf: the loader keeps 96 to 100 % of each book's words, and where a legacy text exists the two
   hold the same words to within 1 to 4 %, the legacy text's surplus being markup and image paths. Reading the formula images
   is a later step, and only for files that may go to a provider.
+- **What stands in a reading's place is named as served** (H2.a, the operator, 19 Nov). A page whose reading may not be served
+  said "text layer" in the export, though a licensed work with page-numbered legacy Markdown serves that page's legacy text
+  (decision 125.a above); for a scanned work, which has no text layer at all, the route claimed a text that does not exist.
+  The export now asks the server's own rule (`search_server.legacy_fallback_pages`) and names each row's `fallback`: the
+  legacy Markdown, the text layer, or none where the reading is served. The route keeps its reason under the new source
+  (`legacy markdown: the judge found the reading bad, a person looks at it`), and `served_readings.FALLBACK_ROUTES` holds
+  every route that serves no reading.

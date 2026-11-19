@@ -141,6 +141,14 @@ session read stays in the cell's list whatever came of it, so the cell's report 
 its check; a served page that left the list would have lost its state and fallen back to its text layer, as the second
 reader's chosen pages once did.
 
+**A whole work read in the session (the operator, 18–19 November).** A scanned work no batch round had taken was read whole in
+a session overnight (`direct_reader pages --add-work`), two agents in parallel, about 11 thousand agent tokens and half a minute
+a page, measured per batch. Such a work is judged by a sample of sixty pages (`check_run.WHOLE_WORK_SAMPLE`), and its other pages
+pass as `ok_unjudged` once the sample passed, as on every other cell; `choose` takes both states. Two gaps showed only on the
+first such work and were closed with tests: the export listed only pages a default cell had read, so a work read only in a
+session stood in no export (`reading_export.with_session_pages`), and the shelf planned only the rollout's pages, so the work
+counted as read against nothing planned.
+
 **The loop closed once: a reader prompt built from the judge's and the person's findings, measured, 11 November.** page/2
 is page/1's rules unchanged plus eight (table grids with operator columns, T-accounts as tables, a table's printed title,
 legible images of tables read, chart values read against the axis, counts only as counted, a photo's own text left out,

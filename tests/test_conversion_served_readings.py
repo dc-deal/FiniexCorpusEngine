@@ -183,3 +183,14 @@ def test_a_footnote_marker_and_a_superscript_never_run_into_the_number_before_th
     assert [kind for kind, _ in reading.blocks[0].inline['segments'] if kind != 'text'] == ['fn', 'sup', 'sup', 'sub']
     assert served_readings.quotable_text(reading).split('\n\n') == [
         'Consumer Price Index, 1947–2020[2]; the variance is 12.5^2, ranked 2nd, H2O.', '22%[*]']
+
+
+def test_a_page_falling_back_to_legacy_markdown_says_so_with_the_same_reason_and_counts_as_serving_no_reading():
+    # H2.a (19 Nov): a scan's unserved page said "text layer" though the librarian served the IDE's legacy Markdown
+    row = {'text_file': 'w/p.md', 'class_now': 'ok', 'check': {'state': 'issue'}, 'fallback': served_readings.LEGACY_ROUTE}
+    assert served_readings.route_of(row) == 'legacy markdown: the judge found the reading bad, a person looks at it'
+    assert served_readings.route_of({**row, 'fallback': served_readings.TEXT_LAYER}) == served_readings.TEXT_LAYER_WHY['issue']
+    assert served_readings.route_level(row) == 'fallback'
+    assert set(served_readings.LEGACY_WHY) == set(served_readings.TEXT_LAYER_WHY)
+    assert served_readings.route_of(row) in served_readings.FALLBACK_ROUTES
+    assert served_readings.TEXT_LAYER_WHY['issue'] in served_readings.FALLBACK_ROUTES

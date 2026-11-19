@@ -38,8 +38,8 @@ import pymupdf
 
 from backend.configuration import data_paths
 from backend.conversion.store.reading_store import REPO
-from backend.conversion.store.served_readings import (READING_ROUTE, TEXT_LAYER_WHY, printed_of, route_of,  # noqa: F401
-                                                text_layer_why)
+from backend.conversion.store.served_readings import (LEGACY_ROUTE, READING_ROUTE, TEXT_LAYER_WHY, printed_of,  # noqa: F401
+                                                route_of, text_layer_why)
 from backend.search import page_index
 
 CATALOG = REPO / 'corpus' / 'catalog.json'
@@ -353,6 +353,39 @@ def epub_pages(key: str, path: Path, marks: list[str]) -> list[page_index.Page]:
     return pages
 
 
+def legacy_by_work(keys: dict[str, str], marks: list[str]) -> dict[str, list[page_index.Page]]:
+    """Each legacy work's pages by citation key, the provenance list's marks stripped (a page left as structure by the strip is
+    dropped) and numbered through the work's measured offset (127.a)."""
+    legacy: dict[str, list[page_index.Page]] = {}
+    for page in page_index.load_works(LEGACY, keys) if keys else []:
+        text = strip_stamps(page.text, marks)
+        if text != page.text and page_index.is_structural(text):
+            continue
+        legacy.setdefault(page.work, []).append(dataclasses.replace(page, text=text, knowledge_base='licensed', route=LEGACY_ROUTE))
+    for key, offset in legacy_offsets().items():
+        if key in legacy:
+            legacy[key] = numbered(legacy[key], offset)
+    return legacy
+
+
+def legacy_fallback_pages() -> dict[str, set[int]]:
+    """PDF file -> its PDF pages whose legacy Markdown `licensed_pages` serves where the page's reading is not served
+    (`with_readings`): a legacy work routed page by page, neither an EPUB's (123.a) nor a stand-in's (126.a). The export names
+    this fallback in its rows, so a page never claims a text layer it does not serve (H2.a, 19 Nov: a scan has none)."""
+    keys = legacy_keys()
+    if not keys:
+        return {}
+    legacy = legacy_by_work(keys, stamps())
+    for key in (*licensed_epubs(keys), *stand_ins(keys)):
+        legacy.pop(key, None)
+    out = {}
+    for key, own in legacy.items():
+        numbers, name = {int(page.pdf) for page in own if page.pdf}, f'{keys.get(key, key)}.pdf'
+        if numbers and (LICENSED_ARCHIVE / name).exists():  # a legacy text without its PDF has no page that could fall back
+            out[name] = numbers
+    return out
+
+
 def licensed_pages() -> tuple[list[page_index.Page], dict]:
     """The licensed works by citation key; empty on a machine without them. Per page the checked reading where one may be served
     (the free corpus's rule, `text_layer_why`), else the legacy Markdown; a work without legacy Markdown (a new work, decision
@@ -364,15 +397,7 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
     keys = legacy_keys()
     marks = stamps()
     rows = export_rows_by_file(LICENSED_EXPORT)
-    legacy: dict[str, list[page_index.Page]] = {}
-    for page in page_index.load_works(LEGACY, keys) if keys else []:
-        text = strip_stamps(page.text, marks)
-        if text != page.text and page_index.is_structural(text):
-            continue
-        legacy.setdefault(page.work, []).append(dataclasses.replace(page, text=text, knowledge_base='licensed', route='legacy markdown'))
-    for key, offset in legacy_offsets().items():
-        if key in legacy:
-            legacy[key] = numbered(legacy[key], offset)
+    legacy = legacy_by_work(keys, marks)
     standing_in = stand_ins(keys)
     pages, works = [], {}
     for key, epub in licensed_epubs(keys).items():  # decision 123.a: the EPUB in place of the legacy text made from it

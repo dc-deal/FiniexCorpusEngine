@@ -32,6 +32,13 @@ TEXT_LAYER_WHY = {  # why a page's text came from its PDF's text layer and not f
     'unchecked': 'text layer: the reading has not been checked yet',
     'reset': 'text layer: a person reset the page; a new reading is due',
 }
+TEXT_LAYER = 'text layer'
+# A licensed work with page-numbered legacy Markdown falls back to that text where a reading is not served, never to its PDF's
+# text layer (the librarian's rule, `search_server.with_readings`); a scan has no text layer at all (H2.a, 19 Nov). The export
+# names which in each row's `fallback`, and the route says it with the same reason.
+LEGACY_ROUTE = 'legacy markdown'
+LEGACY_WHY = {why: f"{LEGACY_ROUTE}: {said.split(': ', 1)[1]}" for why, said in TEXT_LAYER_WHY.items()}
+FALLBACK_ROUTES = frozenset(TEXT_LAYER_WHY.values()) | frozenset(LEGACY_WHY.values())  # every route that serves no reading
 # Never quoted: page furniture, navigation (a contents or an index names a topic, it explains nothing), and what the reader
 # wrote itself rather than read (a figure's description, a block it could not class).
 NOT_QUOTED = {'page_header', 'page_footer', 'page_number', 'watermark', 'decoration', 'margin_tab', 'toc_entry', 'index_entry',
@@ -106,14 +113,15 @@ def route_of(row: dict | None) -> str:
         return f"{READING_ROUTE}, second reader ({row['model']}, {row['contract']}, validator {row['validator']}): {row['deviation']}"
     if why is None:
         return f"{READING_ROUTE} ({row['model']}, {row['contract']}, validator {row['validator']})"
-    return TEXT_LAYER_WHY[why]
+    return LEGACY_WHY[why] if row and row.get('fallback') == LEGACY_ROUTE else TEXT_LAYER_WHY[why]
 
 
 ROUTE_LEVELS = {  # how good a page's route is, for a person reading the routes (the operator, 10 Nov: "is this route a faulty one?")
     'checked': 'the checked reading of the page image',
     'noted': ('the checked reading, with a note: a void or unquoted finding, a second reader, or a person or an automated review '
               'accepted it'),
-    'fallback': "the PDF's own text layer, because the reading could not be served: formulas and tables may be garbled there",
+    'fallback': ("the PDF's own text layer, or a licensed work's legacy Markdown where it has one, because the reading could not "
+                 "be served: formulas and tables may be garbled there"),
 }
 
 

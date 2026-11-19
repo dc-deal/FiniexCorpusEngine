@@ -535,3 +535,12 @@ def test_a_semantic_hit_gets_the_same_link():
     served = search_server.SearchService({'free': (pages, works)}, semantic=Chain())
     assert served.semantic_search('what is a breaker?')['hits'][0]['view_url'] == \
         'http://127.0.0.1:8001/#/free/sources/free_book_v1/page/12'
+
+
+def test_the_legacy_fallback_names_the_numbered_pages_of_a_work_routed_page_by_page(tmp_path, monkeypatch):
+    # H2.a: book_a's legacy text names PDF pages 1 and 3; book_c's names none, so it stands whole and falls back to nothing
+    a_licensed_shelf(tmp_path, monkeypatch)
+    assert search_server.legacy_fallback_pages() == {'book_a.pdf': {1, 3}}
+    pages, _ = search_server.licensed_pages()
+    third = next(page for page in pages if page.work == 'key-a' and page.pdf == '3')
+    assert third.route == search_server.LEGACY_ROUTE  # the issue on page 3 leaves its legacy page standing, as the export says

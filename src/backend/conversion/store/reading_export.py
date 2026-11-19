@@ -253,6 +253,14 @@ def cells_beside(base: KnowledgeBase) -> tuple[str, ...]:
     return tuple(sorted(name for name in beside if name.startswith((f'{prefix}-2ND-', f'REPLAY-{prefix}', f'{prefix}-DIRECT-'))))
 
 
+def legacy_fallback_pages() -> dict[str, set[int]]:
+    """The licensed PDF pages whose legacy Markdown the librarian serves where their reading is not (H2.a), from the
+    librarian's own rule, so the export and the server never disagree on what stands in a reading's place."""
+    from backend.search import search_server
+
+    return search_server.legacy_fallback_pages()
+
+
 def too_few_to_export(base: KnowledgeBase, readings: int) -> str | None:
     """Why an export must not run here, or None. A clone holds the free export but not the store it is written from;
     run there (by hand, or after a verdict from the page view, decision 213.b) it would write an empty index and delete
@@ -447,6 +455,17 @@ def with_choices(base: KnowledgeBase, store, records: list[dict]) -> list[dict]:
     return out
 
 
+def with_session_pages(base: KnowledgeBase, store, records: list[dict], valid: Callable[[dict], bool]) -> list[dict]:
+    """The pages only a session read (280.a) join with their latest reading, as every other page does: a work read whole,
+    a scan no default cell planned. Found 19 Nov: such a work's pages stood in no export, so neither its served pages nor
+    the judge's issues on it could be seen."""
+    held = {(record['file'], record['pdf_page']) for record in records}
+    direct = tuple(name for name in cells_beside(base) if '-DIRECT-' in name)
+    alone = [record for record in check_run.latest_per_page(vision_batches.readings_of(direct, store), valid=valid)
+             if (record['file'], record['pdf_page']) not in held]
+    return records + sorted(alone, key=lambda record: (record['file'], record['pdf_page']))
+
+
 def export(base: KnowledgeBase = FREE, store=None) -> dict:
     """Write one knowledge base's readings and their index; returns the index.
 
@@ -454,7 +473,7 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
         reading_store.UnsafeRootError: When an untracked knowledge base's export would lie where git tracks it.
     """
     from backend.conversion.contract.page_contract import parse
-    from backend.conversion.store.served_readings import printed_of, route_level, route_of
+    from backend.conversion.store.served_readings import LEGACY_ROUTE, TEXT_LAYER, printed_of, route_level, route_of, text_layer_why
 
     if not base.tracked:
         reason = reading_store.refusal(base.export.resolve())
@@ -462,11 +481,12 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
             raise reading_store.UnsafeRootError(f'the {base.name} readings are never exported there: {reason}')
     store = store or open_store(base.name)
     cells = base.cells()
-    standing = check_run.latest_per_page(vision_batches.readings_of(cells, store),  # a failed re-read displaces no valid reading (174.a)
-                                         valid=lambda record: vision_batches.current_class(record, store) == 'ok')
+    valid = lambda record: vision_batches.current_class(record, store) == 'ok'  # noqa: E731
+    standing = check_run.latest_per_page(vision_batches.readings_of(cells, store), valid=valid)  # a failed re-read displaces no valid reading (174.a)
     refusal = too_few_to_export(base, len(standing))
     if refusal:
         raise RuntimeError(refusal)
+    standing = with_session_pages(base, store, standing, valid)
     records = with_people(base, store, with_choices(base, store, standing))
     states = check_states(store, cells + cells_beside(base))
     attempts = attempts_of(store, cells + cells_beside(base) + prototypes_beside(base))  # a prototype is listed, never chosen
@@ -483,6 +503,7 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                 states[record['reading_key']] = earlier
     works = works_of(base, sorted({(record['work'], record['file']) for record in records}))
     source_ids = {work['file']: work['source_id'] for work in works}
+    legacy_pages = legacy_fallback_pages() if base.name == 'licensed' else {}
     rows, written = [], set()
     for record in records:
         text = store.reading_text(record['reading_key']) if record.get('result_type') == 'succeeded' else None
@@ -520,6 +541,10 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                 replace_file(target, data)
             row.update(text_file=relative, text_sha256=hashlib.sha256(data).hexdigest())
             written.add(target)
+        # what stands where the reading is not served: a licensed work's legacy Markdown where it has the page, else the text
+        # layer (H2.a, 19 Nov); None where the reading is served
+        row['fallback'] = (None if text_layer_why(row) is None
+                           else LEGACY_ROUTE if row['pdf_page'] in legacy_pages.get(row['file'], ()) else TEXT_LAYER)
         row.update(source_id=source_ids[record['file']], route=route_of(row),  # the id the views link by; the route the server serves
                    route_level=route_level(row))  # checked, noted or fallback (the operator, 10 Nov)
         rows.append(row)
