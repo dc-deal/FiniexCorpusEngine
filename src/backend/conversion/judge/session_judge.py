@@ -174,7 +174,8 @@ def api_judged(store) -> dict[str, dict]:
 
 def again(args) -> list[str]:
     """The requests of a check plan the API judge answered, for one work, asked of the session once more (the operator, 19 Nov:
-    a test of the session's judge on a real work); its answers never count, `compare` sets them beside the API's."""
+    a test of the session's judge on a real work); its answers never count, `compare` sets them beside the API's. With
+    `issues_only`, only the pages the API judge sent to an issue (R2.a: a second judge before a person's review)."""
     cells = check_run._cells(args)
     store = check_run.store_of(cells)
     plan = json.loads(store.path('reports', check_run._plan_name(cells)).read_text(encoding='utf-8'))
@@ -186,6 +187,9 @@ def again(args) -> list[str]:
         if entry['work'] != args.work or entry['target_key'] not in judged:
             continue
         if (entry['file'], entry['pdf_page']) in turned_away or not reading_cells.may_send(entry['file']):
+            continue
+        api = check_run.voided(store, judged[entry['target_key']]['verdict'], entry['target_key'])
+        if getattr(args, 'issues_only', False) and api['outcome'] == 'ok':
             continue
         folder = write_folder(root, entry, store, again=1)
         if folder is not None:
@@ -352,6 +356,8 @@ def build_parser() -> argparse.ArgumentParser:
         command = commands.add_parser(name, help=said)
         command.add_argument('--cells', required=True)
         command.add_argument('--work', required=True, help="the work's key, its file's stem")
+        if name == 'again':
+            command.add_argument('--issues-only', action='store_true', help='only the pages the API judge sent to an issue')
     return parser
 
 

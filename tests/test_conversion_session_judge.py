@@ -121,6 +121,9 @@ def test_a_second_answer_to_an_api_judged_request_never_counts_and_is_compared_p
     monkeypatch.setattr(session_judge.reading_cells, 'may_send', lambda name: True)
     monkeypatch.setattr(check_run, 'voided', lambda store, verdict, key: page_judge.with_void(verdict))
     assert session_judge.session_key(asked, 1) != session_judge.session_key(asked)
+    assert session_judge.again(SimpleNamespace(cells='C', work='w', issues_only=True)) != []  # the API sent it to an issue
+    import shutil
+    shutil.rmtree(tmp_path / 'session')
     [folder] = session_judge.again(SimpleNamespace(cells='C', work='w'))
     (session_judge.Path(folder) / 'verdict.json').write_text(OK, encoding='utf-8')
     session_judge.store(SimpleNamespace(knowledge_base='free'))
