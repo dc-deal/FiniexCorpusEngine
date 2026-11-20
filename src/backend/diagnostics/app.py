@@ -383,8 +383,9 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
             raise HTTPException(404, f'no section {label!r} of {source_id!r}')
         # its own ladder (V2.a): the librarian serves a licensed EPUB under the key this route takes, by section label
         _, held = page_ladder.held_of(store_of(knowledge_base), source_id)
+        kept = page_ladder.kept_of(store_of(knowledge_base), source_id)  # a kept edition's section says so (E1.a)
         return found.model_copy(update={'ladder': page_ladder.section_ladder(knowledge_base, label, None, source_id, search.ready(),
-                                                                             held)})
+                                                                             held, kept)})
 
     @app.get('/api/{knowledge_base}/epub/{source_id}/image', response_class=Response,
              responses={200: {'content': {'image/png': {}, 'image/jpeg': {}, 'image/gif': {}}}})
@@ -418,7 +419,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         work = store.work(source_id) or store.entry_work(source_id)
         ladder = page_ladder.page_ladder(knowledge_base, source_id, pdf_page, store.any_row(source_id, pdf_page),
                                          store.pdf_of(work) if work and work.get('pdf') else None,
-                                         key or (work or {}).get('work'), search.ready(), held)
+                                         key or (work or {}).get('work'), search.ready(), held,
+                                         page_ladder.kept_of(store, source_id))  # a kept edition's page says so (E1.a)
         return page.model_copy(update={'ladder': ladder})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/recall')

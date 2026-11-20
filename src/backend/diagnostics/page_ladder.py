@@ -26,7 +26,7 @@ import pymupdf
 
 from backend.configuration import data_paths
 from backend.conversion.store import served_readings
-from backend.diagnostics import stamps, unread_pages
+from backend.diagnostics import stamps, unread_pages, work_editions
 from backend.diagnostics.coverage_ladder import CHECKED, NOT_IN_INDEX, not_embedded
 from backend.diagnostics.ladder_types import PageLadder, PageRung
 from backend.diagnostics.readings import NOT_SERVED_ROUTES, fallback_of, listed_state, route_parts
@@ -103,8 +103,18 @@ def search_pages(service) -> dict[tuple[str, str], object]:
         return found
 
 
-def keyword(page, served_rung: PageRung, built: bool) -> tuple[PageRung, str | None, str | None]:
-    """Whether search (BM25) holds the page, and the text the librarian serves for it, or why none is shown."""
+def kept_said(kept: str) -> str:
+    """A kept edition's page or section at its keyword level (E1.a): never searched, and which edition is."""
+    return f'kept: not searched; the {kept} is served'
+
+
+def keyword(page, served_rung: PageRung, built: bool, kept: str | None = None) -> tuple[PageRung, str | None, str | None]:
+    """Whether search (BM25) holds the page, and the text the librarian serves for it, or why none is shown. A kept
+    edition's page (`kept`, the served edition in a sentence's words) is never searched, built or not, and says so, its text
+    shown all the same: it is there and opens by its own key (line 1, 20 Nov, E1.a)."""
+    if kept is not None:
+        return (PageRung(level='keyword search', reached=False, said=kept_said(kept)), page.text if page is not None else None,
+                None if page is not None else (NOT_BUILT if not built else 'the search holds no page of it by this number'))
     if not built:
         return PageRung(level='keyword search', reached=None, said=NOT_BUILT), None, NOT_BUILT
     if page is None:
@@ -160,26 +170,28 @@ def reading(row: dict) -> PageRung:
 
 
 def page_ladder(knowledge_base: str, source_id: str, pdf_page: int, row: dict, pdf: Path | None, work_key: str | None,
-                service, held: str | None) -> PageLadder:
+                service, held: str | None, kept: str | None = None) -> PageLadder:
     """A PDF page's own ladder; `row` its export row or the row of a page without a reading (`unread_pages`), `service` the
-    built search or None, `held` the shelf's why where the provenance list holds the file back."""
+    built search or None, `held` the shelf's why where the provenance list holds the file back, `kept` the served edition
+    where the work is a kept one (E1.a)."""
     served_rung = served(row)
     page = search_pages(service).get((work_key, f'pdf:{pdf_page}')) if service is not None and work_key else None
-    keyword_rung, text, why_not = keyword(page, served_rung, service is not None)
+    keyword_rung, text, why_not = keyword(page, served_rung, service is not None, kept)
     return PageLadder(rungs=[text_layer(pdf, pdf_page), served_rung, keyword_rung,
                              semantic(knowledge_base, work_key if knowledge_base == 'licensed' else source_id, pdf_page, 'pages',
                                       held), reading(row)],
                       served_text=text, served_why_not=why_not, held=held)
 
 
-def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key: str, service, held: str | None = None) -> PageLadder:
+def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key: str, service, held: str | None = None,
+                   kept: str | None = None) -> PageLadder:
     """An HTML or EPUB section's own ladder: born digital, so it has no text layer to extract and no reading to need; its
     text served is the section's own, its keyword level the search's. Its chunks: a free HTML section's those its view shows
     (`chunks`); a licensed EPUB section's in the private index (#8), named `<work key>:<ordinal>`, its ordinal its position
     from 0 in four figures (`s1` is `0000`, line 1, 20 Nov)."""
     page = search_pages(service).get((work_key, label)) if service is not None else None
     served_rung = PageRung(level='text served', reached=True, said='its own text, parsed by section')
-    keyword_rung, text, why_not = keyword(page, served_rung, service is not None)
+    keyword_rung, text, why_not = keyword(page, served_rung, service is not None, kept)
     if knowledge_base == 'licensed':
         semantic_rung = semantic('licensed', work_key, f'{work_key}:{int(label[1:]) - 1:04d}', 'sections', held)
     elif chunks is None:
@@ -191,10 +203,22 @@ def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key
                       served_text=text, served_why_not=why_not)
 
 
-def held_of(store, source_id: str) -> tuple[str | None, str | None]:
-    """The search's key for a work and why the provenance list holds its file back, both from its base's shelf row of it."""
+def shelf_row(store, source_id: str) -> tuple[dict, list[dict]]:
+    """A work's row on its base's shelf ({} where it has none) and every row, an EPUB's by the work key its view takes."""
     from backend.diagnostics.coverage_ladder import row_for
 
-    row = row_for(store.shelf_data(), source_id, source_id) or {}  # an EPUB's row by the work key its view takes
+    built = store.shelf_data()
+    return row_for(built, source_id, source_id) or {}, (built or {}).get('works') or []
+
+
+def held_of(store, source_id: str) -> tuple[str | None, str | None]:
+    """The search's key for a work and why the provenance list holds its file back, both from its base's shelf row of it."""
+    row, _ = shelf_row(store, source_id)
     return row.get('work'), row.get('held')
+
+
+def kept_of(store, source_id: str) -> str | None:
+    """Where a work is a kept edition (E1.a), the served edition in a sentence's words ("2nd edition, 2001"); None else."""
+    row, rows = shelf_row(store, source_id)
+    return work_editions.served_named(row, rows) if row else None
 

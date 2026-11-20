@@ -102,3 +102,19 @@ def test_a_kept_edition_folds_into_its_served_edition_s_row_and_its_record_names
     assert not any(rung['warn'] for rung in kept['ladder']['rungs'])
     served = client.get('/api/licensed/works/a_licensed_book/pages').json()
     assert served['editions']['current'] == 'a_licensed_book' and served['ladder']['rungs'][0]['said'] == '2 of 2 PDF pages'
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_a_kept_edition_s_page_says_kept_at_its_keyword_level(monkeypatch, tmp_path):
+    # line 1, 20 Nov: the export's work invented as the kept edition, a newer one served; its first page opens by its own key
+    newer = {'work': 'a_licensed_book', 'serves': 'an_invented_newer', 'chosen': '2026-11-02', 'why': 'an invented reason',
+             'editions': [{'key': 'a_licensed_book', 'label': '2nd edition, 2001', 'year': 2001, 'format': 'pdf', 'served': False},
+                          {'key': 'an_invented_newer', 'label': '4th edition, 2017', 'year': 2017, 'format': 'pdf', 'served': True}]}
+    client = licensed_with_a_catalog(monkeypatch, tmp_path / 'kept_page', json.dumps({'sources': CATALOG}))
+    readings.licensed_readings().shelf = lambda: {'works': [
+        {**SERVED, 'editions': newer, 'kept_for': 'an_invented_newer'},
+        {**KEPT, 'source_id': 'an_invented_newer', 'file': 'an_invented_newer.pdf', 'editions': newer, 'kept_for': None}]}
+    rungs = client.get('/api/licensed/works/a_licensed_book/pages/1').json()['ladder']['rungs']
+    assert rungs[2]['said'] == 'kept: not searched; the 4th edition, 2017 is served'
+    assert rungs[1]['level'] == 'text served' and not rungs[1]['said'].startswith('kept')  # its text is there, as before

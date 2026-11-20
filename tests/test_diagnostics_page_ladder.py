@@ -151,3 +151,21 @@ def test_the_page_route_carries_the_page_s_ladder_and_never_waits_for_the_search
     image = client.get(f'/api/free/works/{KELLY}/pages/{pdf_page}/image.png')
     assert image.status_code == 200 and image.headers['content-type'] == 'image/png'
     assert client.get(f'/api/free/works/{KELLY}/pages/9999').status_code == 404
+
+
+def test_a_kept_edition_s_page_and_section_say_kept_at_their_keyword_level_their_text_shown_all_the_same():
+    # line 1, 20 Nov (E1.a): a kept edition's pages and sections are never searched, built or not, as its record says
+    served = page_ladder.PageRung(level='text served', reached=True, said='its own text')
+    rung, text, _ = page_ladder.keyword(a_page('prose ' * 60, searchable=False), served, True, '2nd edition, 2001')
+    assert (rung.said, rung.reached, text) == ('kept: not searched; the 2nd edition, 2001 is served', False, 'prose ' * 60)
+    assert page_ladder.keyword(None, served, False, '2nd edition, 2001')[0].said == 'kept: not searched; the 2nd edition, 2001 is served'
+    section = page_ladder.section_ladder('free', 's1', 3, 'a-work', None, None, '2017 edition')
+    assert [rung.said for rung in section.rungs][1:4] == ['its own text, parsed by section',
+                                                          'kept: not searched; the 2017 edition is served', '3 chunks']
+    # which work is kept, from its base's shelf: the served edition in a sentence's words; None for any other work
+    family = {'serves': 'a_served', 'chosen': '2026-11-02', 'why': 'invented', 'editions': [
+        {'key': 'a_served', 'label': '2nd edition, 2001', 'served': True}, {'key': 'a_kept', 'label': '2017', 'served': False}]}
+    store = SimpleNamespace(shelf_data=lambda: {'works': [{'source_id': 'a_served', 'editions': family},
+                                                          {'source_id': 'a_kept', 'editions': family, 'kept_for': 'a_served'}]})
+    assert (page_ladder.kept_of(store, 'a_kept'), page_ladder.kept_of(store, 'a_served'), page_ladder.kept_of(store, 'other')) == (
+        '2nd edition, 2001', None, None)

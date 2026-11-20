@@ -1855,3 +1855,8 @@ PDF's record has. A file that looks like another edition and is linked with none
 "possible edition of <title>: not linked; the operator decides", a call to look. The overview's works figure names the kept
 editions, and a hit or an opened page names its edition beside its title, as its citation does. 409 unit tests, 85 checks in the
 browser (3 skipped on today's data), 1,530 Python tests.
+
+**A kept edition's pages say so too (line 1, 20 Nov, E1.a).** A page of a kept edition, and a section of a kept EPUB, says at
+its keyword level what its record says: "kept: not searched; the 2nd edition, 2001 is served", whether the search is built yet
+or not, its text shown all the same, since it is there and opens by its own key; its other levels say what they said. 1,532
+Python tests.

@@ -917,3 +917,8 @@ The record of how the diagnostics frontend came about, mistakes included.
   PDF's record shows, so a kept EPUB's record can say it is kept. **Not changed:** a page's and a section's own ladders on a
   kept edition still say why the keyword search leaves them out in the search's words. The browser check gives the API's
   answers, invented, the fold held by the API's tests; it was shown failing with the possible edition's line greyed.
+- **A kept edition's page and section ladders** (line 1, 20 Nov: free hits keep their year; a kept edition's pages say "kept"
+  for consistency with its record). `page_ladder.kept_of` reads the served edition's words from the work's shelf row
+  (`work_editions.served_named`), through one lookup of the row that `held_of` now shares (`shelf_row`); `keyword` takes it
+  before every other case, so a kept page never reads "not built" or the search's reason for leaving it out. No model changed,
+  so the schema and the built UI stand as they were.
