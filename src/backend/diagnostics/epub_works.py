@@ -20,6 +20,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from backend.diagnostics import stamps
 from backend.diagnostics.html_works import HtmlNode, outline_of
 from backend.diagnostics.ladder_types import PageLadder
 from backend.diagnostics.readings import KnowledgeBase
@@ -91,7 +92,7 @@ class Cut:
     images: list[EpubImage]
 
 
-_cut: dict[tuple[str, int], list[Cut]] = {}
+_cut: dict[tuple[str, stamps.Stamp | None], list[Cut]] = {}
 _lock = threading.Lock()
 _warming = threading.Lock()
 
@@ -107,8 +108,8 @@ def label_of(ordinal: int) -> str:
 
 def cut(key: str, path: Path) -> list[Cut]:
     """The EPUB's sections as the librarian serves them, in reading order: a section left empty once the provenance marks
-    are stripped is not served there, so not here either. Kept while the file is unchanged."""
-    stamp = (str(path), path.stat().st_mtime_ns)
+    are stripped is not served there, so not here either. Kept while the file is unchanged: its modification time and size."""
+    stamp = (str(path), stamps.stamp(path))
     with _lock:
         if stamp in _cut:
             return _cut[stamp]
@@ -128,10 +129,10 @@ def cut(key: str, path: Path) -> list[Cut]:
 
 def counted(path: Path) -> int | None:
     """The sections of an EPUB already cut, None while it is not: the sources list never waits for a cut."""
-    try:
-        stamp = (str(path), path.stat().st_mtime_ns)
-    except OSError:
+    found = stamps.stamp(path)
+    if found is None:
         return None
+    stamp = (str(path), found)
     with _lock:
         found = _cut.get(stamp)
     return len(found) if found is not None else None

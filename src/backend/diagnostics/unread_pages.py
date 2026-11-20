@@ -32,6 +32,7 @@ from pydantic import BaseModel
 
 from backend.configuration import data_paths
 from backend.conversion.store import served_readings
+from backend.diagnostics import stamps
 
 UNREAD = 'not_read'  # the state of a page without a reading: its own and quiet, since nothing is wrong with it
 UNREAD_LEVEL = 'not read'  # its route level, beside the core's three (`served_readings.ROUTE_LEVELS`)
@@ -104,11 +105,9 @@ _PLANNED: dict[tuple, set[tuple[str, int]]] = {}
 _NOT_SERVED: dict[tuple, dict[str, str]] = {}
 
 
-def stamp(path: Path) -> int:
-    try:
-        return path.stat().st_mtime_ns
-    except OSError:
-        return 0
+def stamp(path: Path) -> stamps.Stamp | None:
+    """A file's modification time and size, looked at once a request (`stamps`); None where it does not exist."""
+    return stamps.stamp(path)
 
 
 def legacy_pages() -> dict[str, set[int]]:
@@ -149,13 +148,14 @@ WHOLE_LEGACY = 'whole legacy'  # a file's work served by its legacy Markdown who
 WHOLE_LEGACY_SAID = "served from the IDE's Markdown, whose text names no PDF page and stands for the whole work"
 
 
-@lru_cache(maxsize=1)
-def shelf_path() -> Path:
-    """Where the licensed shelf lies, asked of its store once: a page list asks for its state on every call."""
+@lru_cache(maxsize=2)
+def shelf_path(knowledge_base: str = 'licensed') -> Path:
+    """Where a knowledge base's shelf lies, asked of its store once: opening the store calls git, and a page list and the
+    Sources list ask for the shelf's state on every call."""
     from backend.conversion.store.reading_store import open_store
     from backend.search import shelf
 
-    return open_store('licensed').path('reports', shelf.SHELF)
+    return open_store(knowledge_base).path('reports', shelf.SHELF)
 
 
 def not_served_files() -> dict[str, str]:
@@ -166,7 +166,7 @@ def not_served_files() -> dict[str, str]:
     from backend.diagnostics import readings
     from backend.search import shelf
 
-    path = shelf_path()
+    path = shelf_path('licensed')
 
     legacy = legacy_pages()  # before the guard, which it takes itself
     state = (stamp(path), stamp(readings.LICENSED_EXPORT / 'index.json'))  # the shelf's, and the legacy pages'

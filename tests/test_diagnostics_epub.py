@@ -3,13 +3,15 @@ librarian serves them, each image where its mark stood, read from the EPUB's zip
 core's own tests build: no licensed text, image or title stands here."""
 
 import json
+import os
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from test_diagnostics_app import LOCAL, a_licensed_export
 from test_ingestion_epub_sections import an_epub
 
-from backend.diagnostics import epub_works, readings, sources
+from backend.diagnostics import epub_works, readings, sources, stamps, unread_pages
 from backend.diagnostics.app import create_app
 from backend.ingestion.clean_sections.epub_sections import IMAGE_MARK
 from backend.search import search_server
@@ -118,3 +120,97 @@ def test_public_only_never_reaches_an_epub(monkeypatch):
     for path in (f'/api/licensed/epub/{KEY}', f'/api/licensed/epub/{KEY}/sections/s1', f'/api/licensed/epub/{KEY}/image?href=x.png'):
         assert public.get(path).status_code == 404, path
     assert not any(work['epub_key'] for work in public.get('/api/works').json())
+
+
+def later(path: Path) -> None:
+    """A file's stamp moved on, as a write of it would: its modification time a second later."""
+    found = path.stat()
+    os.utime(path, ns=(found.st_atime_ns, found.st_mtime_ns + 1_000_000_000))
+
+
+def cut_through() -> None:
+    """Every EPUB cut, the background warm-up a list starts finished, so a count sees no cut still under way."""
+    epub_works.warm()
+    with epub_works._warming:
+        pass
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_a_second_list_parses_no_epub_and_counts_no_readings_again_until_a_file_changes(served, monkeypatch):
+    # line 1, 20 Nov: the Sources list cost the same on every call; what does not change between calls is kept, keyed by the
+    # stamp (modification time and size) of the file it comes from. Counted, never timed
+    path, client = served
+    parsed, counted = [], []
+    load, summed = epub_works.load_epub_sections, readings.readings_of
+    monkeypatch.setattr(epub_works, 'load_epub_sections', lambda *args: parsed.append(args[0]) or load(*args))
+    monkeypatch.setattr(readings, 'readings_of', lambda rows: counted.append(len(rows)) or summed(rows))
+    client.get('/api/works')
+    cut_through()
+    first = client.get('/api/works').json()
+    parsed.clear()
+    counted.clear()
+    again = client.get('/api/works').json()
+    assert (parsed, counted) == ([], [])
+    assert again == first  # the view's numbers exactly as they were
+    epub = next(work for work in again if work.get('epub_key') == KEY)
+    assert epub['sections'] == 3
+    # the export's index written anew: each work's readings counted again; the EPUB rewritten: cut again
+    later(readings.licensed_readings().index)
+    later(path)
+    client.get('/api/works')
+    cut_through()
+    assert parsed == [path] and counted
+    assert client.get('/api/works').json() == first
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_a_request_looks_at_a_files_stamp_once_however_often_it_asks(served, monkeypatch):
+    # the Sources list asked the export's index for its stamp twice a work, 4 ms each through the container's mount
+    _, client = served
+    index = readings.licensed_readings().index
+    looked = []
+    stat = Path.stat
+
+    def counting(self, *args, **kwargs):
+        if self == index:
+            looked.append(self)
+        return stat(self, *args, **kwargs)
+
+    client.get('/api/works')
+    monkeypatch.setattr(Path, 'stat', counting)
+    client.get('/api/works')
+    assert len(looked) == 1
+    # outside a request every call looks again, so nothing kept there can go stale
+    stamps.stamp(index)
+    stamps.stamp(index)
+    assert len(looked) == 3
+    with stamps.one_look():
+        stamps.stamp(index)
+        stamps.stamp(index)
+    assert len(looked) == 4
+
+
+def test_a_shelf_is_read_once_per_state_of_its_file(monkeypatch, tmp_path):
+    # every call opened the shelf's store (a git call among it) and read its file again; invented: a shelf of one row
+    from backend.search import shelf
+
+    written = tmp_path / 'shelf.json'
+    written.write_text(json.dumps({'works': [{'source_id': 'a_work'}]}), encoding='utf-8')
+    loads = []
+    monkeypatch.setattr(readings, '_SHELVES', {})
+    monkeypatch.setattr(unread_pages, 'shelf_path', lambda knowledge_base='licensed': written)
+    monkeypatch.setattr(shelf, 'load', lambda knowledge_base: loads.append(knowledge_base) or (
+        json.loads(written.read_text('utf-8')) if written.exists() else None))
+    assert readings.shelf_of('free') == readings.shelf_of('free') == {'works': [{'source_id': 'a_work'}]}
+    assert loads == ['free']
+    written.write_text(json.dumps({'works': []}), encoding='utf-8')
+    later(written)
+    assert readings.shelf_of('free') == {'works': []} and loads == ['free', 'free']
+    # gone: asked once more, and its answer kept until the file is there again
+    written.unlink()
+    assert readings.shelf_of('free') is None and readings.shelf_of('free') is None and loads == ['free', 'free', 'free']
+    # another loader, as a test hands in its own shelf: read by it, never answered with the shelf read before
+    monkeypatch.setattr(shelf, 'load', lambda knowledge_base: {'works': ['invented']})
+    assert readings.shelf_of('free') == {'works': ['invented']}

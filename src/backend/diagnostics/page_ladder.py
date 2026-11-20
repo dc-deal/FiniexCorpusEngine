@@ -19,13 +19,14 @@ and the librarian goes on refusing that file's images to any model.
 """
 
 import threading
+from functools import lru_cache
 from pathlib import Path
 
 import pymupdf
 
 from backend.configuration import data_paths
 from backend.conversion.store import served_readings
-from backend.diagnostics import unread_pages
+from backend.diagnostics import stamps, unread_pages
 from backend.diagnostics.coverage_ladder import CHECKED, NOT_IN_INDEX, not_embedded
 from backend.diagnostics.ladder_types import PageLadder, PageRung
 from backend.diagnostics.readings import NOT_SERVED_ROUTES, fallback_of, listed_state, route_parts
@@ -36,14 +37,38 @@ BORN_DIGITAL = 'not needed: born digital'
 SERVER = {served_readings.LEGACY_ROUTE: "the IDE's Markdown", served_readings.TEXT_LAYER: "the PDF's text layer"}
 
 
+# the PDF the page view read last, opened from its bytes so no file handle stays open on it (Windows would lock the file
+# against the core), and the one lock its pages are read under (line 1, 20 Nov: each page's view opened the whole PDF, 0.37 s
+# of a large file through the container's mount, to count one page's characters, which take 0.01 to 0.06 s)
+_PDF: dict[str, tuple[str, stamps.Stamp, pymupdf.Document]] = {}
+_PDF_LOCK = threading.Lock()
+
+
+@lru_cache(maxsize=4096)
+def characters_of(pdf: str, stamp: stamps.Stamp, pdf_page: int) -> tuple[int, int | None]:
+    """(the PDF's pages, the characters on the page's text layer), counted once per page and state of the file; None for a
+    page the PDF does not have."""
+    with _PDF_LOCK:
+        kept = _PDF.get('last')
+        if kept is None or kept[:2] != (pdf, stamp):
+            if kept is not None:
+                kept[2].close()
+            kept = (pdf, stamp, pymupdf.open(stream=Path(pdf).read_bytes(), filetype='pdf'))
+            _PDF['last'] = kept
+        document = kept[2]
+        if not 1 <= pdf_page <= document.page_count:
+            return document.page_count, None
+        return document.page_count, len(document[pdf_page - 1].get_text().strip())
+
+
 def text_layer(pdf: Path | None, pdf_page: int) -> PageRung:
     """What the PDF's own text layer holds on the page, in characters."""
-    if pdf is None or not pdf.exists():
+    found = stamps.stamp(pdf) if pdf is not None else None
+    if found is None:
         return PageRung(level='text layer', reached=None, said='not known: the PDF is not on this machine')
-    with pymupdf.open(pdf) as document:
-        if not 1 <= pdf_page <= document.page_count:
-            return PageRung(level='text layer', reached=None, said=f'the PDF has {document.page_count:,} pages')
-        characters = len(document[pdf_page - 1].get_text().strip())
+    pages, characters = characters_of(str(pdf), found, pdf_page)
+    if characters is None:
+        return PageRung(level='text layer', reached=None, said=f'the PDF has {pages:,} pages')
     return PageRung(level='text layer', reached=characters > 0,
                     said=f'{characters:,} characters' if characters else 'none: a scan, or a page without text')
 

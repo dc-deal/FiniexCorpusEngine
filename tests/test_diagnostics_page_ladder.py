@@ -94,6 +94,34 @@ def test_a_page_climbs_its_five_levels_each_said(tmp_path, monkeypatch):
     assert (clone.rungs[3].said, clone.rungs[3].reached) == ('not vectorised yet (#8)', None)
 
 
+def test_a_page_s_text_layer_is_counted_once_and_its_pdf_opened_once_for_all_its_pages(tmp_path, monkeypatch):
+    # line 1, 20 Nov: each page's view opened the whole PDF again (0.37 s through the container's mount) to count one page.
+    # Invented: a PDF of three pages, the second blank. Counted, never timed
+    import os
+
+    import pymupdf
+
+    pdf = tmp_path / 'invented.pdf'
+    document = pymupdf.open()
+    for text in ('one', '', 'three'):
+        page = document.new_page()
+        if text:
+            page.insert_text((72, 72), text)
+    document.save(pdf)
+    document.close()
+    opened = []
+    real = pymupdf.open
+    monkeypatch.setattr(pymupdf, 'open', lambda *args, **kwargs: opened.append(1) or real(*args, **kwargs))
+    page_ladder.characters_of.cache_clear()
+    said = [page_ladder.text_layer(pdf, page).said for page in (1, 2, 3, 1, 9)]
+    assert said == ['3 characters', 'none: a scan, or a page without text', '5 characters', '3 characters', 'the PDF has 3 pages']
+    assert len(opened) == 1
+    # the file rewritten: its stamp moved on, so it is opened and counted again
+    found = pdf.stat()
+    os.utime(pdf, ns=(found.st_atime_ns, found.st_mtime_ns + 1_000_000_000))
+    assert page_ladder.text_layer(pdf, 1).said == '3 characters' and len(opened) == 2
+
+
 def test_a_section_is_born_digital_its_chunks_its_own_and_a_licensed_one_s_in_the_private_index(monkeypatch):
     # the private index (#8), invented: an EPUB section by `<work key>:<ordinal>`, its position from 0 in four figures
     monkeypatch.setattr(page_ladder, 'semantic_detail', lambda knowledge_base: {'an-epub': {'pages': {}, 'sections': {'an-epub:0002': 4}}})

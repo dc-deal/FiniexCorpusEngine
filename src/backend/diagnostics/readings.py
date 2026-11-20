@@ -29,7 +29,7 @@ from backend.conversion.checks import integrity
 from backend.conversion.contract import page_contract
 from backend.conversion.reading import page_render
 from backend.conversion.store import reading_export, reading_store, served_readings
-from backend.diagnostics import unread_pages
+from backend.diagnostics import stamps, unread_pages
 from backend.diagnostics.ladder_types import KnowledgeBase, Ladder, PageLadder
 from backend.diagnostics.unread_pages import Coverage
 
@@ -1286,21 +1286,37 @@ def quoted_text(knowledge_base: KnowledgeBase, file_name: str) -> dict[int, str]
         return reading_export.quoted_pages(knowledge_base, file_name)
 
 
-def same_pixels(row: dict, png: bytes) -> bool:
+@lru_cache(maxsize=2)
+def store_of(knowledge_base: str) -> 'reading_store.Store':
+    """A knowledge base's private store, opened once: opening one asks git whether its folder is ignored, 50 ms a time in
+    the container (line 1, 20 Nov), and the store holds no more than its folder."""
+    return reading_store.open_store(knowledge_base)
+
+
+# whether two images show the same pixels, by the hashes of both: what their bytes hold cannot change under a hash
+_ALIKE: dict[tuple[str, str], bool] = {}
+
+
+def same_pixels(row: dict, png: bytes, png_sha256: str | None = None) -> bool:
     """Whether a fresh render shows the pixels the reader was sent, where the bytes differ. The same pixels can be written
     as other PNG bytes by another build of zlib: in the Docker container (Linux) every page read under Windows showed
     "image differs from the one read" (18 Nov), its pixels identical. False where the store keeps no copy of the image sent
-    (a clone has none), so the view says no more than the bytes can."""
+    (a clone has none), so the view says no more than the bytes can. Compared once per pair of images."""
     import io
 
     from PIL import Image
 
+    key = (row['image_sha256'], png_sha256 or hashlib.sha256(png).hexdigest())
+    if key in _ALIKE:
+        return _ALIKE[key]
     try:
-        sent = reading_store.open_store(row['knowledge_base']).get_input(row['image_sha256'], '.png')
+        sent = store_of(row['knowledge_base']).get_input(row['image_sha256'], '.png')
     except (OSError, KeyError, ValueError):
         return False
     with Image.open(io.BytesIO(sent)) as before, Image.open(io.BytesIO(png)) as now:
-        return before.size == now.size and before.mode == now.mode and before.tobytes() == now.tobytes()
+        alike = before.size == now.size and before.mode == now.mode and before.tobytes() == now.tobytes()
+    _ALIKE[key] = alike
+    return alike
 
 
 @lru_cache(maxsize=16)
@@ -1329,12 +1345,23 @@ def licensed_readings() -> 'Readings | None':
                     planned=unread_pages.planned_pages, not_served=unread_pages.not_served_files, shelf=lambda: shelf_of('licensed'))
 
 
+# each knowledge base's shelf as `shelf.load` gave it, kept by the stamp of its file and the loader that read it, read again
+# only once the core writes it anew (line 1, 20 Nov: every call opened the store, a git call among it, and read the file
+# again); by the loader too, so a test that hands in its own shelf is never answered with the one read before it
+_SHELVES: dict[str, tuple[tuple[stamps.Stamp | None, Callable], dict | None]] = {}
+
+
 def shelf_of(knowledge_base: str) -> dict | None:
     """A knowledge base's shelf as the core last built it (`shelf.load`), handed to its store by the app's own bases alone, so
-    an export a test invents never sees the shelf of this machine's collection."""
+    an export a test invents never sees the shelf of this machine's collection; read once per state of its file."""
     from backend.search import shelf
 
-    return shelf.load(knowledge_base)
+    key = (stamps.stamp(unread_pages.shelf_path(knowledge_base)), shelf.load)
+    kept = _SHELVES.get(knowledge_base)
+    if kept is None or kept[0] != key:
+        kept = (key, shelf.load(knowledge_base))
+        _SHELVES[knowledge_base] = kept
+    return kept[1]
 
 
 class Series(BaseModel):
@@ -1477,9 +1504,12 @@ class Readings:
         # catalog the sources view reads itself
         self.catalog = catalog
         self._data: dict = {}
-        self._read_at: int | None = None
-        self._catalog_at: int | None = None
-        self._works_at: tuple[int | None, int | None] | None = None
+        self._read_at: stamps.Stamp | None = None  # the index's stamp when it was read
+        self._works_at: tuple[stamps.Stamp | None, stamps.Stamp | None] | None = None
+        # each work's rows in page order, and each work's summary, built once per state of the index (line 1, 20 Nov: the
+        # Sources list sorted every work's rows out of all of them and counted them again on every call)
+        self._by_source: tuple[stamps.Stamp | None, dict[str, list[dict]]] | None = None
+        self._summaries: tuple[stamps.Stamp | None, dict[str, WorkReadings | None]] = (None, {})
         self._works: list[dict] = []
         self._entries: dict[str, CatalogEntry] = {}
         self._unread: list[CatalogEntry] = []
@@ -1496,12 +1526,12 @@ class Readings:
         self._unread_pages: dict[str, tuple[tuple, tuple[list[dict], Coverage] | None]] = {}  # source id -> (state, built)
 
     def _index(self) -> dict:
-        if not self.index.exists():
+        found = stamps.stamp(self.index)
+        if found is None:
             return {}
-        modified = self.index.stat().st_mtime_ns
-        if modified != self._read_at:
+        if found != self._read_at:
             self._data = json.loads(self.index.read_text(encoding='utf-8'))
-            self._read_at = modified
+            self._read_at = found
         return self._data
 
     def rows(self) -> list[dict]:
@@ -1512,12 +1542,7 @@ class Readings:
         stem, as on the search server, unless the licensed catalog lists it: then its title is the catalog's (N1.a), matched
         by the export's work key, else by its file. Built again whenever the export or the catalog changes."""
         works = self._index().get('works', [])
-        stamp = None
-        if self.catalog is not None:
-            try:
-                stamp = self.catalog.stat().st_mtime_ns
-            except OSError:
-                stamp = None
+        stamp = stamps.stamp(self.catalog) if self.catalog is not None else None
         if (self._read_at, stamp) != self._works_at:
             entries = catalog_entries(self.catalog) if stamp is not None else []
             by_id = {entry.id: entry for entry in entries}
@@ -1554,14 +1579,36 @@ class Readings:
         work = self.work(source_id)
         return work['title'] if work else source_id
 
+    def _grouped(self) -> dict[str, list[dict]]:
+        """Each work's rows in page order, grouped once per state of the index."""
+        rows = self.rows()
+        kept = self._by_source
+        if kept is None or kept[0] != self._read_at:
+            grouped: dict[str, list[dict]] = {}
+            for row in rows:
+                grouped.setdefault(row['source_id'], []).append(row)
+            for found in grouped.values():
+                found.sort(key=lambda row: row['pdf_page'])
+            kept = (self._read_at, grouped)
+            self._by_source = kept
+        return kept[1]
+
     def rows_of(self, source_id: str) -> list[dict]:
-        return sorted((row for row in self.rows() if row['source_id'] == source_id), key=lambda row: row['pdf_page'])
+        return list(self._grouped().get(source_id, []))
 
     def row(self, source_id: str, pdf_page: int) -> dict | None:
         return next((row for row in self.rows_of(source_id) if row['pdf_page'] == pdf_page), None)
 
     def summary(self, source_id: str) -> WorkReadings | None:
-        return readings_of(self.rows_of(source_id))
+        """A work's readings in figures, counted once per state of the index."""
+        grouped = self._grouped()
+        at, kept = self._summaries
+        if at != self._read_at:
+            kept = {}
+            self._summaries = (self._read_at, kept)
+        if source_id not in kept:
+            kept[source_id] = readings_of(grouped.get(source_id, []))
+        return kept[source_id]
 
     def shelf_data(self) -> dict | None:
         """The base's shelf, as the core last built it; None where none is handed in or built here."""
@@ -1648,7 +1695,8 @@ class Readings:
         except (page_render.RenderSizeError, ValueError, IndexError) as error:
             return PageImage(available=False, why_not=f'the page could not be rendered: {error}', width=None, height=None,
                              same_as_read=None), None
-        same = hashlib.sha256(image.png).hexdigest() == row['image_sha256'] or same_pixels(row, image.png)
+        drawn = hashlib.sha256(image.png).hexdigest()
+        same = drawn == row['image_sha256'] or same_pixels(row, image.png, drawn)
         return PageImage(available=True, why_not=None, width=image.width, height=image.height, same_as_read=same), image.png
 
     def own_image(self, source_id: str, pdf_page: int) -> tuple[PageImage, bytes | None]:
