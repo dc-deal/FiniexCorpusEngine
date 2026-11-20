@@ -834,3 +834,7 @@ The record of how the diagnostics frontend came about, mistakes included.
   was drawn. The delay is one value, 500 ms on the pointer and none on the keyboard's focus; the unit suite sets it to 0 in
   its setup and one test holds the 500 ms itself, with the timers faked. The browser check reads the colours as drawn against
   the role tokens and the card's wait, and was shown failing once with the segment greyed.
+- **One rule for why the search leaves a page out** (line 1, 20 Nov). A page's keyword level now says the core's
+  `page_index.structural_why`, which the ranking itself follows (0b8be5e), and line 2's copy of its branches is gone; a page
+  the core would rank that the search leaves out all the same says "left out of the ranking", the one case the rule does not
+  name. The words changed in one place: "mostly figures", where the copy had said "as a contents page or an index" beside it.

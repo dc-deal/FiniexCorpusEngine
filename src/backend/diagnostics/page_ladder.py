@@ -5,7 +5,8 @@ extracted, and so on").
 A PDF page climbs five levels:
 1. text layer: the characters its PDF's text layer holds, or none: a scan;
 2. text served: what the librarian serves for it, its reading, the IDE's Markdown, the text layer or nothing, and why;
-3. keyword search: whether search (BM25) holds it, and why not (no text, too short, mostly figures, a table);
+3. keyword search: whether search (BM25) holds it, and why not, in the core's words (`page_index.structural_why`: no text,
+   too short, no words, mostly figures, a table), the rule the search itself follows;
 4. semantic chunks: its chunks in the vector index; the licensed base is not vectorised yet (#8);
 5. reading and check: none, or its reading and the state the lists count it by.
 A section of an HTML or EPUB work climbs the same levels, its text layer and its reading those of a born-digital source.
@@ -16,7 +17,6 @@ Every page of the PDF is shown on this machine, a file the provenance list holds
 and the librarian goes on refusing that file's images to any model.
 """
 
-import re
 import threading
 from pathlib import Path
 
@@ -58,24 +58,6 @@ def served(row: dict) -> PageRung:
     return PageRung(level='text served', reached=True, said=f"{SERVER.get(fallback_of(row), source)} in its reading's place: {why}")
 
 
-def structural_why(text: str) -> str:
-    """Why search (BM25) leaves a page out, by the branches of the core's `page_index.is_structural`, which says only that it
-    does; its constants are the core's."""
-    stripped = re.sub(r'!\[\]\([^)]*\)', '', text)
-    if not stripped.strip():
-        return 'no text'
-    if len(stripped.strip()) < page_index.MIN_CHARS:
-        return f'too short: under {page_index.MIN_CHARS} characters'
-    words = page_index.TOKEN.findall(stripped.lower())
-    if not words:
-        return 'no words'
-    if len(re.findall(r'\b\d{1,4}\b', stripped)) > len(words) / 3:
-        return 'mostly figures, as a contents page or an index'
-    if stripped.count('|---') > 2:
-        return 'a table'
-    return 'left out of the ranking'
-
-
 _SEARCH_PAGES: dict[int, dict[tuple[str, str], object]] = {}
 _GUARD = threading.Lock()
 
@@ -105,8 +87,10 @@ def keyword(page, served_rung: PageRung, built: bool) -> tuple[PageRung, str | N
         return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}'), None, why
     if page.searchable:
         return PageRung(level='keyword search', reached=True, said='in search (BM25)'), page.text, None
-    return (PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {structural_why(page.words)}'),
-            page.text, None)
+    # the core's rule, which the ranking follows (`is_structural`); a page it would rank that the search leaves out all the
+    # same was left out for another reason, which the page does not carry
+    why = page_index.structural_why(page.words) or 'left out of the ranking'
+    return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}'), page.text, None
 
 
 _SEMANTIC: dict[tuple, dict] = {}
