@@ -1,9 +1,10 @@
 """The coverage ladder's shapes (the operator's U1.a, 20 Nov), apart from how it is counted (`coverage_ladder`), so a work's
 page list (`readings.WorkPages`) can carry one without the two modules importing each other."""
 
+import math
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 KnowledgeBase = Literal['free', 'licensed']  # the knowledge bases the core exports (80.a); `readings` takes it from here
 Level = Literal['text served', 'keyword search', 'semantic chunks', 'read', 'checked']
@@ -17,6 +18,19 @@ class LadderState(BaseModel):
     count: int
     # of a state to look at, how many of its pages the core serves all the same (18 Nov, `StateCount.served`); None otherwise
     served: int | None = None
+    # the line in words where the count alone would leave a reader asking (the operator, 20 Nov, on a count and a served tally):
+    # the pages with judge findings, how many are served all the same and why, how many serve their fallback; None elsewhere
+    said: str | None = None
+
+
+def share_of(count: int | None, whole: int | None) -> int | None:
+    """A level's share of its whole in whole percent, half rounded up (the operator's L1.a, 20 Nov: "98 %" beside the meter);
+    None where the level is not measured or has no whole. A level some but not all of the whole reaches never reads 0 % or
+    100 %: 999 of 1,000 pages is 99 %, so the figure never says done where a page is missing."""
+    if count is None or not whole:
+        return None
+    share = math.floor(100 * count / whole + 0.5)
+    return min(max(share, 1), 99) if 0 < count < whole else share
 
 
 class Rung(BaseModel):
@@ -36,6 +50,21 @@ class Rung(BaseModel):
     # in the warning role. The words stay the card's either way
     issues: int | None = None
     warn: bool = False
+
+    # Its number and its share are the rung's own, worked out from its level and its figures whenever it is served, so a
+    # rung whose count is replaced later (`coverage_ladder.with_coverage`) never carries the share of the count it had
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def number(self) -> int:
+        """The level's place on the ladder, 1 to 5, before its word wherever the five levels stand (L1.a): which line of the
+        card a meter in the table's cell is."""
+        return LEVELS.index(self.level) + 1
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def share(self) -> int | None:
+        """How much of its whole the level reaches, in whole percent (`share_of`); None where it is not measured."""
+        return share_of(self.count, self.of)
 
 
 class Ladder(BaseModel):

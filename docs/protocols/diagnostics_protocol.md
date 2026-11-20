@@ -843,3 +843,18 @@ The record of how the diagnostics frontend came about, mistakes included.
   (`retrieval.licensed_index_built`), so every test sets it rather than reading this machine's. Measured over the private base:
   every read PDF counts its chunks, the held works say they were never embedded, and the files the librarian does not serve
   say so too, where they had first said "not in the vector index".
+- **One row per work, the card's meters, the issue words, the levels' numbers** (the operator, 20 Nov). **Changed against the
+  ask:** the stand-in's page list was to stay reachable from the card, but the card holds data only and lets the pointer through
+  (12 Nov: a card left open took a click meant beneath it), so a link there could not be clicked; it stands on a line of the
+  work's row instead, the card naming the file and why. **Found:** the fold ran before the legacy-only works were listed, so it
+  folded nothing; it now runs after them. The card's value is the view's to draw through a slot of the library's card, its rows
+  typed by the view, so the card stays one component. The issue line counts pages, not findings: "12 pages with judge findings".
+  The browser check reads the card's segment colour against the issue role and was shown failing once greyed. **The level's
+  number and share (L1.a):** computed fields on the rung itself rather than set in `coverage_ladder.py`, so `with_coverage`,
+  which replaces the read level's count on a copy, can never serve the share of the count it replaced; a level some but not all
+  of the whole reaches is held between 1 and 99 %, so 999 of 1,000 pages never reads as done. The card's rows take a group, a
+  caption and an indent from the library's card (`CardRow`), a rule wherever the group changes, and its label is the view's to
+  draw as its value is. **Found:** two browser checks counted the open card's meters with the cell's and read a level's share
+  with its words; they now look at the cell's meters and the line's words alone. A third, skipped today, still expected the
+  issue line's old figure and takes its words now. A browser check holds the card's five meters under each other and its shares'
+  right edges in one line; it was shown failing once with the share column given its content's width.

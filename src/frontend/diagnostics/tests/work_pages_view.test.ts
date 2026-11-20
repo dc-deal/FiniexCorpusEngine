@@ -196,8 +196,10 @@ describe('WorkPagesView', () => {
     const view = mountView()
     await flushPromises()
     const ladder = view.find('[data-part="coverage-ladder"] [data-part="ladder"]')
-    expect(ladder.findAll('.rung-level').map(level => level.text())).toEqual(['text served', 'keyword search', 'semantic chunks', 'read',
-      'checked'])
+    // each level's number before its word, its share beside its meter, the API's (L1.a)
+    expect(ladder.findAll('.rung-level').map(level => level.text())).toEqual(['1 text served', '2 keyword search', '3 semantic chunks',
+      '4 read', '5 checked'])
+    expect(ladder.findAll('.level-share').map(share => share.text())).toEqual(['97 %', '86 %', '94 %', '100 %', '65 %'])
     expect(ladder.find('[data-said="semantic chunks"]').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
     // the ladder holds the read pages' line, so the record's Pages line gives way to it
     expect(view.find('[data-part="coverage"]').exists()).toBe(false)
@@ -208,6 +210,7 @@ describe('WorkPagesView', () => {
     // what each level means, the API's words, a hint on demand
     await view.find('[data-part="coverage-ladder"] [data-part="ladder-hint-button"]').trigger('click')
     expect(view.find('[data-part="ladder-legend"] dd').text()).toBe('what text served counts')
+    expect(view.find('[data-part="ladder-legend"] dt').text()).toBe('1 text served')
   })
 
   it('opens a licensed work\'s pages within the licensed knowledge base, and jumps there', async () => {

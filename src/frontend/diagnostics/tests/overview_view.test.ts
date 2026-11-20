@@ -95,9 +95,13 @@ describe('OverviewView', () => {
     expect(band.find('[data-said="text served"] a').exists()).toBe(false)
     expect(band.find('[data-said="read"] a').attributes('href')).toBe('#/pages')
     expect(band.find('[data-said="checked"] a').attributes('href')).toBe('#/pages?state=ok&state=decided_by_a_person')
-    // each base's part of a level in its card
+    // each level's number before its word and its share beside its meter, the API's, as on a work's page (L1.a)
+    expect(band.find('[data-level="read"].rung-level').text()).toBe('4 read')
+    expect(band.find('[data-share="read"]').text()).toBe('100 %')
+    // each base's part of a level in its card, the card named by the level's number and word
     await band.find('[data-said="read"] .hover-card-host').trigger('mouseenter')
     expect(band.find('[data-said="read"] [data-row="licensed"] .card-value').text()).toBe('29')
+    expect(band.find('[data-said="read"] .card-title').text()).toBe('4 read')
   })
 
   it('says which base the sums leave out and why, and which has no shelf built', async () => {

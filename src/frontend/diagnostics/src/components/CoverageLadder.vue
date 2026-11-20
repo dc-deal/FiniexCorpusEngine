@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import HintToggle from '@/components/base/HintToggle.vue'
+import type { CardRow } from '@/components/base/card_row'
 import HoverCard from '@/components/base/HoverCard.vue'
 import LadderBar from '@/components/LadderBar.vue'
 import LadderLegend from '@/components/LadderLegend.vue'
@@ -8,7 +9,9 @@ import type { Ladder, Rung } from '@/types/api/ladder_types'
 
 /**
  * How far a work or the corpus is refined (the operator's U1.a, 20 Nov), in the same five levels everywhere: text served,
- * keyword search, semantic chunks, read, checked, each a meter against the whole and a line in the API's words.
+ * keyword search, semantic chunks, read, checked, each a meter against the whole and a line in the API's words. Wherever the
+ * levels stand in words, each carries its number before its word and its share beside its meter, both the API's (the
+ * operator's L1.a): the number says which line a meter in the table's cell is, which keeps only its five meters.
  *
  * Compact, for a table's cell: the five meters stacked, their words, every state of the read pages and why a file is held or
  * not served in the card under the pointer and on the keyboard's focus (the operator: "the details go into hints or
@@ -24,16 +27,25 @@ const props = withDefaults(defineProps<{
 
 const legendOpen = ref(false)
 
-// the card of the compact ladder: each level's line, then each state of the read pages as the lists count it, then why the
-// file is held from providers or not served; a row without a value is left out by the card
-const cardRows = computed(() => [
-  ...props.ladder.rungs.map(rung => ({ label: rung.level, value: rung.said })),
-  // a state to look at with how many of its pages the core serves all the same (18 Nov), as its column said it before U1.a
+// the card of the compact ladder: each level's line with its number, its meter as the column draws it and its share, so the
+// eye finds in the card the line a coloured bit in the column stands for (the operator, 20 Nov: "the card follows the colours",
+// L1.a); then, apart under a rule, each state of the read pages as the lists count it, the read pages' breakdown and no meter,
+// the issues in the API's words; then why the file is held or not served. A row without a value is left out by the card
+interface LadderCardRow extends CardRow {
+  rung?: Rung
+}
+
+const cardRows = computed<LadderCardRow[]>(() => [
+  ...props.ladder.rungs.map(rung => ({ label: rung.level, value: rung.said, rung, group: 'levels' })),
   ...props.ladder.states.map(state => ({ label: state.value.replace(/_/g, ' '),
-    value: `${state.count.toLocaleString('en')}${state.served ? ` · ${state.served.toLocaleString('en')} served` : ''}` })),
-  { label: 'held', value: props.ladder.held },
-  { label: 'not served', value: props.ladder.not_served },
+    value: state.said ?? `${state.count.toLocaleString('en')}${state.served ? ` · ${state.served.toLocaleString('en')} served` : ''}`,
+    group: 'states', caption: 'read pages by state', indent: true })),
+  { label: 'held', value: props.ladder.held, group: 'file' },
+  { label: 'not served', value: props.ladder.not_served, group: 'file' },
 ])
+
+/** A level's share as the line shows it, "98 %"; nothing where the level is not measured (hatched). */
+const shareOf = (rung: Rung): string => (rung.share === null ? '' : `${rung.share} %`)
 
 /** A corpus level's part per knowledge base, as its card's rows. */
 function byBase(rung: Rung) {
@@ -46,7 +58,19 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 
 <template>
   <HoverCard v-if="compact" class="ladder-card" title="Coverage" :rows="cardRows">
-    <span class="ladder-compact" data-part="ladder" :aria-label="ladder.rungs.map(rung => `${rung.level}: ${rung.said}`).join('; ')">
+    <template #label="{ row }">
+      <template v-if="row.rung"><span class="level-number">{{ row.rung.number }}</span> {{ row.label }}</template>
+      <template v-else>{{ row.label }}</template>
+    </template>
+    <template #value="{ row }">
+      <span v-if="row.rung" class="card-level">
+        <LadderBar :count="row.rung.count" :of="row.rung.of" :issues="row.rung.issues" :warn="row.rung.warn" :data-level="row.rung.level" />
+        <span class="level-share" :data-share="row.rung.level">{{ shareOf(row.rung) }}</span>
+        <span class="card-said">{{ row.value }}</span>
+      </span>
+      <template v-else>{{ row.value }}</template>
+    </template>
+    <span class="ladder-compact" data-part="ladder" :aria-label="ladder.rungs.map(rung => `${rung.number} ${rung.level}: ${rung.said}`).join('; ')">
       <LadderBar v-for="rung in ladder.rungs" :key="rung.level" :count="rung.count" :of="rung.of" :issues="rung.issues" :warn="rung.warn"
                  :data-level="rung.level" />
     </span>
@@ -54,10 +78,11 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
   <div v-else class="ladder-full" data-part="ladder">
     <div class="rungs">
       <template v-for="rung in ladder.rungs" :key="rung.level">
-        <span class="rung-level" :data-level="rung.level">{{ rung.level }}</span>
+        <span class="rung-level" :data-level="rung.level"><span class="level-number">{{ rung.number }}</span> {{ rung.level }}</span>
         <LadderBar class="rung-bar" :count="rung.count" :of="rung.of" :issues="rung.issues" :warn="rung.warn" :data-level="rung.level" />
+        <span class="level-share" :data-share="rung.level">{{ shareOf(rung) }}</span>
         <span class="rung-said" :data-said="rung.level">
-          <HoverCard v-if="hasParts(rung)" :title="rung.level" :rows="byBase(rung)">
+          <HoverCard v-if="hasParts(rung)" :title="`${rung.number} ${rung.level}`" :rows="byBase(rung)">
             <RouterLink v-if="opens(rung)" class="rung-link" :to="{ name: 'pages', query: rung.pages_filter ?? {} }">{{ rung.said }}</RouterLink>
             <span v-else>{{ rung.said }}</span>
           </HoverCard>
@@ -87,6 +112,27 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
   padding: 0.35em 0;
 }
 
+/* a level's line in the card: its meter as wide as a short word, the same forms and colours as the column's, its share, its
+   words; each part in a column of its own width, so the five lines' meters and shares stand under each other */
+.card-level {
+  display: inline-grid;
+  grid-template-columns: 4rem 5ch minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+/* a level's share beside its meter, its figures right-aligned and of one width, so the lines' shares read down a column */
+.level-share {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.level-number {
+  font-variant-numeric: tabular-nums;
+}
+
 /* the full ladder: a line per level, its word as wide as the longest, its meter, its figures the rest; on a phone a level's
    words wrap at their space, the meter narrows and the figures keep 12 characters, so the record never runs past the window
    (measured at 390 px: the meter took its 8 rem first and left the figures 19 px, 10 px over the window) */
@@ -98,7 +144,7 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 
 .rungs {
   display: grid;
-  grid-template-columns: minmax(min-content, max-content) minmax(3rem, 8rem) minmax(12ch, 1fr);
+  grid-template-columns: minmax(min-content, max-content) minmax(3rem, 8rem) max-content minmax(12ch, 1fr);
   align-items: center;
   gap: 2px var(--space-sm);
 }
@@ -110,7 +156,7 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 /* where the record is narrow, a level's words wrap at their spaces and its meter narrows, as the page's own ladder does */
 @container (max-width: 32rem) {
   .rungs {
-    grid-template-columns: min-content minmax(2rem, 4rem) minmax(0, 1fr);
+    grid-template-columns: min-content minmax(2rem, 4rem) max-content minmax(0, 1fr);
   }
 }
 

@@ -4791,6 +4791,17 @@
               }
             ],
             "title": "Served"
+          },
+          "said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said"
           }
         },
         "type": "object",
@@ -7335,6 +7346,25 @@
             "type": "boolean",
             "title": "Warn",
             "default": false
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number",
+            "description": "The level's place on the ladder, 1 to 5, before its word wherever the five levels stand (L1.a): which line of the\ncard a meter in the table's cell is.",
+            "readOnly": true
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share",
+            "description": "How much of its whole the level reaches, in whole percent (`share_of`); None where it is not measured.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -7342,7 +7372,9 @@
           "level",
           "count",
           "of",
-          "said"
+          "said",
+          "number",
+          "share"
         ],
         "title": "Rung",
         "description": "One level of a ladder: how many of the whole reach it, said in a line."
@@ -8321,6 +8353,53 @@
         "title": "Stage2Finding",
         "description": "What stage 2 found comparing the reading with the PDF's text layer; an older plan gives the kind alone."
       },
+      "StandIn": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          },
+          "held": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held"
+          },
+          "page_list": {
+            "type": "boolean",
+            "title": "Page List",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "file",
+          "said"
+        ],
+        "title": "StandIn",
+        "description": "A stand-in file beside a work, which the librarian does not serve as long as the work's own text stands (the shelf's\n`stand_in_of`, line 1, 20 Nov): folded into its work's row, so a work stands once, the file named in its card."
+      },
       "StandingCorrection": {
         "properties": {
           "text": {
@@ -9172,6 +9251,16 @@
             "type": "boolean",
             "title": "Page List",
             "default": false
+          },
+          "stand_in": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StandIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

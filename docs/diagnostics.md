@@ -1786,3 +1786,19 @@ key, an EPUB section its chunks by `<work key>:<ordinal>`, the corpus both bases
 is never embedded and says "held back: never embedded"; a file the librarian serves not at all says "not served: never
 embedded"; "not vectorised yet (#8)" stands only on a machine without the private index. 395 unit tests, 83 checks in the
 browser (3 skipped on today's data), 1,501 Python tests.
+
+**One row per work, a card that follows the colours, an issue line in words, a number and a share per level (the operator, 20
+Nov).** A work served from its legacy text stood a second time as its stand-in file, which the librarian does not serve while
+that text stands; the core now links a stand-in to its work (`stand_in_of`), and the list folds it into its work's row: the
+work's ladder, the stand-in named in its card with why it is not served and held where it is, its title, authors and year from
+the stand-in's catalog entry where the work had none, and its page list one click away on a line of the row. The coverage card
+draws each level's line with the column's meter, the issues' segment, the warning outline and the hatch alike, so the eye finds
+in the card the line a coloured bit in the column stands for. The issue line says what its tally means, in the API's words
+(`LadderState.said`): "12 pages with judge findings · all 12 served: the findings lie only on blocks never quoted (133.b)", or
+how many serve their fallback. Each level carries its number, 1 to 5, before its word wherever the levels stand in words (the
+card, a work's ladder, the overview's, the legend), and its share beside its meter as a whole percentage, both the API's
+(`Rung.number`, `Rung.share`; the operator's L1.a): the number says which line of the card a meter in the table's cell is, and
+the cell keeps its five meters alone. A level not measured shows no share. The read pages' states are no level and have no
+meter: in the card they stand apart beneath the five, under a thin rule and the caption "read pages by state", a step in. The
+meters keep their one neutral ink; red, the warning outline and the hatch stay the only colours (F1.b). 398 unit tests, 83
+checks in the browser (3 skipped on today's data), 1,504 Python tests.
