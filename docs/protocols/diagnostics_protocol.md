@@ -880,3 +880,16 @@ The record of how the diagnostics frontend came about, mistakes included.
   filter, by state), and no stored setting does. The chapter's earlier paragraphs that name the level take the new word. Beyond
   the ask, the level's legend line now says how its pieces are cut, in line 1's words, since the name alone no longer says
   chunks.
+- **Repeat work out of the requests** (line 1, 20 Nov: the Sources list, a work's page and a page's view slower again).
+  **Found:** line 1's profile of the list counted an EPUB parsed on every call; it was the background cut every process makes
+  once after a start (29 s natively), still running in the calls that followed the start, and taking the interpreter from them;
+  each EPUB's cut was kept by its file's stamp already and was never made twice. What the calls did repeat: the export index's
+  stamp asked twice for every work, each work's rows sorted out of all of them and counted again, the shelf's store opened (a
+  git call) and its file read, and on a page's view the whole PDF opened to count one page's characters (0.37 s of 0.86 s in the
+  container) and the image sent compared with a fresh render. **Built:** `stamps.stamp` (modification time and size) looked at
+  once a request through a plain ASGI middleware and a context variable, which a sync route's worker thread inherits; outside a
+  request every call looks again. The shelf is kept by its file's stamp and the loader that read it, so a test that hands in its
+  own `shelf.load` is never answered with the shelf read before (found when the full suite failed one such test in its order and
+  passed it alone). The PDF the page view read last stays open from its bytes, not its file, so no handle locks the file on
+  Windows. **Shown failing:** with the caches set aside, the counting tests failed on every work's readings counted again and
+  the index's stamp asked ten times a call. The container's figures after the merge are measured once line 1 has restarted it.

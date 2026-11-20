@@ -1217,14 +1217,22 @@ def test_an_image_written_with_other_png_bytes_but_the_same_pixels_is_the_image_
 
     sent = png('white', 9)
 
+    asked = []
+
     class Store:
         def get_input(self, digest, suffix):
+            asked.append(digest)
             if digest == 'gone':
                 raise FileNotFoundError(digest)
             return sent
 
-    monkeypatch.setattr(view.reading_store, 'open_store', lambda knowledge_base: Store())
+    monkeypatch.setattr(view, 'store_of', lambda knowledge_base: Store())
+    monkeypatch.setattr(view, '_ALIKE', {})
     row = {'knowledge_base': 'free', 'image_sha256': 'kept'}
     assert png('white', 1) != sent and view.same_pixels(row, png('white', 1))
     assert not view.same_pixels(row, png('black', 9))
     assert not view.same_pixels({**row, 'image_sha256': 'gone'}, png('white', 1))
+    # compared once per pair of images (line 1, 20 Nov: the page view compared them again on every call)
+    asked.clear()
+    assert view.same_pixels(row, png('white', 1)) and not view.same_pixels(row, png('black', 9))
+    assert asked == []

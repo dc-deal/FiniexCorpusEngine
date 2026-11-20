@@ -1819,3 +1819,14 @@ that semantic (hybrid) searches, cut by the text's structure and then by the rec
 they cover. Named for what it serves, it pairs with level 2, keyword search, on a work's ladder, the corpus's and a page's
 alike; its figures keep their words ("2,396 chunks over 592 of 629 PDF pages"), and its line in the legend says how its pieces
 are cut. 403 unit tests, 84 checks in the browser (3 skipped on today's data), 1,504 Python tests.
+
+**What does not change between calls is kept (line 1, 20 Nov).** The Sources list cost the same on every call, about a second in
+the container, and a page's view half a second however often it was opened. Every cache is keyed by what would change it, a
+file's stamp (its modification time and size): each work's rows and its readings in figures once per state of the export's
+index, the shelf once per state of its file, a page's text layer once per state of its PDF, whether a fresh render shows the
+pixels the reader was sent once per pair of images. And a file's stamp is looked at once a request (`stamps`): the list asked
+the index for it twice for every work, 4 ms each through the container's mount of the Windows folder. The view's numbers are
+exactly as before; a test counts, never times, that a second call reads and parses nothing again and that a file written anew is
+read again. Measured on this machine, warm, a second call: the Sources list 0.21 s before and 0.02 s after, a page's view 0.08 s
+and 0.01 s, a work's page list 0.06 s and 0.03 s, the overview 0.05 s and 0.01 s; in the container before, 1.04 s, 0.51 s, 0.12
+s and 0.16 s. 1,508 Python tests.

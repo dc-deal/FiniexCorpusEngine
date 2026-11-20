@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from backend.chat import app_config
 from backend.diagnostics import (calls, chat, coverage_ladder, epub_works, error_classes, html_works, overview, page_integrity,
-                                 page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, verdicts)
+                                 page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, stamps, verdicts)
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
@@ -91,6 +91,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
     app = FastAPI(title='Diagnostics', version='0.8.0', generate_unique_id_function=operation_id, lifespan=lifespan,
                   summary='Read-only views of the knowledge bases: where every source and reading came from.')
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_HOSTS)
+    app.add_middleware(stamps.OneLook)  # each file's stamp looked at once a request (line 1, 20 Nov)
 
     def store_of(knowledge_base: str) -> readings.Readings:
         store = bases.get(knowledge_base)
