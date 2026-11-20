@@ -235,8 +235,68 @@ describe('SourcesView', () => {
     expect(rowOf(view, 'a_licensed_book').find('.ladder-bar[data-level="semantic chunks"]').attributes('data-share')).toBe('unknown')
     // each level's words in the card, on the pointer and on the keyboard's focus
     await row.find('.ladder-card').trigger('focusin')
-    expect(row.find('[data-row="semantic chunks"] .card-value').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
-    expect(row.find('[data-row="read"] .card-value').text()).toBe('629 of 629 PDF pages, 629 passed')
+    expect(row.find('[data-row="semantic chunks"] .card-said').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
+    expect(row.find('[data-row="read"] .card-said').text()).toBe('629 of 629 PDF pages, 629 passed')
+  })
+
+  it('stands a work once, its stand-in file named in its card and its pages a click away (line 1, 20 Nov)', async () => {
+    // invented: a legacy work and the stand-in file the API folded into its row
+    const said = 'stand-in file beside it: an_invented_stand_in.pdf, not served: a stand-in file beside the legacy text'
+    vi.mocked(getWorks).mockResolvedValue([aWork({ knowledge_base: 'licensed', id: 'an_invented_legacy_work', title: 'An Invented Book',
+      format: 'legacy markdown', stand_in: { id: 'an_invented_stand_in', file: 'an_invented_stand_in.pdf', said,
+        held: 'held back by the provenance list', page_list: true } })])
+    const view = mountView()
+    await flushPromises()
+    const row = rowOf(view, 'an_invented_legacy_work')
+    expect(row.find('[data-part="stand-in"]').attributes('href')).toBe('#/licensed/sources/an_invented_stand_in')
+    await row.find('.work-card').trigger('mouseenter')
+    expect(row.find('[data-row="stand-in"] .card-value').text()).toBe(said)
+    expect(row.find('[data-row="held"] .card-value').text()).toBe('held back by the provenance list')
+  })
+
+  it('draws each level\'s meter in the card as the column does, and says the issues in the API\'s words (20 Nov)', async () => {
+    const issueSaid = '9 pages with judge findings · all 9 served: the findings lie only on blocks never quoted (133.b)'
+    const ladder = aLadder({ states: [{ value: 'ok', count: 400 }, { value: 'issue', count: 9, served: 9, said: issueSaid }],
+      rungs: aLadder().rungs.map(rung => (rung.level === 'checked' ? { ...rung, issues: 9 } : rung)) })
+    vi.mocked(getWorks).mockResolvedValue([aWork({ ladder })])
+    const view = mountView()
+    await flushPromises()
+    await view.find('[data-cell="coverage"] .ladder-card').trigger('focusin')
+    const card = view.find('[data-cell="coverage"] [data-part="hover-card"]')
+    // the same meter in the card's line, its issues' segment there too, so the eye finds the line the column's colour stands for
+    expect(card.findAll('.card-level .ladder-bar').map(bar => bar.attributes('data-level'))).toEqual(['text served', 'keyword search',
+      'semantic chunks', 'read', 'checked'])
+    expect(card.find('[data-row="checked"] .ladder-issues').exists()).toBe(true)
+    expect(card.find('[data-row="checked"] .card-said').text()).toBe('407 of 629 PDF pages')
+    expect(card.find('[data-row="issue"] .card-value').text()).toBe(issueSaid)
+  })
+
+  it('numbers each level in the card and gives its share, the read pages\' states apart beneath (L1.a, 20 Nov)', async () => {
+    const ladder = aLadder({ held: 'held back by the provenance list', rungs: aLadder().rungs.map(rung => (rung.level === 'semantic chunks'
+      ? { ...rung, count: null, share: null, said: 'not vectorised yet (#8)' } : rung)) })
+    vi.mocked(getWorks).mockResolvedValue([aWork({ ladder })])
+    const view = mountView()
+    await flushPromises()
+    // the table's cell keeps its five meters alone, no number there
+    const cell = view.find('[data-cell="coverage"] .ladder-compact')
+    expect(cell.findAll('.ladder-bar')).toHaveLength(5)
+    expect(cell.find('.level-number').exists()).toBe(false)
+    await view.find('[data-cell="coverage"] .ladder-card').trigger('focusin')
+    const card = view.find('[data-cell="coverage"] [data-part="hover-card"]')
+    // the level's number before its word, and its share beside its meter, both the API's; a level not measured has none
+    expect(card.findAll('[data-row] .card-label').slice(0, 5).map(label => label.text())).toEqual(['1 text served', '2 keyword search',
+      '3 semantic chunks', '4 read', '5 checked'])
+    expect(card.findAll('.level-share').map(share => share.text())).toEqual(['97 %', '86 %', '', '100 %', '65 %'])
+    // the states are no level: under a rule, captioned as the read pages' breakdown, a step in, no number and no meter; the
+    // file's own line apart once more, uncaptioned
+    const shown = card.findAll('.card-row, .card-rule, .card-caption').map(part => part.attributes('data-row') ?? part.classes()[0])
+    expect(shown).toEqual(['text served', 'keyword search', 'semantic chunks', 'read', 'checked', 'card-rule', 'card-caption', 'ok',
+      'issue', 'blocked', 'card-rule', 'held'])
+    expect(card.find('.card-caption').text()).toBe('read pages by state')
+    expect(card.find('[data-row="ok"]').attributes('data-indent')).toBe('true')
+    expect(card.find('[data-row="ok"] .card-label').text()).toBe('ok')
+    expect(card.find('[data-row="ok"] .ladder-bar').exists()).toBe(false)
+    expect(card.find('[data-row="held"]').attributes('data-indent')).toBeUndefined()
   })
 
   it('sorts by blocked or by issue, most first, a work without pages read last (B3.a)', async () => {

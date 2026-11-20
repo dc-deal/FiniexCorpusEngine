@@ -65,6 +65,9 @@ function cardRows(work: Work): { label: string, value: string | null | undefined
     { label: 'series', value: series },
     { label: 'notes', value: work.notes },
     { label: 'structure', value: work.structure_why_not },
+    // a stand-in file beside it, folded into its row (line 1, 20 Nov: one row per work), in the API's words
+    { label: 'stand-in', value: work.stand_in?.said },
+    { label: 'held', value: work.stand_in?.held },
   ]
 }
 
@@ -252,6 +255,16 @@ onMounted(() => {
                 <!-- the title and the id a line each (the operator's B4.a): the id is what a ticket and a reading key name; a licensed
                      copy's notes (N1.a) stand in the card -->
                 <span class="work-id">{{ line.work.id }}</span>
+                <!-- its stand-in file, which its card names with why it is not served; its pages open where it has a list -->
+                <RouterLink
+                  v-if="line.work.stand_in?.page_list"
+                  class="stand-in"
+                  data-part="stand-in"
+                  :to="{ name: 'work', params: { kb: line.work.knowledge_base, work: line.work.stand_in.id } }"
+                >
+                  stand-in file
+                </RouterLink>
+                <span v-else-if="line.work.stand_in" class="stand-in" data-part="stand-in">stand-in file</span>
               </HoverCard>
             </td>
             <td data-rank="3"><KnowledgeBaseMark :kb="line.work.knowledge_base" /></td>
@@ -342,6 +355,17 @@ a.work-title {
 
 a.work-title:hover {
   text-decoration: underline;
+}
+
+/* a stand-in file beside the work, a line of its own: a link where its pages open, else words */
+.stand-in {
+  display: block;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+a.stand-in {
+  color: var(--color-accent);
 }
 
 /* the id is what a ticket and a reading key name, so it stays on screen beneath the title, shortened to its line there and

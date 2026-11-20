@@ -18,7 +18,7 @@ const emit = defineEmits<{ close: [] }>()
   <HintPanel id="ladder" @close="emit('close')">
     <DetailList class="ladder-legend" data-part="ladder-legend">
       <template v-for="rung in rungs" :key="rung.level">
-        <dt :data-level="rung.level">{{ rung.level }}</dt>
+        <dt :data-level="rung.level">{{ rung.number }} {{ rung.level }}</dt>
         <dd>{{ rung.means }}</dd>
       </template>
     </DetailList>

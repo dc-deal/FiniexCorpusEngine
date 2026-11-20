@@ -79,6 +79,18 @@ def semantic_rung(row: dict, whole: int | None, unit: str, pdf: bool) -> Rung:
     return Rung(level='semantic chunks', count=whole if semantic['chunks'] else 0, of=whole, said=f'{chunks} from its {unit}')
 
 
+def issue_said(count: int, served: int | None) -> str:
+    """The pages with judge findings, and what the core serves for them (line 1, 20 Nov, the operator asking what an issue
+    line of a count and a served tally means): a reading whose findings lie only on blocks never quoted is served all the same
+    (133.b), any other's page serves its fallback in its place."""
+    pages = f"{count:,} {'page' if count == 1 else 'pages'} with judge findings"
+    if not served:
+        return f"{pages} · {'it serves' if count == 1 else 'each serves'} its fallback"
+    if served == count:
+        return f"{pages} · {'served' if count == 1 else f'all {count:,} served'}: the findings lie only on blocks never quoted (133.b)"
+    return f'{pages} · {served:,} served (findings only on blocks never quoted) · {count - served:,} serve their fallback'
+
+
 def with_means(ladder: Ladder) -> Ladder:
     """Each rung with what its level counts, in one place for every ladder."""
     for rung in ladder.rungs:
@@ -95,8 +107,9 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
     legacy_only = row.get('format') == LEGACY_ONLY
     unit = 'PDF pages' if pdf else 'Markdown pages' if legacy_only else 'sections'
     whole = row.get('pages') if pdf and row.get('pages') is not None else served.get('pages', 0)
-    read_states = [LadderState(value=count.value, count=count.count, served=count.served) for count in states or []
-                   if count.value != 'not_read']
+    read_states = [LadderState(value=count.value, count=count.count, served=count.served,
+                               said=issue_said(count.count, count.served) if count.value == 'issue' else None)
+                   for count in states or [] if count.value != 'not_read']
     # a work that serves no text at all, a scan held back, its first level empty where it has a page (C1.b)
     rungs = [Rung(level='text served', count=served.get('pages', 0), of=whole, said=figure(served.get('pages', 0), whole, unit),
                   warn=not served.get('pages') and bool(whole)),

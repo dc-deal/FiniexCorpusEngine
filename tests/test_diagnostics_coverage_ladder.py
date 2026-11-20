@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.configuration import data_paths
-from backend.diagnostics import coverage_ladder, unread_pages
+from backend.diagnostics import coverage_ladder, ladder_types, unread_pages
 from backend.diagnostics.app import create_app
 from backend.diagnostics.readings import StateCount
 from backend.diagnostics.unread_pages import Coverage, UnreadPart
@@ -70,6 +70,38 @@ def test_a_level_not_measured_says_why_never_none_of_all(monkeypatch):
     assert said(free)['semantic chunks'] == (None, 100, 'not in the vector index on this machine')
     unread = coverage_ladder.work_ladder(a_row(read=0, passed=0), [])
     assert said(unread)['read'] == (0, 100, 'none of 100 PDF pages read yet')
+
+
+def test_each_level_carries_its_number_and_its_share_of_the_whole():
+    # the operator's L1.a, 20 Nov: which line of the card a meter is, and how much of its whole it reaches, the API's figures
+    ladder = coverage_ladder.work_ladder(a_row(), STATES)
+    assert [(rung.number, rung.level, rung.share) for rung in ladder.rungs] == [
+        (1, 'text served', 96), (2, 'keyword search', 90), (3, 'semantic chunks', 88), (4, 'read', 90), (5, 'checked', 55)]
+    share = ladder_types.share_of
+    assert share(196, 200) == 98 and share(1, 8) == 13  # whole percent, a half rounded up
+    # some but not all of the whole never reads as none or as all
+    assert (share(999, 1000), share(1, 1000), share(0, 1000), share(1000, 1000)) == (99, 1, 0, 100)
+    # a level not measured, or one without a whole, has no share
+    assert share(None, 1000) is None and share(3, 0) is None and share(0, None) is None
+    html = coverage_ladder.work_ladder(a_row(format='html', pages=None, served={'pages': 12, 'searchable': 12}), [])
+    assert [(rung.number, rung.share) for rung in html.rungs if rung.count is None] == [(4, None), (5, None)]
+    # worked out with the rung whenever it is served, so a count replaced later carries its own share, never the old one's
+    replaced = coverage_ladder.with_coverage(ladder, Coverage(read=45, pdf_pages=100, unread=[], planned=0, said='45 of 100 PDF pages read'))
+    assert [(rung.share, rung.model_dump()['share']) for rung in replaced.rungs if rung.level == 'read'] == [(45, 45)]
+    assert replaced.model_dump()['rungs'][3]['number'] == 4
+
+
+def test_the_issue_line_says_what_its_served_tally_means():
+    # the operator, 20 Nov, on an issue line of a count and a served tally: the pages, how many are served all the same and why,
+    # the rest
+    said = coverage_ladder.issue_said
+    assert said(12, 12) == '12 pages with judge findings · all 12 served: the findings lie only on blocks never quoted (133.b)'
+    assert said(12, 7) == '12 pages with judge findings · 7 served (findings only on blocks never quoted) · 5 serve their fallback'
+    assert said(3, None) == '3 pages with judge findings · each serves its fallback'
+    assert said(1, 1) == '1 page with judge findings · served: the findings lie only on blocks never quoted (133.b)'
+    ladder = coverage_ladder.work_ladder(a_row(), STATES)
+    assert [state.said for state in ladder.states if state.value == 'issue'] == [said(9, 9)]
+    assert all(state.said is None for state in ladder.states if state.value != 'issue')
 
 
 def test_an_html_work_counts_its_sections_and_is_not_read_page_by_page():

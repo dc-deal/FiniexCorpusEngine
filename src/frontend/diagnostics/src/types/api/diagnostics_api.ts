@@ -1676,6 +1676,8 @@ export interface components {
             count: number;
             /** Served */
             served?: number | null;
+            /** Said */
+            said?: string | null;
         };
         /**
          * LeftOut
@@ -2450,6 +2452,17 @@ export interface components {
              * @default false
              */
             warn: boolean;
+            /**
+             * Number
+             * @description The level's place on the ladder, 1 to 5, before its word wherever the five levels stand (L1.a): which line of the
+             *     card a meter in the table's cell is.
+             */
+            readonly number: number;
+            /**
+             * Share
+             * @description How much of its whole the level reaches, in whole percent (`share_of`); None where it is not measured.
+             */
+            readonly share: number | null;
         };
         /** SearchAnswer */
         SearchAnswer: {
@@ -2778,6 +2791,26 @@ export interface components {
             severity?: string | null;
         };
         /**
+         * StandIn
+         * @description A stand-in file beside a work, which the librarian does not serve as long as the work's own text stands (the shelf's
+         *     `stand_in_of`, line 1, 20 Nov): folded into its work's row, so a work stands once, the file named in its card.
+         */
+        StandIn: {
+            /** Id */
+            id: string;
+            /** File */
+            file: string | null;
+            /** Said */
+            said: string;
+            /** Held */
+            held?: string | null;
+            /**
+             * Page List
+             * @default false
+             */
+            page_list: boolean;
+        };
+        /**
          * StandingCorrection
          * @description The correction that stands for a block (decision 229.a, the operator: "what you really want to see first is the correction"): the
          *     latest a person gave that applies to the reading shown, drawn first as the block's content, the reader's text muted
@@ -3052,6 +3085,7 @@ export interface components {
              * @default false
              */
             page_list: boolean;
+            stand_in?: components["schemas"]["StandIn"] | null;
         };
         /** WorkPages */
         WorkPages: {

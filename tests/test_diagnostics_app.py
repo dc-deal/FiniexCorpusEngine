@@ -247,6 +247,35 @@ def licensed_with_a_catalog(monkeypatch, folder, catalog_text: str | None) -> Te
     return TestClient(create_app(), base_url=LOCAL)
 
 
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_a_stand_in_file_folds_into_its_work_so_each_work_stands_once(monkeypatch, tmp_path):
+    # line 1, 20 Nov: a work stood twice, as its legacy text and as its stand-in file; the shelf links them (`stand_in_of`).
+    # Invented throughout: a legacy work without a catalog entry, and a stand-in file the catalog lists
+    stand_in = {'id': 'an_invented_stand_in', 'file': 'an_invented_stand_in.pdf', 'title': 'An Invented Book', 'authors': 'A. Author',
+                'year': 2001, 'format': 'pdf', 'notes': 'stand-in file'}
+    client = licensed_with_a_catalog(monkeypatch, tmp_path / 'stand_in', json.dumps({'sources': [stand_in]}))
+    store = readings.licensed_readings()
+    beside = 'a stand-in file beside the legacy text of its work, which stands'
+    store.shelf = lambda: {'works': [
+        {'knowledge_base': 'licensed', 'work': 'an-invented-key', 'source_id': 'an_invented_legacy_work', 'title': 'an_invented_legacy_work',
+         'format': 'legacy markdown', 'file': None, 'pages': None, 'served': {'pages': 30, 'searchable': 28, 'by_route': {'legacy markdown': 30}}},
+        {'knowledge_base': 'licensed', 'work': None, 'source_id': 'an_invented_stand_in', 'title': 'an_invented_stand_in', 'format': 'pdf',
+         'file': 'an_invented_stand_in.pdf', 'pages': 40, 'served': {'pages': 0, 'searchable': 0}, 'not_served': beside,
+         'held': 'held back by the provenance list', 'stand_in_of': 'an-invented-key'}]}
+    licensed = [work for work in client.get('/api/works').json() if work['knowledge_base'] == 'licensed']
+    assert [work['id'] for work in licensed].count('an_invented_stand_in') == 0
+    [work] = [work for work in licensed if work['id'] == 'an_invented_legacy_work']
+    # its ladder its own legacy text; its title and fields from the stand-in's catalog entry, where it had none of its own
+    assert work['ladder']['rungs'][0]['said'] == '30 of 30 Markdown pages' and work['format'] == 'legacy markdown'
+    # each level its number and its share, as the API serves them (L1.a)
+    assert [(rung['number'], rung['share']) for rung in work['ladder']['rungs'][:2]] == [(1, 100), (2, 93)]
+    assert (work['title'], work['authors'], work['year']) == ('An Invented Book', 'A. Author', 2001)
+    assert work['stand_in'] == {'id': 'an_invented_stand_in', 'file': 'an_invented_stand_in.pdf',
+                                'said': f'stand-in file beside it: an_invented_stand_in.pdf, not served: {beside}',
+                                'held': 'held back by the provenance list', 'page_list': True}
+
+
 def licensed_work(client: TestClient) -> dict:
     [work] = [work for work in client.get('/api/works').json() if work['knowledge_base'] == 'licensed' and work['readings']]
     return {name: work[name] for name in SHOWN}

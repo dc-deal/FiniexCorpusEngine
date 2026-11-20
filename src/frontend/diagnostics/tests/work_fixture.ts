@@ -3,14 +3,15 @@ import type { Work } from '@/types/api/source_types'
 
 /** A PDF work's coverage ladder as the API serves it (U1.a): the free finance book's figures, which may stand in a tracked file. */
 export function aLadder(overrides: Partial<Ladder> = {}): Ladder {
-  const rung = (level: Ladder['rungs'][number]['level'], count: number | null, said: string) => ({ level, count, of: 629, said,
-    means: `what ${level} counts`, by_base: {}, pages_filter: null, warn: false })
+  // its number and its share are the API's (L1.a), written here as it serves them
+  const rung = (number: number, level: Ladder['rungs'][number]['level'], count: number | null, share: number | null, said: string) => ({
+    level, number, count, of: 629, share, said, means: `what ${level} counts`, by_base: {}, pages_filter: null, warn: false })
   return {
     unit: 'PDF pages',
     whole: 629,
-    rungs: [rung('text served', 612, '612 of 629 PDF pages'), rung('keyword search', 539, '539 of 629 PDF pages'),
-      rung('semantic chunks', 592, '2,396 chunks over 592 of 629 PDF pages'), rung('read', 629, '629 of 629 PDF pages, 629 passed'),
-      rung('checked', 407, '407 of 629 PDF pages')],
+    rungs: [rung(1, 'text served', 612, 97, '612 of 629 PDF pages'), rung(2, 'keyword search', 539, 86, '539 of 629 PDF pages'),
+      rung(3, 'semantic chunks', 592, 94, '2,396 chunks over 592 of 629 PDF pages'),
+      rung(4, 'read', 629, 100, '629 of 629 PDF pages, 629 passed'), rung(5, 'checked', 407, 65, '407 of 629 PDF pages')],
     by_route: { 'vision reading': 612 },
     held: null,
     not_served: null,

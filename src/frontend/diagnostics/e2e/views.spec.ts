@@ -192,7 +192,7 @@ test('a page a person settled counts in its own bucket, folds apart in the Issue
   const card = row.locator('[data-cell="coverage"] [data-part="hover-card"]')
   await expect(card.locator('[data-row="decided by a person"] .card-value')).toHaveText(String(settledPages.length))
   const open = pages.filter(row => row.listed_state === 'issue').length
-  if (open) await expect(card.locator('[data-row="issue"] .card-value')).toHaveText(new RegExp(`^${open}( · |$)`))
+  if (open) await expect(card.locator('[data-row="issue"] .card-value')).toHaveText(new RegExp(`^${open} pages? with judge findings · `))
   else await expect(card.locator('[data-row="issue"]')).toHaveCount(0)
   await page.screenshot({ path: `${SHOTS}/sources_decided.png` })
   // the Issues: the settled page in the fold below, not in the open list
@@ -363,7 +363,8 @@ test('a work lists every PDF page, one no reader has read quiet and opening its 
 })
 
 test('every work says how far it is refined: five meters in Sources, its levels on its page, the corpus\'s on the overview (U1.a)', async ({ page, request }) => {
-  type Rung = { level: string, said: string, count: number | null, pages_filter: Record<string, string[]> | null }
+  type Rung = { level: string, number: number, said: string, count: number | null, share: number | null,
+    pages_filter: Record<string, string[]> | null }
   type Listed = { id: string, knowledge_base: string, ladder: { rungs: Rung[] } | null }
   const works = await (await request.get('/api/works')).json() as Listed[]
   const laddered = works.filter(work => work.ladder)
@@ -375,11 +376,11 @@ test('every work says how far it is refined: five meters in Sources, its levels 
     // one Coverage column in place of B3's six: five meters a work, each level's words in its card
     await expect(page.locator('table.works thead th')).toHaveText(['Work', 'Knowledge base', 'Coverage', 'Authors', 'Year', 'Format', 'Topic'])
     for (const work of laddered) {
-      await expect(page.locator(`tr[data-work="${work.id}"] [data-cell="coverage"] .ladder-bar`)).toHaveCount(5)
+      await expect(page.locator(`tr[data-work="${work.id}"] [data-cell="coverage"] .ladder-compact .ladder-bar`)).toHaveCount(5)
     }
     const first = page.locator(`tr[data-work="${laddered[0]!.id}"]`)
     await first.locator('.ladder-card').focus()
-    await expect(first.locator('[data-row="text served"] .card-value')).toHaveText(laddered[0]!.ladder!.rungs[0]!.said)
+    await expect(first.locator('[data-row="text served"] .card-said')).toHaveText(laddered[0]!.ladder!.rungs[0]!.said)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
       `Sources scroll sideways at ${width} px`).toBe(true)
     await page.screenshot({ path: `${SHOTS}/sources_coverage_${width}.png` })
@@ -390,7 +391,9 @@ test('every work says how far it is refined: five meters in Sources, its levels 
   await page.goto(`/#/free/sources/${KELLY}`)
   await settled(page)
   const ladder = page.locator('[data-part="coverage-ladder"]')
-  await expect(ladder.locator('.rung-level')).toHaveText(['text served', 'keyword search', 'semantic chunks', 'read', 'checked'])
+  // each level's number before its word and its share beside its meter, the API's (L1.a)
+  await expect(ladder.locator('.rung-level')).toHaveText(['1 text served', '2 keyword search', '3 semantic chunks', '4 read', '5 checked'])
+  await expect(ladder.locator('.level-share')).toHaveText(kelly.ladder!.rungs.map(rung => (rung.share === null ? '' : `${rung.share} %`)))
   await expect(ladder.locator('[data-said="text served"]')).toHaveText(kelly.ladder!.rungs[0]!.said)
   await ladder.locator('[data-part="ladder-details"] summary').click()
   await expect(ladder.locator('[data-part="ladder-details"] dl')).toBeVisible()
@@ -454,8 +457,10 @@ test('every page opens, read or not: its own ladder, the text served and, unread
 
 test('a meter takes colour only where a look is called for, and a card waits for the pointer, never for the keyboard (C1.b)', async ({ page }) => {
   // invented: a work with issues beside its checked pages, one that serves no text, a level not measured; the free base has none
-  const rung = (level: string, count: number | null, extra: object = {}) => ({ level, means: '', count, of: 400, by_base: {},
-    pages_filter: null, warn: false, said: count === null ? 'not vectorised yet (#8)' : `${count} of 400 PDF pages`, ...extra })
+  const levels = ['text served', 'keyword search', 'semantic chunks', 'read', 'checked']
+  const rung = (level: string, count: number | null, extra: object = {}) => ({ level, number: levels.indexOf(level) + 1, means: '', count,
+    of: 400, share: count === null ? null : Math.round(100 * count / 400), by_base: {}, pages_filter: null, warn: false,
+    said: count === null ? 'not vectorised yet (#8)' : `${count} of 400 PDF pages`, ...extra })
   const ladder = (rungs: object[]) => ({ unit: 'PDF pages', whole: 400, by_route: {}, held: null, not_served: null, unplaced: {},
     states: [{ value: 'issue', count: 40, served: null }], planned: 400, passed: 300, built_at: null, rungs })
   const invented = (id: string, rungs: object[]) => ({ knowledge_base: 'licensed', id, title: id, authors: null, publisher: null, year: null,
@@ -505,6 +510,30 @@ test('a meter takes colour only where a look is called for, and a card waits for
   await expect(card).toHaveCount(0)
   await page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-card').focus()
   await expect(card).toBeVisible({ timeout: 100 })
+  // the card follows the colours (the operator, 20 Nov): each level's line carries the column's meter, the issues' segment too
+  await expect(card.locator('.card-level .ladder-bar')).toHaveCount(5)
+  const cardIssues = card.locator('[data-row="checked"] .ladder-issues')
+  expect(await cardIssues.evaluate(element => getComputedStyle(element).backgroundColor), 'the card\'s issues not in the issue role')
+    .toBe(await rgb(await role('--color-error')))
+  // the card's levels stand as a table (L1.a): each its number before its word, the five meters under each other and of one
+  // width, the shares' right edges in one line, a level not measured without one
+  await expect(card.locator('[data-row] .card-label').first()).toHaveText('1 text served')
+  await expect(card.locator('.level-share')).toHaveText(['100 %', '95 %', '', '85 %', '75 %'])
+  const edges = async (selector: string) => card.locator(selector).evaluateAll(parts => parts.map(part => {
+    const box = part.getBoundingClientRect()
+    return [Math.round(box.left), Math.round(box.right)]
+  }))
+  const meters = await edges('.card-level .ladder-bar')
+  expect(new Set(meters.map(String)).size, `the card's meters do not stand under each other: ${JSON.stringify(meters)}`).toBe(1)
+  const shares = await edges('.level-share')
+  expect(new Set(shares.map(([, right]) => right)).size, `the card's shares do not end in one line: ${JSON.stringify(shares)}`).toBe(1)
+  // the read pages' states apart beneath the levels, under a rule
+  await expect(card.locator('.card-rule')).toHaveCount(1)
+  await expect(card.locator('.card-caption')).toHaveText('read pages by state')
+  await page.screenshot({ path: `${SHOTS}/sources_card_meters.png` })
+  await page.locator('tr[data-work="an_invented_scan_serving_nothing"] .ladder-card').focus()
+  const scanCard = page.locator('tr[data-work="an_invented_scan_serving_nothing"] [data-cell="coverage"] [data-part="hover-card"]')
+  await expect(scanCard.locator('[data-row="text served"] .ladder-bar')).toHaveAttribute('data-look', 'warning')
 })
 
 test('a work folds its routes to one line of levels, opens them to a row each, and a route chosen keeps its pages', async ({ page, request }) => {
@@ -1407,7 +1436,7 @@ test('an HTML work opens from Sources by its headings, and a section shows its c
   const listed = (await (await request.get('/api/works')).json() as Listed[]).find(one => one.id === WIKIPEDIA)!
   if (listed.ladder) {
     await page.locator(`tr[data-work="${WIKIPEDIA}"] .ladder-card`).focus()
-    await expect(page.locator(`tr[data-work="${WIKIPEDIA}"] [data-row="text served"] .card-value`))
+    await expect(page.locator(`tr[data-work="${WIKIPEDIA}"] [data-row="text served"] .card-said`))
       .toHaveText(listed.ladder.rungs[0]!.said)
   }
   else await expect(page.locator(`tr[data-work="${WIKIPEDIA}"] [data-cell="coverage"]`)).toContainText(`${work.sections} sections by heading`)

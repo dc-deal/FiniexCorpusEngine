@@ -41,6 +41,17 @@ class CatalogSource(BaseModel):
     shelf: str
 
 
+class StandIn(BaseModel):
+    """A stand-in file beside a work, which the librarian does not serve as long as the work's own text stands (the shelf's
+    `stand_in_of`, line 1, 20 Nov): folded into its work's row, so a work stands once, the file named in its card."""
+
+    id: str  # the file's own id, which its page list takes where it has one
+    file: str | None
+    said: str  # "stand-in file beside it: <file>, not served: <why>"
+    held: str | None = None  # why the provenance list holds the file back, where it does
+    page_list: bool = False  # its pages open as a list here (a PDF), so the card links them
+
+
 class Work(BaseModel):
     """One work as the sources view lists it. A licensed work takes its fields from the local licensed catalog where this
     machine has one (N1.a); without it, its export gives an id and a title, the PDF's stem as on the search server, and the
@@ -83,6 +94,8 @@ class Work(BaseModel):
     # its pages open as a list here (U1.a: every work opens): read page by page, or a licensed PDF not read yet, whose list
     # holds every page without a reading (V1.b)
     page_list: bool = False
+    # a stand-in file beside it, folded into its row; None for every other work
+    stand_in: StandIn | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

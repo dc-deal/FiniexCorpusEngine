@@ -161,10 +161,35 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                    for name in bases for row in (shelves[name] or {}).get('works') or []
                    if row.get('format') == coverage_ladder.LEGACY_ONLY and row.get('source_id')
                    and not any(work.knowledge_base == name and work.id in (row['source_id'], row.get('work')) for work in listed)]
+        listed = with_stand_ins(listed, shelves)  # each work once, its stand-in file folded into it
         return [work.model_copy(update={'ladder': coverage_ladder.work_ladder(
             coverage_ladder.row_for(shelves[work.knowledge_base], work.id, work.epub_key),
             work.readings.states if work.readings else None, (shelves[work.knowledge_base] or {}).get('built_at'))})
             for work in listed]
+
+    def with_stand_ins(listed: list[sources.Work], shelves: dict[str, dict | None]) -> list[sources.Work]:
+        """Every work once (line 1, 20 Nov: three works stood twice): a stand-in file the shelf links to the work it stands in
+        for (`stand_in_of`) is folded into that work's row, named in its card, its page list reachable from there; where the
+        work's own row has no title, authors, year or the like, the stand-in's catalog entry gives them."""
+        out = list(listed)
+        for name, built in shelves.items():
+            rows = (built or {}).get('works') or []
+            for row in rows:
+                key = row.get('stand_in_of')
+                stand = next((work for work in out if work.knowledge_base == name and work.id == row.get('source_id')), None)
+                own = next((one for one in rows if one.get('work') == key and not one.get('stand_in_of')), None) if key else None
+                work = next((one for one in out if own and one.knowledge_base == name and one.id == own.get('source_id')), None)
+                if stand is None or work is None or stand is work:
+                    continue
+                said = f"stand-in file beside it: {row.get('file') or stand.id}" + (f", not served: {row['not_served']}" if row.get('not_served') else '')
+                fill = {field: getattr(stand, field) for field in CATALOG_FIELDS - {'format'}
+                        if not getattr(work, field) and getattr(stand, field)}
+                if work.title == work.id and stand.title != stand.id:
+                    fill['title'] = stand.title
+                out[out.index(work)] = work.model_copy(update={**fill, 'stand_in': sources.StandIn(
+                    id=stand.id, file=row.get('file'), said=said, held=row.get('held'), page_list=stand.page_list)})
+                out.remove(stand)
+        return out
 
     def unread_structure(entry: readings.CatalogEntry, epubs: dict[str, tuple[str, Path]]) -> dict:
         """A catalog entry without page readings: an EPUB the librarian serves, by its sections; else not read yet."""
