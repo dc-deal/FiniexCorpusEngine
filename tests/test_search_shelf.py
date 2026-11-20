@@ -120,3 +120,17 @@ def test_a_shelf_names_the_export_it_was_built_from(tmp_path, monkeypatch):
     monkeypatch.setattr(search_server, 'LICENSED_EXPORT', tmp_path / 'none')
     assert shelf.export_sha256('free') == hashlib.sha256(b'{"pages": []}').hexdigest()
     assert shelf.export_sha256('licensed') is None
+
+
+def test_the_semantic_level_counts_each_source_s_chunks_and_the_pages_they_cover(tmp_path):
+    # U1.a (20 Nov): the coverage ladder's semantic level, from the vector index's own database
+    import sqlite3
+
+    index_db = tmp_path / 'knowledge.sqlite3'
+    with sqlite3.connect(index_db) as db:
+        db.execute('CREATE TABLE chunks (id TEXT PRIMARY KEY, source_id TEXT, section_id TEXT, text TEXT, metadata TEXT)')
+        db.executemany('INSERT INTO chunks VALUES (?, ?, ?, ?, ?)', [
+            ('c1', 'book', 's1', 'a', json.dumps({'pdf_page': 3})), ('c2', 'book', 's1', 'b', json.dumps({'pdf_page': 3})),
+            ('c3', 'book', 's2', 'c', json.dumps({'pdf_page': 4})), ('c4', 'site', 's9', 'd', json.dumps({}))])
+    assert shelf.semantic_counts(index_db) == {'book': {'chunks': 3, 'pages': 2}, 'site': {'chunks': 1, 'pages': 0}}
+    assert shelf.semantic_counts(tmp_path / 'none.sqlite3') == {}

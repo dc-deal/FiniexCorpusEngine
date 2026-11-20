@@ -72,12 +72,34 @@ def unplaced_reasons(rows: dict[int, dict], served: list, quoted: dict[int, str]
 
 def row_of(knowledge_base: str, work: str | None, title: str, source_id: str, file: str | None, file_format: str,
            pages: int | None, planned: int | None, rows: dict[int, dict], served: list, unplaced: dict[str, int],
-           held: str | None = None, not_served: str | None = None) -> dict:
+           held: str | None = None, not_served: str | None = None, semantic: dict | None = None) -> dict:
     counts = reading_counts(rows)
     return {'knowledge_base': knowledge_base, 'work': work, 'title': title, 'source_id': source_id, 'file': file,
             'format': file_format, 'pages': pages, 'planned': planned, **counts,
             'share_passed': round(counts['passed'] / planned, 4) if planned else None,
-            'served': served_counts(served), 'unplaced': unplaced, 'held': held, 'not_served': not_served}
+            'served': served_counts(served), 'unplaced': unplaced, 'held': held, 'not_served': not_served,
+            # U1.a (20 Nov): the semantic level of a work's coverage ladder, its chunks in the vector index and the PDF pages
+            # they cover; None where its base has no vector index (the private base until #8)
+            'semantic': semantic}
+
+
+def semantic_counts(index_db: Path | None = None) -> dict[str, dict]:
+    """Per source of the vector index, its chunks and the PDF pages they cover, from the index's own database. Empty where
+    no index was built on this machine."""
+    import sqlite3
+
+    index_db = index_db or data_paths.INDEX / 'knowledge.sqlite3'
+    if not index_db.exists():
+        return {}
+    counts: dict[str, dict] = {}
+    with sqlite3.connect(index_db) as db:
+        for source_id, metadata in db.execute('SELECT source_id, metadata FROM chunks'):
+            row = counts.setdefault(source_id, {'chunks': 0, 'pages': set()})
+            row['chunks'] += 1
+            page = json.loads(metadata or '{}').get('pdf_page')
+            if page is not None:
+                row['pages'].add(int(page))
+    return {source: {'chunks': row['chunks'], 'pages': len(row['pages'])} for source, row in counts.items()}
 
 
 def free_rows(pages: list, works: dict) -> list[dict]:
@@ -91,7 +113,7 @@ def free_rows(pages: list, works: dict) -> list[dict]:
     by_work = defaultdict(list)
     for page in pages:
         by_work[page.work].append(page)
-    out = []
+    out, semantic = [], semantic_counts()
     for source in catalog:
         path = data_paths.locate(source['files'][0]['path'])
         if source.get('format') == 'pdf':
@@ -99,11 +121,12 @@ def free_rows(pages: list, works: dict) -> list[dict]:
             quoted = reading_export.quoted_pages('free', path.name) if own and path.exists() else None
             out.append(row_of('free', key if key in works else None, source['title'], source['id'], path.name, 'pdf',
                               page_count(path), len(own) or None, own, by_work.get(key, []),
-                              unplaced_reasons(own, by_work.get(key, []), quoted, None)))
+                              unplaced_reasons(own, by_work.get(key, []), quoted, None), semantic=semantic.get(source['id'])))
         else:
             key = source['id']
             out.append(row_of('free', key if key in works else None, source['title'], source['id'], None,
-                              source.get('format', 'html'), None, None, {}, by_work.get(key, []), {}))
+                              source.get('format', 'html'), None, None, {}, by_work.get(key, []), {},
+                              semantic=semantic.get(source['id'])))
     return out
 
 
