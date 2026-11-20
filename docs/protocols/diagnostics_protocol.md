@@ -828,3 +828,9 @@ The record of how the diagnostics frontend came about, mistakes included.
   to nothing and hid the text served's fold (a browser check timed out on it); both are fixed and measured. Why search (BM25)
   leaves a page out follows the branches of the core's `page_index.is_structural`, whose constants it takes; a `structural_why`
   in the core would serve both, and is line 1's to decide. The image check was shown failing once, its image refused.
+- **C1.b, colour in the meters and a hover delay** (the operator, 20 Nov). Only existing roles: the issue's (error), the
+  warning's, the border's ink for the hatching. **Measured first:** the issue's red against the meter's grey fell below the
+  colour-blind floor in both themes (dark 7.8 deutan, light 5.3 protan), so the segment got a gap and a taller form before it
+  was drawn. The delay is one value, 500 ms on the pointer and none on the keyboard's focus; the unit suite sets it to 0 in
+  its setup and one test holds the 500 ms itself, with the timers faked. The browser check reads the colours as drawn against
+  the role tokens and the card's wait, and was shown failing once with the segment greyed.

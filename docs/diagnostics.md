@@ -1768,3 +1768,14 @@ both; level 5 says what it counts, "checked by the judge or a review"; each base
 alone, so an export a test invents never sees this machine's shelf. **Measured natively:** a free page's view 0.4 s, a held
 scan's unread page 0.8 s warm with its image drawn once for the view and its image route both. 391 unit tests, 82
 checks in the browser (3 skipped on today's data), 1,493 Python tests.
+
+**Colour in the coverage meters where a look is called for, and cards that wait for the pointer (the operator's C1.b, 20 Nov).**
+A meter stays quiet, one neutral fill, unless the API marks a level: the pages the judge found bad stand as a segment after a
+work's or the corpus's checked pages, in the issue's role (`Rung.issues`); a work that serves no text at all, a held scan, has
+its text-served track in the warning role (`Rung.warn`); a level not measured here, not vectorised yet (#8) or not read page
+by page, is a hatched track in the border's ink, hatched since a dashed line is the annotation role's. The words stay the
+card's. Measured with the dataviz validator: the issue's red beside the fill's grey stands 7.8 apart in the dark theme
+(deutan) and 5.3 in the light one (protan), OKLab ΔE, below the 8 a colour may carry alone, so the segment carries a form
+too, a gap of 2 px from the fill and a pixel more on each side than its track. A hover card opens once the pointer has rested
+500 ms (`HOVER_DELAY`, one value for every card), so a pointer crossing a table opens nothing; the keyboard's focus opens it
+at once. 395 unit tests, 83 checks in the browser (3 skipped on today's data), 1,493 Python tests.

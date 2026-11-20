@@ -7319,6 +7319,22 @@
               }
             ],
             "title": "Pages Filter"
+          },
+          "issues": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issues"
+          },
+          "warn": {
+            "type": "boolean",
+            "title": "Warn",
+            "default": false
           }
         },
         "type": "object",

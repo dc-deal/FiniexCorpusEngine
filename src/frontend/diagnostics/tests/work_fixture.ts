@@ -4,7 +4,7 @@ import type { Work } from '@/types/api/source_types'
 /** A PDF work's coverage ladder as the API serves it (U1.a): the free finance book's figures, which may stand in a tracked file. */
 export function aLadder(overrides: Partial<Ladder> = {}): Ladder {
   const rung = (level: Ladder['rungs'][number]['level'], count: number | null, said: string) => ({ level, count, of: 629, said,
-    means: `what ${level} counts`, by_base: {}, pages_filter: null })
+    means: `what ${level} counts`, by_base: {}, pages_filter: null, warn: false })
   return {
     unit: 'PDF pages',
     whole: 629,
