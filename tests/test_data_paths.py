@@ -37,3 +37,16 @@ def test_the_licensed_catalog_lies_in_the_local_working_folder():
     # N1.a (18 Nov): licensed titles and authors, local only; `_work/` is git-ignored as a whole (251.a)
     assert data_paths.LICENSED_CATALOG == data_paths.LICENSED_WORKING / 'catalog.json'
     assert data_paths.LICENSED_WORKING.parent == data_paths.WORKING
+
+
+def test_a_stored_path_in_a_role_folder_finds_the_configured_folder_and_back(monkeypatch, tmp_path):
+    # found 20 Nov by line 2: its worktree names the main tree's _sources and _work (285.a), and an export's
+    # `_sources/licensed/x.pdf` was looked for under the worktree's own root
+    from backend.configuration import data_paths
+
+    originals, working = tmp_path / 'main' / '_sources', tmp_path / 'main' / '_work'
+    monkeypatch.setattr(data_paths, '_ROLE_FOLDERS', {'_sources/': originals, '_work/': working})
+    assert data_paths.locate('_sources/licensed/x.pdf') == originals / 'licensed' / 'x.pdf'
+    assert data_paths.locate('_work/licensed/readings/w/p0001.md') == working / 'licensed' / 'readings' / 'w' / 'p0001.md'
+    assert data_paths.stored(originals / 'licensed' / 'x.pdf') == '_sources/licensed/x.pdf'
+    assert data_paths.locate('corpus/catalog.json') == data_paths.ROOT / 'corpus' / 'catalog.json'

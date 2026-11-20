@@ -39,6 +39,9 @@ LICENSED_WORKING = WORKING / 'licensed'
 # `_work/`: a licensed title never stands in a tracked file (251.a). A view not run with --public-only shows it.
 LICENSED_CATALOG = LICENSED_WORKING / 'catalog.json'
 SHELF_HISTORY = WORKING / 'shelf_history.json'  # the corpus's milestones, each base's figures apart (X1.a, 19 Nov)
+# How the exports spell a file in the role folders (the tracked configuration's names), and where each lies on this machine:
+# the same place in the main tree, the main tree's folders in line 2's worktree (285.a, found 20 Nov by line 2)
+_ROLE_FOLDERS = {'_sources/': ORIGINALS, '_work/': WORKING}
 INDEX = _MANAGER.resolve(_PATHS.index)
 LOGS = _MANAGER.resolve(_PATHS.logs)
 
@@ -54,6 +57,9 @@ def locate(stored: str | Path) -> Path:
     relative = Path(stored).as_posix()
     if _in_data_folder(relative):
         return DATA / relative
+    for prefix, folder in _ROLE_FOLDERS.items():  # line 2's worktree names the main tree's folders (285.a)
+        if relative.startswith(prefix):
+            return folder / relative[len(prefix):]
     return ROOT / relative
 
 
@@ -67,6 +73,10 @@ def stored(path: Path, root: Path | None = None) -> str:
     """
     if path.is_relative_to(DATA) and _in_data_folder(path.relative_to(DATA).as_posix()):
         return path.relative_to(DATA).as_posix()
+    if root is None:
+        for prefix, folder in _ROLE_FOLDERS.items():  # spelled as the main tree spells them, wherever they lie (285.a)
+            if path.is_relative_to(folder):
+                return prefix + path.relative_to(folder).as_posix()
     root = root or ROOT  # a caller with a root of its own (a test's folder) names its files from there
     return path.relative_to(root).as_posix() if path.is_relative_to(root) else path.as_posix()
 
