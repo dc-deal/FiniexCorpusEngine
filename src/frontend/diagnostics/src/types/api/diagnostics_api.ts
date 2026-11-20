@@ -1213,6 +1213,7 @@ export interface components {
             shelf_left_out: components["schemas"]["LeftOut"][];
             to_look_at: components["schemas"]["Figure"];
             cost_usd: components["schemas"]["Cost"];
+            ladder?: components["schemas"]["Ladder"] | null;
         };
         /** Hit */
         Hit: {
@@ -1620,6 +1621,59 @@ export interface components {
             below_floor?: boolean | null;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * Ladder
+         * @description A work's or the corpus's coverage ladder, and the details a fold or a card shows.
+         */
+        Ladder: {
+            /** Unit */
+            unit: string;
+            /** Whole */
+            whole: number | null;
+            /** Rungs */
+            rungs: components["schemas"]["Rung"][];
+            /**
+             * By Route
+             * @default {}
+             */
+            by_route: {
+                [key: string]: number;
+            };
+            /** Held */
+            held?: string | null;
+            /** Not Served */
+            not_served?: string | null;
+            /**
+             * Unplaced
+             * @default {}
+             */
+            unplaced: {
+                [key: string]: number;
+            };
+            /**
+             * States
+             * @default []
+             */
+            states: components["schemas"]["LadderState"][];
+            /** Planned */
+            planned?: number | null;
+            /** Passed */
+            passed?: number | null;
+            /** Built At */
+            built_at?: string | null;
+        };
+        /**
+         * LadderState
+         * @description A state of a work's read pages and how many are in it, as the lists count them.
+         */
+        LadderState: {
+            /** Value */
+            value: string;
+            /** Count */
+            count: number;
+            /** Served */
+            served?: number | null;
         };
         /**
          * LeftOut
@@ -2308,6 +2362,39 @@ export interface components {
             /** Runs */
             runs: components["schemas"]["RunLine"][];
         };
+        /**
+         * Rung
+         * @description One level of a ladder: how many of the whole reach it, said in a line.
+         */
+        Rung: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "text served" | "keyword search" | "semantic chunks" | "read" | "checked";
+            /**
+             * Means
+             * @default
+             */
+            means: string;
+            /** Count */
+            count: number | null;
+            /** Of */
+            of: number | null;
+            /** Said */
+            said: string;
+            /**
+             * By Base
+             * @default {}
+             */
+            by_base: {
+                [key: string]: number;
+            };
+            /** Pages Filter */
+            pages_filter?: {
+                [key: string]: string[];
+            } | null;
+        };
         /** SearchAnswer */
         SearchAnswer: {
             /**
@@ -2903,6 +2990,12 @@ export interface components {
             /** Structure */
             structure?: ("read page by page" | "sections by heading" | "not read page by page") | null;
             series?: components["schemas"]["Series"] | null;
+            ladder?: components["schemas"]["Ladder"] | null;
+            /**
+             * Page List
+             * @default false
+             */
+            page_list: boolean;
         };
         /** WorkPages */
         WorkPages: {
@@ -2932,6 +3025,7 @@ export interface components {
             /** Pages */
             pages: components["schemas"]["PageRow"][];
             coverage?: components["schemas"]["Coverage"] | null;
+            ladder?: components["schemas"]["Ladder"] | null;
         };
         /**
          * WorkReadings

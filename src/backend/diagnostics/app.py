@@ -23,8 +23,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.chat import app_config
-from backend.diagnostics import (calls, chat, epub_works, error_classes, html_works, overview, page_integrity, prompts,
-                                 readings, runs, search_hits, shelf_rows, sources, verdicts)
+from backend.diagnostics import (calls, chat, coverage_ladder, epub_works, error_classes, html_works, overview, page_integrity,
+                                 prompts, readings, runs, search_hits, shelf_rows, sources, verdicts)
+from backend.search import shelf
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
@@ -108,6 +109,10 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
             listed = next((work for work in sources.works() if work.id == source_id), None)
             if listed is not None:
                 return listed.title
+        # a licensed catalog entry with a PDF the export has no pages of: its list holds every page unread (U1.a)
+        entry = store_of(knowledge_base).entry_work(source_id)
+        if entry is not None:
+            return entry['title']
         raise HTTPException(404, f'no work {source_id!r} in the {knowledge_base} knowledge base')
 
     @app.get('/api/app')
@@ -125,13 +130,14 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
             if name == 'free':
                 html = html_works.counts()
                 listed += [work.model_copy(update={'readings': (summary := store.summary(work.id)), **html_structure(work, html),
-                                                   'structure': sources.READ_PAGES if summary else sources.SECTIONS if work.format == 'html' else None})
+                                                   'structure': sources.READ_PAGES if summary else sources.SECTIONS if work.format == 'html' else None,
+                                                   'page_list': summary is not None})
                            for work in sources.works()]
             else:
                 # a licensed work's title, authors and the rest from the local licensed catalog, where this machine has one
                 # (N1.a); its store reads it, which no --public-only app has
                 listed += [sources.Work(knowledge_base=work['knowledge_base'], id=work['source_id'], title=work['title'],
-                                        readings=store.summary(work['source_id']), structure=sources.READ_PAGES,
+                                        readings=store.summary(work['source_id']), structure=sources.READ_PAGES, page_list=True,
                                         **catalog_fields(store, work['source_id']))
                            for work in store.works()]
                 # then the catalog's entries the export has no pages of, as the free HTML works without readings stand (O1.a);
@@ -139,6 +145,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                 epubs = {path.name: (key, path) for key, path in epub_works.epubs().items()}
                 unread = store.unread_entries()
                 listed += [sources.Work(knowledge_base=name, id=entry.id, title=entry.title,
+                                        page_list=store.entry_work(entry.id) is not None,
                                         **entry.model_dump(include=CATALOG_FIELDS), **unread_structure(entry, epubs))
                            for entry in unread]
                 # and an EPUB the catalog does not list, by its file's stem
@@ -146,7 +153,12 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                                         structure=sources.SECTIONS, **epub_structure(path))
                            for path_name, (key, path) in epubs.items()
                            if not any(entry.file == path_name for entry in unread)]
-        return listed
+        # how far each is refined (U1.a): its shelf row's levels and its read pages' states
+        shelves = {name: shelf.load(name) for name in bases}
+        return [work.model_copy(update={'ladder': coverage_ladder.work_ladder(
+            coverage_ladder.row_for(shelves[work.knowledge_base], work.id, work.epub_key),
+            work.readings.states if work.readings else None, (shelves[work.knowledge_base] or {}).get('built_at'))})
+            for work in listed]
 
     def unread_structure(entry: readings.CatalogEntry, epubs: dict[str, tuple[str, Path]]) -> dict:
         """A catalog entry without page readings: an EPUB the librarian serves, by its sections; else not read yet."""
@@ -260,7 +272,11 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages')
     def list_pages(knowledge_base: readings.KnowledgeBase, source_id: str) -> readings.WorkPages:
-        return store_of(knowledge_base).pages(knowledge_base, source_id, title_of(knowledge_base, source_id))
+        answer = store_of(knowledge_base).pages(knowledge_base, source_id, title_of(knowledge_base, source_id))
+        built = shelf.load(knowledge_base)  # how far the work is refined (U1.a), its read pages' states counted with it
+        ladder = coverage_ladder.work_ladder(coverage_ladder.row_for(built, source_id),
+                                             answer.summary.states if answer.summary else None, (built or {}).get('built_at'))
+        return answer.model_copy(update={'ladder': coverage_ladder.with_coverage(ladder, answer.coverage)})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}')
     def page_detail(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> readings.PageDetail:

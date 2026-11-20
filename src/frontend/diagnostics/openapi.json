@@ -3336,6 +3336,16 @@
           },
           "cost_usd": {
             "$ref": "#/components/schemas/Cost"
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ladder"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4626,6 +4636,149 @@
           "behaviour"
         ],
         "title": "KnowledgeTurn"
+      },
+      "Ladder": {
+        "properties": {
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "whole": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whole"
+          },
+          "rungs": {
+            "items": {
+              "$ref": "#/components/schemas/Rung"
+            },
+            "type": "array",
+            "title": "Rungs"
+          },
+          "by_route": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Route",
+            "default": {}
+          },
+          "held": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held"
+          },
+          "not_served": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Served"
+          },
+          "unplaced": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Unplaced",
+            "default": {}
+          },
+          "states": {
+            "items": {
+              "$ref": "#/components/schemas/LadderState"
+            },
+            "type": "array",
+            "title": "States",
+            "default": []
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "built_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Built At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit",
+          "whole",
+          "rungs"
+        ],
+        "title": "Ladder",
+        "description": "A work's or the corpus's coverage ladder, and the details a fold or a card shows."
+      },
+      "LadderState": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "served": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "count"
+        ],
+        "title": "LadderState",
+        "description": "A state of a work's read pages and how many are in it, as the lists count them."
       },
       "LeftOut": {
         "properties": {
@@ -6940,6 +7093,92 @@
         ],
         "title": "RunList"
       },
+      "Rung": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "text served",
+              "keyword search",
+              "semantic chunks",
+              "read",
+              "checked"
+            ],
+            "title": "Level"
+          },
+          "means": {
+            "type": "string",
+            "title": "Means",
+            "default": ""
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Of"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          },
+          "by_base": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "free",
+                "licensed"
+              ]
+            },
+            "type": "object",
+            "title": "By Base",
+            "default": {}
+          },
+          "pages_filter": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Filter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "count",
+          "of",
+          "said"
+        ],
+        "title": "Rung",
+        "description": "One level of a ladder: how many of the whole reach it, said in a line."
+      },
       "SearchAnswer": {
         "properties": {
           "state": {
@@ -8750,6 +8989,21 @@
                 "type": "null"
               }
             ]
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ladder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page_list": {
+            "type": "boolean",
+            "title": "Page List",
+            "default": false
           }
         },
         "type": "object",
@@ -8840,6 +9094,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Coverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ladder"
               },
               {
                 "type": "null"

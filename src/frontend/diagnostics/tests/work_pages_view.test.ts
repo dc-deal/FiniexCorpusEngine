@@ -6,6 +6,7 @@ import { router } from '@/router'
 import WorkPagesView from '@/views/WorkPagesView.vue'
 import type { KnowledgeBase } from '@/types/api/source_types'
 import { aCheck, anOutlinedWork, aPageRow, aWorkPages, BLOCKED_ROUTE, CONTENT_FILTER, DECLINED_ROUTE, KELLY } from './page_fixture'
+import { aLadder } from './work_fixture'
 import { facetOption, pickFacet } from './facet_harness'
 
 vi.mock('@/api/api_client', async importOriginal => ({
@@ -189,6 +190,25 @@ describe('WorkPagesView', () => {
     const view = mountView()
     await flushPromises()
     expect(view.find('[data-part="coverage"]').text()).toBe('2 pages')
+  })
+
+  it('stands the work\'s coverage ladder in its record, its levels in words and figures, the details folded (U1.a)', async () => {
+    vi.mocked(getWorkPages).mockResolvedValue({ ...aWorkPages([aPageRow({ pdf_page: 1 })]), ladder: aLadder() })
+    const view = mountView()
+    await flushPromises()
+    const ladder = view.find('[data-part="coverage-ladder"] [data-part="ladder"]')
+    expect(ladder.findAll('.rung-level').map(level => level.text())).toEqual(['text served', 'keyword search', 'semantic chunks', 'read',
+      'checked'])
+    expect(ladder.find('[data-said="semantic chunks"]').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
+    // the ladder holds the read pages' line, so the record's Pages line gives way to it
+    expect(view.find('[data-part="coverage"]').exists()).toBe(false)
+    // the details, folded until asked for: what serves the text, by route, and the pages planned and passed
+    const details = view.find('[data-part="ladder-details"]')
+    expect((details.element as HTMLDetailsElement).open).toBe(false)
+    expect(details.find('[data-route="vision reading"]').text()).toBe('text by vision reading')
+    // what each level means, the API's words, a hint on demand
+    await view.find('[data-part="coverage-ladder"] [data-part="ladder-hint-button"]').trigger('click')
+    expect(view.find('[data-part="ladder-legend"] dd').text()).toBe('what text served counts')
   })
 
   it('opens a licensed work\'s pages within the licensed knowledge base, and jumps there', async () => {
