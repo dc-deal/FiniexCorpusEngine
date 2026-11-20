@@ -48,15 +48,25 @@ def tokenize(text: str) -> list[str]:
 
 def is_structural(text: str) -> bool:
     """A page that matches on words but holds no prose: only an image, a table of contents, an index."""
+    return structural_why(text) is not None
+
+
+def structural_why(text: str) -> str | None:
+    """Why the ranking leaves a page out (`is_structural`), in words a view can show; None for a page it ranks. One rule
+    for the search and the views (asked by line 2 for a page's coverage ladder, 20 Nov)."""
     stripped = re.sub(r'!\[\]\([^)]*\)', '', text)
+    if not stripped.strip():
+        return 'no text'
     if len(stripped.strip()) < MIN_CHARS:
-        return True
+        return f'too short: under {MIN_CHARS} characters'
     words = TOKEN.findall(stripped.lower())
     if not words:
-        return True
+        return 'no words'
     if len(re.findall(r'\b\d{1,4}\b', stripped)) > len(words) / 3:
-        return True
-    return stripped.count('|---') > 2
+        return 'mostly figures'
+    if stripped.count('|---') > 2:
+        return 'a table'
+    return None
 
 
 def back_index_start(text: str) -> int | None:

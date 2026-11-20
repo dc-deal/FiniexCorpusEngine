@@ -125,3 +125,15 @@ def test_the_gate_over_pages_reaches_each_work_by_its_own_probe():
              page_index.Page('beta', '1', 1, lines('idempotent consumers deduplicate messages'), 'b')]
     result = coverage_gate.run_gate_pages(pages)
     assert result['reached'] == result['works'] == 2
+
+
+def test_the_ranking_says_why_it_leaves_a_page_out():
+    # asked by line 2 (20 Nov): one rule for the search and a page's coverage ladder
+    from backend.search import page_index
+
+    prose = 'A page of plain prose that explains a trading rule in words. ' * 5
+    assert page_index.structural_why(prose) is None and not page_index.is_structural(prose)
+    assert page_index.structural_why('') == 'no text'
+    assert page_index.structural_why('Short.').startswith('too short')
+    assert page_index.structural_why('1 2 3 4 5 6 7 8 9 10 ' * 30 + 'index') == 'mostly figures'
+    assert page_index.is_structural('') and page_index.is_structural('Short.')
