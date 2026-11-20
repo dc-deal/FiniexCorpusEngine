@@ -394,3 +394,36 @@ def test_a_judgement_is_recalled_on_its_page_and_an_unknown_one_is_not_found():
     answer = client.get(f'/api/free/works/{work}/pages/5/recall', params={'judgement': recall})
     assert answer.status_code == 200 and answer.json()['recall'] == recall
     assert client.get(f'/api/free/works/{work}/pages/5/recall', params={'judgement': 'nothing:judge/1:0'}).status_code == 404
+
+
+def test_the_warm_up_goes_in_the_order_a_person_meets_the_views_after_a_restart():
+    # line 1, 20 Nov: every merge restarts the container, and the first page list took 24 s, its first page 18 s more
+    from types import SimpleNamespace
+
+    bases = {'free': SimpleNamespace(legacy=None, not_served=None, warm_unread=lambda: None),
+             'licensed': SimpleNamespace(legacy=lambda: 'pages', not_served=lambda: 'files', warm_unread=lambda: None)}
+    steps = app_module.warm_steps(bases, SimpleNamespace(service=lambda: 'index'), lambda: 'list')
+    assert [name for name, _ in steps] == [
+        'the Sources list and the overview', 'the licensed legacy pages', 'the licensed files not served',
+        'the free vector index by page', 'the licensed vector index by page', 'the free pages without a reading',
+        'the licensed pages without a reading', 'the Pages view', 'the licensed EPUBs', 'the search index']
+    # a public app has no EPUB to cut
+    public = app_module.warm_steps({'free': bases['free']}, SimpleNamespace(service=lambda: 'index'), lambda: 'list')
+    assert 'the licensed EPUBs' not in [name for name, _ in public]
+
+
+def test_a_warm_up_step_that_fails_is_said_and_the_rest_goes_on_and_no_list_cuts_beside_it():
+    said, ran = [], []
+
+    def cut_ahead_from_a_list():
+        with epub_works.held() as got:  # what a list's own `epub_works.warm` takes: never while the warm-up holds it
+            ran.append(got)
+
+    app_module.run_warm([('the first', lambda: ran.append('first')), ('a broken one', lambda: 1 / 0),
+                         ('a list cutting ahead', cut_ahead_from_a_list)], said.append)
+    assert ran == ['first', False]
+    assert said[0] == 'warm-up: the first in 0.0 s'
+    assert said[1].startswith('warm-up: a broken one failed:') and 'ZeroDivisionError' in said[1]
+    assert said[2] == 'warm-up: a list cutting ahead in 0.0 s' and said[3].startswith('warm-up done in ')
+    with epub_works.held() as got:  # free again once the warm-up is done
+        assert got

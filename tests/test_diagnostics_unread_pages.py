@@ -38,6 +38,20 @@ def a_work(tmp_path, read: int = 3, pages: int = 6, blank: tuple[int, ...] = (6,
 
 
 @pytest.mark.readings
+def test_the_warm_up_builds_every_work_s_pages_without_a_reading_ahead_of_its_list(tmp_path, monkeypatch):
+    # line 1, 20 Nov: a work's first page list took 1.3 s in the container once everything shared was warm
+    corpus = a_work(tmp_path)
+    built = []
+    real = unread_pages.unread_rows
+    monkeypatch.setattr(unread_pages, 'unread_rows', lambda work, *args, **kwargs: built.append(work['source_id']) or real(
+        work, *args, **kwargs))
+    corpus.warm_unread()
+    assert built == [KELLY]
+    assert [page.pdf_page for page in corpus.pages('free', KELLY, 'Kelly').pages] == [1, 2, 3, 4, 5, 6]
+    assert built == [KELLY]  # the list's first call finds them built
+
+
+@pytest.mark.readings
 def test_every_pdf_page_stands_one_without_a_reading_served_by_its_text_layer_where_it_has_text(tmp_path):
     answer = a_work(tmp_path).pages('free', KELLY, 'Kelly')
     assert [page.pdf_page for page in answer.pages] == [1, 2, 3, 4, 5, 6]
