@@ -174,7 +174,12 @@ minutes as their notifications report them) and its batches, so a session woken 
 batch the limit cut short gives its unread pages back. On the first night the provider's filter stopped a reading agent on a
 licensed page ("Output blocked by content filtering policy"): the session writes the API's words into the page's folder
 (`blocked.json`), and `direct_reader store` keeps the page as blocked, in the shape of a batch's blocked result, so it is never
-read in the session again and goes the way every blocked page goes (280.a).
+read in the session again and goes the way every blocked page goes (280.a). **What the night reads (the operator's N5.a,
+20 Nov):** after ten blocks on two born-digital works, a work with a text layer gives the night only the pages the free
+rules find structure on (code, a table, a figure, a formula), as the rollout's cascade does; its prose is served word for
+word from its own text, and prose is what the filter blocks. A scan still gives every page. The second reader now also
+takes the pages the filter blocked in the session (N6.a), and the API judge can answer the session judge's requests once
+more, never counted, to set the two side by side (`session_judge api-again`, `compare-api`, N7.a).
 
 **The loop closed once: a reader prompt built from the judge's and the person's findings, measured, 11 November.** page/2
 is page/1's rules unchanged plus eight (table grids with operator columns, T-accounts as tables, a table's printed title,

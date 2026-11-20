@@ -176,3 +176,24 @@ def test_a_page_the_filter_blocked_in_the_session_is_stored_as_blocked_and_never
     record = store.reading('k' * 64)
     assert vision_batches.is_block(record) and record['request_id'] == 'req_1' and record['cost_usd'] == 0.0
     assert direct_reader.touched_by_a_filter({'class_now': 'blocked', 'attempts': []})
+
+
+def test_a_born_digital_work_gives_only_its_structure_pages_and_a_scan_every_page(tmp_path, monkeypatch):
+    # the operator's N5.a (20 Nov): prose is served from a work's own text, and prose is what the filter blocks
+    import pymupdf
+    from types import SimpleNamespace
+
+    document = pymupdf.open()
+    prose = document.new_page()
+    prose.insert_text((50, 80), 'A paragraph of plain prose that runs on for a good while, ' * 2, fontname='helv', fontsize=9)
+    listing = document.new_page()
+    listing.insert_text((50, 80), 'Some prose before the listing that explains what follows below.', fontname='helv', fontsize=9)
+    for number, line in enumerate(('def test_sum():', '    assert sum([1, 2]) == 3', '    return None', 'test_sum()')):
+        listing.insert_text((50, 120 + 14 * number), line, fontname='cour', fontsize=9)
+    document.save(tmp_path / 'book.pdf')
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: True)
+    pages = direct_reader.whole_work(SimpleNamespace(name='licensed'), 'book.pdf', [])
+    assert [page['pdf_page'] for page in pages] == [2] and 'code' in pages[0]['class_note']
+    read = [{'file': 'book.pdf', 'pdf_page': 1, 'attempts': [{'mode': 'session', 'class_now': 'ok'}]}]
+    assert [page['pdf_page'] for page in direct_reader.whole_work(SimpleNamespace(name='licensed'), 'book.pdf', read)] == [1, 2]

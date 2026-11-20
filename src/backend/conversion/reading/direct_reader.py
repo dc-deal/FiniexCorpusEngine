@@ -140,10 +140,15 @@ SCAN_NOTE = ' The page is a scan of print with no text layer: read every word fr
 
 
 def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
-    """Every page of one licensed file that no reader has read, for the direct cell: the operator's experiment of 18 Nov night
-    ("das ganze Buch über Nacht konvertieren, readings, kein Judge"), a scanned book no batch round took. A file the provenance
-    list holds back, or a page with a filter or a refusal in its history, is never added (280.a)."""
+    """The pages of one licensed file that no reader has read, for the direct cell: the operator's experiment of 18 Nov night
+    ("das ganze Buch über Nacht konvertieren, readings, kein Judge"), a scanned book no batch round took. A scan gives every
+    page; a work with a text layer only the pages the free rules find structure on (code, a table, a figure, a formula), as
+    the rollout's cascade does: its prose is served word for word from its text, and prose is what the provider's filter
+    blocks (the operator's N5.a, 20 Nov: ten blocks on two such works in one night). A file the provenance list holds back,
+    or a page with a filter or a refusal in its history, is never added (280.a)."""
     import pymupdf
+
+    from backend.conversion.reading import page_classes
 
     if not reading_cells.may_send(file_name):
         raise SystemExit(f'{file_name} is held back by the provenance list (send: false): never sent to a provider')
@@ -158,11 +163,18 @@ def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
     with pymupdf.open(path) as document:
         scan = not any(document[number].get_text().strip() for number in range(0, document.page_count, 25))
         count = document.page_count
+        classes = {}  # pdf page -> the structure the rules find; a scan's pages need none
+        if not scan:
+            furniture = page_classes.repeated_images(document)
+            classes = {number: page_classes.classify(document[number - 1], furniture) for number in range(1, count + 1)}
     card = WORK_CARD + (SCAN_NOTE if scan else '')
-    return [{'file': file_name, 'pdf_page': number, 'work': work, 'gold': False, 'class_note': '',
+    wanted = [number for number in range(1, count + 1) if number not in read
+              and (scan or number in in_session or classes[number].needs_reader)]
+    return [{'file': file_name, 'pdf_page': number, 'work': work, 'gold': False,
+             'class_note': '' if scan or number not in classes else f"structure the rules found: {', '.join(sorted(classes[number].classes))}",
              'expected_output_tokens': 1900, 'deviation': DIRECT_DEVIATION,
              'why': READ_IN_SESSION if number in in_session else 'unread', 'work_card': card}
-            for number in range(1, count + 1) if number not in read]
+            for number in wanted]
 
 
 READ_IN_SESSION = 'read in the session'  # a page of a work read whole that the session read already: kept, never read again

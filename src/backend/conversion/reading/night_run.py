@@ -77,6 +77,21 @@ def waiting_folders(knowledge_base: str, ledger: dict) -> list[Path]:
     return sorted(path for path in root.glob('*__p*') if path.is_dir() and path.name.startswith(prefixes(ledger)))
 
 
+def listed_pages(knowledge_base: str) -> set[tuple[str, int]]:
+    """The pages the direct cell lists now, by file and PDF page."""
+    cell = reading_cells.known_cells().get(direct_reader.cell_name(knowledge_base))
+    return {(page['file'], page['pdf_page']) for page in reading_cells.pages_for(cell)} if cell else set()
+
+
+def folder_page(path: Path) -> tuple[str, int] | None:
+    """A prepared folder's page, from its entry."""
+    entry = path / 'entry.json'
+    if not entry.exists():
+        return None
+    data = json.loads(entry.read_text(encoding='utf-8'))
+    return data['file'], data['pdf_page']
+
+
 def batch_file(knowledge_base: str, run: str, number: int) -> Path:
     return runs_folder(knowledge_base) / f'{run}_batches' / f'batch_{number:02d}.json'
 
@@ -86,11 +101,17 @@ def batch(args) -> list[str]:
     base, ledger = find_run(args.run)
     folder = batch_file(base, args.run, args.number).parent
     taken = {name for path in folder.glob('batch_*.json') for name in json.loads(path.read_text(encoding='utf-8'))}
-    free = [path.name for path in waiting_folders(base, ledger) if path.name not in taken and not (path / 'reading.md').exists()]
+    listed = listed_pages(base)
+
+    def free_folders() -> list[str]:  # prepared, not read, in no batch, and still in the cell's list (N5.a may have left it)
+        return [path.name for path in waiting_folders(base, ledger) if path.name not in taken and not (path / 'reading.md').exists()
+                and folder_page(path) in listed]
+
+    free = free_folders()
     if len(free) < args.size:
         direct_reader.prepare(SimpleNamespace(knowledge_base=base, limit=args.size - len(free), page=None, work=ledger['works'],
                                               retry_malformed=False))
-        free = [path.name for path in waiting_folders(base, ledger) if path.name not in taken and not (path / 'reading.md').exists()]
+        free = free_folders()
     chosen = free[:args.size]
     folder.mkdir(parents=True, exist_ok=True)
     batch_file(base, args.run, args.number).write_text(json.dumps(chosen, indent=1) + '\n', encoding='utf-8')

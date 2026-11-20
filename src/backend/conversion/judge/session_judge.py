@@ -225,6 +225,59 @@ def compare(args) -> dict:
     return result
 
 
+API_AGAIN = 'judge_api_again_{work}.json'  # in the store's reports: the API judge's second requests on a work, by target
+
+
+def api_again(args) -> dict:
+    """The API judge's own requests on the pages of one work the session judged, asked once more (`again` 1, never counted),
+    sent as a batch through the guarded runner: a cross-check of the session's judge (the operator's N7.a, 20 Nov). The
+    requests are kept in the store's reports, so `compare-api` finds the answers once `vision_batches collect` stored them."""
+    from backend.conversion.contract.page_contract import parse
+    from backend.providers import anthropic_client
+
+    cells = check_run._cells(args)
+    store = check_run.store_of(cells)
+    plan = json.loads(store.path('reports', check_run._plan_name(cells)).read_text(encoding='utf-8'))
+    by_session = {target for target, record in check_run.verdicts_by_target(store).items() if record.get('mode') == MODE}
+    entries = []
+    for entry in plan['entries']:
+        if entry['work'] != args.work or entry['target_key'] not in by_session:
+            continue
+        record = store.reading(entry['target_key'])
+        parsed = parse(store.reading_text(entry['target_key']), record['form'])
+        entries.append(page_judge.entry_for(record, parsed, check_run.JUDGE_MODEL, again=1))
+    store.write_report(API_AGAIN.format(work=args.work),
+                       {'work': args.work, 'pairs': [{'target_key': entry['target_key'], 'api_key': entry['reading_key'],
+                                                      'pdf_page': entry['pdf_page']} for entry in entries]})
+    todo = [entry for entry in entries if store.reading(entry['reading_key']) is None]
+    skipped = Counter({'already answered': len(entries) - len(todo)})
+    vision_batches.send_entries(anthropic_client.client(), todo, skipped, args.cap, dry_run=args.dry_run)
+    return {'requests': len(todo)}
+
+
+def compare_api(args) -> dict:
+    """The API judge's second answers beside the session's counted verdicts on the same readings: ids and counts only."""
+    cells = check_run._cells(args)
+    store = check_run.store_of(cells)
+    pairs = json.loads(store.path('reports', API_AGAIN.format(work=args.work)).read_text(encoding='utf-8'))['pairs']
+    session = check_run.verdicts_by_target(store)
+    pages, counts = [], Counter()
+    for pair in pairs:
+        api, mine = store.reading(pair['api_key']), session.get(pair['target_key'])
+        if api is None or api.get('verdict') is None or mine is None:
+            counts['not answered'] += 1
+            continue
+        theirs = check_run.voided(store, api['verdict'], pair['target_key'])
+        ours = check_run.voided(store, mine['verdict'], pair['target_key'])
+        counts[f"session {ours['outcome']}, api {theirs['outcome']}"] += 1
+        pages.append({'pdf_page': pair['pdf_page'], 'session': ours['outcome'], 'api': theirs['outcome'],
+                      'api_blocks': sorted({finding.get('block') for finding in theirs['findings'] if not finding.get('void')})})
+    result = {'work': args.work, 'counts': dict(counts), 'by_page': sorted(pages, key=lambda page: page['pdf_page'])}
+    path = store.write_report(f'judge_compare_api_{args.work}.json', result)
+    print(f'{args.work}: {dict(counts)}; {path.name}')
+    return result
+
+
 def filtered_pages(knowledge_base: str) -> set[tuple[str, int]]:
     """The pages a provider's filter blocked or a reader refused in any attempt, from the export: the session never sees them,
     to judge no more than to read (280.a: never the same model by another door), whoever's reading stands there now."""
@@ -358,6 +411,14 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument('--work', required=True, help="the work's key, its file's stem")
         if name == 'again':
             command.add_argument('--issues-only', action='store_true', help='only the pages the API judge sent to an issue')
+    asked = commands.add_parser('api-again', help="the API judge's requests on a work the session judged, once more (N7.a)")
+    asked.add_argument('--cells', required=True)
+    asked.add_argument('--work', required=True)
+    asked.add_argument('--cap', type=float, required=True, help='the spend guard, as for every batch')
+    asked.add_argument('--dry-run', action='store_true')
+    compared = commands.add_parser('compare-api', help="the API judge's second answers beside the session's verdicts")
+    compared.add_argument('--cells', required=True)
+    compared.add_argument('--work', required=True)
     return parser
 
 
@@ -365,7 +426,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding='utf-8')
     args = build_parser().parse_args(argv)
     {'prepare': prepare, 'calibrate': calibrate, 'store': store, 'score': score, 'gate': gate, 'again': again,
-     'compare': compare}[args.command](args)
+     'compare': compare, 'api-again': api_again, 'compare-api': compare_api}[args.command](args)
     return 0
 
 

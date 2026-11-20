@@ -73,8 +73,11 @@ def pages(args) -> dict:
 
     base = reading_export.BASES[args.knowledge_base]
     rows = json.loads((base.export / 'index.json').read_text(encoding='utf-8'))['pages']
+    # the default cells' pages, and the session's: a page the filter blocked while the session read it (a work read whole at
+    # night) is in no default cell (found 20 Nov: such a page raised a KeyError here)
+    direct = tuple(name for name in reading_export.cells_beside(base) if '-DIRECT-' in name)
     listed = {(page['file'], page['pdf_page']): page
-              for name in base.cells() for page in reading_cells.pages_for(reading_cells.known_cells()[name])}
+              for name in base.cells() + direct for page in reading_cells.pages_for(reading_cells.known_cells()[name])}
     stopped: dict[str, set[str]] = defaultdict(set)
     for cell, work in reading_export.stopped_works(open_store(args.knowledge_base),
                                                    base.cells() + reading_export.cells_beside(base)):
