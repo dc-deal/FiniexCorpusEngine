@@ -288,7 +288,7 @@ test('a work lists its pages and narrows them by state', async ({ page, request 
   await page.screenshot({ path: `${SHOTS}/work_pages.png` })
 })
 
-test('a work lists every PDF page, one no reader has read quiet and without a link, the API\'s line above (V1.b)', async ({ page, request }) => {
+test('a work lists every PDF page, one no reader has read quiet and opening its own view, the API\'s line above (V1.b, V2.a)', async ({ page, request }) => {
   type Row = { pdf_page: number, check: { state: string }, read: boolean }
   const real = await (await request.get(`/api/free/works/${KELLY}/pages`)).json() as
     { pages: Row[], coverage: { said: string, pdf_pages: number } }
@@ -333,8 +333,8 @@ test('a work lists every PDF page, one no reader has read quiet and without a li
     await asTable(page)
     await expect(page.locator('[data-said="read"], [data-part="coverage"]').first()).toHaveText(said)
     await expect(page.locator('tr[data-page]')).toHaveCount(15)
-    // a page without a reading has nothing to open, and its state is its own, in no status colour
-    await expect(page.locator('tr[data-page="14"] a')).toHaveCount(0)
+    // a page without a reading opens its own view (V2.a), and its state is its own, in no status colour
+    await expect(page.locator('tr[data-page="14"] a')).toHaveCount(1)
     await expect(page.locator('tr[data-page="12"] a')).toHaveCount(1)
     const mark = page.locator('tr[data-page="14"] .state-mark')
     await expect(mark).toHaveAttribute('data-state', 'not_read')
@@ -409,6 +409,47 @@ test('every work says how far it is refined: five meters in Sources, its levels 
   await expect(page).toHaveURL(/#\/pages\?state=ok&state=decided_by_a_person&state=decided_by_an_automated_review$/)
   await settled(page)
   await expect(page.locator('.facet-count-label')).toHaveText(new RegExp(`^${checked.count!.toLocaleString('en')} of `))
+})
+
+test('every page opens, read or not: its own ladder, the text served and, unread, the PDF\'s own image (V2.a)', async ({ page, request }) => {
+  type Rung = { level: string, reached: boolean | null, said: string }
+  type Detail = { read: boolean, ladder: { rungs: Rung[] } | null, image: object, [field: string]: unknown }
+  const real = await (await request.get(`/api/free/works/${KELLY}/pages/5`)).json() as Detail
+  expect(real.ladder!.rungs.map(rung => rung.level)).toEqual(['text layer', 'text served', 'keyword search', 'semantic chunks',
+    'reading and check'])
+  await page.goto(`/#/free/sources/${KELLY}/page/5`)
+  await settled(page)
+  // a read page: its own ladder in its record, beside everything a reading has
+  const coverage = page.locator('[data-part="page-coverage"]')
+  await expect(coverage.locator('.rung-level')).toHaveCount(5)
+  await expect(coverage.locator('[data-said="text layer"]')).toHaveText(real.ladder!.rungs[0]!.said)
+  await coverage.locator('[data-part="served-text"] summary').click()
+  await expect(coverage.locator('[data-part="served-text"] .served-body, [data-part="served-text"] .served-none')).toBeVisible()
+  // a page no reader has read, as the API gives one (no free page lacks a reading today): its record and the PDF's own image
+  const own = await request.get(`/api/free/works/${KELLY}/pages/5/image.png`)
+  expect(own.status()).toBe(200)
+  await page.route(`**/api/free/works/${KELLY}/pages/5`, route => route.fulfill({ json: {
+    ...real, read: false, trace: null, reading: null, raw: null, attempts: null, integrity: 'no reading', said: "Not read: served from the PDF's text layer.",
+    route_why: "served from the PDF's text layer", check: { state: 'not_read', reasons: [], judged: false, why_judged: 'not read', verdict: null },
+    image: { ...real.image, kind: 'rendered', same_as_read: null, said: 'a render at 150 dpi: the page holds no image of its own' },
+    ladder: { ...real.ladder!, rungs: real.ladder!.rungs.map(rung => (rung.level === 'reading and check' ? { ...rung, reached: false, said: 'no reading' } : rung)) },
+  } }))
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.reload()
+    await settled(page)
+    const unread = page.locator('[data-part="unread-page"]')
+    await expect(unread.locator('.state-mark')).toHaveAttribute('data-state', 'not_read')
+    await expect(unread.locator('[data-said="reading and check"]')).toHaveText('no reading')
+    await expect(page.locator('.side-by-side')).toHaveCount(0)
+    // the image arrived and was drawn, not a broken frame
+    const image = unread.locator('.own-image img')
+    await expect(image).toBeVisible()
+    expect(await image.evaluate(element => (element as HTMLImageElement).naturalWidth), 'the own image drew nothing').toBeGreaterThan(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+      `an unread page scrolls sideways at ${width} px`).toBe(true)
+    await page.screenshot({ path: `${SHOTS}/page_unread_${width}.png`, fullPage: width === 390 })
+  }
 })
 
 test('a work folds its routes to one line of levels, opens them to a row each, and a route chosen keeps its pages', async ({ page, request }) => {
@@ -1818,7 +1859,8 @@ test('a page says its record in aligned labelled lines, each thing once, a perso
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
   const facts = page.locator('[data-part="page-facts"]')
-  await expect(facts.locator('.line-label')).toHaveText(['A person:', 'Check:', 'Category:', 'Route:', 'Reading:', 'Findings:'])
+  // the page's own ladder closes the record (V2.a)
+  await expect(facts.locator('.line-label')).toHaveText(['A person:', 'Check:', 'Category:', 'Route:', 'Reading:', 'Findings:', 'Coverage:'])
   expect(await facts.locator('.line-label').first().evaluate(element => Number(getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700)
   await expect(facts.locator('[data-label="Check"] .state-mark')).toHaveClass(/quiet/)
   const findings = facts.locator('[data-label="Findings"]')

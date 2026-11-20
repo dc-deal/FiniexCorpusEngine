@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from backend.configuration import data_paths
 from backend.diagnostics import sources as catalog
+from backend.diagnostics.ladder_types import PageLadder
 from backend.diagnostics.readings import KnowledgeBase
 from backend.ingestion import chunking
 from backend.ingestion.clean_sections import html_stripped
@@ -145,6 +146,8 @@ class HtmlSection(BaseModel):
     original: str | None = None
     original_why_not: str | None = None
     dropped: bool = False  # a heading dropped as noise: an original, no chunks
+    # the section's own coverage ladder (V2.a), which the app sets from the search; None where it has not
+    ladder: PageLadder | None = None
     splitter: Splitter = Splitter(**chunking.splitting_config())
 
 

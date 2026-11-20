@@ -30,7 +30,7 @@ from backend.conversion.contract import page_contract
 from backend.conversion.reading import page_render
 from backend.conversion.store import reading_export, reading_store, served_readings
 from backend.diagnostics import unread_pages
-from backend.diagnostics.ladder_types import KnowledgeBase, Ladder
+from backend.diagnostics.ladder_types import KnowledgeBase, Ladder, PageLadder
 from backend.diagnostics.unread_pages import Coverage
 
 FREE_EXPORT = data_paths.FREE_READINGS
@@ -559,8 +559,14 @@ class PageImage(BaseModel):
     why_not: str | None
     width: int | None
     height: int | None
-    # The rendered image's sha256 equals the one the reader received; None when nothing could be rendered.
+    # The rendered image's sha256 equals the one the reader received; None when nothing could be rendered, or for a page no
+    # reader has read, whose image is the PDF's own (V2.a)
     same_as_read: bool | None
+    # what the image is (V2.a): 'reading' for the image the reader received, rendered again; for a page without a reading
+    # the librarian's own, 'native' (a scan's own pixels, never upscaled) or 'rendered' (at 150 dpi), said in `said`
+    kind: str = 'reading'
+    format: str = 'png'  # what the image route sends: 'png', or 'jpeg' for a scan stored so
+    said: str | None = None
 
 
 class PageDetail(BaseModel):
@@ -603,7 +609,7 @@ class PageDetail(BaseModel):
     reset: PageReset | None = None
     # the state the lists count it by (`listed_state`, 211.a): its check's, or `DECIDED` where a person settled it
     listed_state: str | None = None
-    trace: Trace
+    trace: Trace | None  # None for a page no reader has read (V2.a)
     check: Check
     # The judge's findings that name no block of the reading: about the page as a whole, or about a block it does not have.
     page_findings: list[Finding]
@@ -618,6 +624,10 @@ class PageDetail(BaseModel):
     attempts: list[Attempt] | None
     chosen: Chosen | None
     human: list[PersonVerdict] = []  # a person's verdicts on this page and its blocks (146.a)
+    # False for a page no reader has read (V2.a): it shows its image, its ladder and the text served, and nothing of a reading
+    read: bool = True
+    # the page's own coverage ladder (V2.a), which the app sets from the search, the vector index and the shelf
+    ladder: PageLadder | None = None
 
 
 class QuotedText(BaseModel):
@@ -1300,6 +1310,15 @@ def _render(pdf: Path, pdf_page: int, resolution: str, modified: int) -> page_re
         return page_render.render(document[pdf_page - 1], resolution)
 
 
+@lru_cache(maxsize=8)
+def _own_image(pdf: str, pdf_page: int, modified: int):
+    """A page's own image as the librarian gives it (`page_images.page_image`), kept for the page's detail and its image
+    route, which ask for it one after the other: a scan's page took 0.6 s to draw, and was drawn twice."""
+    from backend.search import page_images
+
+    return page_images.page_image(Path(pdf), pdf_page)
+
+
 def licensed_readings() -> 'Readings | None':
     """The licensed knowledge base's export (decision 80.a), git-ignored and on this machine only, so a clone has none.
     This is the one place that reads it, and the one that hands it the licensed catalog (N1.a), and the legacy pages and plans
@@ -1307,7 +1326,15 @@ def licensed_readings() -> 'Readings | None':
     if not (LICENSED_EXPORT / 'index.json').exists():
         return None
     return Readings(LICENSED_EXPORT, catalog=data_paths.LICENSED_CATALOG, legacy=unread_pages.legacy_pages,
-                    planned=unread_pages.planned_pages, not_served=unread_pages.not_served_files)
+                    planned=unread_pages.planned_pages, not_served=unread_pages.not_served_files, shelf=lambda: shelf_of('licensed'))
+
+
+def shelf_of(knowledge_base: str) -> dict | None:
+    """A knowledge base's shelf as the core last built it (`shelf.load`), handed to its store by the app's own bases alone, so
+    an export a test invents never sees the shelf of this machine's collection."""
+    from backend.search import shelf
+
+    return shelf.load(knowledge_base)
 
 
 class Series(BaseModel):
@@ -1359,7 +1386,7 @@ def catalog_entries(path: Path) -> list[CatalogEntry]:
 def knowledge_bases(public_only: bool = False) -> dict[str, 'Readings']:
     """The knowledge bases the views give out, by name. With `public_only` the licensed one is never read, so no licensed
     title, page or count can appear: a recorded review is safe by construction, not by care (decision 81.a)."""
-    bases = {'free': Readings()}
+    bases = {'free': Readings(shelf=lambda: shelf_of('free'))}
     if not public_only:
         licensed = licensed_readings()
         if licensed is not None:
@@ -1442,7 +1469,7 @@ class Readings:
 
     def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None, catalog: Path | None = None,
                  legacy: Callable[[], dict[str, set[int]]] | None = None, planned: Callable[[], set[tuple[str, int]]] | None = None,
-                 not_served: Callable[[], dict[str, str]] | None = None):
+                 not_served: Callable[[], dict[str, str]] | None = None, shelf: Callable[[], dict | None] | None = None):
         self.export = export
         self.root = root  # what a work's `pdf` path is relative to; None: the repository's layout, the data in _data/
         self.index = export / 'index.json'
@@ -1462,6 +1489,9 @@ class Readings:
         self.planned = planned
         # and the files the librarian serves not at all, by source id, with the shelf's why (U1.a); None: every file is served
         self.not_served = not_served
+        # the base's shelf, which the coverage ladders come from (U1.a); handed in by the app's bases alone, None for an
+        # export a test invents
+        self.shelf = shelf
         # each work's pages without a reading and its coverage (V1.b), by the state they were built from
         self._unread_pages: dict[str, tuple[tuple, tuple[list[dict], Coverage] | None]] = {}  # source id -> (state, built)
 
@@ -1533,6 +1563,10 @@ class Readings:
     def summary(self, source_id: str) -> WorkReadings | None:
         return readings_of(self.rows_of(source_id))
 
+    def shelf_data(self) -> dict | None:
+        """The base's shelf, as the core last built it; None where none is handed in or built here."""
+        return self.shelf() if self.shelf else None
+
     def pdf_of(self, work: dict) -> Path:
         """A work's PDF as its export names it: a free one in _data/, a licensed one in _sources/; under a test's own root
         there."""
@@ -1598,8 +1632,7 @@ class Readings:
     def image(self, source_id: str, pdf_page: int) -> tuple[PageImage, bytes | None]:
         row = self.row(source_id, pdf_page)
         if row is None:
-            return PageImage(available=False, why_not='no reading of this page', width=None, height=None,
-                             same_as_read=None), None
+            return self.own_image(source_id, pdf_page)
         work = self.work(source_id)
         if work is None:
             return PageImage(available=False, why_not='the export names no PDF for this work', width=None, height=None,
@@ -1618,6 +1651,50 @@ class Readings:
         same = hashlib.sha256(image.png).hexdigest() == row['image_sha256'] or same_pixels(row, image.png)
         return PageImage(available=True, why_not=None, width=image.width, height=image.height, same_as_read=same), image.png
 
+    def own_image(self, source_id: str, pdf_page: int) -> tuple[PageImage, bytes | None]:
+        """The image of a page no reader has read (V2.a): the PDF's own, as the librarian's `page_image` gives it, a scan's own
+        pixels never upscaled and any other page rendered at 150 dpi. A file the provenance list holds back is shown too, on
+        this machine only; nothing here reaches a model."""
+        from backend.search import page_images
+
+        work = self.work(source_id) or self.entry_work(source_id)
+        pdf = self.pdf_of(work) if work and work.get('pdf') else None
+        if pdf is None or not pdf.exists():
+            return PageImage(available=False, why_not='no reading of this page, and its PDF is not on this machine', width=None,
+                             height=None, same_as_read=None), None
+        try:
+            image = _own_image(str(pdf), pdf_page, pdf.stat().st_mtime_ns)
+        except page_images.NoSuchPage as missing:
+            return PageImage(available=False, why_not=str(missing), width=None, height=None, same_as_read=None), None
+        return PageImage(available=True, why_not=None, width=image.width, height=image.height, same_as_read=None, kind=image.kind,
+                         format=image.format, said=image.describe()['what']), image.data
+
+    def any_row(self, source_id: str, pdf_page: int) -> dict | None:
+        """A page's export row, or the row of a page no reader has read (V2.a); None for a page its PDF does not have."""
+        row = self.row(source_id, pdf_page)
+        if row is not None:
+            return row
+        unread = self.unread_of(self.work(source_id) or self.entry_work(source_id), self.rows_of(source_id))
+        return next((one for one in unread[0] if one['pdf_page'] == pdf_page), None) if unread else None
+
+    def unread_page(self, source_id: str, pdf_page: int, title: str) -> PageDetail | None:
+        """The view of a page no reader has read (V2.a: every page reachable, the work, then the page, then the image): its
+        image, what serves it and why, its state; nothing of a reading, which it has not. None for a page its PDF lacks."""
+        work = self.work(source_id) or self.entry_work(source_id)
+        unread = self.unread_of(work, self.rows_of(source_id))
+        row = next((one for one in unread[0] if one['pdf_page'] == pdf_page), None) if unread else None
+        if row is None:
+            return None
+        count = unread[1].pdf_pages
+        source, _, _ = route_parts(row['route'])
+        return PageDetail(knowledge_base=work['knowledge_base'], source_id=source_id, title=title, pdf_page=pdf_page,
+                          printed_label=None, previous_page=pdf_page - 1 if pdf_page > 1 else None,
+                          next_page=pdf_page + 1 if pdf_page < count else None, route=row['route'],
+                          from_fallback=row['route'] in NOT_SERVED_ROUTES, said=f"Not read: {row['unread']['said']}.",
+                          route_level=row['route_level'], route_source=source, route_why=row['unread']['said'],
+                          listed_state=listed_state(row), trace=None, check=check_of(row), page_findings=[], reading=None, raw=None,
+                          integrity='no reading', image=self.image(source_id, pdf_page)[0], attempts=None, chosen=None, read=False)
+
     def quoted(self, source_id: str, pdf_page: int) -> QuotedText | None:
         row = self.row(source_id, pdf_page)
         if row is None:
@@ -1629,7 +1706,11 @@ class Readings:
         rows = self.rows_of(source_id)
         position = next((at for at, row in enumerate(rows) if row['pdf_page'] == pdf_page), None)
         if position is None:
-            return None
+            return self.unread_page(source_id, pdf_page, title)
+        # every page of the PDF is a neighbour where it is on this machine (V2.a), a page without a reading too; else the
+        # read pages alone, as before
+        unread = self.unread_of(self.work(source_id), rows)
+        count = unread[1].pdf_pages if unread else None
         row = rows[position]
         check = check_of(row, stages=True)
         findings = check.verdict.findings if check.verdict else []
@@ -1676,8 +1757,8 @@ class Readings:
             chosen=Chosen(why=chosen['why'], run_id=str(chosen['run_id']), chosen_at=chosen['chosen_at']) if chosen else None,
             knowledge_base=row['knowledge_base'], source_id=source_id, title=title, pdf_page=pdf_page,
             printed_label=row.get('printed_label'),
-            previous_page=rows[position - 1]['pdf_page'] if position > 0 else None,
-            next_page=rows[position + 1]['pdf_page'] if position + 1 < len(rows) else None,
+            previous_page=(pdf_page - 1 if pdf_page > 1 else None) if count else rows[position - 1]['pdf_page'] if position > 0 else None,
+            next_page=(pdf_page + 1 if pdf_page < count else None) if count else rows[position + 1]['pdf_page'] if position + 1 < len(rows) else None,
             route=row['route'], from_fallback=row['route'] in NOT_SERVED_ROUTES, check=check, reading=reading, raw=raw,
             integrity=state, image=self.image(source_id, pdf_page)[0],
             page_findings=[finding for finding in findings if finding.block not in placed], human=people,

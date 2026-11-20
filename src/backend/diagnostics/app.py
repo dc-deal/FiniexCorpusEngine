@@ -24,8 +24,7 @@ from pydantic import BaseModel
 
 from backend.chat import app_config
 from backend.diagnostics import (calls, chat, coverage_ladder, epub_works, error_classes, html_works, overview, page_integrity,
-                                 prompts, readings, runs, search_hits, shelf_rows, sources, verdicts)
-from backend.search import shelf
+                                 page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, verdicts)
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
@@ -154,7 +153,14 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                            for path_name, (key, path) in epubs.items()
                            if not any(entry.file == path_name for entry in unread)]
         # how far each is refined (U1.a): its shelf row's levels and its read pages' states
-        shelves = {name: shelf.load(name) for name in bases}
+        shelves = {name: store.shelf_data() for name, store in bases.items()}
+        # every work the corpus serves stands here (line 1, 20 Nov, the operator's "alles inhaltlich drin"): a work the shelf
+        # serves from the IDE's Markdown alone, its source file not held here, under the shelf's id and title, with no view
+        listed += [sources.Work(knowledge_base=name, id=row['source_id'], title=row.get('title') or row['source_id'],
+                                format=coverage_ladder.LEGACY_ONLY, structure_why_not=coverage_ladder.NOT_HELD)
+                   for name in bases for row in (shelves[name] or {}).get('works') or []
+                   if row.get('format') == coverage_ladder.LEGACY_ONLY and row.get('source_id')
+                   and not any(work.knowledge_base == name and work.id in (row['source_id'], row.get('work')) for work in listed)]
         return [work.model_copy(update={'ladder': coverage_ladder.work_ladder(
             coverage_ladder.row_for(shelves[work.knowledge_base], work.id, work.epub_key),
             work.readings.states if work.readings else None, (shelves[work.knowledge_base] or {}).get('built_at'))})
@@ -223,6 +229,13 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         if found is None:
             raise HTTPException(404, html_works.NOT_BUILT if not html_works.DATABASE.is_file()
                                 else f'no section {label!r} of {source_id!r} in the search index')
+        # each section's own ladder (V2.a): the search names a free HTML work by its catalog id, a section by its label; a
+        # heading dropped as noise has no text served, and none; set on a copy, so no cached article keeps an old ladder
+        found = found.model_copy(deep=True)
+        for entry in found.entries:
+            if entry.section is not None and entry.label and not entry.section.dropped:
+                entry.section.ladder = page_ladder.section_ladder(knowledge_base, entry.label, len(entry.section.chunks), source_id,
+                                                                  search.ready())
         return found
 
     def epub_entry(knowledge_base: str, source_id: str) -> tuple[str, str | None]:
@@ -256,7 +269,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         found = epub_works.section(source_id, label, epub_of(knowledge_base, source_id))
         if found is None:
             raise HTTPException(404, f'no section {label!r} of {source_id!r}')
-        return found
+        # its own ladder (V2.a): the librarian serves a licensed EPUB under the key this route takes, by section label
+        return found.model_copy(update={'ladder': page_ladder.section_ladder(knowledge_base, label, None, source_id, search.ready())})
 
     @app.get('/api/{knowledge_base}/epub/{source_id}/image', response_class=Response,
              responses={200: {'content': {'image/png': {}, 'image/jpeg': {}, 'image/gif': {}}}})
@@ -273,17 +287,24 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
     @app.get('/api/{knowledge_base}/works/{source_id}/pages')
     def list_pages(knowledge_base: readings.KnowledgeBase, source_id: str) -> readings.WorkPages:
         answer = store_of(knowledge_base).pages(knowledge_base, source_id, title_of(knowledge_base, source_id))
-        built = shelf.load(knowledge_base)  # how far the work is refined (U1.a), its read pages' states counted with it
+        built = store_of(knowledge_base).shelf_data()  # how far the work is refined (U1.a), its read pages' states with it
         ladder = coverage_ladder.work_ladder(coverage_ladder.row_for(built, source_id),
                                              answer.summary.states if answer.summary else None, (built or {}).get('built_at'))
         return answer.model_copy(update={'ladder': coverage_ladder.with_coverage(ladder, answer.coverage)})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}')
     def page_detail(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> readings.PageDetail:
-        page = store_of(knowledge_base).page(source_id, pdf_page, title_of(knowledge_base, source_id))
+        store = store_of(knowledge_base)
+        page = store.page(source_id, pdf_page, title_of(knowledge_base, source_id))
         if page is None:
-            raise HTTPException(404, f'no reading of PDF page {pdf_page} of {source_id!r}')
-        return page
+            raise HTTPException(404, f'no PDF page {pdf_page} of {source_id!r} here')
+        # its own ladder (V2.a): the search's page of it, never waited for, the vector index's chunks, the shelf's hold
+        key, held = page_ladder.held_of(store, source_id)
+        work = store.work(source_id) or store.entry_work(source_id)
+        ladder = page_ladder.page_ladder(knowledge_base, source_id, pdf_page, store.any_row(source_id, pdf_page),
+                                         store.pdf_of(work) if work and work.get('pdf') else None,
+                                         key or (work or {}).get('work'), search.ready(), held)
+        return page.model_copy(update={'ladder': ladder})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/recall')
     def page_recall(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int, judgement: str) -> readings.Recalled:
@@ -295,12 +316,12 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         return recalled
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/image.png', response_class=Response,
-             responses={200: {'content': {'image/png': {}}}})
+             responses={200: {'content': {'image/png': {}, 'image/jpeg': {}}}})
     def page_image(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> Response:
-        image, png = store_of(knowledge_base).image(source_id, pdf_page)
-        if png is None:
+        image, data = store_of(knowledge_base).image(source_id, pdf_page)
+        if data is None:
             raise HTTPException(404, image.why_not)
-        return Response(png, media_type='image/png')
+        return Response(data, media_type=f'image/{image.format}')  # a scan's own JPEG as stored (V2.a), else PNG
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/quoted')
     def page_quoted(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> readings.QuotedText:

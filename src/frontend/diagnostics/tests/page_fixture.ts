@@ -1,4 +1,5 @@
 import type { Check, IssueList, OutlineUnit, PageDetail, PageRow, ReadingBlock, WorkPages } from '@/types/api/page_types'
+import type { PageLadder } from '@/types/api/ladder_types'
 
 /** Pages as the API serves them, from a free paper, so they may stand in a tracked file. */
 export const KELLY = 'carta_conversano_kelly_criterion_2020'
@@ -107,6 +108,23 @@ export function aBlock(overrides: Partial<ReadingBlock> = {}): ReadingBlock {
   }
 }
 
+/** A page's own ladder as the API serves it (V2.a): a page served from its text layer, not read yet, planned. */
+export function aPageLadder(overrides: Partial<PageLadder> = {}): PageLadder {
+  return {
+    rungs: [
+      { level: 'text layer', reached: true, said: '4,074 characters' },
+      { level: 'text served', reached: true, said: "served from the PDF's text layer" },
+      { level: 'keyword search', reached: true, said: 'in search (BM25)' },
+      { level: 'semantic chunks', reached: null, said: 'not in the vector index on this machine' },
+      { level: 'reading and check', reached: false, said: 'no reading; planned' },
+    ],
+    served_text: 'The Kelly criterion sizes a bet.',
+    served_why_not: null,
+    held: null,
+    ...overrides,
+  }
+}
+
 export function aPageDetail(overrides: Partial<PageDetail> = {}): PageDetail {
   return {
     knowledge_base: 'free',
@@ -141,7 +159,8 @@ export function aPageDetail(overrides: Partial<PageDetail> = {}): PageDetail {
     reading: { front: { printed_label: '4' }, blocks: [aBlock()], errors: [], warnings: [], error_places: [] },
     raw: '::: {#b01 .paragraph}\nThe growth rate of the bankroll.\n:::\n',
     integrity: 'whole',
-    image: { available: true, why_not: null, width: 1680, height: 2200, same_as_read: true },
+    image: { available: true, why_not: null, width: 1680, height: 2200, same_as_read: true, kind: 'reading', format: 'png' },
+    read: true,
     attempts: null,
     chosen: null,
     human: [],

@@ -49,3 +49,23 @@ class Ladder(BaseModel):
     planned: int | None = None
     passed: int | None = None  # of the read pages, those whose reading passed, as the shelf counts them
     built_at: str | None = None  # when the core built the shelf levels 1 to 4 come from
+
+
+PageLevel = Literal['text layer', 'text served', 'keyword search', 'semantic chunks', 'reading and check']
+
+
+class PageRung(BaseModel):
+    """One level of a page's or a section's own ladder (V2.a): whether the page reaches it, said in a line."""
+
+    level: PageLevel
+    reached: bool | None  # None where it is not known here, which `said` says
+    said: str
+
+
+class PageLadder(BaseModel):
+    """A page's or a section's own ladder (the operator's V2.a, 20 Nov), and the text the librarian serves for it."""
+
+    rungs: list[PageRung]
+    served_text: str | None = None  # the librarian's own text of the page, from the search's pages; None where none is shown
+    served_why_not: str | None = None  # why no served text is shown: nothing is served, or the search is not built yet
+    held: str | None = None  # why the file is never sent to a provider; shown here all the same, on this machine only

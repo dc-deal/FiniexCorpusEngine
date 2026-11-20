@@ -83,6 +83,8 @@ def test_the_headline_sums_both_bases_and_keeps_each_part_as_its_detail(tmp_path
     rows = kelly_rows()[:3]
     free = a_corpus(tmp_path / 'free', rows)
     licensed = a_corpus(tmp_path / 'licensed', [{**row, 'knowledge_base': 'licensed'} for row in rows], knowledge_base='licensed')
+    # each handed its base's shelf, the fixture's invented one, as the app's own bases are (U1.a)
+    free.shelf, licensed.shelf = (lambda: shelf.load('free')), (lambda: shelf.load('licensed'))
     headline = overview.overview({'free': free, 'licensed': licensed}, False).headline
     assert headline.bases == ['free', 'licensed'] and headline.left_out == []
     assert headline.planned.total == 1822 + 400 and headline.planned.by_base == {'free': 1822, 'licensed': 400}

@@ -31,6 +31,9 @@ CHECKED = ('ok', DECIDED, DECIDED_BY_REVIEW)
 NOT_VECTORISED = 'not vectorised yet (#8)'
 NOT_IN_INDEX = 'not in the vector index on this machine'
 BY_HEADING = 'not read page by page: cut by its headings'
+LEGACY_ONLY = 'legacy markdown'  # a work the shelf serves from the IDE's Markdown alone, its source file not held here
+NOT_HELD = "served from the IDE's Markdown; the source file is not held here"  # line 1, 20 Nov
+CHECKED_SAID = 'checked by the judge or a review'  # what level 5 counts, in its line (line 1, 20 Nov)
 NO_SHELF = 'no shelf built on this machine: `python -m backend.search.shelf` builds it'
 
 
@@ -70,7 +73,8 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
         return None
     served = row.get('served') or {}
     pdf = row.get('format') == 'pdf'
-    unit = 'PDF pages' if pdf else 'sections'
+    legacy_only = row.get('format') == LEGACY_ONLY
+    unit = 'PDF pages' if pdf else 'Markdown pages' if legacy_only else 'sections'
     whole = row.get('pages') if pdf and row.get('pages') is not None else served.get('pages', 0)
     read_states = [LadderState(value=count.value, count=count.count, served=count.served) for count in states or []
                    if count.value != 'not_read']
@@ -83,9 +87,10 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
         rungs.append(Rung(level='read', count=read, of=whole,
                           said=f'{figure(read, whole, unit)}, {passed:,} passed' if read else f'none of {whole:,} {unit} read yet'))
         checked = checked_of(read_states)
-        rungs.append(Rung(level='checked', count=checked, of=whole, said=figure(checked, whole, unit)))
+        rungs.append(Rung(level='checked', count=checked, of=whole, said=f'{figure(checked, whole, unit)} {CHECKED_SAID}'))
     else:
-        rungs += [Rung(level='read', count=None, of=whole, said=BY_HEADING), Rung(level='checked', count=None, of=whole, said=BY_HEADING)]
+        why = NOT_HELD if legacy_only else BY_HEADING
+        rungs += [Rung(level='read', count=None, of=whole, said=why), Rung(level='checked', count=None, of=whole, said=why)]
     return with_means(Ladder(unit=unit, whole=whole, rungs=rungs, by_route=served.get('by_route') or {}, held=row.get('held'),
                              not_served=row.get('not_served'), unplaced=row.get('unplaced') or {}, states=read_states,
                              planned=row.get('planned'), passed=row.get('passed') if pdf else None, built_at=built_at))
@@ -115,7 +120,8 @@ def corpus_ladder(shelves: dict[KnowledgeBase, dict], checked: dict[KnowledgeBas
     def rung(level: Level, parts: dict[KnowledgeBase, int], pages_filter: dict[str, list[str]] | None = None,
              of: int = whole, of_unit: str = unit) -> Rung:
         total = sum(parts.values())
-        return Rung(level=level, count=total, of=of, said=figure(total, of, of_unit), by_base=parts, pages_filter=pages_filter)
+        said = figure(total, of, of_unit) + (f' {CHECKED_SAID}' if level == 'checked' else '')
+        return Rung(level=level, count=total, of=of, said=said, by_base=parts, pages_filter=pages_filter)
 
     vectorised = {name: found for name, found in rows.items() if any(row.get('semantic') is not None for row in found)}
     covered = {name: sum((row['semantic']['pages'] if row.get('format') == 'pdf' else whole_of(row) if row['semantic']['chunks'] else 0)

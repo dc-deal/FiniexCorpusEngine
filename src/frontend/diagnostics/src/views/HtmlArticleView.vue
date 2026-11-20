@@ -10,6 +10,7 @@ import LoadingLine from '@/components/base/LoadingLine.vue'
 import HtmlSectionBody from '@/components/HtmlSectionBody.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
+import PageLadderLines from '@/components/PageLadderLines.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
 import { useHtmlStore } from '@/stores/html_store'
 import { useViewName } from '@/view_name'
@@ -138,6 +139,8 @@ useViewName(() => (shown.value ? `${shown.value.title} ${props.section}` : null)
         </p>
         <!-- a heading with no text of its own has no original: its title stands as the heading it is -->
         <h2 v-else class="entry-heading">{{ entry.title }}</h2>
+        <!-- the chosen section's own ladder (V2.a): born digital, its text served, keyword search, its chunks -->
+        <PageLadderLines v-if="entry.section?.ladder && entry.label === section" class="section-ladder" :ladder="entry.section.ladder" />
         <HtmlSectionBody v-if="entry.section" :section="entry.section" />
       </article>
     </AnalysisSection>

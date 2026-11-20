@@ -1750,3 +1750,21 @@ others stand as figures, and they two are drawn against the PDF pages alone, as 
 level counts is a hint on demand, in the API's words. **Measured:** the works list 1.9 s cold with both bases natively; a
 work's page list and the overview as before. 389 unit tests, 81 checks in the browser (3 skipped on today's
 data), 1,488 Python tests.
+
+**Every page reachable, each with its own ladder (the operator's V2.a, 20 Nov).** "Whatever refinement the material is at, it
+should be reachable by link: the work, then the page, then the image." Every PDF page now has a page view, read or not. A page
+no reader has read shows its state, what serves it and why, its own ladder, the text served and the PDF's own image, the one
+the librarian's `page_image` gives (a scan's own pixels never upscaled, any other page rendered at 150 dpi), and nothing of a
+reading, which it has not; its row in the page list opens it, and previous and next step through every page of the PDF. A
+page's own ladder, beside a read page's record too: text layer (its characters, or none: a scan), text served (its reading,
+the IDE's Markdown, the text layer or nothing, and why), keyword search (in search (BM25), or not and why: no text, too short,
+mostly figures, a table), semantic chunks (its chunks, or "not vectorised yet (#8)"), reading and check. The text served is
+the search's own page, folded until asked for; the page view never waits for the search to be built, and says so while it
+is. HTML and EPUB sections climb the same ladder, born digital: no text layer to extract and no reading needed. A file the
+provenance list holds back is shown on this machine like any other, image included, and says so; the librarian goes on
+refusing its images to any model. **With it, after U1.a:** the legacy-only works the shelf lists stand in Sources, served
+from the IDE's Markdown with no source file held here; the overview's read and served tiles are gone, as the ladder shows
+both; level 5 says what it counts, "checked by the judge or a review"; each base's shelf is handed to its store by the app
+alone, so an export a test invents never sees this machine's shelf. **Measured natively:** a free page's view 0.4 s, a held
+scan's unread page 0.8 s warm with its image drawn once for the view and its image route both. 391 unit tests, 82
+checks in the browser (3 skipped on today's data), 1,493 Python tests.

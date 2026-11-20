@@ -3,8 +3,11 @@ import {
   IconAlertCircle,
   IconAlertTriangle,
   IconBan,
+  IconCircle,
   IconCircleCheck,
   IconCircleDashed,
+  IconCircleDotted,
+  IconCircleFilled,
   IconCircleX,
   IconEyeOff,
   IconFileText,
@@ -44,6 +47,10 @@ export const ICONS = {
   'status-reviewed': IconRobot,
   // a PDF page no reader has read yet (V1.b): quiet, since nothing is wrong with it, a page not looked at
   'status-not-read': IconEyeOff,
+  // a page's own ladder (V2.a): whether it reaches a level, not, or it is not known here; form and word, never colour
+  'level-reached': IconCircleFilled,
+  'level-not-reached': IconCircle,
+  'level-unknown': IconCircleDotted,
   // a finding of the judge, beside its kind and severity
   'finding': IconFlag,
   // the text the search and the chat quote for a page, beside the reading as parsed and as stored

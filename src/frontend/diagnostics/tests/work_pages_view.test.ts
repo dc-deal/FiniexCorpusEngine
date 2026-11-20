@@ -142,7 +142,7 @@ describe('WorkPagesView', () => {
     expect(view.find('[data-page="4"] a').attributes('href')).toBe(`#/free/sources/${KELLY}/page/4`)
   })
 
-  it('lists every PDF page, one no reader has read quiet in its own state, what serves it said, no link and no cost (V1.b)', async () => {
+  it('lists every PDF page, one no reader has read quiet in its own state, what serves it said, no cost (V1.b, V2.a)', async () => {
     const unread = (pdfPage: number, route: string, why: string, planned: boolean) => aPageRow({
       pdf_page: pdfPage, route, route_level: 'not read', route_why: why, listed_state: 'not_read', class_when_collected: '',
       class_now: '', cost_usd: null, from_fallback: route.startsWith('legacy markdown'), read: false, planned,
@@ -163,10 +163,9 @@ describe('WorkPagesView', () => {
     // the API's one line above the list stands where the read pages' count stood
     expect(view.find('[data-part="coverage"]').text()).toBe(said)
     expect(view.findAll('tbody tr').map(row => row.attributes('data-page'))).toEqual(['1', '2', '3'])
-    // a read page opens its view; a page without a reading has none to open
+    // every page opens its view, one without a reading too: its image and its ladder (V2.a)
     expect(view.find('[data-page="1"] a').exists()).toBe(true)
-    expect(view.find('[data-page="2"] a').exists()).toBe(false)
-    expect(view.find('[data-page="2"] td').text()).toBe('p. 2')
+    expect(view.find('[data-page="2"] a').attributes('href')).toBe(`#/free/sources/${KELLY}/page/2`)
     // its own glyph and word, quiet: nothing is wrong with it
     const mark = view.find('[data-page="2"] .state-mark')
     expect(mark.attributes('data-state')).toBe('not_read')

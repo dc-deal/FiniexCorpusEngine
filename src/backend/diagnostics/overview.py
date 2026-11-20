@@ -240,7 +240,7 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
     served = [name for name in BASES if name in bases]
     left_out = [LeftOut(knowledge_base=name, why=NOT_READ if public_only else NO_EXPORT) for name in BASES if name not in bases]
     exported = {name: counted(bases[name]) for name in served}
-    built = {name: data for name in served if (data := shelf.load(name)) is not None}
+    built = {name: data for name in served if (data := bases[name].shelf_data()) is not None}
     shelves = {name: data.get('totals') or {} for name, data in built.items()}
     shelf_left_out = [LeftOut(knowledge_base=name, why=NO_SHELF) for name in served if name not in shelves]
 

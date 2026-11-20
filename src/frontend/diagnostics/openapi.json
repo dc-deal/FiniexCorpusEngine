@@ -625,7 +625,8 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "image/png": {}
+              "image/png": {},
+              "image/jpeg": {}
             }
           },
           "422": {
@@ -2825,6 +2826,16 @@
               }
             ],
             "title": "Next"
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageLadder"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3950,6 +3961,16 @@
             "type": "boolean",
             "title": "Dropped",
             "default": false
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageLadder"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "splitter": {
             "$ref": "#/components/schemas/Splitter",
@@ -5293,7 +5314,14 @@
             "title": "Listed State"
           },
           "trace": {
-            "$ref": "#/components/schemas/Trace"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trace"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "check": {
             "$ref": "#/components/schemas/Check"
@@ -5364,6 +5392,21 @@
             "type": "array",
             "title": "Human",
             "default": []
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read",
+            "default": true
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageLadder"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5438,6 +5481,27 @@
               }
             ],
             "title": "Same As Read"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "reading"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "default": "png"
+          },
+          "said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said"
           }
         },
         "type": "object",
@@ -5449,6 +5513,56 @@
           "same_as_read"
         ],
         "title": "PageImage"
+      },
+      "PageLadder": {
+        "properties": {
+          "rungs": {
+            "items": {
+              "$ref": "#/components/schemas/PageRung"
+            },
+            "type": "array",
+            "title": "Rungs"
+          },
+          "served_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served Text"
+          },
+          "served_why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served Why Not"
+          },
+          "held": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rungs"
+        ],
+        "title": "PageLadder",
+        "description": "A page's or a section's own ladder (the operator's V2.a, 20 Nov), and the text the librarian serves for it."
       },
       "PageLink": {
         "properties": {
@@ -5745,6 +5859,44 @@
           "from_fallback"
         ],
         "title": "PageRow"
+      },
+      "PageRung": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "text layer",
+              "text served",
+              "keyword search",
+              "semantic chunks",
+              "reading and check"
+            ],
+            "title": "Level"
+          },
+          "reached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reached"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "reached",
+          "said"
+        ],
+        "title": "PageRung",
+        "description": "One level of a page's or a section's own ladder (V2.a): whether the page reaches it, said in a line."
       },
       "PersonMark": {
         "properties": {

@@ -6,7 +6,7 @@ import { ApiError } from '@/api/api_error'
 import { router } from '@/router'
 import PageView from '@/views/PageView.vue'
 import type { KnowledgeBase } from '@/types/api/source_types'
-import { aBlock, aCheck, aPageDetail, JUDGED_BAD_ROUTE, CONTENT_FILTER, KELLY } from './page_fixture'
+import { aBlock, aCheck, aPageDetail, aPageLadder, JUDGED_BAD_ROUTE, CONTENT_FILTER, KELLY } from './page_fixture'
 import { sayTime } from '@/human_time'
 
 vi.mock('@/api/api_client', async importOriginal => ({
@@ -37,6 +37,47 @@ describe('PageView', () => {
     localStorage.clear()
   })
 
+  it('opens a page no reader has read: its state, what serves it, its own ladder, the text served and its own image (V2.a)', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({
+      read: false, trace: null, reading: null, raw: null, integrity: 'no reading', attempts: null, printed_label: null,
+      route_why: "served from the PDF's text layer", said: "Not read: served from the PDF's text layer.",
+      check: aCheck({ state: 'not_read', judged: false, why_judged: 'not read', verdict: null }),
+      image: { available: true, why_not: null, width: 1275, height: 1650, same_as_read: null, kind: 'rendered', format: 'png',
+        said: 'a render at 150 dpi: the page holds no image of its own' },
+      ladder: aPageLadder(),
+    }))
+    const view = mountView()
+    await flushPromises()
+    const unread = view.find('[data-part="unread-page"]')
+    expect(unread.find('.state-mark').attributes('data-state')).toBe('not_read')
+    expect(unread.find('.route').text()).toBe("served from the PDF's text layer")
+    expect(unread.findAll('.rung-level').map(level => level.text())).toEqual(['text layer', 'text served', 'keyword search',
+      'semantic chunks', 'reading and check'])
+    expect(unread.find('[data-said="reading and check"]').text()).toBe('no reading; planned')
+    // reached, not reached and not known here as three forms, never colour alone
+    expect(unread.findAll('.rung-mark').map(mark => mark.attributes('data-reached'))).toEqual(['true', 'true', 'true', 'unknown', 'false'])
+    // the image is the PDF's own, said what it is; nothing of a reading stands, which it has not
+    expect(unread.find('.own-image img').attributes('src')).toBe(`/api/free/works/${KELLY}/pages/4/image.png`)
+    expect(unread.find('.own-image figcaption').text()).toBe('a render at 150 dpi: the page holds no image of its own')
+    expect(view.find('.side-by-side').exists()).toBe(false)
+    expect(view.find('[data-part="reading-cost"]').exists()).toBe(false)
+    // the text served, folded until asked for
+    const served = unread.find('[data-part="served-text"]')
+    expect((served.element as HTMLDetailsElement).open).toBe(false)
+    expect(served.find('.served-body').text()).toBe('The Kelly criterion sizes a bet.')
+  })
+
+  it('stands a read page\'s own ladder in its record, and says a file held back from providers is shown here alone (V2.a)', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ ladder: aPageLadder({ held: 'held back by the provenance list (send: false)',
+      served_text: null, served_why_not: 'not known yet: the search is built when the app starts and on a first search' }) }))
+    const view = mountView()
+    await flushPromises()
+    const coverage = view.find('[data-part="page-coverage"]')
+    expect(coverage.findAll('.rung-level')).toHaveLength(5)
+    expect(coverage.find('[data-part="held"]').text()).toBe('held back by the provenance list (send: false); shown here, on this machine only')
+    expect(coverage.find('.served-none').text()).toBe('not known yet: the search is built when the app starts and on a first search')
+  })
+
   it('shows the original the reader received beside its reading', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail())
     const view = mountView()
@@ -48,7 +89,7 @@ describe('PageView', () => {
 
   it('says it when the original differs from what the reader received', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
-      image: { available: true, why_not: null, width: 1680, height: 2200, same_as_read: false },
+      image: { available: true, why_not: null, width: 1680, height: 2200, same_as_read: false, kind: 'reading', format: 'png' },
     }))
     const view = mountView()
     await flushPromises()
@@ -94,7 +135,7 @@ describe('PageView', () => {
     const detail = aPageDetail()
     vi.mocked(getPage).mockResolvedValue({
       ...detail,
-      trace: { ...detail.trace, class_when_collected: 'malformed', class_now: 'ok', attempt: 1 },
+      trace: { ...detail.trace!, class_when_collected: 'malformed', class_now: 'ok', attempt: 1 },
     })
     const view = mountView()
     await flushPromises()
@@ -259,7 +300,7 @@ describe('PageView', () => {
       pdf_page: 2,
       route: 'text layer: the provider blocked the reading',
       check: aCheck({ state: 'blocked', verdict: null, judged: false }),
-      trace: { ...detail.trace, error_type: 'invalid_request_error', error_message: CONTENT_FILTER },
+      trace: { ...detail.trace!, error_type: 'invalid_request_error', error_message: CONTENT_FILTER },
       reading: null,
       raw: null,
     })
@@ -464,7 +505,7 @@ describe('PageView', () => {
       deviation: null, judgements: [], cost_usd: 0.0094749 }
     const page = aPageDetail()
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
-      trace: { ...page.trace, cost_usd: null },
+      trace: { ...page.trace!, cost_usd: null },
       attempts: [
         { ...reading, reading_key: 'aaaa1111', number: 1, attempt: 0, check: null, format_errors: malformed, shown: false },
         { ...reading, reading_key: 'bbbb2222', number: 2, attempt: 1, format_errors: malformed, shown: false,
@@ -528,7 +569,8 @@ describe('PageView', () => {
 
   it('says how to get an original that is not downloaded', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
-      image: { available: false, why_not: 'corpus/raw/x.pdf is not downloaded: run python -m backend.ingestion.acquire', width: null, height: null, same_as_read: null },
+      image: { available: false, why_not: 'corpus/raw/x.pdf is not downloaded: run python -m backend.ingestion.acquire', width: null, height: null, same_as_read: null,
+        kind: 'reading', format: 'png' },
     }))
     const view = mountView()
     await flushPromises()

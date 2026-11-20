@@ -42,7 +42,7 @@ def test_a_pdf_climbs_five_levels_each_against_its_pages_the_checked_ones_those_
                             'semantic chunks': (88, 100, '400 chunks over 88 of 100 PDF pages'),
                             'read': (90, 100, '90 of 100 PDF pages, 80 passed'),
                             # what the judge passed and what a person settled: never an unjudged page, nor an issue
-                            'checked': (55, 100, '55 of 100 PDF pages')}
+                            'checked': (55, 100, '55 of 100 PDF pages checked by the judge or a review')}
     assert all(rung.means for rung in ladder.rungs)
     # every state of the read pages for the card, an issue's served tally kept, a page not read left to its own level
     assert [(state.value, state.count, state.served) for state in ladder.states] == [
