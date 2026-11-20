@@ -7,6 +7,8 @@ import { router } from '@/router'
 import SourcesView from '@/views/SourcesView.vue'
 import type { Work } from '@/types/api/source_types'
 import { aLadder, aWork } from './work_fixture'
+import { sayDate } from '@/human_time'
+import type { Editions } from '@/types/api/source_types'
 import { searchFor, sortBy } from './facet_harness'
 
 vi.mock('@/api/api_client', async importOriginal => ({
@@ -302,6 +304,35 @@ describe('SourcesView', () => {
     expect(card.find('[data-row="ok"] .card-label').text()).toBe('ok')
     expect(card.find('[data-row="ok"] .ladder-bar').exists()).toBe(false)
     expect(card.find('[data-row="held"]').attributes('data-indent')).toBeUndefined()
+  })
+
+  it('stands a work once over its editions, the kept one a link to its record, the editions apart in the card (E1.a)', async () => {
+    const editions: Editions = { title: 'An Invented Book', serves: 'an_invented_second', chosen: '2026-11-02', why: 'an invented reason',
+  said: '2 editions · serves the 2nd edition, 2001', current: null,
+  editions: [{ key: 'an_invented_second', label: '2nd edition, 2001', named: '2nd edition, 2001', format: 'pdf', served: true,
+    view: 'pages', id: 'an_invented_second' },
+  { key: 'an_invented_third', label: '3rd edition, 2009', named: '3rd edition, 2009', format: 'epub', served: false,
+    view: 'epub', id: 'an_invented_third' }] }
+    vi.mocked(getWorks).mockResolvedValue([aWork({ knowledge_base: 'licensed', id: 'an_invented_second', title: 'An Invented Book',
+      editions }), aWork({ knowledge_base: 'licensed', id: 'an_invented_lookalike', title: 'An Invented Book, Revisited',
+      possible_edition: 'possible edition of An Invented Book: not linked; the operator decides' })])
+    const view = mountView()
+    await flushPromises()
+    const row = rowOf(view, 'an_invented_second')
+    expect(row.find('[data-part="editions"]').text()).toBe('2 editions · serves the 2nd edition, 2001 · 3rd edition, 2009 kept')
+    expect(row.find('a.kept-edition').attributes('href')).toBe('#/licensed/epub/an_invented_third')
+    // the card: the editions apart under a rule, each its mark and word, label and format, then when and why
+    await row.find('.work-card').trigger('mouseenter')
+    const card = row.find('[data-part="hover-card"]')
+    expect(card.findAll('.card-caption').map(caption => caption.text())).toEqual(['Editions'])
+    expect(card.findAll('.card-row').filter(part => ['● served', '○ kept', 'chosen'].includes(part.find('.card-label').text()))
+      .map(part => `${part.find('.card-label').text()} = ${part.find('.card-value').text()}`)).toEqual([
+      '● served = 2nd edition, 2001 · pdf', '○ kept = 3rd edition, 2009 · epub', `chosen = ${sayDate('2026-11-02').text}: an invented reason`])
+    // a possible edition: a call to look, in the warning role, with its mark
+    const possible = rowOf(view, 'an_invented_lookalike').find('[data-part="possible-edition"]')
+    expect(possible.text()).toBe('possible edition of An Invented Book: not linked; the operator decides')
+    expect(possible.find('.app-icon, svg').exists()).toBe(true)
+    expect(row.find('[data-part="possible-edition"]').exists()).toBe(false)
   })
 
   it('sorts by blocked or by issue, most first, a work without pages read last (B3.a)', async () => {

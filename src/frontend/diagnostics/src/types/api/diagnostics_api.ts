@@ -984,6 +984,47 @@ export interface components {
             changed: boolean;
         };
         /**
+         * Edition
+         * @description One edition of a work: its label as the core names it, its format, whether it is the one served, and where its own
+         *     record opens here.
+         */
+        Edition: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Named */
+            named: string;
+            /** Format */
+            format?: string | null;
+            /** Served */
+            served: boolean;
+            /** View */
+            view?: ("pages" | "epub") | null;
+            /** Id */
+            id?: string | null;
+        };
+        /**
+         * Editions
+         * @description A work held in more than one edition, as its row in the list and every edition's record show it.
+         */
+        Editions: {
+            /** Title */
+            title: string;
+            /** Serves */
+            serves: string;
+            /** Chosen */
+            chosen: string;
+            /** Why */
+            why: string;
+            /** Said */
+            said: string;
+            /** Editions */
+            editions: components["schemas"]["Edition"][];
+            /** Current */
+            current?: string | null;
+        };
+        /**
          * EpubImage
          * @description One image where its mark stands: its path inside the EPUB, its alt text, and whether it stands inside a line of text (an
          *     inline formula, most often) or on its own.
@@ -1088,6 +1129,8 @@ export interface components {
              * @default []
              */
             rows: components["schemas"]["EpubSectionRow"][];
+            ladder?: components["schemas"]["Ladder"] | null;
+            editions?: components["schemas"]["Editions"] | null;
         };
         /** ErrorClass */
         ErrorClass: {
@@ -1202,6 +1245,7 @@ export interface components {
             /** Left Out */
             left_out: components["schemas"]["LeftOut"][];
             works: components["schemas"]["Figure"] | null;
+            kept_editions?: components["schemas"]["Figure"] | null;
             planned: components["schemas"]["Figure"] | null;
             read: components["schemas"]["Figure"] | null;
             /** Share Read */
@@ -1230,6 +1274,15 @@ export interface components {
             /** Snippet */
             snippet?: string | null;
             view?: components["schemas"]["PageLink"] | null;
+            /** Edition */
+            edition?: string | null;
+            /** Year */
+            year?: number | null;
+            /**
+             * Edition Said
+             * @description The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone.
+             */
+            readonly edition_said: string | null;
         } & {
             [key: string]: unknown;
         };
@@ -2513,6 +2566,15 @@ export interface components {
             /** Reading Key */
             reading_key: string | null;
             view: components["schemas"]["PageLink"] | null;
+            /** Edition */
+            edition?: string | null;
+            /** Year */
+            year?: number | null;
+            /**
+             * Edition Said
+             * @description The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone.
+             */
+            readonly edition_said: string | null;
         };
         /** SecurityCheck */
         SecurityCheck: {
@@ -2610,6 +2672,15 @@ export interface components {
             error?: string | null;
             /** Result */
             result?: unknown[] | null;
+            /** Edition */
+            edition?: string | null;
+            /** Year */
+            year?: number | null;
+            /**
+             * Edition Said
+             * @description The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone.
+             */
+            readonly edition_said: string | null;
         } & {
             [key: string]: unknown;
         };
@@ -3086,6 +3157,9 @@ export interface components {
              */
             page_list: boolean;
             stand_in?: components["schemas"]["StandIn"] | null;
+            editions?: components["schemas"]["Editions"] | null;
+            /** Possible Edition */
+            possible_edition?: string | null;
         };
         /** WorkPages */
         WorkPages: {
@@ -3116,6 +3190,7 @@ export interface components {
             pages: components["schemas"]["PageRow"][];
             coverage?: components["schemas"]["Coverage"] | null;
             ladder?: components["schemas"]["Ladder"] | null;
+            editions?: components["schemas"]["Editions"] | null;
         };
         /**
          * WorkReadings

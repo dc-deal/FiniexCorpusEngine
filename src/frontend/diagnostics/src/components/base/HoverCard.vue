@@ -154,7 +154,7 @@ function opensGroup(index: number): boolean {
     >
       <span class="card-title">{{ title }}</span>
       <slot name="lead" />
-      <template v-for="(row, index) in filled" :key="row.label">
+      <template v-for="(row, index) in filled" :key="`${index}:${row.label}`">
         <template v-if="opensGroup(index)">
           <span class="card-rule" data-part="card-rule" />
           <span v-if="row.caption" class="card-caption">{{ row.caption }}</span>

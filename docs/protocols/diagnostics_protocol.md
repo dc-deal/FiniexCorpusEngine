@@ -904,3 +904,16 @@ The record of how the diagnostics frontend came about, mistakes included.
   image, the main tree mounted and the worktree's source read-only over it: a measuring script fed on stdin made the search's
   process pool fail to start its workers and build in one process (130 to 190 s), so it runs as a file. During the warm-up every
   call answered 200, the page list at 10.9 s while it built the legacy pages itself; after it, each first call under a second.
+- **A work in its editions** (E1.a, 20 Nov). The view reads the core's shelf rows alone (`work_editions`): a family from
+  whichever of its rows carries it, an edition's row by its key as its work key, its source id or its file's stem, and from the
+  row where its record opens (an EPUB by its librarian's key, a PDF by its source id). **Found and sent to line 1:** the served
+  row of one family carried no family, its work key a legacy work's and so not the edition's key; line 1 matched rows by work
+  key or stem (245b2c5), and the view, which finds a row by any of the three, never depended on it. The fold runs after the
+  stand-ins', so a work stands once over both. A kept edition's words are the ladder's (`coverage_ladder.kept_words`); the
+  warning outline of a kept file that serves no text went with them, a decided case. **Built for one look:** the edition's mark
+  and word (● served, ○ kept) are the same in the card and in the bar; the bar and the trail are components of their own, used
+  by the page list and the EPUB view alike, and a kept edition's route is one function (`edition_route`). The card's rows took a
+  key of index and label, since two kept editions are both "○ kept". **Beyond the ask:** the EPUB view now shows the ladder a
+  PDF's record shows, so a kept EPUB's record can say it is kept. **Not changed:** a page's and a section's own ladders on a
+  kept edition still say why the keyword search leaves them out in the search's words. The browser check gives the API's
+  answers, invented, the fold held by the API's tests; it was shown failing with the possible edition's line greyed.

@@ -15,6 +15,7 @@ them (`counted_states`). Each level is drawn against the work's whole: its PDF p
 sections. A level that does not apply to a work's format says why, as a level not measured here does.
 """
 
+from backend.diagnostics import work_editions
 from backend.diagnostics.ladder_types import LEVELS, Ladder, LadderState, Level, Rung
 from backend.diagnostics.readings import DECIDED, DECIDED_BY_REVIEW, KnowledgeBase, StateCount
 
@@ -128,9 +129,34 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
     else:
         why = NOT_HELD if legacy_only else BY_HEADING
         rungs += [Rung(level='read', count=None, of=whole, said=why), Rung(level='checked', count=None, of=whole, said=why)]
+    rungs = kept_words(row, rungs)
     return with_means(Ladder(unit=unit, whole=whole, rungs=rungs, by_route=served.get('by_route') or {}, held=row.get('held'),
                              not_served=row.get('not_served'), unplaced=row.get('unplaced') or {}, states=read_states,
                              planned=row.get('planned'), passed=row.get('passed') if pdf else None, built_at=built_at))
+
+
+KEPT_NOT_SEARCHED = 'kept: not searched'
+KEPT_HELD_BACK = 'held back from the search'
+
+
+def kept_words(row: dict, rungs: list[Rung]) -> list[Rung]:
+    """A kept edition's levels in neutral words (the operator's E1.a, 20 Nov): it keeps all it has and opens by its own key,
+    only the two searches skip it, so its first level says which edition is served, its second that it is not searched, its
+    third its chunks held back from the search; never in the warning role, a decided case and no call to look (a kept file's
+    outline, which served no text). Any other row's levels as they are."""
+    served = work_editions.served_named(row, [])
+    if served is None:
+        return rungs
+    said = {'text served': f'kept: the {served} is served; opens by its own key', 'keyword search': KEPT_NOT_SEARCHED}
+    out = []
+    for rung in rungs:
+        update: dict = {'warn': False}
+        if rung.level in said:
+            update['said'] = said[rung.level]
+        elif rung.level == 'semantic search' and rung.count is not None:
+            update['said'] = f'{rung.said}, {KEPT_HELD_BACK}'
+        out.append(rung.model_copy(update=update))
+    return out
 
 
 def corpus_ladder(shelves: dict[KnowledgeBase, dict], checked: dict[KnowledgeBase, int],

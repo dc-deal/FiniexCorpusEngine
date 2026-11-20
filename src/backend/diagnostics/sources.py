@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import Literal
 
 from backend.diagnostics.ladder_types import Ladder
+from backend.diagnostics.work_editions import Editions
 from backend.diagnostics.readings import KnowledgeBase, Series, WorkReadings
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -96,6 +97,10 @@ class Work(BaseModel):
     page_list: bool = False
     # a stand-in file beside it, folded into its row; None for every other work
     stand_in: StandIn | None = None
+    # its editions, where it is held in more than one (E1.a): the served edition's row, every kept one folded into it
+    editions: Editions | None = None
+    # a file that looks like another edition and is linked with none, in a warning's words: a call to look; None otherwise
+    possible_edition: str | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

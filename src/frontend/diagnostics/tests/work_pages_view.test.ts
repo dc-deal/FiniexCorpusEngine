@@ -213,6 +213,32 @@ describe('WorkPagesView', () => {
     expect(view.find('[data-part="ladder-legend"] dt').text()).toBe('1 text served')
   })
 
+  it('names its work\'s editions on a kept edition\'s record, each a link but its own, the trail naming it (E1.a)', async () => {
+    const editions = { ...{ title: 'An Invented Book', serves: 'an_invented_second', chosen: '2026-11-02', why: 'an invented reason',
+  said: '2 editions · serves the 2nd edition, 2001', current: null,
+  editions: [{ key: 'an_invented_second', label: '2nd edition, 2001', named: '2nd edition, 2001', format: 'pdf', served: true,
+    view: 'pages', id: 'an_invented_second' },
+  { key: 'an_invented_third', label: '3rd edition, 2009', named: '3rd edition, 2009', format: 'epub', served: false,
+    view: 'epub', id: 'an_invented_third' }] }, current: 'an_invented_third', editions: { title: 'An Invented Book', serves: 'an_invented_second', chosen: '2026-11-02', why: 'an invented reason',
+  said: '2 editions · serves the 2nd edition, 2001', current: null,
+  editions: [{ key: 'an_invented_second', label: '2nd edition, 2001', named: '2nd edition, 2001', format: 'pdf', served: true,
+    view: 'pages', id: 'an_invented_second' },
+  { key: 'an_invented_third', label: '3rd edition, 2009', named: '3rd edition, 2009', format: 'epub', served: false,
+    view: 'epub', id: 'an_invented_third' }] }.editions.map(edition => ({ ...edition, view: 'pages' as const })) }
+    vi.mocked(getWorkPages).mockResolvedValue({ ...aWorkPages([aPageRow({ pdf_page: 1 })]), knowledge_base: 'licensed',
+      source_id: 'an_invented_third', editions })
+    const view = mountView('licensed', 'an_invented_third')
+    await flushPromises()
+    const bar = view.find('[data-part="edition-bar"]')
+    expect(bar.findAll('.edition').map(part => part.text())).toEqual(['● 2nd edition, 2001 · served', '○ 3rd edition, 2009 · kept'])
+    expect(bar.find('a.edition').attributes('href')).toBe('#/licensed/sources/an_invented_second')
+    expect(bar.find('.edition.current').attributes('aria-current')).toBe('page')
+    expect(bar.findAll('a.edition')).toHaveLength(1)
+    // the trail: Sources, the work (its served edition's record), this edition
+    expect(view.find('[data-part="trail"]').text()).toBe('Sources › An Invented Book › 3rd edition, 2009')
+    expect(view.find('[data-part="trail-work"]').attributes('href')).toBe('#/licensed/sources/an_invented_second')
+  })
+
   it('opens a licensed work\'s pages within the licensed knowledge base, and jumps there', async () => {
     // invented: no licensed title or text stands in a tracked file
     vi.mocked(getWorkPages).mockResolvedValue({

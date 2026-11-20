@@ -22,9 +22,10 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 from mcp.shared.exceptions import MCPError
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from backend.chat import app_config, turn_log
+from backend.diagnostics import work_editions
 from backend.diagnostics.readings import Readings
 from backend.diagnostics.search_hits import ArticleLink, PageLink, article_links, page_links
 
@@ -97,6 +98,14 @@ class Hit(Loose):
     section: str | None = None
     snippet: str | None = None
     view: PageLink | None = None
+    edition: str | None = None  # the catalog's edition ("2nd") and year, as the search names them (E1.a)
+    year: int | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def edition_said(self) -> str | None:
+        """The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone."""
+        return work_editions.words(self.edition, self.year)
 
 
 class ServerAnswer(Loose):
@@ -108,6 +117,14 @@ class ServerAnswer(Loose):
     why: str | None = None
     error: str | None = None
     result: list[Any] | None = None
+    edition: str | None = None  # an opened page's edition and year (E1.a)
+    year: int | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def edition_said(self) -> str | None:
+        """The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone."""
+        return work_editions.words(self.edition, self.year)
 
 
 class ServerTurn(Loose):

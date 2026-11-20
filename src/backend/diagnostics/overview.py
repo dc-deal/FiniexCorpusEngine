@@ -98,6 +98,7 @@ class Headline(BaseModel):
     left_out: list[LeftOut]  # a base not served, and why
     # from each base's shelf, the core's: works on the shelf, pages planned, passed and the search serves
     works: Figure | None
+    kept_editions: Figure | None = None  # of those works, the editions kept beside the one served (E1.a); none where 0
     planned: Figure | None
     read: Figure | None
     share_read: float | None  # read of planned over the summed shelves, 0 to 1, above 1 where pages were read outside the plan
@@ -251,7 +252,8 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
 
     planned, read, passed = from_shelf('planned'), from_shelf('read'), from_shelf('passed')
     headline = Headline(
-        bases=served, left_out=left_out, works=from_shelf('works'), planned=planned, read=read,
+        bases=served, left_out=left_out, works=from_shelf('works'),
+        kept_editions=kept if (kept := from_shelf('kept_editions')) and kept.total else None, planned=planned, read=read,
         share_read=read.total / planned.total if planned and read and planned.total else None, passed=passed,
         share_passed=passed.total / planned.total if planned and passed and planned.total else None,
         served=from_shelf('served'), shelf_left_out=shelf_left_out,

@@ -36,7 +36,7 @@ const works = computed(() => (props.server.tool === 'works' ? (answer.value.resu
     </p>
     <template v-else-if="server.tool === 'open_page'">
       <p class="page-head">
-        <strong>{{ answer.title }}</strong> · page {{ page?.label }}<template v-if="page?.printed && page.printed !== page.label"> (printed {{ page.printed }})</template>
+        <strong>{{ answer.title }}</strong><span v-if="answer.edition_said" data-part="answer-edition">, {{ answer.edition_said }}</span> · page {{ page?.label }}<template v-if="page?.printed && page.printed !== page.label"> (printed {{ page.printed }})</template>
       </p>
       <!-- the page word for word, as the chat received it: text, never Markdown -->
       <pre class="page-text">{{ answer.text }}</pre>
@@ -54,6 +54,7 @@ const works = computed(() => (props.server.tool === 'works' ? (answer.value.resu
           {{ hit.title ?? hit.work }}
         </RouterLink>
         <span v-else>{{ hit.title ?? hit.work }}</span>
+        <span v-if="hit.edition_said" class="edition" data-part="hit-edition">, {{ hit.edition_said }}</span>
         <span class="place"> · p. {{ hit.page?.label }}<template v-if="hit.section"> · {{ hit.section }}</template></span>
         <p v-if="hit.snippet" class="snippet">{{ hit.snippet }}</p>
       </li>
