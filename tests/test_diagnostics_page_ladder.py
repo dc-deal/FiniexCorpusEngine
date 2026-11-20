@@ -72,7 +72,7 @@ def test_a_page_climbs_its_five_levels_each_said(tmp_path, monkeypatch):
     service = a_service(a_page('prose ' * 60, work='kelly-key'))
     ladder = page_ladder.page_ladder('free', KELLY, 4, unread, pdf, 'kelly-key', service, None)
     assert [(rung.level, rung.reached) for rung in ladder.rungs] == [
-        ('text layer', True), ('text served', True), ('keyword search', True), ('semantic chunks', True), ('reading and check', False)]
+        ('text layer', True), ('text served', True), ('keyword search', True), ('semantic search', True), ('reading and check', False)]
     assert [rung.said for rung in ladder.rungs][3:] == ['3 chunks', 'no reading; planned']
     assert ladder.served_text == 'prose ' * 60
     # the blank sixth page: no text layer, nothing served, not in the search, no chunk
@@ -102,7 +102,7 @@ def test_a_section_is_born_digital_its_chunks_its_own_and_a_licensed_one_s_in_th
     html = page_ladder.section_ladder('free', 's3', 2, 'an-html-work', service)
     assert [(rung.level, rung.reached, rung.said) for rung in html.rungs] == [
         ('text layer', None, 'not needed: born digital'), ('text served', True, 'its own text, parsed by section'),
-        ('keyword search', True, 'in search (BM25)'), ('semantic chunks', True, '2 chunks'),
+        ('keyword search', True, 'in search (BM25)'), ('semantic search', True, '2 chunks'),
         ('reading and check', None, 'not needed: born digital')]
     epub = page_ladder.section_ladder('licensed', 's3', None, 'an-epub', None)
     assert epub.rungs[3].said == '4 chunks' and epub.rungs[2].said == page_ladder.NOT_BUILT
@@ -116,7 +116,7 @@ def test_the_page_route_carries_the_page_s_ladder_and_never_waits_for_the_search
     client = TestClient(create_app(public_only=True), base_url=LOCAL)
     pdf_page = kelly_rows()[0]['pdf_page']
     answer = client.get(f'/api/free/works/{KELLY}/pages/{pdf_page}').json()
-    assert [rung['level'] for rung in answer['ladder']['rungs']] == ['text layer', 'text served', 'keyword search', 'semantic chunks',
+    assert [rung['level'] for rung in answer['ladder']['rungs']] == ['text layer', 'text served', 'keyword search', 'semantic search',
                                                                     'reading and check']
     # the tests never build the search: the level says so, and the served text waits for it
     assert answer['ladder']['rungs'][2]['said'] == page_ladder.NOT_BUILT and answer['ladder']['served_text'] is None

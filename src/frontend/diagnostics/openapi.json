@@ -5879,7 +5879,7 @@
               "text layer",
               "text served",
               "keyword search",
-              "semantic chunks",
+              "semantic search",
               "reading and check"
             ],
             "title": "Level"
@@ -7263,7 +7263,7 @@
             "enum": [
               "text served",
               "keyword search",
-              "semantic chunks",
+              "semantic search",
               "read",
               "checked"
             ],

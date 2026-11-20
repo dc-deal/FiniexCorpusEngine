@@ -7,8 +7,8 @@ from typing import Literal
 from pydantic import BaseModel, computed_field
 
 KnowledgeBase = Literal['free', 'licensed']  # the knowledge bases the core exports (80.a); `readings` takes it from here
-Level = Literal['text served', 'keyword search', 'semantic chunks', 'read', 'checked']
-LEVELS: tuple[Level, ...] = ('text served', 'keyword search', 'semantic chunks', 'read', 'checked')
+Level = Literal['text served', 'keyword search', 'semantic search', 'read', 'checked']
+LEVELS: tuple[Level, ...] = ('text served', 'keyword search', 'semantic search', 'read', 'checked')
 
 
 class LadderState(BaseModel):
@@ -85,7 +85,7 @@ class Ladder(BaseModel):
     built_at: str | None = None  # when the core built the shelf levels 1 to 4 come from
 
 
-PageLevel = Literal['text layer', 'text served', 'keyword search', 'semantic chunks', 'reading and check']
+PageLevel = Literal['text layer', 'text served', 'keyword search', 'semantic search', 'reading and check']
 
 
 class PageRung(BaseModel):

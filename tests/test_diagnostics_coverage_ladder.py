@@ -39,11 +39,15 @@ def test_a_pdf_climbs_five_levels_each_against_its_pages_the_checked_ones_those_
     ladder = coverage_ladder.work_ladder(a_row(), STATES)
     assert ladder.unit == 'PDF pages' and ladder.whole == 100
     assert said(ladder) == {'text served': (96, 100, '96 of 100 PDF pages'), 'keyword search': (90, 100, '90 of 100 PDF pages'),
-                            'semantic chunks': (88, 100, '400 chunks over 88 of 100 PDF pages'),
+                            'semantic search': (88, 100, '400 chunks over 88 of 100 PDF pages'),
                             'read': (90, 100, '90 of 100 PDF pages, 80 passed'),
                             # what the judge passed and what a person settled: never an unjudged page, nor an issue
                             'checked': (55, 100, '55 of 100 PDF pages checked by the judge or a review')}
     assert all(rung.means for rung in ladder.rungs)
+    # level 3 named for what it serves, "semantic search" beside "keyword search", its pieces said in its legend line, so its
+    # chunks never read as the literature's semantic chunking (the operator's C2.a, 20 Nov)
+    assert [rung.level for rung in ladder.rungs][1:3] == ['keyword search', 'semantic search']
+    assert 'recursive character splitter' in ladder.rungs[2].means
     # where a look is called for (C1.b): the issues beside the checked pages; nothing to warn of where text is served
     assert [(rung.level, rung.issues, rung.warn) for rung in ladder.rungs if rung.issues or rung.warn] == [('checked', 9, False)]
     nothing = coverage_ladder.work_ladder(a_row(served={'pages': 0, 'searchable': 0, 'by_route': {}}, read=0, passed=0), [])
@@ -58,16 +62,16 @@ def test_a_level_not_measured_says_why_never_none_of_all(monkeypatch):
     # the private index (#8): absent on a machine, said so; present, a work held back or not served was never embedded
     monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: False)
     licensed = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic=None), [])
-    assert said(licensed)['semantic chunks'] == (None, 100, 'not vectorised yet (#8)')
+    assert said(licensed)['semantic search'] == (None, 100, 'not vectorised yet (#8)')
     monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: True)
     held = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic=None, held='held back by the list'), [])
-    assert said(held)['semantic chunks'] == (None, 100, 'held back: never embedded')
+    assert said(held)['semantic search'] == (None, 100, 'held back: never embedded')
     beside = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic=None, not_served='a stand-in beside its legacy text'), [])
-    assert said(beside)['semantic chunks'] == (None, 100, 'not served: never embedded')
+    assert said(beside)['semantic search'] == (None, 100, 'not served: never embedded')
     embedded = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic={'chunks': 50, 'pages': 40}), [])
-    assert said(embedded)['semantic chunks'] == (40, 100, '50 chunks over 40 of 100 PDF pages')
+    assert said(embedded)['semantic search'] == (40, 100, '50 chunks over 40 of 100 PDF pages')
     free = coverage_ladder.work_ladder(a_row(semantic=None), [])
-    assert said(free)['semantic chunks'] == (None, 100, 'not in the vector index on this machine')
+    assert said(free)['semantic search'] == (None, 100, 'not in the vector index on this machine')
     unread = coverage_ladder.work_ladder(a_row(read=0, passed=0), [])
     assert said(unread)['read'] == (0, 100, 'none of 100 PDF pages read yet')
 
@@ -76,7 +80,7 @@ def test_each_level_carries_its_number_and_its_share_of_the_whole():
     # the operator's L1.a, 20 Nov: which line of the card a meter is, and how much of its whole it reaches, the API's figures
     ladder = coverage_ladder.work_ladder(a_row(), STATES)
     assert [(rung.number, rung.level, rung.share) for rung in ladder.rungs] == [
-        (1, 'text served', 96), (2, 'keyword search', 90), (3, 'semantic chunks', 88), (4, 'read', 90), (5, 'checked', 55)]
+        (1, 'text served', 96), (2, 'keyword search', 90), (3, 'semantic search', 88), (4, 'read', 90), (5, 'checked', 55)]
     share = ladder_types.share_of
     assert share(196, 200) == 98 and share(1, 8) == 13  # whole percent, a half rounded up
     # some but not all of the whole never reads as none or as all
@@ -110,7 +114,7 @@ def test_an_html_work_counts_its_sections_and_is_not_read_page_by_page():
                                                semantic={'chunks': 20, 'pages': 0}), None)
     assert ladder.unit == 'sections'
     assert said(ladder) == {'text served': (1, 1, '1 of 1 section'), 'keyword search': (1, 1, '1 of 1 section'),
-                            'semantic chunks': (1, 1, '20 chunks from its sections'),
+                            'semantic search': (1, 1, '20 chunks from its sections'),
                             'read': (None, 1, coverage_ladder.BY_HEADING), 'checked': (None, 1, coverage_ladder.BY_HEADING)}
 
 
@@ -141,8 +145,8 @@ def test_the_corpus_sums_every_level_over_the_bases_a_base_without_vectors_named
     rungs = {rung.level: rung for rung in ladder.rungs}
     assert (rungs['text served'].count, rungs['text served'].by_base) == (256, {'free': 106, 'licensed': 150})
     # the vectors over the free base alone, the licensed one named as not vectorised
-    assert rungs['semantic chunks'].count == 98 and rungs['semantic chunks'].of == 110
-    assert rungs['semantic chunks'].said == ('430 chunks over 98 of 110 pages and sections of the free base; the licensed base not '
+    assert rungs['semantic search'].count == 98 and rungs['semantic search'].of == 110
+    assert rungs['semantic search'].said == ('430 chunks over 98 of 110 pages and sections of the free base; the licensed base not '
                                              'vectorised yet (#8)')
     # the levels the Pages view lists: every page it has for the read ones, the checked states for the checked
     assert rungs['read'].pages_filter == {} and rungs['checked'].pages_filter == {'state': list(coverage_ladder.CHECKED)}

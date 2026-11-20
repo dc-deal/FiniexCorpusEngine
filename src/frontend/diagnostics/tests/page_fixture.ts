@@ -115,7 +115,7 @@ export function aPageLadder(overrides: Partial<PageLadder> = {}): PageLadder {
       { level: 'text layer', reached: true, said: '4,074 characters' },
       { level: 'text served', reached: true, said: "served from the PDF's text layer" },
       { level: 'keyword search', reached: true, said: 'in search (BM25)' },
-      { level: 'semantic chunks', reached: null, said: 'not in the vector index on this machine' },
+      { level: 'semantic search', reached: null, said: 'not in the vector index on this machine' },
       { level: 'reading and check', reached: false, said: 'no reading; planned' },
     ],
     served_text: 'The Kelly criterion sizes a bet.',

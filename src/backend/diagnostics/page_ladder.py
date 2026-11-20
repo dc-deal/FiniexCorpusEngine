@@ -7,7 +7,7 @@ A PDF page climbs five levels:
 2. text served: what the librarian serves for it, its reading, the IDE's Markdown, the text layer or nothing, and why;
 3. keyword search: whether search (BM25) holds it, and why not, in the core's words (`page_index.structural_why`: no text,
    too short, no words, mostly figures, a table), the rule the search itself follows;
-4. semantic chunks: its chunks in its base's vector index, the private base's its own (#8): a free page's by its source id, a
+4. semantic search: its chunks in its base's vector index, the private base's its own (#8): a free page's by its source id, a
    licensed one's by its work key; a work held back is never embedded;
 5. reading and check: none, or its reading and the state the lists count it by.
 A section of an HTML or EPUB work climbs the same levels, its text layer and its reading those of a born-digital source.
@@ -112,7 +112,7 @@ def semantic_detail(knowledge_base: str) -> dict:
 
 
 def chunks_said(chunks: int, of_what: str) -> PageRung:
-    return PageRung(level='semantic chunks', reached=chunks > 0,
+    return PageRung(level='semantic search', reached=chunks > 0,
                     said=f"{chunks:,} {'chunk' if chunks == 1 else 'chunks'}" if chunks else f'no chunk of this {of_what}')
 
 
@@ -121,7 +121,7 @@ def semantic(knowledge_base: str, source: str | None, key: int | str, by: str, h
     source id, a licensed one's work key), `by` 'pages' or 'sections'."""
     detail = semantic_detail(knowledge_base).get(source) if source else None
     if detail is None:
-        return PageRung(level='semantic chunks', reached=None, said=not_embedded(knowledge_base, held))
+        return PageRung(level='semantic search', reached=None, said=not_embedded(knowledge_base, held))
     return chunks_said(detail[by].get(key) or detail[by].get(str(key)) or 0, by[:-1])
 
 
@@ -158,7 +158,7 @@ def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key
     if knowledge_base == 'licensed':
         semantic_rung = semantic('licensed', work_key, f'{work_key}:{int(label[1:]) - 1:04d}', 'sections', held)
     elif chunks is None:
-        semantic_rung = PageRung(level='semantic chunks', reached=None, said=NOT_IN_INDEX)
+        semantic_rung = PageRung(level='semantic search', reached=None, said=NOT_IN_INDEX)
     else:
         semantic_rung = chunks_said(chunks, 'section')
     return PageLadder(rungs=[PageRung(level='text layer', reached=None, said=BORN_DIGITAL), served_rung, keyword_rung, semantic_rung,

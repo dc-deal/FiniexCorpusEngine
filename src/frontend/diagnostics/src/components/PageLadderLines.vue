@@ -6,7 +6,7 @@ import type { PageLadder, PageRung } from '@/types/api/ladder_types'
 
 /**
  * A page's or a section's own ladder (the operator's V2.a, 20 Nov): its text layer, the text served, keyword search, its
- * semantic chunks, its reading and check, each a line of the level's word, a mark whether the page reaches it and the API's
+ * semantic search, its reading and check, each a line of the level's word, a mark whether the page reaches it and the API's
  * words; then why the file is held back from providers, where it is, shown here all the same; then the text the librarian
  * serves for it, folded until asked for. The marks are form and word, never colour: a level a page does not reach is no fault.
  */

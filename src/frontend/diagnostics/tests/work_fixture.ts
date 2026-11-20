@@ -10,7 +10,7 @@ export function aLadder(overrides: Partial<Ladder> = {}): Ladder {
     unit: 'PDF pages',
     whole: 629,
     rungs: [rung(1, 'text served', 612, 97, '612 of 629 PDF pages'), rung(2, 'keyword search', 539, 86, '539 of 629 PDF pages'),
-      rung(3, 'semantic chunks', 592, 94, '2,396 chunks over 592 of 629 PDF pages'),
+      rung(3, 'semantic search', 592, 94, '2,396 chunks over 592 of 629 PDF pages'),
       rung(4, 'read', 629, 100, '629 of 629 PDF pages, 629 passed'), rung(5, 'checked', 407, 65, '407 of 629 PDF pages')],
     by_route: { 'vision reading': 612 },
     held: null,

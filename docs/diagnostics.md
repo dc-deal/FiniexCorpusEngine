@@ -1734,7 +1734,7 @@ Python tests.
 
 **The coverage ladder (the operator's U1.a, 20 Nov).** Nowhere said how many pages were available at which refinement, so
 every work and the corpus now show it in the same five levels: text served (the pages, or an HTML or EPUB work's sections,
-the librarian serves text for), keyword search (of those, the ones search (BM25) finds), semantic chunks (the chunks in the
+the librarian serves text for), keyword search (of those, the ones search (BM25) finds), semantic search (the chunks in the
 vector index and the PDF pages they cover; the licensed base says "not vectorised yet (#8)", never 0 of N), read (the pages
 a vision reader read, and how many passed), checked (a reading the judge passed, or a person or an automated review settled;
 an unjudged reading is not counted, as unchecked is said). Levels 1 to 4 are the core's shelf, level 5 the export's states
@@ -1758,7 +1758,7 @@ the librarian's `page_image` gives (a scan's own pixels never upscaled, any othe
 reading, which it has not; its row in the page list opens it, and previous and next step through every page of the PDF. A
 page's own ladder, beside a read page's record too: text layer (its characters, or none: a scan), text served (its reading,
 the IDE's Markdown, the text layer or nothing, and why), keyword search (in search (BM25), or not and why: no text, too short,
-mostly figures, a table), semantic chunks (its chunks, or "not vectorised yet (#8)"), reading and check. The text served is
+mostly figures, a table), semantic search (its chunks, or "not vectorised yet (#8)"), reading and check. The text served is
 the search's own page, folded until asked for; the page view never waits for the search to be built, and says so while it
 is. HTML and EPUB sections climb the same ladder, born digital: no text layer to extract and no reading needed. A file the
 provenance list holds back is shown on this machine like any other, image included, and says so; the librarian goes on
@@ -1812,3 +1812,10 @@ window: beneath its host, above it where the room beneath is short, shifted to k
 neither, on the side with more room, as tall as that room, scrolling inside; it is placed again as the page scrolls or the
 window changes, and closes when its host leaves the window. It is placed by Floating UI, which the library's Reka UI already
 brings for its own popovers. 403 unit tests, 84 checks in the browser (3 skipped on today's data), 1,504 Python tests.
+
+**Level 3 is "semantic search" (the operator's C2.a, 20 Nov).** It was "semantic chunks", which read as the literature's
+semantic chunking, cutting where the meaning changes. What the level counts is something else: the pieces in the vector index
+that semantic (hybrid) searches, cut by the text's structure and then by the recursive character splitter, and the PDF pages
+they cover. Named for what it serves, it pairs with level 2, keyword search, on a work's ladder, the corpus's and a page's
+alike; its figures keep their words ("2,396 chunks over 592 of 629 PDF pages"), and its line in the legend says how its pieces
+are cut. 403 unit tests, 84 checks in the browser (3 skipped on today's data), 1,504 Python tests.

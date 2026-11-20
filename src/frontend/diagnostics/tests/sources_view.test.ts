@@ -220,7 +220,7 @@ describe('SourcesView', () => {
   })
 
   it('stands one Coverage column of five meters, each level\'s figures in their card, in place of B3\'s six (U1.a)', async () => {
-    const semanticUnknown = aLadder({ rungs: aLadder().rungs.map(rung => (rung.level === 'semantic chunks'
+    const semanticUnknown = aLadder({ rungs: aLadder().rungs.map(rung => (rung.level === 'semantic search'
       ? { ...rung, count: null, said: 'not vectorised yet (#8)' } : rung)) })
     vi.mocked(getWorks).mockResolvedValue([aWork({ ladder: aLadder() }),
       aWork({ knowledge_base: 'licensed', id: 'a_licensed_book', title: 'A Licensed Book', ladder: semanticUnknown })])
@@ -229,13 +229,13 @@ describe('SourcesView', () => {
     expect(view.findAll('thead th.state-head')).toHaveLength(0)
     const row = rowOf(view, 'openstax_principles_of_finance_2e')
     const bars = row.findAll('[data-cell="coverage"] .ladder-bar')
-    expect(bars.map(bar => bar.attributes('data-level'))).toEqual(['text served', 'keyword search', 'semantic chunks', 'read', 'checked'])
+    expect(bars.map(bar => bar.attributes('data-level'))).toEqual(['text served', 'keyword search', 'semantic search', 'read', 'checked'])
     expect(bars.map(bar => bar.attributes('data-share'))).toEqual(['0.973', '0.857', '0.941', '1.000', '0.647'])
     // a level not measured here is an empty track, never a level nothing reached ("never 0 of N")
-    expect(rowOf(view, 'a_licensed_book').find('.ladder-bar[data-level="semantic chunks"]').attributes('data-share')).toBe('unknown')
+    expect(rowOf(view, 'a_licensed_book').find('.ladder-bar[data-level="semantic search"]').attributes('data-share')).toBe('unknown')
     // each level's words in the card, on the pointer and on the keyboard's focus
     await row.find('.ladder-card').trigger('focusin')
-    expect(row.find('[data-row="semantic chunks"] .card-said').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
+    expect(row.find('[data-row="semantic search"] .card-said').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
     expect(row.find('[data-row="read"] .card-said').text()).toBe('629 of 629 PDF pages, 629 passed')
   })
 
@@ -265,14 +265,14 @@ describe('SourcesView', () => {
     const card = view.find('[data-cell="coverage"] [data-part="hover-card"]')
     // the same meter in the card's line, its issues' segment there too, so the eye finds the line the column's colour stands for
     expect(card.findAll('.card-level .ladder-bar').map(bar => bar.attributes('data-level'))).toEqual(['text served', 'keyword search',
-      'semantic chunks', 'read', 'checked'])
+      'semantic search', 'read', 'checked'])
     expect(card.find('[data-row="checked"] .ladder-issues').exists()).toBe(true)
     expect(card.find('[data-row="checked"] .card-said').text()).toBe('407 of 629 PDF pages')
     expect(card.find('[data-row="issue"] .card-value').text()).toBe(issueSaid)
   })
 
   it('numbers each level in the card and gives its share, the read pages\' states apart beneath (L1.a, 20 Nov)', async () => {
-    const ladder = aLadder({ held: 'held back by the provenance list', rungs: aLadder().rungs.map(rung => (rung.level === 'semantic chunks'
+    const ladder = aLadder({ held: 'held back by the provenance list', rungs: aLadder().rungs.map(rung => (rung.level === 'semantic search'
       ? { ...rung, count: null, share: null, said: 'not vectorised yet (#8)' } : rung)) })
     vi.mocked(getWorks).mockResolvedValue([aWork({ ladder })])
     const view = mountView()
@@ -285,17 +285,17 @@ describe('SourcesView', () => {
     const card = view.find('[data-cell="coverage"] [data-part="hover-card"]')
     // the level's number before its word, and its share beside its meter, both the API's; a level not measured has none
     expect(card.findAll('[data-row] .card-label').slice(0, 5).map(label => label.text())).toEqual(['1 text served', '2 keyword search',
-      '3 semantic chunks', '4 read', '5 checked'])
+      '3 semantic search', '4 read', '5 checked'])
     expect(card.findAll('.level-share').map(share => share.text())).toEqual(['97 %', '86 %', '', '100 %', '65 %'])
     // each level two lines (line 1, 20 Nov): its number, word, meter and share, then its words beneath, across the card
-    const semantic = card.find('.card-level[data-row="semantic chunks"]')
+    const semantic = card.find('.card-level[data-row="semantic search"]')
     expect(semantic.findAll(':scope > *').map(part => part.classes()[0])).toEqual(['card-label', 'ladder-bar', 'level-share', 'card-said'])
     expect(semantic.find('.card-said').text()).toBe('not vectorised yet (#8)')
     // the states are no level: under a rule, captioned as the read pages' breakdown, a step in, no number and no meter; the
     // file's own line apart once more, uncaptioned
     const shown = card.findAll('.card-level, .card-row, .card-rule, .card-caption')
       .map(part => part.attributes('data-row') ?? part.classes()[0])
-    expect(shown).toEqual(['text served', 'keyword search', 'semantic chunks', 'read', 'checked', 'card-rule', 'card-caption', 'ok',
+    expect(shown).toEqual(['text served', 'keyword search', 'semantic search', 'read', 'checked', 'card-rule', 'card-caption', 'ok',
       'issue', 'blocked', 'card-rule', 'held'])
     expect(card.find('.card-caption').text()).toBe('read pages by state')
     expect(card.find('[data-row="ok"]').attributes('data-indent')).toBe('true')
