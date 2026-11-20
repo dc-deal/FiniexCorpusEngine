@@ -395,6 +395,17 @@ test('every work says how far it is refined: five meters in Sources, its levels 
   await expect(ladder.locator('.rung-level')).toHaveText(['1 text served', '2 keyword search', '3 semantic chunks', '4 read', '5 checked'])
   await expect(ladder.locator('.level-share')).toHaveText(kelly.ladder!.rungs.map(rung => (rung.share === null ? '' : `${rung.share} %`)))
   await expect(ladder.locator('[data-said="text served"]')).toHaveText(kelly.ladder!.rungs[0]!.said)
+  const sides = async () => ladder.locator('.rung-level').evaluateAll(levels => levels.map(level => {
+    const said = level.parentElement!.querySelector(`[data-said="${level.getAttribute('data-level')}"]`)!.getBoundingClientRect()
+    return said.top >= level.getBoundingClientRect().bottom - 1
+  }))
+  expect(await sides(), 'a wide record\'s levels take two lines').toEqual([false, false, false, false, false])
+  await page.setViewportSize({ width: 390, height: 900 })
+  expect(await sides(), 'a narrow record\'s levels keep their figures beside the meter').toEqual([true, true, true, true, true])
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    'the work\'s page scrolls sideways at 390 px').toBe(true)
+  await page.screenshot({ path: `${SHOTS}/work_coverage_390.png` })
+  await page.setViewportSize({ width: 1280, height: 900 })
   await ladder.locator('[data-part="ladder-details"] summary').click()
   await expect(ladder.locator('[data-part="ladder-details"] dl')).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/work_coverage.png` })
@@ -462,14 +473,15 @@ test('a meter takes colour only where a look is called for, and a card waits for
     of: 400, share: count === null ? null : Math.round(100 * count / 400), by_base: {}, pages_filter: null, warn: false,
     said: count === null ? 'not vectorised yet (#8)' : `${count} of 400 PDF pages`, ...extra })
   const ladder = (rungs: object[]) => ({ unit: 'PDF pages', whole: 400, by_route: {}, held: null, not_served: null, unplaced: {},
-    states: [{ value: 'issue', count: 40, served: null }], planned: 400, passed: 300, built_at: null, rungs })
+    states: [{ value: 'issue', count: 40, served: null }, { value: 'decided_by_an_automated_review', count: 12, served: null }],
+    planned: 400, passed: 300, built_at: null, rungs })
   const invented = (id: string, rungs: object[]) => ({ knowledge_base: 'licensed', id, title: id, authors: null, publisher: null, year: null,
     licence: null, format: 'pdf', shelf: null, readings: null, page_list: false, ladder: ladder(rungs) })
   await page.route('**/api/works', async route => {
     const response = await route.fetch()
     await route.fulfill({ response, json: [...await response.json() as object[],
       invented('an_invented_work_with_issues', [rung('text served', 400), rung('keyword search', 380), rung('semantic chunks', null),
-        rung('read', 340), rung('checked', 300, { issues: 40 })]),
+        rung('read', 340), rung('checked', 300, { issues: 40, said: '300 of 400 PDF pages checked by the judge or a review' })]),
       invented('an_invented_scan_serving_nothing', [rung('text served', 0, { warn: true }), rung('keyword search', 0),
         rung('semantic chunks', null), rung('read', 0), rung('checked', 0)])] })
   })
@@ -527,6 +539,18 @@ test('a meter takes colour only where a look is called for, and a card waits for
   expect(new Set(meters.map(String)).size, `the card's meters do not stand under each other: ${JSON.stringify(meters)}`).toBe(1)
   const shares = await edges('.level-share')
   expect(new Set(shares.map(([, right]) => right)).size, `the card's shares do not end in one line: ${JSON.stringify(shares)}`).toBe(1)
+  // each level two lines (line 1, 20 Nov, seen live with a long state's label beside them): its word, meter and share on one,
+  // its words on the next across the card, never more than two lines, whatever the states' labels beneath
+  const lines = await card.locator('.card-level').evaluateAll(levels => levels.map(level => {
+    const [label, meter, , said] = [...level.children].map(part => part.getBoundingClientRect())
+    const line = label!.height
+    return { level: level.getAttribute('data-row'), lines: Math.round(said!.height / line),
+      oneLine: Math.abs((meter!.top + meter!.bottom) / 2 - (label!.top + label!.bottom) / 2) < line / 2, under: said!.top >= label!.bottom - 1 }
+  }))
+  for (const level of lines) {
+    expect(level.lines, `${level.level}: its words run to ${level.lines} lines`).toBeLessThanOrEqual(2)
+    expect(level.oneLine && level.under, `${level.level}: its meter is not on its word's line, or its words not beneath`).toBe(true)
+  }
   // the read pages' states apart beneath the levels, under a rule
   await expect(card.locator('.card-rule')).toHaveCount(1)
   await expect(card.locator('.card-caption')).toHaveText('read pages by state')
@@ -2801,4 +2825,72 @@ test('the sources bar narrows without moving, groups a series, and a reload brin
   await expect(page.locator('.facet-search')).toHaveValue('lecture 2')
   await expect(page.locator('.facet-trigger[data-facet="kb"] .facet-badge')).toHaveText('1')
   await page.screenshot({ path: `${SHOTS}/sources_bar_reloaded.png` })
+})
+
+test('a hover card stands wholly inside the window: beneath its host, above it at the foot, within the sides (20 Nov)', async ({ page }) => {
+  // the operator: "denk auch daran dass tooltips immer im Bild sein müssen"; seen on a row near the window's foot
+  type Box = { x: number, y: number, width: number, height: number }
+  const within = (box: Box, width: number, height: number) => box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 0.5
+    && box.y + box.height <= height + 0.5
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#/sources')
+  await settled(page)
+  const cells = page.locator('tr[data-work] [data-cell="coverage"] .ladder-card')
+  // the last row whose coverage cell stands wholly in the window: its card opens above it, inside the window
+  const tops = await cells.evaluateAll(hosts => hosts.map(host => host.getBoundingClientRect().bottom))
+  const last = tops.filter(bottom => bottom <= 900).length - 1
+  expect(last, 'no coverage cell near the window\'s foot to try').toBeGreaterThan(3)
+  const footHost = cells.nth(last)
+  await footHost.hover()
+  const footCard = page.locator('tr[data-work] [data-cell="coverage"] [data-part="hover-card"]')
+  await expect(footCard).toBeVisible()
+  const footBox = (await footCard.boundingBox())!
+  const footHostBox = (await footHost.boundingBox())!
+  expect(within(footBox, 1280, 900), `the card at the window's foot runs out of it: ${JSON.stringify(footBox)}`).toBe(true)
+  expect(footBox.y + footBox.height, 'the card at the window\'s foot does not open above its host').toBeLessThanOrEqual(footHostBox.y)
+  await page.screenshot({ path: `${SHOTS}/card_at_the_foot.png` })
+  // the first row's opens beneath it
+  await page.mouse.move(1, 1)
+  await expect(footCard).toHaveCount(0)
+  await cells.first().hover()
+  await expect(footCard).toBeVisible()
+  const firstBox = (await footCard.boundingBox())!
+  expect(firstBox.y, 'the first row\'s card does not open beneath it').toBeGreaterThanOrEqual((await cells.first().boundingBox())!.y
+    + (await cells.first().boundingBox())!.height)
+  expect(within(firstBox, 1280, 900)).toBe(true)
+  // placed again while it stands open: the page scrolled under a card the keyboard opened, it keeps to its host, inside
+  await page.mouse.move(1, 1)
+  await cells.nth(2).focus()
+  await expect(footCard).toBeVisible()
+  const before = (await footCard.boundingBox())!.y - (await cells.nth(2).boundingBox())!.y
+  await page.evaluate(() => window.scrollBy(0, 60))
+  await expect.poll(async () => Math.round((await footCard.boundingBox())!.y - (await cells.nth(2).boundingBox())!.y),
+    { message: 'the card stayed where it was while its host scrolled' }).toBe(Math.round(before))
+  // on a phone the card keeps within the window's sides
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.goto('/#/sources')
+  await settled(page)
+  await page.mouse.move(1, 1)
+  await cells.nth(1).focus()
+  await expect(footCard).toBeVisible()
+  const narrow = (await footCard.boundingBox())!
+  expect(within(narrow, 390, 900), `the card runs past the phone's sides: ${JSON.stringify(narrow)}`).toBe(true)
+  // where it fits neither above nor beneath, it takes the side with more room, as tall as that room, and scrolls inside, the
+  // pointer reaching it there: the one card that does not let the pointer through
+  await page.setViewportSize({ width: 1280, height: 260 })
+  await page.goto('/#/sources')
+  await settled(page)
+  await page.locator('tr[data-work]').first().scrollIntoViewIfNeeded()
+  const host = cells.first()
+  await host.hover()
+  await expect(footCard).toBeVisible()
+  const short = (await footCard.boundingBox())!
+  expect(within(short, 1280, 260), `the card runs out of a short window: ${JSON.stringify(short)}`).toBe(true)
+  const scrolls = await footCard.evaluate(card => ({ over: card.scrollHeight > card.clientHeight,
+    pointer: getComputedStyle(card).pointerEvents }))
+  expect(scrolls, 'a card taller than the room on either side neither scrolls nor takes the pointer').toEqual({ over: true, pointer: 'auto' })
+  await page.mouse.move(short.x + short.width / 2, short.y + short.height / 2, { steps: 4 })
+  await page.mouse.wheel(0, 80)
+  await expect.poll(() => footCard.evaluate(card => card.scrollTop), { message: 'the pointer cannot scroll the card' }).toBeGreaterThan(0)
+  await expect(footCard).toBeVisible()
 })

@@ -64,21 +64,17 @@ describe('the library\'s one hint and one hover card (179)', () => {
     })
   })
 
-  it('opens beneath its host, and above it where the window\'s foot would cut it (SR 11-7 p. 5, 11 Nov)', async () => {
-    // jsdom draws nothing: the host's and the card's boxes are given, a card 120 px tall, the window 768 px
-    const boxOf = (hostTop: number, element: Element) => element.classList.contains('hover-card')
-      ? new DOMRect(0, 0, 300, 120) : new DOMRect(40, hostTop, 60, 20)
-    const placedAt = async (hostTop: number) => {
-      const card = mount(HoverCard, { props: { title: 'Note 4', rows: [{ label: 'note', value: 'Smaller banks …' }] }, slots: { default: '<sup>4</sup>' } })
-      const original = Element.prototype.getBoundingClientRect
-      Element.prototype.getBoundingClientRect = function (this: Element) { return boxOf(hostTop, this) }
-      await card.trigger('mouseenter')
-      await new Promise(resolve => setTimeout(resolve))
-      Element.prototype.getBoundingClientRect = original
-      return (card.find('[data-part="hover-card"]').element as HTMLElement).style.top
-    }
-    expect(window.innerHeight).toBe(768)
-    expect(await placedAt(100)).toBe('124px')  // room beneath: under the host, 4 px apart
-    expect(await placedAt(720)).toBe('596px')  // the foot would cut it: above the host, 4 px apart
+  it('sets a lead above its rows, the first row under a rule there', async () => {
+    const card = mount(HoverCard, {
+      props: { title: 'Coverage', rows: [{ label: 'ok', value: '12', caption: 'read pages by state', indent: true }] },
+      slots: { default: 'cell', lead: '<span class="levels">five levels</span>' },
+    })
+    await card.trigger('focusin')
+    expect(card.findAll('.levels, .card-rule, .card-caption, .card-row').map(part => part.classes()[0]))
+      .toEqual(['levels', 'card-rule', 'card-caption', 'card-row'])
+    // without a lead the first row opens the card, with no rule above it
+    const plain = mount(HoverCard, { props: { title: 'Route', rows: [{ label: 'level', value: 'noted', caption: 'unseen' }] } })
+    await plain.trigger('focusin')
+    expect(plain.find('.card-rule').exists()).toBe(false)
   })
 })

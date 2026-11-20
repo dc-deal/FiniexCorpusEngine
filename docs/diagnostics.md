@@ -1802,3 +1802,13 @@ the cell keeps its five meters alone. A level not measured shows no share. The r
 meter: in the card they stand apart beneath the five, under a thin rule and the caption "read pages by state", a step in. The
 meters keep their one neutral ink; red, the warning outline and the hatch stay the only colours (F1.b). 398 unit tests, 83
 checks in the browser (3 skipped on today's data), 1,504 Python tests.
+
+**A level on two lines, and every card inside the window (the operator, 20 Nov).** The coverage card had grown cramped where a
+state's long label beneath set the width of the levels' words, which then ran to six lines beside their meter. Each level now
+takes two lines: its number, word, meter and share, then its words a step in beneath, across the card; the levels are a block of
+their own, so their meters stand under each other as in the cell, and the states keep the card's own columns. A work's and the
+corpus's full ladder does the same only where the record is narrow. And a hover card, any of them, stands wholly inside the
+window: beneath its host, above it where the room beneath is short, shifted to keep within the window's sides, and where it fits
+neither, on the side with more room, as tall as that room, scrolling inside; it is placed again as the page scrolls or the
+window changes, and closes when its host leaves the window. It is placed by Floating UI, which the library's Reka UI already
+brings for its own popovers. 403 unit tests, 84 checks in the browser (3 skipped on today's data), 1,504 Python tests.
