@@ -50,13 +50,14 @@ def test_whether_the_search_holds_a_page_and_why_not_and_the_text_it_serves():
     rung, text, why = page_ladder.keyword(a_page('prose ' * 60), served, built=True)
     assert (rung.reached, rung.said, text) == (True, 'in search (BM25)', 'prose ' * 60)
     rung, _, _ = page_ladder.keyword(a_page('1 2 3 4 5 6 7 8 9 10 ' * 30 + 'index', searchable=False), served, built=True)
-    assert rung.said == 'not in search (BM25): mostly figures, as a contents page or an index'
+    # the core's own words for why the ranking leaves it out (`page_index.structural_why`), one rule for the search and the view
+    assert rung.said == 'not in search (BM25): mostly figures'
     nothing = page_ladder.PageRung(level='text served', reached=False, said='nothing served')
     rung, text, why = page_ladder.keyword(None, nothing, built=True)
     assert (rung.reached, why, text) == (False, 'nothing is served for it', None)
-    assert page_ladder.structural_why('') == 'no text'
-    assert page_ladder.structural_why('a short page') == 'too short: under 200 characters'
-    assert page_ladder.structural_why('| a | b |\n|---|---|\n' * 20 + 'word ' * 60) == 'a table'
+    # a page the core would rank, left out all the same, says so without a reason it does not carry
+    rung, _, _ = page_ladder.keyword(a_page('prose ' * 60, searchable=False), served, built=True)
+    assert rung.said == 'not in search (BM25): left out of the ranking'
 
 
 @pytest.mark.readings
