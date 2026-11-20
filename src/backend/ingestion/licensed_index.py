@@ -19,6 +19,7 @@ import hashlib
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 from backend.configuration import data_paths
 from backend.ingestion import chunking, index_store
@@ -57,10 +58,28 @@ def sections_of(work: str, pages: list) -> list[Section]:
     return sections
 
 
-def source_of(work) -> dict:
-    """A private work as a chunk's citation fields: the free catalog's names, filled from the librarian's own work."""
-    return {'id': work.key, 'title': work.title, 'authors': '', 'shelf': work.subject or '', 'format': work.route,
-            'licence': work.licence, 'licence_url': ''}
+def source_of(work, entry: dict | None) -> dict:
+    """A private work as a chunk's citation fields, the free catalog's names: title, authors and shelf from the local licensed
+    catalog where it lists the work's file (N1.a), else the librarian's own title. The shelf is what the router's shelf filter
+    matches, so it must be the catalog's (trading_finance, architecture), never a description."""
+    entry = entry or {}
+    authors = entry.get('authors') or ''
+    return {'id': work.key, 'title': entry.get('title') or work.title,
+            'authors': ', '.join(authors) if isinstance(authors, list) else authors, 'shelf': entry.get('shelf') or '',
+            'format': entry.get('format') or work.route, 'licence': work.licence, 'licence_url': ''}
+
+
+def catalog_entries(keys: dict[str, str]) -> dict[str, dict]:
+    """The local licensed catalog's entry of each work key: by the file stem the key names (a legacy work's slug), else by the
+    key itself (a new work, an EPUB). Empty without a catalog on this machine."""
+    import json
+
+    path = data_paths.LICENSED_CATALOG
+    if not path.exists():
+        return {}
+    by_stem = {Path(entry['file']).stem: entry for entry in json.loads(path.read_text(encoding='utf-8'))['sources']}
+    found = {key: by_stem[slug] for key, slug in keys.items() if slug in by_stem}
+    return {**{stem: entry for stem, entry in by_stem.items()}, **found}
 
 
 def fingerprint(pages: list) -> str:
@@ -73,7 +92,7 @@ def fingerprint(pages: list) -> str:
     return digest.hexdigest()
 
 
-def plans(pages: list, works: dict, held: set[str]) -> tuple[list[dict], dict]:
+def plans(pages: list, works: dict, held: set[str], catalog: dict[str, dict] | None = None) -> tuple[list[dict], dict]:
     """Per private work not held back: its source, sections, chunks and token count; and what was left out, by why."""
     by_work = defaultdict(list)
     for page in pages:
@@ -84,7 +103,7 @@ def plans(pages: list, works: dict, held: set[str]) -> tuple[list[dict], dict]:
         if key in held:
             left_out['held back by the provenance list'] += len(by_work[key])
             continue
-        source = source_of(works[key])
+        source = source_of(works[key], (catalog or {}).get(key))
         sections = sections_of(key, by_work[key])
         chunks = chunking.chunk_sections(sections, source)
         for chunk in chunks:
@@ -112,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     keys = search_server.legacy_keys()
     pages, works = search_server.licensed_pages()
-    planned, left_out = plans(pages, works, held_works(keys))
+    planned, left_out = plans(pages, works, held_works(keys), catalog_entries(keys))
     connection = None if args.dry_run else index_store.connect(directory / 'knowledge.sqlite3')
     if connection is not None and not args.force:
         for plan in planned:

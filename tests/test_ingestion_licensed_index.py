@@ -44,3 +44,12 @@ def test_the_private_index_lies_where_git_never_tracks_it():
 
     assert data_paths.LICENSED_INDEX.is_relative_to(data_paths.LICENSED_WORKING)
     assert reading_store.refusal(data_paths.ROOT / 'corpus' / 'index_private') is not None  # a tracked path is refused
+
+
+def test_a_chunk_carries_the_catalog_s_shelf_and_authors_which_the_shelf_filter_matches():
+    entry = {'title': 'Book, the catalog title', 'authors': 'A. Author', 'shelf': 'trading_finance', 'format': 'pdf'}
+    planned, _ = licensed_index.plans([page('book', '7')], {'book': work('book')}, held=set(), catalog={'book': entry})
+    metadata = planned[0]['chunks'][0].metadata
+    assert (metadata['shelf'], metadata['authors'], metadata['source_title']) == ('trading_finance', 'A. Author', 'Book, the catalog title')
+    bare, _ = licensed_index.plans([page('book', '7')], {'book': work('book')}, held=set())
+    assert bare[0]['chunks'][0].metadata['source_title'] == 'Book'
