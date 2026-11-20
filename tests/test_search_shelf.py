@@ -134,3 +134,6 @@ def test_the_semantic_level_counts_each_source_s_chunks_and_the_pages_they_cover
             ('c3', 'book', 's2', 'c', json.dumps({'pdf_page': 4})), ('c4', 'site', 's9', 'd', json.dumps({}))])
     assert shelf.semantic_counts(index_db) == {'book': {'chunks': 3, 'pages': 2}, 'site': {'chunks': 1, 'pages': 0}}
     assert shelf.semantic_counts(tmp_path / 'none.sqlite3') == {}
+    detail = shelf.semantic_detail(index_db)
+    assert detail['book'] == {'pages': {3: 2, 4: 1}, 'sections': {'s1': 2, 's2': 1}} and detail['site']['pages'] == {}
+    assert shelf.semantic_detail(tmp_path / 'none.sqlite3') == {}

@@ -102,6 +102,27 @@ def semantic_counts(index_db: Path | None = None) -> dict[str, dict]:
     return {source: {'chunks': row['chunks'], 'pages': len(row['pages'])} for source, row in counts.items()}
 
 
+def semantic_detail(index_db: Path | None = None) -> dict[str, dict]:
+    """Per source of the vector index, its chunks by PDF page and by section (V2.a, 20 Nov: each page's and each section's
+    own coverage ladder): {source_id: {'pages': {pdf_page: chunks}, 'sections': {section_id: chunks}}}. Empty without an
+    index on this machine."""
+    import sqlite3
+
+    index_db = index_db or data_paths.INDEX / 'knowledge.sqlite3'
+    if not index_db.exists():
+        return {}
+    detail: dict[str, dict] = {}
+    with sqlite3.connect(index_db) as db:
+        for source_id, section_id, metadata in db.execute('SELECT source_id, section_id, metadata FROM chunks'):
+            row = detail.setdefault(source_id, {'pages': Counter(), 'sections': Counter()})
+            page = json.loads(metadata or '{}').get('pdf_page')
+            if page is not None:
+                row['pages'][int(page)] += 1
+            if section_id:
+                row['sections'][section_id] += 1
+    return {source: {'pages': dict(row['pages']), 'sections': dict(row['sections'])} for source, row in detail.items()}
+
+
 def free_rows(pages: list, works: dict) -> list[dict]:
     """The free works: each PDF read page by page (every page planned), each HTML source by section."""
     from backend.conversion.store import reading_export
