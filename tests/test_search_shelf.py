@@ -11,7 +11,8 @@ def licensed_shelf(tmp_path, monkeypatch) -> dict:
     a_licensed_shelf(tmp_path, monkeypatch)
     plan = tmp_path / 'rollout'
     plan.mkdir()
-    (plan / 'plan.json').write_text(json.dumps({'order': [{'file': 'book_a.pdf'}] * 3 + [{'file': 'book_c.pdf'}]}), encoding='utf-8')
+    order = [{'file': 'book_a.pdf', 'pdf_page': number} for number in (1, 2, 3)] + [{'file': 'book_c.pdf', 'pdf_page': 1}]
+    (plan / 'plan.json').write_text(json.dumps({'order': order}), encoding='utf-8')
     monkeypatch.setattr(rollout, 'FOLDER', plan)
     pages, works = search_server.licensed_pages()
     return {row['work'] or row['file']: row for row in shelf.licensed_rows(pages, works)}
@@ -30,10 +31,13 @@ def test_a_work_a_session_reads_whole_plans_every_page_of_its_file(tmp_path, mon
     from backend.conversion.reading import reading_cells
 
     whole = tmp_path / 'direct_pages.json'
-    whole.write_text(json.dumps({'added_works': ['book_c.pdf', 'gone.pdf'], 'pages': []}), encoding='utf-8')
+    # N5.a (20 Nov): the session's list names the pages it takes: a scan's every page, a born-digital work's structure pages
+    listed = [{'file': 'book_c.pdf', 'pdf_page': 2}, {'file': 'book_a.pdf', 'pdf_page': 3}]  # book_a is no work taken whole
+    whole.write_text(json.dumps({'added_works': ['book_c.pdf', 'gone.pdf'], 'pages': listed}), encoding='utf-8')
     monkeypatch.setattr(reading_cells, 'DIRECT_PAGES', {'licensed': whole})
-    row = licensed_shelf(tmp_path, monkeypatch)['key-c']
-    assert (row['pages'], row['planned']) == (2, 2)  # the plan named one of its two pages
+    rows = licensed_shelf(tmp_path, monkeypatch)
+    assert (rows['key-c']['pages'], rows['key-c']['planned']) == (2, 2)  # the plan's page 1 and the list's page 2
+    assert rows['key-a']['planned'] == 3
 
 
 def test_every_reason_the_serving_rule_knows_is_counted(monkeypatch):
