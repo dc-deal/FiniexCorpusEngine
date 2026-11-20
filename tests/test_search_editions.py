@@ -142,3 +142,18 @@ def test_every_row_of_a_family_carries_it_and_a_kept_one_names_the_served_editio
     assert marked['stray.pdf']['possible_edition_of'] == ['stray_copy'] and 'editions' not in marked['stray.pdf']
     assert shelf.totals([{**row, 'planned': None, 'read': 0, 'passed': 0, 'served': {'pages': 0, 'from_readings': 0},
                           'not_passed': {}, 'unplaced': {}} for row in marked.values()])['kept_editions'] == 1
+
+
+def test_an_edition_named_by_its_file_s_stem_finds_a_legacy_work_keyed_otherwise(monkeypatch):
+    # found by line 2, 20 Nov: the served lecture is a legacy work, keyed by its citation key, while the list and the catalog
+    # name it by its file's stem; its shelf row carried no family
+    from backend.ingestion import licensed_index
+
+    monkeypatch.setattr(licensed_index, 'catalog_entries', lambda keys: {})
+    families = editions.link({}, ['old_stem', 'new'], serves='new', why='why', today=TODAY)
+    pages = [Page('legacy-old', '1', 1, 'The Sharpe ratio of a strategy.', 'old.md', pdf='1', knowledge_base='licensed')]
+    works = {'legacy-old': search_server.Work('legacy-old', 'A Book', 'licensed', LICENCE, 'legacy markdown', pages=1)}
+    pages, works = search_server.with_editions(pages, works, {'legacy-old': 'old_stem'}, families)
+    assert works['legacy-old'].kept_for == 'new' and not pages[0].searchable
+    rows = shelf.with_editions([{'work': 'legacy-old', 'file': 'old_stem.pdf'}], families, [])
+    assert rows[0]['kept_for'] == 'new' and rows[0]['editions']['serves'] == 'new'

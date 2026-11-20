@@ -452,7 +452,10 @@ def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str
     for key, entry in catalog_entries(keys).items():
         if key in works:
             works[key].edition, works[key].year = entry.get('edition'), entry.get('year')
-    kept = editions.kept(families)
+    # the list names an edition by its file's stem, the catalog's id; a legacy work is keyed by its citation key (found by
+    # line 2, 20 Nov: the served lecture's key is its legacy key), so a stem is turned into the key the server uses
+    work_key = {slug: key for key, slug in keys.items()}.get
+    kept = {work_key(key, key): work_key(served, served) for key, served in editions.kept(families).items()}
     for key, served in kept.items():
         if key in works:
             works[key].kept_for, works[key].pages = served, 0

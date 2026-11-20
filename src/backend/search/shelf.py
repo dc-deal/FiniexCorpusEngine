@@ -225,15 +225,17 @@ def with_editions(rows: list[dict], families: dict[str, dict], entries: list[dic
     """A work's editions on its rows (E1.a, the operator, 20 Nov: one work, its editions a level under it, one served): every
     row of a family carries the family (`editions`: which edition is served, when and why it was chosen, each edition with its
     label, year and format), a kept edition the key of the served one (`kept_for`); a file that looks like another edition and
-    is linked with none says so (`possible_edition_of`), for a person to decide. A row is matched by its work key, else its
-    file's stem, which is how the editions list and the catalog name it."""
+    is linked with none says so (`possible_edition_of`), for a person to decide. A row is matched by its work key or its
+    file's stem, either: the list and the catalog name an edition by its stem, and a legacy work's row by its citation key
+    (found by line 2, 20 Nov: the served lecture's row carried no family, its key being its legacy key)."""
     from backend.search import editions
 
     by_id = {entry['id']: entry for entry in entries}
     unlinked = editions.possible_editions(entries, families)
     out = []
     for row in rows:
-        key = row['work'] or (Path(row['file']).stem if row.get('file') else None)
+        names = [name for name in (row['work'], Path(row['file']).stem if row.get('file') else None) if name]
+        key = next((name for name in names if editions.family_of(name, families)), None)
         name = editions.family_of(key, families) if key else None
         if name:
             family = families[name]
@@ -245,8 +247,8 @@ def with_editions(rows: list[dict], families: dict[str, dict], entries: list[dic
                                                      'served': edition == family['serves']} for edition in listed]}}
             if key != family['serves']:
                 row['kept_for'] = family['serves']
-        if key in unlinked:
-            row = {**row, 'possible_edition_of': unlinked[key]}
+        if look_alike := next((name for name in names if name in unlinked), None):
+            row = {**row, 'possible_edition_of': unlinked[look_alike]}
         out.append(row)
     return out
 
