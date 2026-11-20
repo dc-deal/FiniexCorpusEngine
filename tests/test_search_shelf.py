@@ -56,6 +56,7 @@ def test_a_passed_reading_the_search_cannot_serve_says_why(tmp_path, monkeypatch
     alternate = rows['book_b__alt.pdf']
     assert alternate['work'] is None and alternate['not_served'] == shelf.BESIDE_LEGACY
     assert alternate['unplaced'] == {shelf.BESIDE_LEGACY: 1}
+    assert alternate['stand_in_of'] == 'key-b'  # one work with its stand-in, never two works (20 Nov)
     assert rows['key-b']['format'] == 'legacy markdown' and rows['key-b']['served']['by_route'] == {'legacy markdown': 1}
 
 

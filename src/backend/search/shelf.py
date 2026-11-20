@@ -210,7 +210,9 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
                               semantic=semantic.get(key)))
         for file in alternates:  # read, perhaps, but its work's legacy text stands (or the file is held)
             held = None if reading_cells.may_send(file) else HELD
-            out.append(file_row(None, file, [], BESIDE_LEGACY, held, BESIDE_LEGACY))
+            # the work it stands in for, so a view shows one work with its stand-in, never two works (the operator, 20 Nov:
+            # three works stood twice in the sources list)
+            out.append({**file_row(None, file, [], BESIDE_LEGACY, held, BESIDE_LEGACY), 'stand_in_of': key})
     for file in sorted(set(archive) - used):  # a file no work serves: held back, or an EPUB with no legacy text yet
         held = HELD if not reading_cells.may_send(file) else None
         out.append(file_row(None, file, [], held=held, not_served=held or NO_ROUTE))
