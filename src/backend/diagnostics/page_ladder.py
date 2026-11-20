@@ -7,7 +7,8 @@ A PDF page climbs five levels:
 2. text served: what the librarian serves for it, its reading, the IDE's Markdown, the text layer or nothing, and why;
 3. keyword search: whether search (BM25) holds it, and why not, in the core's words (`page_index.structural_why`: no text,
    too short, no words, mostly figures, a table), the rule the search itself follows;
-4. semantic chunks: its chunks in the vector index; the licensed base is not vectorised yet (#8);
+4. semantic chunks: its chunks in its base's vector index, the private base's its own (#8): a free page's by its source id, a
+   licensed one's by its work key; a work held back is never embedded;
 5. reading and check: none, or its reading and the state the lists count it by.
 A section of an HTML or EPUB work climbs the same levels, its text layer and its reading those of a born-digital source.
 
@@ -25,7 +26,7 @@ import pymupdf
 from backend.configuration import data_paths
 from backend.conversion.store import served_readings
 from backend.diagnostics import unread_pages
-from backend.diagnostics.coverage_ladder import CHECKED, NOT_IN_INDEX, NOT_VECTORISED
+from backend.diagnostics.coverage_ladder import CHECKED, NOT_IN_INDEX, not_embedded
 from backend.diagnostics.ladder_types import PageLadder, PageRung
 from backend.diagnostics.readings import NOT_SERVED_ROUTES, fallback_of, listed_state, route_parts
 from backend.search import page_index, shelf
@@ -93,30 +94,35 @@ def keyword(page, served_rung: PageRung, built: bool) -> tuple[PageRung, str | N
     return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}'), page.text, None
 
 
-_SEMANTIC: dict[tuple, dict] = {}
+_SEMANTIC: dict[str, tuple[tuple, dict]] = {}
+INDEX_DB = {'free': lambda: data_paths.INDEX / 'knowledge.sqlite3', 'licensed': lambda: data_paths.LICENSED_INDEX / 'knowledge.sqlite3'}
 
 
-def semantic_detail() -> dict:
-    """The vector index's chunks by page and by section (`shelf.semantic_detail`), read once per state of its database."""
-    db = data_paths.INDEX / 'knowledge.sqlite3'
+def semantic_detail(knowledge_base: str) -> dict:
+    """A base's vector index's chunks by page and by section (`shelf.semantic_detail`), each base's its own (#8), read once per
+    state of its database: {source: {'pages': {pdf_page: chunks}, 'sections': {section_id: chunks}}}."""
+    db = INDEX_DB[knowledge_base]()
     state = (unread_pages.stamp(db),)
     with _GUARD:
-        if state not in _SEMANTIC:
-            _SEMANTIC.clear()
-            _SEMANTIC[state] = shelf.semantic_detail(db)
-        return _SEMANTIC[state]
+        kept = _SEMANTIC.get(knowledge_base)
+        if kept is None or kept[0] != state:
+            kept = (state, shelf.semantic_detail(db))
+            _SEMANTIC[knowledge_base] = kept
+        return kept[1]
 
 
-def semantic(knowledge_base: str, source_id: str, key: int | str, by: str) -> PageRung:
-    """A page's or a section's chunks in the vector index; `by` 'pages' or 'sections'."""
-    if knowledge_base == 'licensed':
-        return PageRung(level='semantic chunks', reached=None, said=NOT_VECTORISED)
-    detail = semantic_detail().get(source_id)
-    if detail is None:
-        return PageRung(level='semantic chunks', reached=None, said=NOT_IN_INDEX)
-    chunks = detail[by].get(key) or detail[by].get(str(key)) or 0
+def chunks_said(chunks: int, of_what: str) -> PageRung:
     return PageRung(level='semantic chunks', reached=chunks > 0,
-                    said=f"{chunks:,} {'chunk' if chunks == 1 else 'chunks'}" if chunks else f'no chunk of this {by[:-1]}')
+                    said=f"{chunks:,} {'chunk' if chunks == 1 else 'chunks'}" if chunks else f'no chunk of this {of_what}')
+
+
+def semantic(knowledge_base: str, source: str | None, key: int | str, by: str, held: str | None = None) -> PageRung:
+    """A page's or a section's chunks in its base's vector index; `source` the index's name of its work (a free work's
+    source id, a licensed one's work key), `by` 'pages' or 'sections'."""
+    detail = semantic_detail(knowledge_base).get(source) if source else None
+    if detail is None:
+        return PageRung(level='semantic chunks', reached=None, said=not_embedded(knowledge_base, held))
+    return chunks_said(detail[by].get(key) or detail[by].get(str(key)) or 0, by[:-1])
 
 
 def reading(row: dict) -> PageRung:
@@ -136,22 +142,25 @@ def page_ladder(knowledge_base: str, source_id: str, pdf_page: int, row: dict, p
     page = search_pages(service).get((work_key, f'pdf:{pdf_page}')) if service is not None and work_key else None
     keyword_rung, text, why_not = keyword(page, served_rung, service is not None)
     return PageLadder(rungs=[text_layer(pdf, pdf_page), served_rung, keyword_rung,
-                             semantic(knowledge_base, source_id, pdf_page, 'pages'), reading(row)],
+                             semantic(knowledge_base, work_key if knowledge_base == 'licensed' else source_id, pdf_page, 'pages',
+                                      held), reading(row)],
                       served_text=text, served_why_not=why_not, held=held)
 
 
-def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key: str, service) -> PageLadder:
+def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key: str, service, held: str | None = None) -> PageLadder:
     """An HTML or EPUB section's own ladder: born digital, so it has no text layer to extract and no reading to need; its
-    text served is the section's own, its keyword level the search's, and its chunks those the section view shows (`chunks`),
-    the licensed base's not vectorised yet (#8)."""
+    text served is the section's own, its keyword level the search's. Its chunks: a free HTML section's those its view shows
+    (`chunks`); a licensed EPUB section's in the private index (#8), named `<work key>:<ordinal>`, its ordinal its position
+    from 0 in four figures (`s1` is `0000`, line 1, 20 Nov)."""
     page = search_pages(service).get((work_key, label)) if service is not None else None
     served_rung = PageRung(level='text served', reached=True, said='its own text, parsed by section')
     keyword_rung, text, why_not = keyword(page, served_rung, service is not None)
-    if knowledge_base == 'licensed' or chunks is None:
-        semantic_rung = PageRung(level='semantic chunks', reached=None, said=NOT_VECTORISED if knowledge_base == 'licensed' else NOT_IN_INDEX)
+    if knowledge_base == 'licensed':
+        semantic_rung = semantic('licensed', work_key, f'{work_key}:{int(label[1:]) - 1:04d}', 'sections', held)
+    elif chunks is None:
+        semantic_rung = PageRung(level='semantic chunks', reached=None, said=NOT_IN_INDEX)
     else:
-        semantic_rung = PageRung(level='semantic chunks', reached=chunks > 0,
-                                 said=f"{chunks:,} {'chunk' if chunks == 1 else 'chunks'}" if chunks else 'no chunk of this section')
+        semantic_rung = chunks_said(chunks, 'section')
     return PageLadder(rungs=[PageRung(level='text layer', reached=None, said=BORN_DIGITAL), served_rung, keyword_rung, semantic_rung,
                              PageRung(level='reading and check', reached=None, said=BORN_DIGITAL)],
                       served_text=text, served_why_not=why_not)
@@ -161,6 +170,6 @@ def held_of(store, source_id: str) -> tuple[str | None, str | None]:
     """The search's key for a work and why the provenance list holds its file back, both from its base's shelf row of it."""
     from backend.diagnostics.coverage_ladder import row_for
 
-    row = row_for(store.shelf_data(), source_id) or {}
+    row = row_for(store.shelf_data(), source_id, source_id) or {}  # an EPUB's row by the work key its view takes
     return row.get('work'), row.get('held')
 

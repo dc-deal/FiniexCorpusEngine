@@ -838,3 +838,8 @@ The record of how the diagnostics frontend came about, mistakes included.
   `page_index.structural_why`, which the ranking itself follows (0b8be5e), and line 2's copy of its branches is gone; a page
   the core would rank that the search leaves out all the same says "left out of the ranking", the one case the rule does not
   name. The words changed in one place: "mostly figures", where the copy had said "as a contents page or an index" beside it.
+- **The private base in the ladders** (#8, line 1, 20 Nov). Each base's index read apart (`page_ladder.semantic_detail` per
+  base, cached per state of its database); whether the private index exists asked of the core alone
+  (`retrieval.licensed_index_built`), so every test sets it rather than reading this machine's. Measured over the private base:
+  every read PDF counts its chunks, the held works say they were never embedded, and the files the librarian does not serve
+  say so too, where they had first said "not in the vector index".

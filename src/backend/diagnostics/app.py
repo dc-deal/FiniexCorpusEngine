@@ -270,7 +270,9 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         if found is None:
             raise HTTPException(404, f'no section {label!r} of {source_id!r}')
         # its own ladder (V2.a): the librarian serves a licensed EPUB under the key this route takes, by section label
-        return found.model_copy(update={'ladder': page_ladder.section_ladder(knowledge_base, label, None, source_id, search.ready())})
+        _, held = page_ladder.held_of(store_of(knowledge_base), source_id)
+        return found.model_copy(update={'ladder': page_ladder.section_ladder(knowledge_base, label, None, source_id, search.ready(),
+                                                                             held)})
 
     @app.get('/api/{knowledge_base}/epub/{source_id}/image', response_class=Response,
              responses={200: {'content': {'image/png': {}, 'image/jpeg': {}, 'image/gif': {}}}})
