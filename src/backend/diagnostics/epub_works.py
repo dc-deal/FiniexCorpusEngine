@@ -14,6 +14,8 @@ once and kept while its file is unchanged; the app's warm-up cuts them all ahead
 import mimetypes
 import threading
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -138,15 +140,29 @@ def counted(path: Path) -> int | None:
     return len(found) if found is not None else None
 
 
+def cut_all(works: dict[str, Path] | None = None) -> None:
+    """Cut every EPUB ahead, one after another, so the sources list counts their sections."""
+    for key, path in (works if works is not None else epubs()).items():
+        cut(key, path)
+
+
+@contextmanager
+def held() -> Iterator[bool]:
+    """The one hold on cutting ahead, taken where it is free: while the start's warm-up holds it, a list's own call to cut
+    the EPUBs ahead (`warm`) leaves them to the warm-up rather than cut beside it. Yields whether this hold has it."""
+    got = _warming.acquire(blocking=False)
+    try:
+        yield got
+    finally:
+        if got:
+            _warming.release()
+
+
 def warm(works: dict[str, Path] | None = None) -> None:
     """Cut every EPUB ahead, one after another, so the sources list counts their sections; one warm-up at a time."""
-    if not _warming.acquire(blocking=False):
-        return
-    try:
-        for key, path in (works if works is not None else epubs()).items():
-            cut(key, path)
-    finally:
-        _warming.release()
+    with held() as got:
+        if got:
+            cut_all(works)
 
 
 def warm_in_background() -> None:

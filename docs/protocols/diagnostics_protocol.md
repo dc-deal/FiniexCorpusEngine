@@ -893,3 +893,14 @@ The record of how the diagnostics frontend came about, mistakes included.
   passed it alone). The PDF the page view read last stays open from its bytes, not its file, so no handle locks the file on
   Windows. **Shown failing:** with the caches set aside, the counting tests failed on every work's readings counted again and
   the index's stamp asked ten times a call. The container's figures after the merge are measured once line 1 has restarted it.
+- **The start's warm-up, in the order a person meets the views** (line 1, 20 Nov). **Found:** a work's first page after its page
+  list took 18 s because the first page of a base reads that base's vector index by page whole (`semantic_detail`, 6 s of its
+  own in the container), which every page shares and the old warm-up left out, with the EPUB cut a list had started running
+  beside it; the old warm-up also left out each work's pages without a reading (1.3 s for a work's first list once all else was
+  warm) and cut the EPUBs only after the search index, 136 s in the container. **Built:** `app.warm_steps` names the steps in
+  order and `app.run_warm` runs them one after another, each in a request's span of stamps, a failing one logged and passed;
+  while it runs, a list's own call to cut the EPUBs ahead leaves them to it (`epub_works.held`). It starts once every route
+  stands, so it calls the Sources list and the overview as a request would. **Measured** in a throwaway container from the
+  image, the main tree mounted and the worktree's source read-only over it: a measuring script fed on stdin made the search's
+  process pool fail to start its workers and build in one process (130 to 190 s), so it runs as a file. During the warm-up every
+  call answered 200, the page list at 10.9 s while it built the legacy pages itself; after it, each first call under a second.

@@ -1639,6 +1639,13 @@ class Readings:
             self._unread_pages[work['source_id']] = kept
         return kept[1]
 
+    def warm_unread(self) -> None:
+        """Every work's pages without a reading built ahead, as its page list builds them on its first call: the start's
+        warm-up (line 1, 20 Nov), the read works' and the catalog's PDFs not read yet alike."""
+        unread = [work for entry in self.unread_entries() if (work := self.entry_work(entry.id))]
+        for work in [*self.works(), *unread]:
+            self.unread_of(work, self.rows_of(work['source_id']))
+
     def entry_work(self, source_id: str) -> dict | None:
         """A licensed catalog entry with a PDF the export has no pages of, as a work its page list can stand on (U1.a: every
         work opens, one not read page by page too): every page of it without a reading. None for any other."""

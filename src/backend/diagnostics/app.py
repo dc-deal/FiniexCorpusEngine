@@ -11,6 +11,8 @@ Every route answers only a request addressed to this machine by name; see `TRUST
 """
 
 import threading
+import time
+import traceback
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -52,20 +54,48 @@ def operation_id(route: APIRoute) -> str:
     return route.name
 
 
-def warm(bases: dict[str, readings.Readings], search: search_hits.Search) -> None:
-    """What the first requests after a start would otherwise wait for, one after the other so they do not contend for the
-    disk: every reading file's integrity and every export's counts, which the overview, the landing page, needs (line 1,
-    10 Nov: 22 s on the operator's first load), then the search index, 20 s free and 50 s with both bases, which only a search needs."""
-    page_integrity.warm((store.export, store.rows()) for store in bases.values())
-    for store in bases.values():
-        overview.counted(store)
-    overview.pages(bases, {})  # the Pages view's one load (P1.a), 1.9 s natively when cold
-    for store in bases.values():  # what serves a licensed page without a reading (V1.b), 15.8 s natively, which a work's pages need
-        if store.legacy:
-            store.legacy()
-    search.service()
-    if 'licensed' in bases:  # the licensed EPUBs cut ahead, so the sources list counts their sections (123.a)
-        epub_works.warm()
+Step = tuple[str, Callable[[], object]]
+
+
+def warm_steps(bases: dict[str, readings.Readings], search: search_hits.Search, first: Callable[[], object]) -> list[Step]:
+    """What the first requests after a start would otherwise wait for, in the order a person meets the views after a restart
+    (line 1, 20 Nov: every merge restarts the container, and a work's page list took 24 s, its first page 18 s more): the
+    Sources list and the overview, the landing page (each work's readings in figures, the shelves, every reading file's
+    integrity: 22 s on the operator's first load of 10 Nov); then what a work's page list needs (the legacy pages, 15.8 s
+    natively, and the files not served), what any page's view needs (each base's vector index by page, which the first page
+    of a base read whole), each work's pages without a reading, which its page list and its unread pages share (1.3 s for a
+    work's first list in the container, the rest warm); then the Pages view's one load, the licensed EPUBs' cuts, which the
+    Sources list counts their sections from, and last the search index (136 s with both bases in the container), which only
+    a search needs: a page's view never waits for it."""
+    steps: list[Step] = [('the Sources list and the overview', first)]
+    steps += [(f'the {name} legacy pages', store.legacy) for name, store in bases.items() if store.legacy]
+    steps += [(f'the {name} files not served', store.not_served) for name, store in bases.items() if store.not_served]
+    steps += [(f'the {name} vector index by page', lambda name=name: page_ladder.semantic_detail(name)) for name in bases]
+    steps += [(f'the {name} pages without a reading', store.warm_unread) for name, store in bases.items()]
+    steps.append(('the Pages view', lambda: overview.pages(bases, {})))
+    if 'licensed' in bases:
+        steps.append(('the licensed EPUBs', epub_works.cut_all))
+    steps.append(('the search index', search.service))
+    return steps
+
+
+def run_warm(steps: list[Step], say: Callable[[str], None] = lambda line: print(line, flush=True)) -> None:
+    """The steps one after the other, so they do not contend for the disk and the interpreter, each in a request's span so
+    a file's stamp is looked at once. A step that fails is said and the next goes on: the warm-up never takes the view down,
+    and a view whose step failed builds it on its own first call, as it would without a warm-up. Its last line says it is done.
+    While it runs, a list's own call to cut the EPUBs ahead leaves them to it rather than cut beside it."""
+    started = time.perf_counter()
+    with epub_works.held():
+        for name, step in steps:
+            began = time.perf_counter()
+            try:
+                with stamps.one_look():
+                    step()
+            except Exception:  # noqa: BLE001 — any failure is the step's alone: said, and the rest goes on
+                say(f'warm-up: {name} failed:\n{traceback.format_exc()}')
+                continue
+            say(f'warm-up: {name} in {time.perf_counter() - began:.1f} s')
+    say(f'warm-up done in {time.perf_counter() - started:.0f} s')
 
 
 def create_app(public_only: bool = False, warm_search: bool = False, chat_agent: Callable[[], Any] | None = None,
@@ -78,8 +108,6 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
     read-only. `export_run` replaces the export a verdict sets going, for the tests, so none writes the real export."""
     bases = readings.knowledge_bases(public_only)
     search = search_hits.Search(public_only)
-    if warm_search:
-        threading.Thread(target=warm, args=(bases, search), name='warm', daemon=True).start()
     talk = chat.ChatService(chat_agent, bases)
     judged = verdicts.VerdictService(allow_verdicts, bases, run=export_run)
 
@@ -468,6 +496,9 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
     # Mounted last, so every /api route is matched before it.
     if DIST.is_dir():
         app.mount('/', StaticFiles(directory=DIST, html=True), name='ui')
+    if warm_search:  # once every route stands, so the warm-up calls the Sources list and the overview as a request would
+        steps = warm_steps(bases, search, lambda: (list_works(), show_overview()))
+        threading.Thread(target=run_warm, args=(steps,), name='warm', daemon=True).start()
     return app
 
 

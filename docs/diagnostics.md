@@ -1830,3 +1830,13 @@ exactly as before; a test counts, never times, that a second call reads and pars
 read again. Measured on this machine, warm, a second call: the Sources list 0.21 s before and 0.02 s after, a page's view 0.08 s
 and 0.01 s, a work's page list 0.06 s and 0.03 s, the overview 0.05 s and 0.01 s; in the container before, 1.04 s, 0.51 s, 0.12
 s and 0.16 s. 1,508 Python tests.
+
+**The views warm up after a start (line 1, 20 Nov).** Every merge restarts the container, and the first calls after it paid for
+what every later call shares: 24 s for a work's first page list, 18 s more for its first page. The start's warm-up builds it in
+the background, in the order a person meets the views: the Sources list and the overview, the legacy pages and the files not
+served, each base's vector index by page, each work's pages without a reading, the Pages view, the licensed EPUBs' cuts, and
+last the search index, which only a search needs. The view answers meanwhile; a call that needs a part still being built waits
+for that part, at the cold figure at worst, and a step that fails is logged and the next goes on. The log's last line says
+`warm-up done in N s`. Measured in the container after the warm-up (173 s), each route's first call: the Sources list 0.13 s, a
+work's page list 0.04 s, a page's view 0.78 s (most of it its own image, which no other page shares), the overview 0.04 s. 1,523
+Python tests.
