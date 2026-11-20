@@ -39,6 +39,7 @@ LICENSED_WORKING = WORKING / 'licensed'
 # `_work/`: a licensed title never stands in a tracked file (251.a). A view not run with --public-only shows it.
 LICENSED_CATALOG = LICENSED_WORKING / 'catalog.json'
 SHELF_HISTORY = WORKING / 'shelf_history.json'  # the corpus's milestones, each base's figures apart (X1.a, 19 Nov)
+LICENSED_INDEX = LICENSED_WORKING / 'index'  # the private base's vector index (#8): local only, never in any repository
 # How the exports spell a file in the role folders (the tracked configuration's names), and where each lies on this machine:
 # the same place in the main tree, the main tree's folders in line 2's worktree (285.a, found 20 Nov by line 2)
 _ROLE_FOLDERS = {'_sources/': ORIGINALS, '_work/': WORKING}
