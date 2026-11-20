@@ -1,3 +1,4 @@
+import { HOVER_DELAY } from '@/hover_delay'
 /**
  * Browser interfaces jsdom does not implement, supplied so the components that use them can be tested at all (Y1.a: taken
  * from the FiniexViewer's test setup with the facet bar). They stand in for MISSING APIs and never replace behaviour under
@@ -20,3 +21,6 @@ if (typeof Element !== 'undefined' && !Element.prototype.hasPointerCapture) {
   Element.prototype.setPointerCapture = (): void => {}
   Element.prototype.releasePointerCapture = (): void => {}
 }
+
+// a card opens on the pointer at once here, as before C1.b; `hints_and_cards.test.ts` holds the delay itself
+HOVER_DELAY.pointerMs = 0

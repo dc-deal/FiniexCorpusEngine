@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref } from 'vue'
+import { HOVER_DELAY } from '@/hover_delay'
 
 /**
  * Data under the pointer (decision 179): a small card that holds data only, rows of a label and a value, its title naming
- * what it is about, where a browser tooltip stood. It opens on the pointer and on the keyboard's focus, and stands fixed
+ * what it is about, where a browser tooltip stood. It opens on the keyboard's focus at once and on the pointer once it has
+ * rested there (`HOVER_DELAY`, the operator's C1.b), so a pointer passing over opens nothing, and it stands fixed
  * to the window, so a table's own scroll box never cuts it; beneath its host, or above it where the window's foot would
  * cut it (found on SR 11-7 p. 5, a note's marker at the window's foot, 11 Nov). An empty value leaves its row out.
  */
@@ -35,13 +37,32 @@ async function show(): Promise<void> {
   }
 }
 
+// the pointer's wait before the card opens, cancelled when the pointer leaves first
+let waiting: ReturnType<typeof setTimeout> | undefined
+
+function onPointer(): void {
+  clearTimeout(waiting)
+  if (HOVER_DELAY.pointerMs <= 0) {
+    void show()
+    return
+  }
+  waiting = setTimeout(() => void show(), HOVER_DELAY.pointerMs)
+}
+
+function hide(): void {
+  clearTimeout(waiting)
+  shown.value = false
+}
+
+onBeforeUnmount(() => clearTimeout(waiting))
+
 function filled() {
   return props.rows.filter(row => row.value)
 }
 </script>
 
 <template>
-  <span ref="host" class="hover-card-host" tabindex="0" @mouseenter="show" @mouseleave="shown = false" @focusin="show" @focusout="shown = false">
+  <span ref="host" class="hover-card-host" tabindex="0" @mouseenter="onPointer" @mouseleave="hide" @focusin="show" @focusout="hide">
     <slot />
     <span v-if="shown" ref="card" class="hover-card" role="tooltip" data-part="hover-card" :style="place">
       <span class="card-title">{{ title }}</span>

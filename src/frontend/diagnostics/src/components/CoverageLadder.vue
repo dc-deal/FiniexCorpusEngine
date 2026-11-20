@@ -47,14 +47,15 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 <template>
   <HoverCard v-if="compact" class="ladder-card" title="Coverage" :rows="cardRows">
     <span class="ladder-compact" data-part="ladder" :aria-label="ladder.rungs.map(rung => `${rung.level}: ${rung.said}`).join('; ')">
-      <LadderBar v-for="rung in ladder.rungs" :key="rung.level" :count="rung.count" :of="rung.of" :data-level="rung.level" />
+      <LadderBar v-for="rung in ladder.rungs" :key="rung.level" :count="rung.count" :of="rung.of" :issues="rung.issues" :warn="rung.warn"
+                 :data-level="rung.level" />
     </span>
   </HoverCard>
   <div v-else class="ladder-full" data-part="ladder">
     <div class="rungs">
       <template v-for="rung in ladder.rungs" :key="rung.level">
         <span class="rung-level" :data-level="rung.level">{{ rung.level }}</span>
-        <LadderBar class="rung-bar" :count="rung.count" :of="rung.of" :data-level="rung.level" />
+        <LadderBar class="rung-bar" :count="rung.count" :of="rung.of" :issues="rung.issues" :warn="rung.warn" :data-level="rung.level" />
         <span class="rung-said" :data-said="rung.level">
           <HoverCard v-if="hasParts(rung)" :title="rung.level" :rows="byBase(rung)">
             <RouterLink v-if="opens(rung)" class="rung-link" :to="{ name: 'pages', query: rung.pages_filter ?? {} }">{{ rung.said }}</RouterLink>

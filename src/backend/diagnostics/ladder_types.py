@@ -31,6 +31,11 @@ class Rung(BaseModel):
     by_base: dict[KnowledgeBase, int] = {}
     # the Pages view's filter that lists exactly its pages, where one exists ({} for every page); None where none does
     pages_filter: dict[str, list[str]] | None = None
+    # where a look is called for (C1.b): the pages the judge found bad beside the checked ones, drawn as a segment of the
+    # checked meter in the issue's role; and a level nothing reaches that should, a work that serves no text at all, drawn
+    # in the warning role. The words stay the card's either way
+    issues: int | None = None
+    warn: bool = False
 
 
 class Ladder(BaseModel):

@@ -44,6 +44,10 @@ def test_a_pdf_climbs_five_levels_each_against_its_pages_the_checked_ones_those_
                             # what the judge passed and what a person settled: never an unjudged page, nor an issue
                             'checked': (55, 100, '55 of 100 PDF pages checked by the judge or a review')}
     assert all(rung.means for rung in ladder.rungs)
+    # where a look is called for (C1.b): the issues beside the checked pages; nothing to warn of where text is served
+    assert [(rung.level, rung.issues, rung.warn) for rung in ladder.rungs if rung.issues or rung.warn] == [('checked', 9, False)]
+    nothing = coverage_ladder.work_ladder(a_row(served={'pages': 0, 'searchable': 0, 'by_route': {}}, read=0, passed=0), [])
+    assert nothing.rungs[0].warn and not any(rung.warn for rung in nothing.rungs[1:])
     # every state of the read pages for the card, an issue's served tally kept, a page not read left to its own level
     assert [(state.value, state.count, state.served) for state in ladder.states] == [
         ('ok', 50, None), ('ok_unjudged', 20, None), ('decided_by_a_person', 5, None), ('issue', 9, 9)]
@@ -91,7 +95,7 @@ def test_the_corpus_sums_every_level_over_the_bases_a_base_without_vectors_named
                         'built_at': '2026-11-20T10:00:00+00:00'},
                'licensed': {'works': [a_row(knowledge_base='licensed', semantic=None, pages=200, served={'pages': 150, 'searchable': 140})],
                             'built_at': '2026-11-20T11:00:00+00:00'}}
-    ladder = coverage_ladder.corpus_ladder(shelves, {'free': 55, 'licensed': 7})
+    ladder = coverage_ladder.corpus_ladder(shelves, {'free': 55, 'licensed': 7}, {'free': 2, 'licensed': 1})
     assert ladder.unit == 'pages and sections' and ladder.whole == 310
     rungs = {rung.level: rung for rung in ladder.rungs}
     assert (rungs['text served'].count, rungs['text served'].by_base) == (256, {'free': 106, 'licensed': 150})
@@ -101,7 +105,7 @@ def test_the_corpus_sums_every_level_over_the_bases_a_base_without_vectors_named
                                              'vectorised yet (#8)')
     # the levels the Pages view lists: every page it has for the read ones, the checked states for the checked
     assert rungs['read'].pages_filter == {} and rungs['checked'].pages_filter == {'state': list(coverage_ladder.CHECKED)}
-    assert rungs['text served'].pages_filter is None and rungs['checked'].count == 62
+    assert rungs['text served'].pages_filter is None and rungs['checked'].count == 62 and rungs['checked'].issues == 3
     # read and checked against the PDF pages alone: an HTML work's sections are never read page by page
     assert (rungs['read'].of, rungs['read'].said) == (300, '180 of 300 PDF pages')
     assert ladder.built_at == '2026-11-20T11:00:00+00:00'

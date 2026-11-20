@@ -452,6 +452,61 @@ test('every page opens, read or not: its own ladder, the text served and, unread
   }
 })
 
+test('a meter takes colour only where a look is called for, and a card waits for the pointer, never for the keyboard (C1.b)', async ({ page }) => {
+  // invented: a work with issues beside its checked pages, one that serves no text, a level not measured; the free base has none
+  const rung = (level: string, count: number | null, extra: object = {}) => ({ level, means: '', count, of: 400, by_base: {},
+    pages_filter: null, warn: false, said: count === null ? 'not vectorised yet (#8)' : `${count} of 400 PDF pages`, ...extra })
+  const ladder = (rungs: object[]) => ({ unit: 'PDF pages', whole: 400, by_route: {}, held: null, not_served: null, unplaced: {},
+    states: [{ value: 'issue', count: 40, served: null }], planned: 400, passed: 300, built_at: null, rungs })
+  const invented = (id: string, rungs: object[]) => ({ knowledge_base: 'licensed', id, title: id, authors: null, publisher: null, year: null,
+    licence: null, format: 'pdf', shelf: null, readings: null, page_list: false, ladder: ladder(rungs) })
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, json: [...await response.json() as object[],
+      invented('an_invented_work_with_issues', [rung('text served', 400), rung('keyword search', 380), rung('semantic chunks', null),
+        rung('read', 340), rung('checked', 300, { issues: 40 })]),
+      invented('an_invented_scan_serving_nothing', [rung('text served', 0, { warn: true }), rung('keyword search', 0),
+        rung('semantic chunks', null), rung('read', 0), rung('checked', 0)])] })
+  })
+  await page.goto('/#/sources')
+  await settled(page)
+  const role = async (name: string) => page.evaluate(token => getComputedStyle(document.documentElement).getPropertyValue(token).trim(), name)
+  const rgb = async (hex: string) => page.evaluate(value => {
+    const probe = document.createElement('span')
+    probe.style.color = value
+    document.body.append(probe)
+    const said = getComputedStyle(probe).color
+    probe.remove()
+    return said
+  }, hex)
+  const issues = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="checked"] .ladder-issues')
+  await expect(issues).toHaveCount(1)
+  expect(await issues.evaluate(element => getComputedStyle(element).backgroundColor), 'the issues not in the issue role')
+    .toBe(await rgb(await role('--color-error')))
+  // a form beside the colour: a pixel taller on each side than its track, and apart from the fill by a gap
+  const track = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="checked"]')
+  expect((await issues.boundingBox())!.height - (await track.boundingBox())!.height).toBe(2)
+  const warned = page.locator('tr[data-work="an_invented_scan_serving_nothing"] .ladder-bar[data-level="text served"]')
+  await expect(warned).toHaveAttribute('data-look', 'warning')
+  expect(await warned.evaluate(element => getComputedStyle(element).boxShadow)).toContain(await rgb(await role('--color-warning')))
+  const unmeasured = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="semantic chunks"]')
+  expect(await unmeasured.evaluate(element => getComputedStyle(element).backgroundImage)).toContain('repeating-linear-gradient')
+  // a meter with nothing to say stays quiet: its fill in the secondary ink, no colour of a role
+  const quiet = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="read"] .ladder-fill')
+  expect(await quiet.evaluate(element => getComputedStyle(element).backgroundColor)).toBe(await rgb(await role('--color-text-secondary')))
+  await page.screenshot({ path: `${SHOTS}/sources_meter_looks.png` })
+  // the card: nothing while the pointer only passes, open once it rests 500 ms, and at once on the keyboard's focus
+  const card = page.locator('tr[data-work="an_invented_work_with_issues"] [data-cell="coverage"] [data-part="hover-card"]')
+  await page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-card').hover()
+  await page.waitForTimeout(250)
+  await expect(card).toHaveCount(0)
+  await expect(card).toBeVisible({ timeout: 1000 })
+  await page.mouse.move(0, 0)
+  await expect(card).toHaveCount(0)
+  await page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-card').focus()
+  await expect(card).toBeVisible({ timeout: 100 })
+})
+
 test('a work folds its routes to one line of levels, opens them to a row each, and a route chosen keeps its pages', async ({ page, request }) => {
   type Route = { route: string, level: string | null, pages: number }
   type Listed = { routes: Route[], route_levels: { level: string, pages: number }[], pages: { route: string }[] }

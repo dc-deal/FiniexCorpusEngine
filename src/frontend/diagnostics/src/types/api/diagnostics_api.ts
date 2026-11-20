@@ -2443,6 +2443,13 @@ export interface components {
             pages_filter?: {
                 [key: string]: string[];
             } | null;
+            /** Issues */
+            issues?: number | null;
+            /**
+             * Warn
+             * @default false
+             */
+            warn: boolean;
         };
         /** SearchAnswer */
         SearchAnswer: {

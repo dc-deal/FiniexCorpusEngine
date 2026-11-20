@@ -78,7 +78,9 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
     whole = row.get('pages') if pdf and row.get('pages') is not None else served.get('pages', 0)
     read_states = [LadderState(value=count.value, count=count.count, served=count.served) for count in states or []
                    if count.value != 'not_read']
-    rungs = [Rung(level='text served', count=served.get('pages', 0), of=whole, said=figure(served.get('pages', 0), whole, unit)),
+    # a work that serves no text at all, a scan held back, its first level empty where it has a page (C1.b)
+    rungs = [Rung(level='text served', count=served.get('pages', 0), of=whole, said=figure(served.get('pages', 0), whole, unit),
+                  warn=not served.get('pages') and bool(whole)),
              Rung(level='keyword search', count=served.get('searchable', 0), of=whole,
                   said=figure(served.get('searchable', 0), whole, unit)),
              semantic_rung(row, whole, unit, pdf)]
@@ -87,7 +89,9 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
         rungs.append(Rung(level='read', count=read, of=whole,
                           said=f'{figure(read, whole, unit)}, {passed:,} passed' if read else f'none of {whole:,} {unit} read yet'))
         checked = checked_of(read_states)
-        rungs.append(Rung(level='checked', count=checked, of=whole, said=f'{figure(checked, whole, unit)} {CHECKED_SAID}'))
+        issues = sum(count.count for count in read_states if count.value == 'issue')  # beside the checked ones (C1.b)
+        rungs.append(Rung(level='checked', count=checked, of=whole, said=f'{figure(checked, whole, unit)} {CHECKED_SAID}',
+                          issues=issues or None))
     else:
         why = NOT_HELD if legacy_only else BY_HEADING
         rungs += [Rung(level='read', count=None, of=whole, said=why), Rung(level='checked', count=None, of=whole, said=why)]
@@ -96,7 +100,8 @@ def work_ladder(row: dict | None, states: list[StateCount] | None, built_at: str
                              planned=row.get('planned'), passed=row.get('passed') if pdf else None, built_at=built_at))
 
 
-def corpus_ladder(shelves: dict[KnowledgeBase, dict], checked: dict[KnowledgeBase, int]) -> Ladder | None:
+def corpus_ladder(shelves: dict[KnowledgeBase, dict], checked: dict[KnowledgeBase, int],
+                  issues: dict[KnowledgeBase, int] | None = None) -> Ladder | None:
     """The corpus's ladder: each level summed over the knowledge bases whose shelf is built here, each base's part kept for
     its card. A base without a vector index is left out of level 3's sum and named there."""
     if not shelves:
@@ -142,7 +147,7 @@ def corpus_ladder(shelves: dict[KnowledgeBase, dict], checked: dict[KnowledgeBas
         semantic,
         rung('read', read, pages_filter={}, of=pdf_pages, of_unit='PDF pages'),  # every page the Pages view lists has a reading
         rung('checked', {name: checked.get(name, 0) for name in rows}, pages_filter={'state': list(CHECKED)}, of=pdf_pages,
-             of_unit='PDF pages')],
+             of_unit='PDF pages').model_copy(update={'issues': sum((issues or {}).get(name, 0) for name in rows) or None})],
         planned=sum(row.get('planned') or 0 for found in rows.values() for row in found),
         passed=sum(row.get('passed') or 0 for found in rows.values() for row in found),
         built_at=max((shelf.get('built_at') or '' for shelf in shelves.values()), default=None) or None))

@@ -192,6 +192,7 @@ class Counted:
     cost_usd: float
     cost_by_provider: dict[str, float]
     checked: int = 0  # the ladder's top level (U1.a): a reading the checks found fine, or a person or a review settled
+    issues: int = 0  # the pages the judge found bad, a segment beside the checked ones (C1.b)
 
 
 # one export's counts by its index file's modification time: the rows change only when the export is written again
@@ -216,7 +217,8 @@ def counted(store: Readings) -> Counted:
     found = Counted(works=len({row['source_id'] for row in rows}), pages=len(rows),
                     judged=sum(1 for row in rows if (row.get('check') or {}).get('judged')),
                     to_look_at=sum(1 for state in states if state in LISTED_AS_ISSUE), cost_usd=sum(by_provider.values()),
-                    cost_by_provider=by_provider, checked=sum(1 for state in states if state in coverage_ladder.CHECKED))
+                    cost_by_provider=by_provider, checked=sum(1 for state in states if state in coverage_ladder.CHECKED),
+                    issues=sum(1 for state in states if state == 'issue'))
     with _COUNTING:
         _COUNTED[store.index] = (modified, found)
     return found
@@ -258,7 +260,8 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
                       by_base={name: round(found.cost_usd, 4) for name, found in exported.items()},
                       by_provider={provider: round(sum(found.cost_by_provider.get(provider, 0.0) for found in exported.values()), 4)
                                    for provider in sorted({name for found in exported.values() for name in found.cost_by_provider})}),
-        ladder=coverage_ladder.corpus_ladder(built, {name: found.checked for name, found in exported.items()}))
+        ladder=coverage_ladder.corpus_ladder(built, {name: found.checked for name, found in exported.items()},
+                                             {name: found.issues for name, found in exported.items()}))
     runs = latest_runs(served)
     return Overview(headline=headline, history=milestones(served, public_only), runs=runs,
                     runs_why_not=NO_RUNS if runs is None else None)
