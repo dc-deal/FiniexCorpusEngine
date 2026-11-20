@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from typing import Literal
 
+from backend.diagnostics.ladder_types import Ladder
 from backend.diagnostics.readings import KnowledgeBase, Series, WorkReadings
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -76,6 +77,12 @@ class Work(BaseModel):
     structure: Literal['read page by page', 'sections by heading', 'not read page by page'] | None = None
     # the series the local licensed catalog puts it in, None for every other work and under --public-only (Y1.a)
     series: Series | None = None
+    # how far it is refined, the five levels of U1.a, from the shelf and its read pages' states; None where the shelf has no
+    # row of it on this machine
+    ladder: Ladder | None = None
+    # its pages open as a list here (U1.a: every work opens): read page by page, or a licensed PDF not read yet, whose list
+    # holds every page without a reading (V1.b)
+    page_list: bool = False
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

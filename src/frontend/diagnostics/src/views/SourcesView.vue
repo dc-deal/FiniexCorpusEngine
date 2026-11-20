@@ -4,12 +4,13 @@ import { storeToRefs } from 'pinia'
 import AppButton from '@/components/base/AppButton.vue'
 import DataTable from '@/components/base/DataTable.vue'
 import FacetBar from '@/components/base/FacetBar.vue'
+import HintToggle from '@/components/base/HintToggle.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
+import CoverageLadder from '@/components/CoverageLadder.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
-import ServedTally from '@/components/ServedTally.vue'
-import StateMark from '@/components/StateMark.vue'
+import LadderLegend from '@/components/LadderLegend.vue'
 import { applyFacets, sortRows } from '@/components/base/facet_filter'
 import { groupRows, keepOpenGroups, openGroups } from '@/row_groups'
 import { useSourceStore } from '@/stores/source_store'
@@ -21,9 +22,10 @@ import { counted } from '@/counted'
 
 /**
  * Every work of every knowledge base served, one row each, each marked with its knowledge base: the free catalog in its
- * order, then the licensed works, which have no catalog entry and so only an id and a title. Its structure says how the
- * work is cut, by its format's model (the operator's 4.a): a work read page by page shows its pages' check states and opens its page
- * list; an HTML work its sections by heading and their chunks, and opens its outline (the operator's 6.a).
+ * order, then the licensed works, which have no catalog entry and so only an id and a title. How far each is refined stands
+ * in one Coverage column (the operator's U1.a, 20 Nov), five meters a work, the figures in their card. Every work opens: one
+ * read page by page, or a PDF not read yet, its page list, which holds every PDF page (V1.b); an HTML work its outline (the
+ * operator's 6.a); a licensed EPUB its sections.
  *
  * The facet bar narrows it (the operator's Y1.a, 19 Nov): by knowledge base, format, topic, structure and series, a search
  * over title, authors and id, sorted by title, author or year. The parts of one series stand together under a heading,
@@ -35,23 +37,12 @@ const store = useSourceStore()
 // as wide as its longest word and its gap to the next (`--space-md`, the cells' right padding): "licensed" with its glyph,
 // "12th edition", "trading_finance"; so none of their words is ever split, and nothing runs into the next cell (the
 // operator, 18 Nov: "trading_financ|e", "5th editio|n"). Publisher and licence stand in the card only: long, and 63 of 78
-// works carried one licence (measured 19 Nov). Each work's pages and the five states a reader acts on or weighs are figure
-// columns, so the figures line up and the list sorts by them (the operator's B3.a, 19 Nov); the rarer states, an automated
-// review's, a stopped work's and the pages not checked yet, stand in the card. Ranked so every width keeps the work's
-// column at 8 rem at least (B2, its ladder taken again with the figures, 19 Nov): the work and its pages stay; then issue
-// and blocked; then the knowledge base, ok and the authors; then ok unjudged and decided by a person; the year, the format
-// and the topic last. Measured: with the knowledge base a rung earlier, the work's column kept 121 px at 34 rem
+// works carried one licence (measured 19 Nov). How far a work is refined is one Coverage column (U1.a), in place of its
+// pages and the five state columns of B3.a: five meters, the levels' figures and every state of its read pages in the
+// meters' card, the sorts by blocked and by issue kept. Ranked so every width keeps the work's column at 8 rem at least
+// (B2): the work and its coverage stay; then the knowledge base and the authors; the year, the format and the topic last
 const fixed = (width: string, rank?: 2 | 3 | 4 | 5) => ({ width: `calc(${width} + var(--space-md))`, rank })
-// the states with a figure column of their own, in the core's order
-const FIGURE_STATES = [
-  { state: 'ok', column: fixed('6ch', 3) },
-  { state: 'ok_unjudged', column: fixed('10ch', 4) },
-  { state: 'issue', column: fixed('12ch', 2) },
-  { state: 'blocked', column: fixed('9ch', 2) },
-  { state: 'decided_by_a_person', column: fixed('9ch', 4) },
-]
-const COLUMNS = [{}, fixed('11ch', 3), fixed('14ch'), ...FIGURE_STATES.map(one => one.column), { rank: 3 as const },
-  fixed('12ch', 5), fixed('5ch', 5), fixed('16ch', 5)]
+const COLUMNS = [{}, fixed('11ch', 3), fixed('7rem'), { rank: 3 as const }, fixed('12ch', 5), fixed('5ch', 5), fixed('16ch', 5)]
 // a series' heading stands in the work's column and leaves an empty cell in each other, each with its column's rank: a
 // cell spanning all seven made a narrow table, which keeps two, add five columns of its own and squeeze the work's to a
 // letter (measured at 390 px, 19 Nov)
@@ -74,9 +65,6 @@ function cardRows(work: Work): { label: string, value: string | null | undefined
     { label: 'series', value: series },
     { label: 'notes', value: work.notes },
     { label: 'structure', value: work.structure_why_not },
-    // the rarer states, which have no column of their own (B3.a), with their counts as the API gave them
-    ...(work.readings?.states ?? []).filter(count => !FIGURE_STATES.some(one => one.state === count.value))
-      .map(count => ({ label: count.value.replace(/_/g, ' '), value: count.count.toLocaleString('en') })),
   ]
 }
 
@@ -115,7 +103,7 @@ const SORTS: SortDefinition<Work>[] = [
     label: 'year, newest first',
     compare: (a, b) => lastWithout(a.year, b.year) || (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b),
   },
-  // a state's figure column sorted, most first, a work without pages read last (B3.a)
+  // by a state's pages, most first, a work without pages read last (B3.a, kept with U1.a's Coverage column)
   ...['blocked', 'issue'].map(state => ({
     id: state,
     label: `${state}, most first`,
@@ -163,6 +151,10 @@ const lineKey = (line: Line): string => (line.kind === 'head' ? line.key : `${li
 
 useScrollRestore(() => loaded.value)
 
+// what the coverage levels mean, the API's words, from the first work that has a ladder: a hint on demand above the table
+const legendOpen = ref(false)
+const legendRungs = computed(() => works.value.find(work => work.ladder)?.ladder?.rungs ?? [])
+
 onMounted(() => {
   void store.loadWorks()
 })
@@ -195,6 +187,7 @@ onMounted(() => {
         <template v-else>{{ value }}</template>
       </template>
     </FacetBar>
+    <LadderLegend v-if="legendOpen && legendRungs.length" :rungs="legendRungs" @close="legendOpen = false" />
     <p v-if="loaded && works.length && !shown.length" class="empty" data-part="none-match">
       No work matches the search and the filters.
     </p>
@@ -205,12 +198,8 @@ onMounted(() => {
         <tr>
           <th>Work</th>
           <th data-rank="3">Knowledge base</th>
-          <!-- how the work is cut, by its format's model (the operator's 4.a): a PDF by its pages, an HTML work by its headings -->
-          <th class="number">Pages</th>
-          <!-- a state's figures under its glyph and the core's word (B3.a) -->
-          <th v-for="one in FIGURE_STATES" :key="one.state" class="number state-head" :data-rank="one.column.rank">
-            <StateMark :state="one.state" />
-          </th>
+          <!-- how far the work is refined (U1.a): five meters, what they mean a hint on demand -->
+          <th class="coverage-head">Coverage <HintToggle id="ladder" v-model:open="legendOpen" /></th>
           <th data-rank="3">Authors</th>
           <th data-rank="5">Year</th>
           <th data-rank="5">Format</th>
@@ -239,7 +228,7 @@ onMounted(() => {
                    each here, the publisher and licence that stand nowhere else (B2, tip 3) -->
               <HoverCard class="work-card" :title="line.work.title" :rows="cardRows(line.work)">
                 <RouterLink
-                  v-if="line.work.readings"
+                  v-if="line.work.page_list"
                   class="work-title"
                   :to="{ name: 'work', params: { kb: line.work.knowledge_base, work: line.work.id } }"
                 >
@@ -266,10 +255,12 @@ onMounted(() => {
               </HoverCard>
             </td>
             <td data-rank="3"><KnowledgeBaseMark :kb="line.work.knowledge_base" /></td>
-            <!-- a work read page by page: its pages, a figure; any other: how it is cut, in the API's words (B3.a) -->
-            <td data-cell="structure" class="number">
-              <template v-if="line.work.readings">
-                <span class="page-total" data-part="pages">{{ line.work.readings.pages.toLocaleString('en') }}</span>
+            <!-- how far the work is refined (U1.a), its levels' figures in the meters' card; where no shelf is built here, how
+                 the work is cut, in the API's words (B3.a) -->
+            <td data-cell="coverage">
+              <CoverageLadder v-if="line.work.ladder" :ladder="line.work.ladder" compact />
+              <template v-else-if="line.work.readings">
+                <span class="page-total" data-part="pages">{{ counted(line.work.readings.pages, 'page') }}</span>
               </template>
               <!-- a licensed EPUB by its sections (123.a), or why they are not counted yet, in the API's words -->
               <span v-else-if="line.work.epub_key" class="page-count" data-part="epub-sections">
@@ -284,13 +275,6 @@ onMounted(() => {
               </span>
               <!-- a licensed catalog entry the export holds no pages of (O1.a), in the API's words, until the core reads it -->
               <span v-else-if="line.work.not_read" class="page-count" data-part="not-read">{{ line.work.not_read }}</span>
-            </td>
-            <!-- a state's figure, the API's; how many of an issue's pages are served all the same beneath it (18 Nov) -->
-            <td v-for="one in FIGURE_STATES" :key="one.state" class="number" :data-rank="one.column.rank" :data-state="one.state">
-              <template v-if="stateCount(line.work, one.state)">
-                <span class="count">{{ stateCount(line.work, one.state)!.count.toLocaleString('en') }}</span>
-                <ServedTally class="served-line" :served="stateCount(line.work, one.state)!.served" alone />
-              </template>
             </td>
             <td class="authors" data-rank="3">{{ line.work.authors }}</td>
             <!-- a licensed copy's edition beside its year, where the catalog names one (N1.a) -->
@@ -369,27 +353,14 @@ a.work-title:hover {
   color: var(--color-text-secondary);
 }
 
-/* a state's figures under its glyph and word, right-aligned with them; its words wrap at their spaces in the heading */
-.works th.state-head :deep(.state-mark) {
-  white-space: normal;
-  justify-content: flex-end;
-  text-align: right;
+/* the coverage's heading keeps its hint's mark beside its word */
+.coverage-head {
+  white-space: nowrap;
 }
 
-.works th.number,
-.works td.number {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-/* how many of a state's pages are served all the same, on a line of its own beneath the figure */
-.served-line {
-  justify-content: flex-end;
-}
-
-.works td.number .count,
-.works td.number .page-total {
+.works td .page-total {
   display: block;
+  color: var(--color-text-secondary);
 }
 
 /* a series' heading in the work's column: its toggle with the one disclosure glyph, its title in the heading's weight,

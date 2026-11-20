@@ -19,7 +19,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from backend.diagnostics import page_integrity
+from backend.diagnostics import coverage_ladder, page_integrity
+from backend.diagnostics.ladder_types import Ladder
 from backend.diagnostics.readings import (LISTED_AS_ISSUE, STATE_ORDER, IssueRow, KnowledgeBase, Readings, check_of,
                                           category_of, issue_row, listed_state, person_mark)
 from backend.diagnostics.runs import RunLine, recent
@@ -107,6 +108,8 @@ class Headline(BaseModel):
     # from each export: the pages the Issues list, and what all the readings and judgements cost
     to_look_at: Figure
     cost_usd: Cost
+    # how far the corpus is refined, the five levels of U1.a summed over the bases whose shelf is built here; None without one
+    ladder: Ladder | None = None
 
 
 class Overview(BaseModel):
@@ -188,6 +191,7 @@ class Counted:
     to_look_at: int
     cost_usd: float
     cost_by_provider: dict[str, float]
+    checked: int = 0  # the ladder's top level (U1.a): a reading the checks found fine, or a person or a review settled
 
 
 # one export's counts by its index file's modification time: the rows change only when the export is written again
@@ -208,10 +212,11 @@ def counted(store: Readings) -> Counted:
     for row in rows:
         for provider, value in paid_by('provider', row).items():
             by_provider[provider] = by_provider.get(provider, 0.0) + (value or 0.0)
+    states = [listed_state(row) for row in rows]  # once a row: each asks for the person's standing verdict
     found = Counted(works=len({row['source_id'] for row in rows}), pages=len(rows),
                     judged=sum(1 for row in rows if (row.get('check') or {}).get('judged')),
-                    to_look_at=sum(1 for row in rows if listed_state(row) in LISTED_AS_ISSUE), cost_usd=sum(by_provider.values()),
-                    cost_by_provider=by_provider)
+                    to_look_at=sum(1 for state in states if state in LISTED_AS_ISSUE), cost_usd=sum(by_provider.values()),
+                    cost_by_provider=by_provider, checked=sum(1 for state in states if state in coverage_ladder.CHECKED))
     with _COUNTING:
         _COUNTED[store.index] = (modified, found)
     return found
@@ -235,7 +240,8 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
     served = [name for name in BASES if name in bases]
     left_out = [LeftOut(knowledge_base=name, why=NOT_READ if public_only else NO_EXPORT) for name in BASES if name not in bases]
     exported = {name: counted(bases[name]) for name in served}
-    shelves = {name: data.get('totals') or {} for name in served if (data := shelf.load(name)) is not None}
+    built = {name: data for name in served if (data := shelf.load(name)) is not None}
+    shelves = {name: data.get('totals') or {} for name, data in built.items()}
     shelf_left_out = [LeftOut(knowledge_base=name, why=NO_SHELF) for name in served if name not in shelves]
 
     def from_shelf(key: str) -> Figure | None:
@@ -251,7 +257,8 @@ def overview(bases: dict[str, Readings], public_only: bool) -> Overview:
         cost_usd=Cost(total=round(sum(found.cost_usd for found in exported.values()), 4),
                       by_base={name: round(found.cost_usd, 4) for name, found in exported.items()},
                       by_provider={provider: round(sum(found.cost_by_provider.get(provider, 0.0) for found in exported.values()), 4)
-                                   for provider in sorted({name for found in exported.values() for name in found.cost_by_provider})}))
+                                   for provider in sorted({name for found in exported.values() for name in found.cost_by_provider})}),
+        ladder=coverage_ladder.corpus_ladder(built, {name: found.checked for name, found in exported.items()}))
     runs = latest_runs(served)
     return Overview(headline=headline, history=milestones(served, public_only), runs=runs,
                     runs_why_not=NO_RUNS if runs is None else None)

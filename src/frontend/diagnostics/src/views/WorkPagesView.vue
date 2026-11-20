@@ -9,7 +9,9 @@ import FacetBar from '@/components/base/FacetBar.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
+import CoverageLadder from '@/components/CoverageLadder.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LadderDetails from '@/components/LadderDetails.vue'
 import OutlineUnitNode from '@/components/OutlineUnitNode.vue'
 import PageJump from '@/components/PageJump.vue'
 import PageTable from '@/components/PageTable.vue'
@@ -34,7 +36,8 @@ import type { KnowledgeBase } from '@/types/api/source_types'
 import type { FacetDefinition, FacetSelection, SortDefinition } from '@/types/facet_types'
 
 /**
- * Every PDF page of one work, a page no reader has read among them in its own state (V1.b), narrowed by check state and route. Where the work has an order of its own (a PDF's
+ * Every PDF page of one work, a page no reader has read among them in its own state (V1.b), narrowed by check state and route,
+ * under the work's coverage ladder (U1.a): how far it is refined, in five levels, the details folded. Where the work has an order of its own (a PDF's
  * bookmarks, decision 84.a), its pages stand under its chapters, folded, each chapter with the states of all its pages,
  * and the flat table in PDF order is one click away (the operator: the table, but not as the first view). A work without an order
  * is listed flat and says why. The work's knowledge base stands once, above its pages.
@@ -213,9 +216,14 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
       <div class="summary work-facts" data-part="work-facts">
         <LabelledLines :label-chars="10">
           <LabelledLine label="Work" class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></LabelledLine>
+          <!-- how far the work is refined (U1.a): five levels in words and figures, its read level the page list's own line of
+               V1.b, the details folded beneath; where no shelf is built here, that line alone -->
+          <LabelledLine v-if="shown.ladder" label="Coverage" data-part="coverage-ladder">
+            <CoverageLadder :ladder="shown.ladder"><LadderDetails :ladder="shown.ladder" /></CoverageLadder>
+          </LabelledLine>
           <!-- how many of the PDF's pages are read and what serves the rest, the API's one line (V1.b); the read pages' count
                where the PDF is not on this machine -->
-          <LabelledLine v-if="shown.summary" label="Pages">
+          <LabelledLine v-else-if="shown.summary" label="Pages">
             <span class="page-total" data-part="coverage">{{ shown.coverage?.said ?? pageCount(shown.summary.pages) }}</span>
           </LabelledLine>
           <!-- the API's totals over the work's pages, whatever the bar narrows (the operator's SC1.a), the served tally kept -->

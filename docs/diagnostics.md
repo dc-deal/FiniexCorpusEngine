@@ -1731,3 +1731,22 @@ built ahead at the app's start; none of it is read of the licensed base under --
 natively, the free works 0.2 s cold and 0.1 s warm in all, the licensed ones 3.2 s and 0.7 s, in the main tree's layout;
 the container after the merge is line 1's to measure. 387 unit tests, 80 checks in the browser (3 skipped on today's data), 1,475
 Python tests.
+
+**The coverage ladder (the operator's U1.a, 20 Nov).** Nowhere said how many pages were available at which refinement, so
+every work and the corpus now show it in the same five levels: text served (the pages, or an HTML or EPUB work's sections,
+the librarian serves text for), keyword search (of those, the ones search (BM25) finds), semantic chunks (the chunks in the
+vector index and the PDF pages they cover; the licensed base says "not vectorised yet (#8)", never 0 of N), read (the pages
+a vision reader read, and how many passed), checked (a reading the judge passed, or a person or an automated review settled;
+an unjudged reading is not counted, as unchecked is said). Levels 1 to 4 are the core's shelf, level 5 the export's states
+as every list counts them; a level a format does not reach says why ("not read page by page: cut by its headings").
+**Sources:** one Coverage column of five meters in place of B3's Pages column and its five state columns; the levels' lines,
+every state of the read pages with an issue's served tally, and why a file is held or not served stand in the meters' card,
+on the pointer and on the keyboard's focus; the sorts by blocked and by issue stay. Every work opens: a licensed PDF the
+export has no pages of opens its page list, every page unread. **A work's page:** the ladder in words and figures heads its
+record, its read level V1.b's line, a details fold beneath (what serves the text by route, held, not served, passed
+readings not served, planned, passed, when the shelf was built). **The overview:** the corpus's ladder, each level summed
+over the bases served and each base's part in its card; read and checked open the Pages view on exactly their pages, the
+others stand as figures, and they two are drawn against the PDF pages alone, as no section is read page by page. What each
+level counts is a hint on demand, in the API's words. **Measured:** the works list 1.9 s cold with both bases natively; a
+work's page list and the overview as before. 389 unit tests, 81 checks in the browser (3 skipped on today's
+data), 1,488 Python tests.

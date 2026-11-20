@@ -30,12 +30,13 @@ from backend.conversion.contract import page_contract
 from backend.conversion.reading import page_render
 from backend.conversion.store import reading_export, reading_store, served_readings
 from backend.diagnostics import unread_pages
+from backend.diagnostics.ladder_types import KnowledgeBase, Ladder
 from backend.diagnostics.unread_pages import Coverage
 
 FREE_EXPORT = data_paths.FREE_READINGS
 LICENSED_EXPORT = data_paths.LICENSED_WORKING / 'readings'
 # The knowledge bases the core exports, one index each (decision 80.a); every row carries its own.
-KnowledgeBase = Literal['free', 'licensed']
+# (`KnowledgeBase`, 'free' or 'licensed', is defined with the coverage ladder's shapes, which this module's page list carries)
 # The check states a person should look at: an issue the judge or a check found, a reading the provider blocked or the reader
 # declined, a work the judge stopped. Each page keeps the core's word for its state (`issue` since decision 97.a).
 LISTED_AS_ISSUE = ('issue', 'blocked', 'stopped')
@@ -329,6 +330,8 @@ class WorkPages(BaseModel):
     # every PDF page counted (V1.b): how many are read and what serves the rest, said in one line; None where the work's PDF
     # is not on this machine, and then its pages are the read ones alone
     coverage: Coverage | None = None
+    # how far the work is refined, the five levels of U1.a, which the app sets from the shelf; None where none is built here
+    ladder: Ladder | None = None
 
 
 class Trace(BaseModel):
@@ -1304,7 +1307,7 @@ def licensed_readings() -> 'Readings | None':
     if not (LICENSED_EXPORT / 'index.json').exists():
         return None
     return Readings(LICENSED_EXPORT, catalog=data_paths.LICENSED_CATALOG, legacy=unread_pages.legacy_pages,
-                    planned=unread_pages.planned_pages)
+                    planned=unread_pages.planned_pages, not_served=unread_pages.not_served_files)
 
 
 class Series(BaseModel):
@@ -1438,7 +1441,8 @@ class Readings:
     """One knowledge base's export; its index is read again whenever the file changes."""
 
     def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None, catalog: Path | None = None,
-                 legacy: Callable[[], dict[str, set[int]]] | None = None, planned: Callable[[], set[tuple[str, int]]] | None = None):
+                 legacy: Callable[[], dict[str, set[int]]] | None = None, planned: Callable[[], set[tuple[str, int]]] | None = None,
+                 not_served: Callable[[], dict[str, str]] | None = None):
         self.export = export
         self.root = root  # what a work's `pdf` path is relative to; None: the repository's layout, the data in _data/
         self.index = export / 'index.json'
@@ -1456,6 +1460,8 @@ class Readings:
         # by `licensed_readings` alone; None: no work has legacy Markdown and every page is planned, as a free PDF's are
         self.legacy = legacy
         self.planned = planned
+        # and the files the librarian serves not at all, by source id, with the shelf's why (U1.a); None: every file is served
+        self.not_served = not_served
         # each work's pages without a reading and its coverage (V1.b), by the state they were built from
         self._unread_pages: dict[str, tuple[tuple, tuple[list[dict], Coverage] | None]] = {}  # source id -> (state, built)
 
@@ -1542,18 +1548,30 @@ class Readings:
             return None
         legacy = self.legacy() if self.legacy else None
         planned = self.planned() if self.planned else None
-        state = (self._read_at, unread_pages.stamp(pdf), legacy, planned)  # the two built anew whenever their sources change
+        not_served = self.not_served() if self.not_served else None
+        # the three built anew whenever their sources change, and kept as objects until then
+        state = (self._read_at, unread_pages.stamp(pdf), len(rows), legacy, planned, not_served)
         kept = self._unread_pages.get(work['source_id'])
-        if kept is None or kept[0][:2] != state[:2] or kept[0][2] is not legacy or kept[0][3] is not planned:
-            kept = (state, unread_pages.unread_rows(work, rows, pdf, legacy, planned))
+        if kept is None or kept[0][:3] != state[:3] or any(old is not new for old, new in zip(kept[0][3:], state[3:], strict=True)):
+            kept = (state, unread_pages.unread_rows(work, rows, pdf, legacy, planned,
+                                                    (not_served or {}).get(work['source_id'])))
             self._unread_pages[work['source_id']] = kept
         return kept[1]
+
+    def entry_work(self, source_id: str) -> dict | None:
+        """A licensed catalog entry with a PDF the export has no pages of, as a work its page list can stand on (U1.a: every
+        work opens, one not read page by page too): every page of it without a reading. None for any other."""
+        entry = next((one for one in self.unread_entries() if one.id == source_id), None)
+        if entry is None or not (entry.file or '').lower().endswith('.pdf'):
+            return None
+        return {'knowledge_base': 'licensed', 'source_id': source_id, 'work': entry.id, 'title': entry.title, 'file': entry.file,
+                'pdf': data_paths.stored(data_paths.LICENSED_ARCHIVE / entry.file), 'outline': None}
 
     def pages(self, knowledge_base: KnowledgeBase, source_id: str, title: str) -> WorkPages:
         """A work's pages under the knowledge base its export entry names; only a catalog work that no export lists, one
         not read page by page and so without pages, keeps the one it was asked under. Every PDF page stands, a page no
         reader has read among them in a state of its own (V1.b), so each count below counts it."""
-        work = self.work(source_id)
+        work = self.work(source_id) or self.entry_work(source_id)
         read = self.rows_of(source_id)
         unread = self.unread_of(work, read)
         rows = sorted([*read, *unread[0]], key=lambda row: row['pdf_page']) if unread else read

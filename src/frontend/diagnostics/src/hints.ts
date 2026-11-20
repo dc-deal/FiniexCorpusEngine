@@ -22,6 +22,11 @@ export const HINTS = {
     lead: 'Every version of the instructions a model is given, part by part, each with its state, when it was frozen and why it '
       + 'was made; the core\'s own words on them follow.',
   },
+  ladder: {
+    label: 'What the coverage levels mean',
+    lead: 'How far the text is refined, in five levels, each drawn against the whole: a PDF\'s pages, or an HTML or EPUB '
+      + 'work\'s sections. What each level counts follows, in the API\'s words.',
+  },
   overlap: {
     label: 'What the dashed line means',
     lead: 'Text a chunk shares with the chunk before it, repeated so a sentence cut at the border stays findable in both.',

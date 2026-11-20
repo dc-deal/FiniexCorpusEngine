@@ -186,15 +186,14 @@ test('a page a person settled counts in its own bucket, folds apart in the Issue
   test.skip(!settledPages.length, 'no page of finance is settled by a person today')
   await page.goto('/#/sources')
   await settled(page)
-  // the work's figures stand in the state columns (B3.a), each state's glyph and word in its heading
+  // the work's states stand in its coverage card (U1.a, where B3.a's state columns stood), each as the lists count it
   const row = page.locator(`tr[data-work="${FINANCE}"]`)
-  await expect(row.locator('td[data-state="decided_by_a_person"] .count')).toHaveText(String(settledPages.length))
-  const heading = page.locator('table.works th.state-head [data-state="decided_by_a_person"]')
-  await expect(heading.locator('.state-word')).toHaveText('decided by a person')
-  await expect(heading.locator('svg')).toBeVisible()
+  await row.locator('[data-cell="coverage"] .ladder-card').focus()
+  const card = row.locator('[data-cell="coverage"] [data-part="hover-card"]')
+  await expect(card.locator('[data-row="decided by a person"] .card-value')).toHaveText(String(settledPages.length))
   const open = pages.filter(row => row.listed_state === 'issue').length
-  if (open) await expect(row.locator('td[data-state="issue"] .count')).toHaveText(String(open))
-  else await expect(row.locator('td[data-state="issue"]')).toHaveText('')
+  if (open) await expect(card.locator('[data-row="issue"] .card-value')).toHaveText(new RegExp(`^${open}( · |$)`))
+  else await expect(card.locator('[data-row="issue"]')).toHaveCount(0)
   await page.screenshot({ path: `${SHOTS}/sources_decided.png` })
   // the Issues: the settled page in the fold below, not in the open list
   const one = settledPages[0]
@@ -297,7 +296,8 @@ test('a work lists every PDF page, one no reader has read quiet and without a li
   expect(real.coverage.pdf_pages).toBe(real.pages.length)
   await page.goto(`/#/free/sources/${KELLY}`)
   await settled(page)
-  await expect(page.locator('[data-part="coverage"]')).toHaveText(real.coverage.said)
+  // the ladder's read level says it where a shelf is built (U1.a), else the record's Pages line
+  await expect(page.locator('[data-said="read"], [data-part="coverage"]').first()).toHaveText(real.coverage.said)
 
   // no free page lacks a reading today: Kelly's last pages stand as the API gives such a page (`unread_pages`), invented
   const why = { 13: 'served from the PDF\'s text layer', 14: 'served from the PDF\'s text layer', 15: 'nothing served: the page has no text layer' }
@@ -316,8 +316,12 @@ test('a work lists every PDF page, one no reader has read quiet and without a li
   const levels = [...(real as unknown as { route_levels: { level: string, says: string }[] }).route_levels,
     { level: 'not read', says: 'a PDF page no reader has read yet' }]
     .map(level => ({ ...level, pages: pages.filter(row => levelOf(row) === level.level).length }))
+  // the ladder's read level, where a shelf is built, in the page list's own words (U1.a)
+  type Ladder = { rungs: { level: string, said: string, count: number | null }[] }
+  const ladder = (real as unknown as { ladder: Ladder | null }).ladder
+  const laddered = ladder ? { ...ladder, rungs: ladder.rungs.map(rung => (rung.level === 'read' ? { ...rung, said, count: 12 } : rung)) } : null
   await page.route(`**/api/free/works/${KELLY}/pages`, route => route.fulfill({
-    json: { ...real, pages, route_levels: levels, summary: { ...(real as unknown as { summary: object }).summary, states: counts },
+    json: { ...real, pages, ladder: laddered, route_levels: levels, summary: { ...(real as unknown as { summary: object }).summary, states: counts },
       coverage: { pdf_pages: 15, read: 12, planned: 2, said,
         unread: [{ served_by: 'text layer', pages: 2 }, { served_by: 'nothing', pages: 1 }] } },
   }))
@@ -327,7 +331,7 @@ test('a work lists every PDF page, one no reader has read quiet and without a li
     await page.reload()  // the same address keeps the answer it had: loaded again, the invented one stands
     await settled(page)
     await asTable(page)
-    await expect(page.locator('[data-part="coverage"]')).toHaveText(said)
+    await expect(page.locator('[data-said="read"], [data-part="coverage"]').first()).toHaveText(said)
     await expect(page.locator('tr[data-page]')).toHaveCount(15)
     // a page without a reading has nothing to open, and its state is its own, in no status colour
     await expect(page.locator('tr[data-page="14"] a')).toHaveCount(0)
@@ -356,6 +360,55 @@ test('a work lists every PDF page, one no reader has read quiet and without a li
   await page.setViewportSize({ width: 1280, height: 900 })
   await pick(page, 'state', 'not_read')
   await expect(page.locator('tr[data-page]')).toHaveCount(3)
+})
+
+test('every work says how far it is refined: five meters in Sources, its levels on its page, the corpus\'s on the overview (U1.a)', async ({ page, request }) => {
+  type Rung = { level: string, said: string, count: number | null, pages_filter: Record<string, string[]> | null }
+  type Listed = { id: string, knowledge_base: string, ladder: { rungs: Rung[] } | null }
+  const works = await (await request.get('/api/works')).json() as Listed[]
+  const laddered = works.filter(work => work.ladder)
+  test.skip(!laddered.length, 'no shelf built on this machine, as on a clone')
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/#/sources')
+    await settled(page)
+    // one Coverage column in place of B3's six: five meters a work, each level's words in its card
+    await expect(page.locator('table.works thead th')).toHaveText(['Work', 'Knowledge base', 'Coverage', 'Authors', 'Year', 'Format', 'Topic'])
+    for (const work of laddered) {
+      await expect(page.locator(`tr[data-work="${work.id}"] [data-cell="coverage"] .ladder-bar`)).toHaveCount(5)
+    }
+    const first = page.locator(`tr[data-work="${laddered[0]!.id}"]`)
+    await first.locator('.ladder-card').focus()
+    await expect(first.locator('[data-row="text served"] .card-value')).toHaveText(laddered[0]!.ladder!.rungs[0]!.said)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+      `Sources scroll sideways at ${width} px`).toBe(true)
+    await page.screenshot({ path: `${SHOTS}/sources_coverage_${width}.png` })
+  }
+  // a work's page: its levels in words and figures, the details folded until asked for
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const kelly = works.find(work => work.id === KELLY)!
+  await page.goto(`/#/free/sources/${KELLY}`)
+  await settled(page)
+  const ladder = page.locator('[data-part="coverage-ladder"]')
+  await expect(ladder.locator('.rung-level')).toHaveText(['text served', 'keyword search', 'semantic chunks', 'read', 'checked'])
+  await expect(ladder.locator('[data-said="text served"]')).toHaveText(kelly.ladder!.rungs[0]!.said)
+  await ladder.locator('[data-part="ladder-details"] summary').click()
+  await expect(ladder.locator('[data-part="ladder-details"] dl')).toBeVisible()
+  await page.screenshot({ path: `${SHOTS}/work_coverage.png` })
+  // the corpus: a level the Pages view lists opens exactly its pages, the others stand as figures
+  type Headline = { headline: { ladder: { rungs: Rung[] } | null } }
+  const corpus = (await (await request.get('/api/overview')).json() as Headline).headline.ladder!
+  await page.goto('/#/overview')
+  await settled(page)
+  const band = page.locator('[data-band="coverage"]')
+  await expect(band.locator('.rung-level')).toHaveCount(5)
+  await expect(band.locator('[data-said="text served"] a')).toHaveCount(0)
+  const checked = corpus.rungs.find(rung => rung.level === 'checked')!
+  await page.screenshot({ path: `${SHOTS}/overview_coverage.png` })
+  await band.locator('[data-said="checked"] a').click()
+  await expect(page).toHaveURL(/#\/pages\?state=ok&state=decided_by_a_person&state=decided_by_an_automated_review$/)
+  await settled(page)
+  await expect(page.locator('.facet-count-label')).toHaveText(new RegExp(`^${checked.count!.toLocaleString('en')} of `))
 })
 
 test('a work folds its routes to one line of levels, opens them to a row each, and a route chosen keeps its pages', async ({ page, request }) => {
@@ -1253,7 +1306,15 @@ test('an HTML work opens from Sources by its headings, and a section shows its c
   test.skip(Boolean(work.why_not), 'no search index on this machine, as on a clone')
   await page.goto('/#/sources')
   await settled(page)
-  await expect(page.locator(`tr[data-work="${WIKIPEDIA}"] [data-cell="structure"]`)).toContainText(`${work.sections} sections by heading`)
+  // its sections in its coverage card (U1.a), as the API counts them
+  type Listed = { id: string, ladder: { rungs: { level: string, said: string }[] } | null }
+  const listed = (await (await request.get('/api/works')).json() as Listed[]).find(one => one.id === WIKIPEDIA)!
+  if (listed.ladder) {
+    await page.locator(`tr[data-work="${WIKIPEDIA}"] .ladder-card`).focus()
+    await expect(page.locator(`tr[data-work="${WIKIPEDIA}"] [data-row="text served"] .card-value`))
+      .toHaveText(listed.ladder.rungs[0]!.said)
+  }
+  else await expect(page.locator(`tr[data-work="${WIKIPEDIA}"] [data-cell="coverage"]`)).toContainText(`${work.sections} sections by heading`)
   await page.locator(`tr[data-work="${WIKIPEDIA}"] a.work-title`).click()
   await expect(page).toHaveURL(new RegExp(`#/free/html/${WIKIPEDIA}$`))
   await settled(page)
@@ -2506,7 +2567,12 @@ test('the sources table fits its width from a phone to 2,000 px, giving up colum
   const crowded = { ...long, id: 'another_invented_work', title: 'Another Invented Work', edition: '5th', format: 'pdf', not_read: null,
     authors: 'Author One, Author Two, Author Three, Author Four, Author Five, Author Six, Author Seven (eds.)',
     readings: { pages: 461, states: [{ value: 'ok_unjudged', count: 14 }, { value: 'decided_by_an_automated_review', count: 3 },
-      { value: 'issue', count: 9, served: 9 }], routes: [], people: [], reviews: [], categories: [] } }
+      { value: 'issue', count: 9, served: 9 }], routes: [], people: [], reviews: [], categories: [] },
+    // its coverage ladder (U1.a), its levels' longest words, so the meters' cell is measured too
+    ladder: { unit: 'PDF pages', whole: 461, by_route: {}, held: null, not_served: null, unplaced: {}, states: [], planned: 461,
+      passed: 400, built_at: null, rungs: ['text served', 'keyword search', 'semantic chunks', 'read', 'checked'].map((level, at) => ({
+        level, means: '', count: at === 2 ? null : 461 - at * 40, of: 461, by_base: {}, pages_filter: null,
+        said: at === 2 ? 'not vectorised yet (#8)' : `${461 - at * 40} of 461 PDF pages` })) } }
   // and two parts of an invented series, its heading open, so a heading and the rows beneath it are measured too
   const part = (number: number) => ({ ...long, id: `an_invented_course_${number}`, title: `Lecture ${number}`, edition: null,
     series: { id: 'an_invented_course', title: 'An Invented Course', part: number, of: 2 } })
@@ -2522,12 +2588,12 @@ test('the sources table fits its width from a phone to 2,000 px, giving up colum
     await page.setViewportSize({ width, height: 900 })
     await page.mouse.move(0, 0)
     expect(await sourcesFaults(page), `the table at ${width} px`).toEqual([])
-    shownAt[width] = await page.locator('table.works thead th:visible').allTextContents()
+    // trimmed: a heading with a hint's mark beside its word ends in the space before it
+    shownAt[width] = (await page.locator('table.works thead th:visible').allTextContents()).map(heading => heading.trim())
   }
-  // the ladder as a reader sees it: at a phone's width the work and its structure, all seven columns on a wide window
-  expect(shownAt[390]).toEqual(['Work', 'Pages'])
-  expect(shownAt[2000]).toEqual(['Work', 'Knowledge base', 'Pages', 'ok', 'ok unjudged', 'issue', 'blocked', 'decided by a person',
-    'Authors', 'Year', 'Format', 'Topic'])
+  // the ranks as a reader sees them: at a phone's width the work and its coverage (U1.a), every column on a wide window
+  expect(shownAt[390]).toEqual(['Work', 'Coverage'])
+  expect(shownAt[2000]).toEqual(['Work', 'Knowledge base', 'Coverage', 'Authors', 'Year', 'Format', 'Topic'])
   await page.screenshot({ path: `${SHOTS}/sources_fit.png` })
   await page.setViewportSize({ width: 390, height: 900 })
   await page.screenshot({ path: `${SHOTS}/sources_fit_phone.png` })

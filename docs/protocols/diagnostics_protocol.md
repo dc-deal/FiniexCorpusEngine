@@ -807,3 +807,16 @@ The record of how the diagnostics frontend came about, mistakes included.
   there (shown failing once at 2 px), as it holds the quiet ink (shown failing once in a status colour). The example figures
   of the handoff were replaced by invented ones in every tracked file, as a count of the licensed collection never stands
   in one (251.a).
+- **U1.a, the coverage ladder** (the operator, 20 Nov). **Against B3:** the Pages column and the five state columns
+  (ok, ok unjudged, issue, blocked, decided by a person) became one Coverage column; the rarer states left the work's card for
+  the coverage card, which holds every state; an issue's served tally (18 Nov) moved there with it; the ranks are now the
+  work and its coverage, then the knowledge base and the authors, then year, format and topic. **What serves an unread page,
+  refined on measuring:** a file the licensed shelf says the librarian serves not at all now says "nothing served" with the
+  shelf's why on every page, and a work whose legacy Markdown names no PDF page is served by that Markdown whole; asked of
+  the shelf, a held PDF of such a work had claimed the text layer on nearly every page, where the shelf counts the legacy
+  Markdown. **Found:** a lock taken twice hung a probe for ten minutes (the shelf's map asked for the legacy pages inside the
+  guard that builds them); the ladder's words held to one line ran the work's record 10 px past a phone's window, shown by
+  V1.b's check, and now wrap; the corpus's read level stood against the sections too and showed a corpus read through as
+  read in part. **Open with line 1:** the legacy-only works the shelf lists stand in no Sources row, though the corpus
+  counts them; an EPUB the librarian does not serve has no section view to open (V2.a); the overview's tiles repeat two of
+  the ladder's figures.

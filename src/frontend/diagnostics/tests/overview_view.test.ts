@@ -7,6 +7,7 @@ import OverviewView from '@/views/OverviewView.vue'
 import PagesView from '@/views/PagesView.vue'
 import type { Headline, Milestone, Overview, PageList } from '@/types/api/overview_types'
 import { anIssueList, KELLY } from './page_fixture'
+import { aLadder } from './work_fixture'
 import { facetOption, pickFacet } from './facet_harness'
 import { sayTime } from '@/human_time'
 
@@ -79,6 +80,24 @@ describe('OverviewView', () => {
     // the tables of counts are gone from the overview, their counts in the Pages list's filters (O3.a)
     expect(view.find('[data-band="pipeline"]').exists()).toBe(false)
     expect(view.find('[data-band="cost"]').exists()).toBe(false)
+  })
+
+  it('says how far the corpus is refined, a level opening its pages where the Pages view lists them (U1.a)', async () => {
+    const corpus = aLadder({ unit: 'pages and sections', rungs: aLadder().rungs.map(rung => ({ ...rung,
+      by_base: { free: 600, licensed: (rung.count ?? 0) - 600 },
+      pages_filter: (rung.level === 'read' ? {} : rung.level === 'checked' ? { state: ['ok', 'decided_by_a_person'] } : null) as
+        Record<string, string[]> | null })) })
+    vi.mocked(getOverview).mockResolvedValue(anOverview({ headline: aHeadline({ ladder: corpus }) }))
+    const view = mountOverview()
+    await flushPromises()
+    const band = view.find('[data-band="coverage"]')
+    // no Pages filter lists the text served: its figures stand, no link
+    expect(band.find('[data-said="text served"] a').exists()).toBe(false)
+    expect(band.find('[data-said="read"] a').attributes('href')).toBe('#/pages')
+    expect(band.find('[data-said="checked"] a').attributes('href')).toBe('#/pages?state=ok&state=decided_by_a_person')
+    // each base's part of a level in its card
+    await band.find('[data-said="read"] .hover-card-host').trigger('mouseenter')
+    expect(band.find('[data-said="read"] [data-row="licensed"] .card-value').text()).toBe('29')
   })
 
   it('says which base the sums leave out and why, and which has no shelf built', async () => {

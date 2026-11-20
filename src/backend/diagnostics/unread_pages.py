@@ -23,6 +23,7 @@ anything here of it.
 
 import json
 import threading
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -100,6 +101,7 @@ def coverage_said(pdf_pages: int, read: int, parts: list[UnreadPart], planned: i
 _GUARD = threading.Lock()
 _LEGACY: dict[tuple, dict[str, set[int]]] = {}
 _PLANNED: dict[tuple, set[tuple[str, int]]] = {}
+_NOT_SERVED: dict[tuple, dict[str, str]] = {}
 
 
 def stamp(path: Path) -> int:
@@ -143,6 +145,42 @@ def planned_pages() -> set[tuple[str, int]]:
         return _PLANNED[state]
 
 
+WHOLE_LEGACY = 'whole legacy'  # a file's work served by its legacy Markdown whole, which names no PDF page (U1.a)
+WHOLE_LEGACY_SAID = "served from the IDE's Markdown, whose text names no PDF page and stands for the whole work"
+
+
+@lru_cache(maxsize=1)
+def shelf_path() -> Path:
+    """Where the licensed shelf lies, asked of its store once: a page list asks for its state on every call."""
+    from backend.conversion.store.reading_store import open_store
+    from backend.search import shelf
+
+    return open_store('licensed').path('reports', shelf.SHELF)
+
+
+def not_served_files() -> dict[str, str]:
+    """Source id -> how the librarian serves a file other than page by page, as the licensed shelf last said it (U1.a), once
+    per state of the shelf; {} where the shelf is not built here. Its why where it serves the file not at all (a file held
+    back that belongs to no work, a stand-in beside the legacy text that stands); `WHOLE_LEGACY` where the work's legacy
+    Markdown serves it and names no PDF page, so it stands whole (`search_server.with_readings`) and is in no page map."""
+    from backend.diagnostics import readings
+    from backend.search import shelf
+
+    path = shelf_path()
+
+    legacy = legacy_pages()  # before the guard, which it takes itself
+    state = (stamp(path), stamp(readings.LICENSED_EXPORT / 'index.json'))  # the shelf's, and the legacy pages'
+    with _GUARD:
+        if state not in _NOT_SERVED:
+            data = shelf.load('licensed') or {}
+            _NOT_SERVED.clear()
+            _NOT_SERVED[state] = {row['source_id']: row['not_served'] or WHOLE_LEGACY for row in data.get('works') or []
+                                  if row.get('source_id') and (row.get('not_served') or (
+                                      row.get('format') == 'pdf' and row.get('file') not in legacy
+                                      and served_readings.LEGACY_ROUTE in ((row.get('served') or {}).get('by_route') or {})))}
+        return _NOT_SERVED[state]
+
+
 def units_at(outline: list[dict] | None, pdf_page: int) -> list[str] | None:
     """The units a page without a reading lies in, by the outline's ranges: each deepest unit whose pages hold it, in reading
     order, two where one ends and the next begins on it. The export's own units of a read page come from where its text lies,
@@ -155,9 +193,11 @@ def units_at(outline: list[dict] | None, pdf_page: int) -> list[str] | None:
 
 
 def unread_rows(work: dict, rows: list[dict], pdf: Path, legacy: dict[str, set[int]] | None,
-                planned: set[tuple[str, int]] | None) -> tuple[list[dict], Coverage] | None:
+                planned: set[tuple[str, int]] | None, not_served: str | None = None) -> tuple[list[dict], Coverage] | None:
     """The rows of a work's PDF pages that have none in the export, and the work's coverage; None where its PDF is not on this
-    machine. `legacy`: the licensed works' legacy pages (None for the free base); `planned`: None where every page is."""
+    machine. `legacy`: the licensed works' legacy pages (None for the free base); `planned`: None where every page is;
+    `not_served`: how the librarian serves the file other than page by page, as the shelf says it (`not_served_files`): not at
+    all, so nothing serves any of its pages, or by the legacy Markdown whole."""
     if not pdf.exists() or pdf.suffix.lower() != '.pdf':
         return None
     read = {row['pdf_page'] for row in rows}
@@ -169,7 +209,11 @@ def unread_rows(work: dict, rows: list[dict], pdf: Path, legacy: dict[str, set[i
         for number in range(1, count + 1):
             if number in read:
                 continue
-            if legacy_work:
+            if not_served == WHOLE_LEGACY:
+                served_by = served_readings.LEGACY_ROUTE
+            elif not_served:
+                served_by = 'nothing'
+            elif legacy_work:
                 served_by = served_readings.LEGACY_ROUTE if number in legacy[file] else 'nothing'
             else:
                 served_by = served_readings.TEXT_LAYER if document[number - 1].get_text().strip() else 'nothing'
@@ -180,7 +224,8 @@ def unread_rows(work: dict, rows: list[dict], pdf: Path, legacy: dict[str, set[i
             'check': {'state': UNREAD, 'reasons': [], 'judged': False, 'why_judged': WHY_JUDGED, 'verdict': None},
             'class_when_collected': '', 'class_now': '', 'attempt': 0, 'cost_usd': None, 'error_message': None, 'human': [],
             'category': None, 'page_kind': None,
-            'unread': {'served_by': served_by, 'said': served_said(served_by, legacy_work),
+            'unread': {'served_by': served_by, 'said': (WHOLE_LEGACY_SAID if not_served == WHOLE_LEGACY else f'{NOTHING}: {not_served}'
+                                                        if not_served else served_said(served_by, legacy_work)),
                        'planned': planned is None or (file, number) in planned}}
            for number, served_by in found]
     order = (served_readings.LEGACY_ROUTE, served_readings.TEXT_LAYER, 'nothing')

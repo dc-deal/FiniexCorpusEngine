@@ -7,7 +7,9 @@ import FoldSection from '@/components/base/FoldSection.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
+import CoverageLadder from '@/components/CoverageLadder.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LadderDetails from '@/components/LadderDetails.vue'
 import { counted } from '@/counted'
 import { usd } from '@/cost_format'
 import { sayDate } from '@/human_time'
@@ -18,7 +20,8 @@ import type { Figure, Milestone } from '@/types/api/overview_types'
 /**
  * The corpus at a glance (the operator's O3.a, 19 Nov: "today there is only one corpus"): one headline, summed in the API over
  * the knowledge bases served, each figure's part per base in its card; then the corpus's history, a line per milestone the
- * core recorded (X1.a); then the latest runs of both, newest first, each with its base's mark. A base the sums leave out says why, under `--public-only` the licensed one. The tables of counts by route,
+ * core recorded (X1.a); then the latest runs of both, newest first, each with its base's mark. Between the headline and the
+ * history, how far the corpus is refined (U1.a), its levels opening the pages the Pages view lists for them. A base the sums leave out says why, under `--public-only` the licensed one. The tables of counts by route,
  * state, verdict, category, model and the integrity of each reading file are gone: each of their counts stays in the
  * Pages list's filters, and the integrity of some 10,200 files is no longer asked on every load. Every figure is the API's.
  */
@@ -132,6 +135,13 @@ const number = (value: number | null | undefined): string => (typeof value === '
           </div>
         </HoverCard>
       </div>
+
+      <!-- how far the corpus is refined (U1.a), the five levels of every work summed over the bases served: a level the Pages
+           view can list opens its pages, each base's part in the level's card -->
+      <section v-if="headline.ladder" class="band" data-band="coverage">
+        <h2 class="band-title">Coverage <span class="band-hint">how far the corpus is refined</span></h2>
+        <CoverageLadder :ladder="headline.ladder" linked><LadderDetails :ladder="headline.ladder" /></CoverageLadder>
+      </section>
 
       <!-- the corpus's history, a line per milestone the core recorded (X1.a), newest first: each line's figures summed over
            the bases served, each base's part in the milestone's card -->
