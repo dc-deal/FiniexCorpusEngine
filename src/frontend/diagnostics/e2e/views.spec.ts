@@ -2894,3 +2894,74 @@ test('a hover card stands wholly inside the window: beneath its host, above it a
   await expect.poll(() => footCard.evaluate(card => card.scrollTop), { message: 'the pointer cannot scroll the card' }).toBeGreaterThan(0)
   await expect(footCard).toBeVisible()
 })
+
+test('a work stands once over its editions, its kept edition opens in neutral words, a possible edition calls for a look (E1.a)', async ({ page }) => {
+  // invented throughout (251.a): the private collection's families exist only in its local data; the free base has none, so the
+  // API's answers are given, the fold itself held by the API's tests
+  const levels = ['text served', 'keyword search', 'semantic search', 'read', 'checked']
+  const rung = (level: string, count: number | null, said: string) => ({ level, number: levels.indexOf(level) + 1, means: '', count, of: 40,
+    share: count === null ? null : Math.round(100 * count / 40), said, by_base: {}, pages_filter: null, warn: false })
+  const ladder = (rungs: object[]) => ({ unit: 'PDF pages', whole: 40, by_route: {}, held: null, not_served: null, unplaced: {}, states: [],
+    planned: 40, passed: 40, built_at: null, rungs })
+  const editions = (current: string | null) => ({ title: 'An Invented Book', serves: 'an_invented_second', chosen: '2026-11-02',
+    why: 'an invented reason', said: '2 editions · serves the 2nd edition, 2001', current,
+    editions: [{ key: 'an_invented_second', label: '2nd edition, 2001', named: '2nd edition, 2001', format: 'pdf', served: true,
+      view: 'pages', id: 'an_invented_second' },
+    { key: 'an_invented_third', label: '3rd edition, 2009', named: '3rd edition, 2009', format: 'pdf', served: false,
+      view: 'pages', id: 'an_invented_third' }] })
+  const work = (id: string, extra: object) => ({ knowledge_base: 'licensed', id, title: 'An Invented Book', authors: null, publisher: null,
+    year: 2001, licence: null, format: 'pdf', shelf: null, readings: null, page_list: true,
+    ladder: ladder([rung('text served', 40, '40 of 40 PDF pages'), rung('keyword search', 40, '40 of 40 PDF pages'),
+      rung('semantic search', 40, '90 chunks over 40 of 40 PDF pages'), rung('read', 0, 'none of 40 PDF pages read yet'),
+      rung('checked', 0, '0 of 40 PDF pages checked by the judge or a review')]), ...extra })
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    await route.fulfill({ response, json: [...await response.json() as object[],
+      work('an_invented_second', { editions: editions(null) }),
+      work('an_invented_lookalike', { title: 'An Invented Book, Revisited',
+        possible_edition: 'possible edition of An Invented Book: not linked; the operator decides' })] })
+  })
+  // the kept edition's own record: its ladder in neutral words, as the API gives a kept edition's
+  await page.route('**/api/licensed/works/an_invented_third/pages', route => route.fulfill({ json: {
+    knowledge_base: 'licensed', source_id: 'an_invented_third', title: 'An Invented Book', summary: null, routes: [], route_levels: [],
+    outline: null, outside_outline: null, pages: [], coverage: null, editions: editions('an_invented_third'),
+    ladder: ladder([rung('text served', 0, 'kept: the 2nd edition, 2001 is served; opens by its own key'),
+      rung('keyword search', 0, 'kept: not searched'), rung('semantic search', null, 'held back: never embedded'),
+      rung('read', 0, 'none of 40 PDF pages read yet'), rung('checked', 0, '0 of 40 PDF pages checked by the judge or a review')]) } }))
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#/sources')
+  await settled(page)
+  // one row for the work, its editions beneath its id, the kept one a link to its record; no row of the kept edition
+  const row = page.locator('tr[data-work="an_invented_second"]')
+  await expect(row.locator('[data-part="editions"]')).toHaveText('2 editions · serves the 2nd edition, 2001 · 3rd edition, 2009 kept')
+  await expect(page.locator('tr[data-work="an_invented_third"]')).toHaveCount(0)
+  // a possible edition: a call to look, in the warning role, never only in colour
+  const possible = page.locator('tr[data-work="an_invented_lookalike"] [data-part="possible-edition"]')
+  await expect(possible).toHaveText('possible edition of An Invented Book: not linked; the operator decides')
+  await expect(possible.locator('svg')).toHaveCount(1)
+  const warning = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    probe.style.color = getComputedStyle(document.documentElement).getPropertyValue('--color-warning').trim()
+    document.body.append(probe)
+    const said = getComputedStyle(probe).color
+    probe.remove()
+    return said
+  })
+  expect(await possible.evaluate(element => getComputedStyle(element).color), 'the possible edition not in the warning role').toBe(warning)
+  await page.screenshot({ path: `${SHOTS}/sources_editions.png` })
+  // the kept edition's record: its edition bar, its own part marked, the served one a link; the trail names the edition; its
+  // ladder in neutral words, no meter in the warning role
+  await row.locator('a.kept-edition').click()
+  await expect(page).toHaveURL(/#\/licensed\/sources\/an_invented_third$/)
+  await settled(page)
+  const bar = page.locator('[data-part="edition-bar"]')
+  await expect(bar.locator('.edition')).toHaveText(['● 2nd edition, 2001 · served', '○ 3rd edition, 2009 · kept'])
+  await expect(bar.locator('.edition.current')).toHaveAttribute('aria-current', 'page')
+  await expect(page.locator('[data-part="trail"]')).toHaveText('Sources › An Invented Book › 3rd edition, 2009')
+  const coverage = page.locator('[data-part="coverage-ladder"]')
+  await expect(coverage.locator('[data-said="text served"]')).toHaveText('kept: the 2nd edition, 2001 is served; opens by its own key')
+  await expect(coverage.locator('[data-said="keyword search"]')).toHaveText('kept: not searched')
+  await expect(coverage.locator('.ladder-bar[data-look="warning"]')).toHaveCount(0)
+  await page.screenshot({ path: `${SHOTS}/kept_edition.png` })
+  await expect(bar.locator('a.edition')).toHaveAttribute('href', '#/licensed/sources/an_invented_second')
+})

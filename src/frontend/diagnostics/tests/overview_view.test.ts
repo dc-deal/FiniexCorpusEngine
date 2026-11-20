@@ -82,6 +82,17 @@ describe('OverviewView', () => {
     expect(view.find('[data-band="cost"]').exists()).toBe(false)
   })
 
+  it('names the kept editions beside the works, and nothing where there is none (E1.a)', async () => {
+    vi.mocked(getOverview).mockResolvedValue(anOverview({ headline: aHeadline({ kept_editions: { total: 2, by_base: { licensed: 2 } } }) }))
+    const view = mountOverview()
+    await flushPromises()
+    expect(view.find('[data-tile="works"] .tile-label').text()).toBe('works · 2 kept editions')
+    vi.mocked(getOverview).mockResolvedValue(anOverview())
+    const plain = mountOverview()
+    await flushPromises()
+    expect(plain.find('[data-tile="works"] .tile-label').text()).toBe('works')
+  })
+
   it('says how far the corpus is refined, a level opening its pages where the Pages view lists them (U1.a)', async () => {
     const corpus = aLadder({ unit: 'pages and sections', rungs: aLadder().rungs.map(rung => ({ ...rung,
       by_base: { free: 600, licensed: (rung.count ?? 0) - 600 },

@@ -26,7 +26,8 @@ from pydantic import BaseModel
 
 from backend.chat import app_config
 from backend.diagnostics import (calls, chat, coverage_ladder, epub_works, error_classes, html_works, overview, page_integrity,
-                                 page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, stamps, verdicts)
+                                 page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, stamps, verdicts,
+                                 work_editions)
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
@@ -191,6 +192,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                    if row.get('format') == coverage_ladder.LEGACY_ONLY and row.get('source_id')
                    and not any(work.knowledge_base == name and work.id in (row['source_id'], row.get('work')) for work in listed)]
         listed = with_stand_ins(listed, shelves)  # each work once, its stand-in file folded into it
+        listed = with_editions(listed, shelves)  # and once over its editions, each kept one folded into the served one
         return [work.model_copy(update={'ladder': coverage_ladder.work_ladder(
             coverage_ladder.row_for(shelves[work.knowledge_base], work.id, work.epub_key),
             work.readings.states if work.readings else None, (shelves[work.knowledge_base] or {}).get('built_at'))})
@@ -219,6 +221,58 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                     id=stand.id, file=row.get('file'), said=said, held=row.get('held'), page_list=stand.page_list)})
                 out.remove(stand)
         return out
+
+    def with_editions(listed: list[sources.Work], shelves: dict[str, dict | None]) -> list[sources.Work]:
+        """Every work once over its editions (the operator's E1.a, 20 Nov: an edition is a level under its work, never a
+        group of works): a kept edition's row is folded into its served edition's, which shows its own catalog data and ladder
+        and names every edition; a file that looks like another edition and is linked with none says so, a call to look."""
+        out = list(listed)
+        for name, built in shelves.items():
+            rows = (built or {}).get('works') or []
+            by_row = {id(row): work for work in out if work.knowledge_base == name
+                      and (row := coverage_ladder.row_for(built, work.id, work.epub_key)) is not None}
+
+            def title_of(key: str) -> str:
+                row = work_editions.row_of(key, rows)
+                work = by_row.get(id(row)) if row else None
+                return work.title if work else (row or {}).get('title') or key
+
+            for row in rows:
+                said = work_editions.possible_said(row, title_of)
+                work = by_row.get(id(row))
+                if said and work is not None and work in out:
+                    updated = work.model_copy(update={'possible_edition': said})
+                    out[out.index(work)] = updated
+                    by_row[id(row)] = updated
+            for row in rows:
+                served_key = work_editions.kept_for(row, rows)
+                kept = by_row.get(id(row))
+                served_row = work_editions.row_of(served_key, rows) if served_key else None
+                served = by_row.get(id(served_row)) if served_row else None
+                if kept is None or served is None or kept is served or served not in out:
+                    continue
+                editions = work_editions.editions_of(served_row, rows, served.title)
+                updated = served.model_copy(update={'editions': editions})
+                out[out.index(served)] = updated
+                by_row[id(served_row)] = updated
+                if kept in out:
+                    out.remove(kept)
+        return out
+
+    def editions_of_record(knowledge_base: str, built: dict | None, row: dict | None, key: str) -> work_editions.Editions | None:
+        """A record's work in its editions, this edition's own marked (E1.a): the edition bar and the trail."""
+        rows = (built or {}).get('works') or []
+        if row is None or work_editions.family_of(row, rows) is None:
+            return None
+        family = work_editions.family_of(row, rows)
+        served_row = work_editions.row_of(family['serves'], rows)
+        served_view, served_id = work_editions.target(served_row)
+        try:
+            title = title_of(knowledge_base, served_id) if served_view == 'pages' and served_id else (served_row or row).get('title')
+        except HTTPException:
+            title = (served_row or row).get('title')
+        own = next((edition['key'] for edition in family['editions'] if edition['key'] in work_editions.keys_of(row)), key)
+        return work_editions.editions_of(row, rows, title or key, current=own)
 
     def unread_structure(entry: readings.CatalogEntry, epubs: dict[str, tuple[str, Path]]) -> dict:
         """A catalog entry without page readings: an EPUB the librarian serves, by its sections; else not read yet."""
@@ -315,7 +369,11 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         found = epub_works.work(source_id, title)
         if found is None:
             raise HTTPException(404, f'no EPUB work {source_id!r}')
-        return found.model_copy(update={'licence': licence})
+        # its ladder and its editions (E1.a): a kept edition's record says so in neutral words, and names every edition
+        built = store_of(knowledge_base).shelf_data()
+        row = coverage_ladder.row_for(built, source_id, source_id)
+        return found.model_copy(update={'licence': licence, 'editions': editions_of_record(knowledge_base, built, row, source_id),
+                                        'ladder': coverage_ladder.work_ladder(row, None, (built or {}).get('built_at'))})
 
     @app.get('/api/{knowledge_base}/epub/{source_id}/sections/{label}')
     def epub_section(knowledge_base: readings.KnowledgeBase, source_id: str, label: str) -> epub_works.EpubSection:
@@ -344,9 +402,10 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
     def list_pages(knowledge_base: readings.KnowledgeBase, source_id: str) -> readings.WorkPages:
         answer = store_of(knowledge_base).pages(knowledge_base, source_id, title_of(knowledge_base, source_id))
         built = store_of(knowledge_base).shelf_data()  # how far the work is refined (U1.a), its read pages' states with it
-        ladder = coverage_ladder.work_ladder(coverage_ladder.row_for(built, source_id),
-                                             answer.summary.states if answer.summary else None, (built or {}).get('built_at'))
-        return answer.model_copy(update={'ladder': coverage_ladder.with_coverage(ladder, answer.coverage)})
+        row = coverage_ladder.row_for(built, source_id)
+        ladder = coverage_ladder.work_ladder(row, answer.summary.states if answer.summary else None, (built or {}).get('built_at'))
+        return answer.model_copy(update={'ladder': coverage_ladder.with_coverage(ladder, answer.coverage),
+                                         'editions': editions_of_record(knowledge_base, built, row, source_id)})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}')
     def page_detail(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> readings.PageDetail:

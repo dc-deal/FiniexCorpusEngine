@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppButton from '@/components/base/AppButton.vue'
+import AppIcon from '@/components/base/AppIcon.vue'
+import type { CardRow } from '@/components/base/card_row'
 import DataTable from '@/components/base/DataTable.vue'
 import FacetBar from '@/components/base/FacetBar.vue'
 import HintToggle from '@/components/base/HintToggle.vue'
@@ -19,6 +21,8 @@ import type { FacetDefinition, SortDefinition } from '@/types/facet_types'
 import { useFacetState } from '@/use_facet_state'
 import { useScrollRestore } from '@/use_scroll_restore'
 import { counted } from '@/counted'
+import { editionRoute } from '@/edition_route'
+import { sayDate } from '@/human_time'
 
 /**
  * Every work of every knowledge base served, one row each, each marked with its knowledge base: the free catalog in its
@@ -48,8 +52,10 @@ const COLUMNS = [{}, fixed('11ch', 3), fixed('7rem'), { rank: 3 as const }, fixe
 // letter (measured at 390 px, 19 Nov)
 const AFTER_WORK = COLUMNS.slice(1).map(column => column.rank)
 
-/** A work's whole record under the pointer, what its row shortens or leaves out: the rows the API gave, an empty one left out. */
-function cardRows(work: Work): { label: string, value: string | null | undefined }[] {
+/** A work's whole record under the pointer, what its row shortens or leaves out: the rows the API gave, an empty one left out;
+ * a work in more than one edition (E1.a) its editions apart beneath, each its mark and word (● served, ○ kept, one look with
+ * the edition bar of its records), its label and format, and when and why the served one was chosen. */
+function cardRows(work: Work): CardRow[] {
   const series = work.series
     ? `${work.series.title}, part ${work.series.part} of ${work.series.of}${work.series.version ? ` (${work.series.version})` : ''}`
     : null
@@ -68,8 +74,16 @@ function cardRows(work: Work): { label: string, value: string | null | undefined
     // a stand-in file beside it, folded into its row (line 1, 20 Nov: one row per work), in the API's words
     { label: 'stand-in', value: work.stand_in?.said },
     { label: 'held', value: work.stand_in?.held },
+    ...(work.editions
+      ? [...work.editions.editions.map(edition => ({ label: edition.served ? '● served' : '○ kept', group: 'editions',
+          caption: 'Editions', value: `${edition.label}${edition.format ? ` · ${edition.format}` : ''}` })),
+        { label: 'chosen', group: 'editions', value: `${sayDate(work.editions.chosen).text}: ${work.editions.why}` }]
+      : []),
   ]
 }
+
+/** A work's kept editions, which its row names after the one it serves. */
+const keptOf = (work: Work) => work.editions?.editions.filter(edition => !edition.served) ?? []
 
 /** A work's count of pages in a state, as the API counted it; null where it has no pages in it, or no pages at all. */
 function stateCount(work: Work, state: string) {
@@ -265,6 +279,19 @@ onMounted(() => {
                   stand-in file
                 </RouterLink>
                 <span v-else-if="line.work.stand_in" class="stand-in" data-part="stand-in">stand-in file</span>
+                <!-- its editions (E1.a): the served one's row, each kept one named after it and a link to its own record -->
+                <span v-if="line.work.editions" class="editions" data-part="editions">{{ line.work.editions.said }}<template
+                  v-for="edition in keptOf(line.work)" :key="edition.key"
+                > · <RouterLink
+                  v-if="editionRoute(edition, line.work.knowledge_base)"
+                  class="kept-edition"
+                  :data-edition="edition.key"
+                  :to="editionRoute(edition, line.work.knowledge_base)!"
+                >{{ edition.named }} kept</RouterLink><span v-else>{{ edition.named }} kept</span></template></span>
+                <!-- a file that looks like another edition and is linked with none: a call to look, in the warning role -->
+                <span v-if="line.work.possible_edition" class="possible-edition" data-part="possible-edition">
+                  <AppIcon name="status-unknown" /> {{ line.work.possible_edition }}
+                </span>
               </HoverCard>
             </td>
             <td data-rank="3"><KnowledgeBaseMark :kb="line.work.knowledge_base" /></td>
@@ -366,6 +393,26 @@ a.work-title:hover {
 
 a.stand-in {
   color: var(--color-accent);
+}
+
+/* a work's editions beneath its id, a kept one a link to its own record; a possible edition a call to look */
+.editions,
+.possible-edition {
+  display: block;
+  color: var(--color-text-secondary);
+}
+
+a.kept-edition {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a.kept-edition:hover {
+  text-decoration: underline;
+}
+
+.possible-edition {
+  color: var(--color-warning);
 }
 
 /* the id is what a ticket and a reading key name, so it stays on screen beneath the title, shortened to its line there and

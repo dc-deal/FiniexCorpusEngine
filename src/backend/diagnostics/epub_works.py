@@ -24,7 +24,8 @@ from pydantic import BaseModel
 
 from backend.diagnostics import stamps
 from backend.diagnostics.html_works import HtmlNode, outline_of
-from backend.diagnostics.ladder_types import PageLadder
+from backend.diagnostics.ladder_types import Ladder, PageLadder
+from backend.diagnostics.work_editions import Editions
 from backend.diagnostics.readings import KnowledgeBase
 from backend.ingestion.clean_sections.epub_sections import IMAGE_MARK, load_epub_sections
 from backend.search import search_server
@@ -67,6 +68,9 @@ class EpubWork(BaseModel):
     images: int = 0
     outline: list[HtmlNode] = []
     rows: list[EpubSectionRow] = []
+    # how far it is refined (U1.a), and its work's editions where it is held in more than one (E1.a); the app sets both
+    ladder: Ladder | None = None
+    editions: Editions | None = None
 
 
 class EpubSection(BaseModel):

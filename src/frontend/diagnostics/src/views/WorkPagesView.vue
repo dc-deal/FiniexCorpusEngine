@@ -10,11 +10,13 @@ import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import CoverageLadder from '@/components/CoverageLadder.vue'
+import EditionBar from '@/components/EditionBar.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import LadderDetails from '@/components/LadderDetails.vue'
 import OutlineUnitNode from '@/components/OutlineUnitNode.vue'
 import PageJump from '@/components/PageJump.vue'
 import PageTable from '@/components/PageTable.vue'
+import RecordTrail from '@/components/RecordTrail.vue'
 import OwnPages from '@/components/OwnPages.vue'
 import RouteTable from '@/components/RouteTable.vue'
 import StateCounts from '@/components/StateCounts.vue'
@@ -205,11 +207,13 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
 
 <template>
   <section class="work-pages">
-    <p class="trail"><RouterLink to="/sources">Sources</RouterLink></p>
+    <RecordTrail :editions="shown?.editions" :kb="kb" />
     <ApiFailure v-if="pagesError" :error="pagesError" @retry="store.loadWorkPages(kb, work)" />
     <LoadingLine v-else-if="!shown" />
     <template v-else>
       <h1 class="view-title">{{ shown.title }}</h1>
+      <!-- its work's editions (E1.a), each a link to its record, this one's own marked -->
+      <EditionBar v-if="shown.editions" :editions="shown.editions" :kb="kb" />
       <!-- the work's record as a page's is (219.a, the operator: "carry the same line through, as far as possible and sensible"): labelled
            lines, the label column as wide as the page head's, so nothing moves between a work and its pages. Every count
            once (159.a): the work, its pages, the states and the rest as the toggles that also filter, a page to jump to -->
@@ -315,11 +319,6 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
 </template>
 
 <style scoped>
-.trail a {
-  color: var(--color-accent);
-  text-decoration: none;
-}
-
 .empty,
 .no-outline {
   display: flex;

@@ -4,8 +4,10 @@ import { createPinia } from 'pinia'
 import { getEpubSection, getEpubWork } from '@/api/api_client'
 import { router } from '@/router'
 import EpubSectionView from '@/views/EpubSectionView.vue'
+import { aLadder } from './work_fixture'
 import EpubWorkView from '@/views/EpubWorkView.vue'
 import type { EpubSection, EpubWork } from '@/types/api/epub_types'
+import type { Editions } from '@/types/api/source_types'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
@@ -68,6 +70,25 @@ describe('a licensed EPUB work (123.a)', () => {
     const links = view.findAll('.outline a.unit-title')
     expect(links.map(link => link.attributes('href'))).toEqual([`#/licensed/epub/${KEY}/s1`, `#/licensed/epub/${KEY}/s2`, `#/licensed/epub/${KEY}/s3`])
     expect(view.find('.outline').text()).not.toContain('chunk')
+  })
+
+  it('stands a kept edition\'s record with its work\'s editions and its ladder in neutral words (E1.a)', async () => {
+    const editions: Editions = { ...{ title: 'An Invented Book', serves: 'an_invented_second', chosen: '2026-11-02', why: 'an invented reason',
+  said: '2 editions · serves the 2nd edition, 2001', current: null,
+  editions: [{ key: 'an_invented_second', label: '2nd edition, 2001', named: '2nd edition, 2001', format: 'pdf', served: true,
+    view: 'pages', id: 'an_invented_second' },
+  { key: 'an_invented_third', label: '3rd edition, 2009', named: '3rd edition, 2009', format: 'epub', served: false,
+    view: 'epub', id: 'an_invented_third' }] }, current: 'an_invented_third' }
+    const ladder = aLadder({ rungs: aLadder().rungs.map((rung, at) => (at === 0 ? { ...rung, said: 'kept: the 2nd edition, 2001 is served; opens by its own key' }
+      : at === 1 ? { ...rung, said: 'kept: not searched' } : rung)) })
+    vi.mocked(getEpubWork).mockResolvedValue(aWork({ source_id: 'an_invented_third', editions, ladder }))
+    const view = mount(EpubWorkView, { props: { kb: 'licensed', work: 'an_invented_third' }, global: { plugins: [createPinia(), router] } })
+    await flushPromises()
+    expect(view.find('[data-part="edition-bar"] .edition.current').text()).toBe('○ 3rd edition, 2009 · kept')
+    expect(view.find('[data-part="edition-bar"] a.edition').attributes('href')).toBe('#/licensed/sources/an_invented_second')
+    expect(view.find('[data-part="trail-edition"]').text()).toBe('3rd edition, 2009')
+    expect(view.find('[data-part="coverage-ladder"] [data-said="text served"]').text()).toBe(
+      'kept: the 2nd edition, 2001 is served; opens by its own key')
   })
 
   it('shows one section\'s text with each image where its mark stood: inline in its line, or a block of its own', async () => {

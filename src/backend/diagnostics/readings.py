@@ -32,6 +32,7 @@ from backend.conversion.store import reading_export, reading_store, served_readi
 from backend.diagnostics import stamps, unread_pages
 from backend.diagnostics.ladder_types import KnowledgeBase, Ladder, PageLadder
 from backend.diagnostics.unread_pages import Coverage
+from backend.diagnostics.work_editions import Editions
 
 FREE_EXPORT = data_paths.FREE_READINGS
 LICENSED_EXPORT = data_paths.LICENSED_WORKING / 'readings'
@@ -332,6 +333,8 @@ class WorkPages(BaseModel):
     coverage: Coverage | None = None
     # how far the work is refined, the five levels of U1.a, which the app sets from the shelf; None where none is built here
     ladder: Ladder | None = None
+    # the work's editions where it is held in more than one (E1.a), this record's own marked
+    editions: Editions | None = None
 
 
 class Trace(BaseModel):

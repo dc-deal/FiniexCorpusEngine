@@ -47,6 +47,17 @@ def shelves(monkeypatch):
     return built
 
 
+def test_the_works_figure_names_the_kept_editions_where_there_are_any(monkeypatch, no_runs, shelves):
+    # the operator's E1.a, 20 Nov: "78 works · 2 kept editions", from the shelf's totals; none said where there is none
+    monkeypatch.setattr(readings, 'licensed_readings', lambda: None)
+    client = TestClient(create_app(public_only=True), base_url=LOCAL)
+    assert client.get('/api/overview').json()['headline']['kept_editions'] is None
+    shelves['free'] = {**shelves['free'], 'kept_editions': 2}
+    monkeypatch.setattr(readings, '_SHELVES', {})  # the shelf's file unchanged, its loader's answer changed: read it again
+    client = TestClient(create_app(public_only=True), base_url=LOCAL)
+    assert client.get('/api/overview').json()['headline']['kept_editions'] == {'total': 2, 'by_base': {'free': 2}}
+
+
 def test_the_headline_sums_the_free_base_alone_under_public_only_and_says_so(monkeypatch, no_runs, shelves):
     def refuse():
         raise AssertionError('the licensed knowledge base was read')

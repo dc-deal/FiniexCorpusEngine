@@ -32,6 +32,9 @@ function aHit(overrides: Partial<SearchHit> = {}): SearchHit {
     route: 'vision reading (claude-sonnet-5-5, page/1, validator page/1.1)',
     reading_key: '2b2d48e77b246c95',
     view: { knowledge_base: 'free', source_id: KELLY, pdf_page: 4 },
+    edition: null,
+    year: null,
+    edition_said: null,
     ...overrides,
   }
 }
@@ -84,6 +87,15 @@ describe('SearchView', () => {
     expect(hit.find('.route').text()).toContain('vision reading')
     expect(hit.find('.snippet').text()).toBe('The Kelly fraction maximises the growth rate.')
     expect(hit.find('.hit-foot').exists()).toBe(false)
+  })
+
+  it('names a hit\'s edition beside its title, as its citation does, and nothing where it has none (E1.a)', async () => {
+    // invented: a licensed hit of the 2nd edition, 2003
+    vi.mocked(searchPages).mockResolvedValue(anAnswer({ hits: [aHit({ knowledge_base: 'licensed', title: 'An Invented Book',
+      edition: '2nd', year: 2003, edition_said: '2nd edition, 2003' }), aHit()] }))
+    const view = await mountAt('/search?q=kelly%20fraction')
+    expect(view.find('[data-hit="0"] [data-part="hit-edition"]').text()).toBe('2nd edition, 2003')
+    expect(view.find('[data-hit="1"] [data-part="hit-edition"]').exists()).toBe(false)
   })
 
   it('names the file of a hit the diagnostics does not show yet, and the words a hit lacks', async () => {

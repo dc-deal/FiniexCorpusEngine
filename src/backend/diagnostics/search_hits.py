@@ -17,9 +17,9 @@ from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
-from backend.diagnostics import sources
+from backend.diagnostics import sources, work_editions
 from backend.diagnostics.readings import KnowledgeBase, Readings
 from backend.search import search_server, shelf
 
@@ -63,6 +63,14 @@ class SearchHit(BaseModel):
     route: str  # how the page's text was made: a vision reading, a text layer and why, HTML by section, legacy Markdown
     reading_key: str | None
     view: PageLink | None
+    edition: str | None = None  # the catalog's edition of the work ("2nd"), as the search names it (E1.a)
+    year: int | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def edition_said(self) -> str | None:
+        """The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone."""
+        return work_editions.words(self.edition, self.year)
 
 
 class SearchAnswer(BaseModel):

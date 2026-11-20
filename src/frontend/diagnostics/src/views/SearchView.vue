@@ -96,6 +96,8 @@ function pageLabel(hit: SearchHit): string {
               {{ hit.title }}
             </RouterLink>
             <span v-else class="hit-title">{{ hit.title }}</span>
+            <!-- the edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone -->
+            <span v-if="hit.edition_said" class="hit-edition" data-part="hit-edition">{{ hit.edition_said }}</span>
             <KnowledgeBaseMark :kb="hit.knowledge_base" />
             <span class="licence">{{ hit.licence }}</span>
           </div>

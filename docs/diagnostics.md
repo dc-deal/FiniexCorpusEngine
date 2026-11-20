@@ -1840,3 +1840,18 @@ for that part, at the cold figure at worst, and a step that fails is logged and 
 `warm-up done in N s`. Measured in the container after the warm-up (173 s), each route's first call: the Sources list 0.13 s, a
 work's page list 0.04 s, a page's view 0.78 s (most of it its own image, which no other page shares), the overview 0.04 s. 1,523
 Python tests.
+
+**A work in its editions (the operator's E1.a, 20 Nov).** An edition is a level under its work, work › edition › page or
+section, never a group of works: exactly one edition is served, the others are kept with all they have (their readings, their
+chunks, their pages, their own record), and only the two searches skip them. Which edition is served changes only by a core
+command on the operator's word, so the view shows and never chooses. In Sources a kept edition's row is folded into its served
+edition's, which keeps its own catalog data and ladder and says beneath its id "2 editions · serves the 2nd edition, 2003 · 3rd
+edition, 2009 kept", the kept one a link to its own record; the work's card holds the editions apart, each "● served" or "○
+kept" with its label and format, and when and why the served one was chosen. Every edition's record, a PDF's page list or an
+EPUB's view, names the editions in a bar, its own marked and the others links, and its trail says "Sources › <work> ›
+<edition>"; a kept edition's ladder says so in neutral words ("kept: the 2nd edition, 2003 is served; opens by its own key",
+"kept: not searched", its chunks "held back from the search"), never in the warning role. An EPUB's view gains the ladder a
+PDF's record has. A file that looks like another edition and is linked with none stands with a line in the warning role,
+"possible edition of <title>: not linked; the operator decides", a call to look. The overview's works figure names the kept
+editions, and a hit or an opened page names its edition beside its title, as its citation does. 409 unit tests, 85 checks in the
+browser (3 skipped on today's data), 1,530 Python tests.

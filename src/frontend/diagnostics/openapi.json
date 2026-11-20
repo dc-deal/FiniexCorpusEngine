@@ -2697,6 +2697,125 @@
         ],
         "title": "DiffPart"
       },
+      "Edition": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "named": {
+            "type": "string",
+            "title": "Named"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "served": {
+            "type": "boolean",
+            "title": "Served"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pages",
+                  "epub"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "named",
+          "served"
+        ],
+        "title": "Edition",
+        "description": "One edition of a work: its label as the core names it, its format, whether it is the one served, and where its own\nrecord opens here."
+      },
+      "Editions": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "serves": {
+            "type": "string",
+            "title": "Serves"
+          },
+          "chosen": {
+            "type": "string",
+            "title": "Chosen"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          },
+          "editions": {
+            "items": {
+              "$ref": "#/components/schemas/Edition"
+            },
+            "type": "array",
+            "title": "Editions"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "serves",
+          "chosen",
+          "why",
+          "said",
+          "editions"
+        ],
+        "title": "Editions",
+        "description": "A work held in more than one edition, as its row in the list and every edition's record show it."
+      },
       "EpubImage": {
         "properties": {
           "href": {
@@ -2943,6 +3062,26 @@
             "type": "array",
             "title": "Rows",
             "default": []
+          },
+          "ladder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ladder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Editions"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3273,6 +3412,16 @@
               }
             ]
           },
+          "kept_editions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Figure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "planned": {
             "anyOf": [
               {
@@ -3453,10 +3602,48 @@
                 "type": "null"
               }
             ]
+          },
+          "edition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "edition_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition Said",
+            "description": "The edition its citation names beside the title (E1.a): \"2nd edition, 2003\", or the year alone.",
+            "readOnly": true
           }
         },
         "additionalProperties": true,
         "type": "object",
+        "required": [
+          "edition_said"
+        ],
         "title": "Hit"
       },
       "HitPage": {
@@ -7520,6 +7707,41 @@
                 "type": "null"
               }
             ]
+          },
+          "edition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "edition_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition Said",
+            "description": "The edition its citation names beside the title (E1.a): \"2nd edition, 2003\", or the year alone.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -7537,7 +7759,8 @@
           "licence",
           "route",
           "reading_key",
-          "view"
+          "view",
+          "edition_said"
         ],
         "title": "SearchHit"
       },
@@ -7785,10 +8008,48 @@
               }
             ],
             "title": "Result"
+          },
+          "edition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "edition_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition Said",
+            "description": "The edition its citation names beside the title (E1.a): \"2nd edition, 2003\", or the year alone.",
+            "readOnly": true
           }
         },
         "additionalProperties": true,
         "type": "object",
+        "required": [
+          "edition_said"
+        ],
         "title": "ServerAnswer"
       },
       "ServerTurn": {
@@ -9261,6 +9522,27 @@
                 "type": "null"
               }
             ]
+          },
+          "editions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Editions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "possible_edition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Possible Edition"
           }
         },
         "type": "object",
@@ -9361,6 +9643,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Ladder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Editions"
               },
               {
                 "type": "null"

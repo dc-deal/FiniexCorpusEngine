@@ -4,9 +4,13 @@ import { storeToRefs } from 'pinia'
 import DataTable from '@/components/base/DataTable.vue'
 import ApiFailure from '@/components/ApiFailure.vue'
 import AppButton from '@/components/base/AppButton.vue'
+import CoverageLadder from '@/components/CoverageLadder.vue'
+import EditionBar from '@/components/EditionBar.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import HtmlOutlineNode from '@/components/HtmlOutlineNode.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LadderDetails from '@/components/LadderDetails.vue'
+import RecordTrail from '@/components/RecordTrail.vue'
 import { useEpubStore } from '@/stores/epub_store'
 import { useSettingsStore } from '@/stores/settings_store'
 import { useViewName } from '@/view_name'
@@ -48,11 +52,13 @@ const childrenOf = computed(() => {
 
 <template>
   <section class="epub-work">
-    <p class="trail"><RouterLink to="/sources">Sources</RouterLink></p>
+    <RecordTrail :editions="shown?.editions" :kb="kb" />
     <ApiFailure v-if="workError" :error="workError" @retry="store.loadWork(kb, work)" />
     <LoadingLine v-else-if="!shown" />
     <template v-else>
       <h1 class="view-title">{{ shown.title }}</h1>
+      <!-- its work's editions (E1.a), each a link to its record, this one's own marked -->
+      <EditionBar v-if="shown.editions" :editions="shown.editions" :kb="kb" />
       <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> {{ shown.source_id }}</p>
       <p class="summary" data-part="summary">
         <span>{{ counted(shown.sections, 'section') }} by heading · {{ counted(shown.images, 'image') }}</span>
@@ -60,6 +66,10 @@ const childrenOf = computed(() => {
         <!-- the catalog's licence, as the sources list shows it -->
         <span v-if="shown.licence" class="licence" data-part="licence">{{ shown.licence }}</span>
       </p>
+      <!-- how far it is refined (U1.a), as a PDF work's record says it: a kept edition's in neutral words (E1.a) -->
+      <div v-if="shown.ladder" class="epub-coverage" data-part="coverage-ladder">
+        <CoverageLadder :ladder="shown.ladder"><LadderDetails :ladder="shown.ladder" /></CoverageLadder>
+      </div>
       <div class="view-switch">
         <AppButton size="compact" :active="asChapters" @click="settingsStore.setWorkPagesView('chapters')">chapters</AppButton>
         <AppButton size="compact" :active="!asChapters" @click="settingsStore.setWorkPagesView('table')">table</AppButton>
@@ -99,13 +109,11 @@ const childrenOf = computed(() => {
 </template>
 
 <style scoped>
-.trail a,
 .sections a {
   color: var(--color-accent);
   text-decoration: none;
 }
 
-.trail a:hover,
 .sections a:hover {
   text-decoration: underline;
 }

@@ -104,9 +104,22 @@ describe('ChatTurn', () => {
     expect(view.find('.notice').text()).toBe('Please type a question.')
   })
 
+  it('names an opened page\'s and a hit\'s edition beside the title (E1.a)', () => {
+    // invented: a licensed work in its 2nd edition, 2003, and a report known by its year alone
+    const opened = mountTurn({ ...aKnowledgeResult(), kind: 'server', turn: null, server: { tool: 'open_page', args: {}, image_src: null,
+      answer: { state: 'found', title: 'An Invented Book', page: { label: '27', pdf: '44', printed: '27' }, text: 'a page',
+        edition_said: '2nd edition, 2003' } } })
+    expect(opened.find('.page-head').text()).toContain('An Invented Book, 2nd edition, 2003 · page 27')
+    const hits = mountTurn({ ...aKnowledgeResult(), kind: 'server', turn: null, server: { tool: 'search', args: {}, image_src: null,
+      answer: { state: 'found', edition_said: null, hits: [{ title: 'An Invented Report', page: { label: '3', pdf: '3', printed: null },
+        edition_said: '2017', view: null }] } } })
+    expect(hits.find('[data-part="hit-edition"]').text()).toBe(', 2017')
+  })
+
   it('shows what the search server answered: an opened page word for word, an image, hits, or why not', () => {
     const server = (tool: string, answer: Record<string, unknown>, image_src: string | null = null) => mountTurn(
-      { ...aKnowledgeResult(), kind: 'server', turn: null, server: { tool, args: { work: KELLY, page: '3' }, answer, image_src } })
+      { ...aKnowledgeResult(), kind: 'server', turn: null, server: { tool, args: { work: KELLY, page: '3' },
+        answer: { ...answer, edition_said: (answer.edition_said ?? null) as string | null }, image_src } })
     const opened = server('open_page', { state: 'found', title: 'Kelly paper', page: { label: '3', pdf: '3', printed: '2' },
       text: 'A page, **word** for word.' })
     expect(opened.find('.page-text').text()).toBe('A page, **word** for word.')

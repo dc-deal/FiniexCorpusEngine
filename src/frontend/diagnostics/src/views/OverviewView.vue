@@ -93,7 +93,8 @@ const number = (value: number | null | undefined): string => (typeof value === '
         <HoverCard v-if="headline.works" class="tile-card" title="Works on the shelf" :rows="parts(headline.works)">
           <RouterLink class="tile" to="/sources" data-tile="works">
             <span class="tile-value">{{ headline.works.total.toLocaleString('en') }}</span>
-            <span class="tile-label">works</span>
+            <span class="tile-label">works<template v-if="headline.kept_editions"> · {{
+              counted(headline.kept_editions.total, 'kept edition') }}</template></span>
           </RouterLink>
         </HoverCard>
         <HoverCard v-if="headline.planned" class="tile-card" title="Pages planned" :rows="parts(headline.planned)">
