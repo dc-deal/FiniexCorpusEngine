@@ -1997,7 +1997,7 @@ export interface components {
              * Level
              * @enum {string}
              */
-            level: "text layer" | "text served" | "keyword search" | "semantic chunks" | "reading and check";
+            level: "text layer" | "text served" | "keyword search" | "semantic search" | "reading and check";
             /** Reached */
             reached: boolean | null;
             /** Said */
@@ -2422,7 +2422,7 @@ export interface components {
              * Level
              * @enum {string}
              */
-            level: "text served" | "keyword search" | "semantic chunks" | "read" | "checked";
+            level: "text served" | "keyword search" | "semantic search" | "read" | "checked";
             /**
              * Means
              * @default

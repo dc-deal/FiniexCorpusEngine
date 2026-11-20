@@ -392,7 +392,7 @@ test('every work says how far it is refined: five meters in Sources, its levels 
   await settled(page)
   const ladder = page.locator('[data-part="coverage-ladder"]')
   // each level's number before its word and its share beside its meter, the API's (L1.a)
-  await expect(ladder.locator('.rung-level')).toHaveText(['1 text served', '2 keyword search', '3 semantic chunks', '4 read', '5 checked'])
+  await expect(ladder.locator('.rung-level')).toHaveText(['1 text served', '2 keyword search', '3 semantic search', '4 read', '5 checked'])
   await expect(ladder.locator('.level-share')).toHaveText(kelly.ladder!.rungs.map(rung => (rung.share === null ? '' : `${rung.share} %`)))
   await expect(ladder.locator('[data-said="text served"]')).toHaveText(kelly.ladder!.rungs[0]!.said)
   const sides = async () => ladder.locator('.rung-level').evaluateAll(levels => levels.map(level => {
@@ -429,7 +429,7 @@ test('every page opens, read or not: its own ladder, the text served and, unread
   type Rung = { level: string, reached: boolean | null, said: string }
   type Detail = { read: boolean, ladder: { rungs: Rung[] } | null, image: object, [field: string]: unknown }
   const real = await (await request.get(`/api/free/works/${KELLY}/pages/5`)).json() as Detail
-  expect(real.ladder!.rungs.map(rung => rung.level)).toEqual(['text layer', 'text served', 'keyword search', 'semantic chunks',
+  expect(real.ladder!.rungs.map(rung => rung.level)).toEqual(['text layer', 'text served', 'keyword search', 'semantic search',
     'reading and check'])
   await page.goto(`/#/free/sources/${KELLY}/page/5`)
   await settled(page)
@@ -468,7 +468,7 @@ test('every page opens, read or not: its own ladder, the text served and, unread
 
 test('a meter takes colour only where a look is called for, and a card waits for the pointer, never for the keyboard (C1.b)', async ({ page }) => {
   // invented: a work with issues beside its checked pages, one that serves no text, a level not measured; the free base has none
-  const levels = ['text served', 'keyword search', 'semantic chunks', 'read', 'checked']
+  const levels = ['text served', 'keyword search', 'semantic search', 'read', 'checked']
   const rung = (level: string, count: number | null, extra: object = {}) => ({ level, number: levels.indexOf(level) + 1, means: '', count,
     of: 400, share: count === null ? null : Math.round(100 * count / 400), by_base: {}, pages_filter: null, warn: false,
     said: count === null ? 'not vectorised yet (#8)' : `${count} of 400 PDF pages`, ...extra })
@@ -480,10 +480,10 @@ test('a meter takes colour only where a look is called for, and a card waits for
   await page.route('**/api/works', async route => {
     const response = await route.fetch()
     await route.fulfill({ response, json: [...await response.json() as object[],
-      invented('an_invented_work_with_issues', [rung('text served', 400), rung('keyword search', 380), rung('semantic chunks', null),
+      invented('an_invented_work_with_issues', [rung('text served', 400), rung('keyword search', 380), rung('semantic search', null),
         rung('read', 340), rung('checked', 300, { issues: 40, said: '300 of 400 PDF pages checked by the judge or a review' })]),
       invented('an_invented_scan_serving_nothing', [rung('text served', 0, { warn: true }), rung('keyword search', 0),
-        rung('semantic chunks', null), rung('read', 0), rung('checked', 0)])] })
+        rung('semantic search', null), rung('read', 0), rung('checked', 0)])] })
   })
   await page.goto('/#/sources')
   await settled(page)
@@ -506,7 +506,7 @@ test('a meter takes colour only where a look is called for, and a card waits for
   const warned = page.locator('tr[data-work="an_invented_scan_serving_nothing"] .ladder-bar[data-level="text served"]')
   await expect(warned).toHaveAttribute('data-look', 'warning')
   expect(await warned.evaluate(element => getComputedStyle(element).boxShadow)).toContain(await rgb(await role('--color-warning')))
-  const unmeasured = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="semantic chunks"]')
+  const unmeasured = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="semantic search"]')
   expect(await unmeasured.evaluate(element => getComputedStyle(element).backgroundImage)).toContain('repeating-linear-gradient')
   // a meter with nothing to say stays quiet: its fill in the secondary ink, no colour of a role
   const quiet = page.locator('tr[data-work="an_invented_work_with_issues"] .ladder-bar[data-level="read"] .ladder-fill')
@@ -2720,7 +2720,7 @@ test('the sources table fits its width from a phone to 2,000 px, giving up colum
       { value: 'issue', count: 9, served: 9 }], routes: [], people: [], reviews: [], categories: [] },
     // its coverage ladder (U1.a), its levels' longest words, so the meters' cell is measured too
     ladder: { unit: 'PDF pages', whole: 461, by_route: {}, held: null, not_served: null, unplaced: {}, states: [], planned: 461,
-      passed: 400, built_at: null, rungs: ['text served', 'keyword search', 'semantic chunks', 'read', 'checked'].map((level, at) => ({
+      passed: 400, built_at: null, rungs: ['text served', 'keyword search', 'semantic search', 'read', 'checked'].map((level, at) => ({
         level, means: '', count: at === 2 ? null : 461 - at * 40, of: 461, by_base: {}, pages_filter: null,
         said: at === 2 ? 'not vectorised yet (#8)' : `${461 - at * 40} of 461 PDF pages` })) } }
   // and two parts of an invented series, its heading open, so a heading and the rows beneath it are measured too

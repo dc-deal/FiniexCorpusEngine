@@ -52,7 +52,7 @@ describe('PageView', () => {
     expect(unread.find('.state-mark').attributes('data-state')).toBe('not_read')
     expect(unread.find('.route').text()).toBe("served from the PDF's text layer")
     expect(unread.findAll('.rung-level').map(level => level.text())).toEqual(['text layer', 'text served', 'keyword search',
-      'semantic chunks', 'reading and check'])
+      'semantic search', 'reading and check'])
     expect(unread.find('[data-said="reading and check"]').text()).toBe('no reading; planned')
     // reached, not reached and not known here as three forms, never colour alone
     expect(unread.findAll('.rung-mark').map(mark => mark.attributes('data-reached'))).toEqual(['true', 'true', 'true', 'unknown', 'false'])

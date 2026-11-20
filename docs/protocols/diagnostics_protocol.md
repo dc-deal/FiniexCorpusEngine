@@ -875,3 +875,8 @@ The record of how the diagnostics frontend came about, mistakes included.
   height bound ran out of a 260 px window. **Asked by line 1, answered:** the folded legacy work's title was never a link: a
   work served from the IDE's Markdown alone has no view here (bb2cf9e, "with no view"); its stand-in's page list is the link on
   its row.
+- **Level 3 renamed "semantic search"** (C2.a, 20 Nov). The word changed in the `Level` and `PageLevel` literals, so the schema
+  and the generated types with it; no deep link and no Pages filter keys on a level's word (only read and checked carry a
+  filter, by state), and no stored setting does. The chapter's earlier paragraphs that name the level take the new word. Beyond
+  the ask, the level's legend line now says how its pieces are cut, in line 1's words, since the name alone no longer says
+  chunks.

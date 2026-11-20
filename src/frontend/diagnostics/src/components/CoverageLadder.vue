@@ -9,7 +9,7 @@ import type { Ladder, Rung } from '@/types/api/ladder_types'
 
 /**
  * How far a work or the corpus is refined (the operator's U1.a, 20 Nov), in the same five levels everywhere: text served,
- * keyword search, semantic chunks, read, checked, each a meter against the whole and a line in the API's words. Wherever the
+ * keyword search, semantic search, read, checked, each a meter against the whole and a line in the API's words. Wherever the
  * levels stand in words, each carries its number before its word and its share beside its meter, both the API's (the
  * operator's L1.a): the number says which line a meter in the table's cell is, which keeps only its five meters.
  *

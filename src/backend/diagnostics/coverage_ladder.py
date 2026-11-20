@@ -3,7 +3,7 @@ one ladder of five levels, the same for a work and for the corpus, every figure 
 
 1. text served: the pages, for an HTML or EPUB work the sections, the librarian serves text for;
 2. keyword search: of those, the ones in "search (BM25)";
-3. semantic chunks: the chunks in the vector index and the PDF pages they cover, the private base's in its own (#8); a work
+3. semantic search: the chunks in the vector index and the PDF pages they cover, the private base's in its own (#8); a work
    the provenance list holds back is never embedded, and says so, and a machine without the private index says that, never
    0 of N;
 4. read: the pages with a vision reading, and of them those whose reading passed;
@@ -23,7 +23,8 @@ __all__ = ['CHECKED', 'LEVELS', 'Ladder', 'Level', 'Rung', 'corpus_ladder', 'row
 MEANS: dict[str, str] = {
     'text served': 'the pages (an HTML or EPUB work: its sections) the librarian serves text for',
     'keyword search': 'of those, the ones search (BM25) finds by their words',
-    'semantic chunks': "the chunks in semantic (hybrid)'s vector index, and the PDF pages they cover",
+    'semantic search': ("what semantic (hybrid) searches: the chunks in its vector index, cut by the text's structure and then "
+                        'by the recursive character splitter, and the PDF pages they cover'),
     'read': 'the pages a vision reader read, and of them those whose reading passed',
     'checked': 'the pages whose reading the checks found fine, or a person or an automated review settled',
 }
@@ -68,15 +69,15 @@ def not_embedded(knowledge_base: str, held: str | None, not_served: str | None =
 def semantic_rung(row: dict, whole: int | None, unit: str, pdf: bool) -> Rung:
     semantic = row.get('semantic')
     if semantic is None:
-        return Rung(level='semantic chunks', count=None, of=whole,
+        return Rung(level='semantic search', count=None, of=whole,
                     said=not_embedded(row['knowledge_base'], row.get('held'), row.get('not_served')))
     chunks = f"{semantic['chunks']:,} {'chunk' if semantic['chunks'] == 1 else 'chunks'}"
     if pdf:
-        return Rung(level='semantic chunks', count=semantic['pages'], of=whole,
+        return Rung(level='semantic search', count=semantic['pages'], of=whole,
                     said=f"{chunks} over {figure(semantic['pages'], whole, unit)}")
     # an HTML or EPUB work's sections, and a legacy work's Markdown pages, are embedded whole: each has its chunks once the
     # index holds the work
-    return Rung(level='semantic chunks', count=whole if semantic['chunks'] else 0, of=whole, said=f'{chunks} from its {unit}')
+    return Rung(level='semantic search', count=whole if semantic['chunks'] else 0, of=whole, said=f'{chunks} from its {unit}')
 
 
 def issue_said(count: int, served: int | None) -> str:
@@ -170,7 +171,7 @@ def corpus_ladder(shelves: dict[KnowledgeBase, dict], checked: dict[KnowledgeBas
             if vectorised else NOT_VECTORISED)
     if vectorised and left:
         said += f"; the {' and '.join(left)} base {NOT_VECTORISED}"
-    semantic = Rung(level='semantic chunks', count=sum(covered.values()) if vectorised else None, of=of if vectorised else whole,
+    semantic = Rung(level='semantic search', count=sum(covered.values()) if vectorised else None, of=of if vectorised else whole,
                     said=said, by_base=covered)
     read = summed(lambda row: row.get('read') or 0)
     return with_means(Ladder(unit=unit, whole=whole, rungs=[

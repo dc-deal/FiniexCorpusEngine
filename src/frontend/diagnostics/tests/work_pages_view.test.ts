@@ -197,10 +197,10 @@ describe('WorkPagesView', () => {
     await flushPromises()
     const ladder = view.find('[data-part="coverage-ladder"] [data-part="ladder"]')
     // each level's number before its word, its share beside its meter, the API's (L1.a)
-    expect(ladder.findAll('.rung-level').map(level => level.text())).toEqual(['1 text served', '2 keyword search', '3 semantic chunks',
+    expect(ladder.findAll('.rung-level').map(level => level.text())).toEqual(['1 text served', '2 keyword search', '3 semantic search',
       '4 read', '5 checked'])
     expect(ladder.findAll('.level-share').map(share => share.text())).toEqual(['97 %', '86 %', '94 %', '100 %', '65 %'])
-    expect(ladder.find('[data-said="semantic chunks"]').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
+    expect(ladder.find('[data-said="semantic search"]').text()).toBe('2,396 chunks over 592 of 629 PDF pages')
     // the ladder holds the read pages' line, so the record's Pages line gives way to it
     expect(view.find('[data-part="coverage"]').exists()).toBe(false)
     // the details, folded until asked for: what serves the text, by route, and the pages planned and passed
