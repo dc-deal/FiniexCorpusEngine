@@ -21,6 +21,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from backend.diagnostics.html_works import HtmlNode, outline_of
+from backend.diagnostics.ladder_types import PageLadder
 from backend.diagnostics.readings import KnowledgeBase
 from backend.ingestion.clean_sections.epub_sections import IMAGE_MARK, load_epub_sections
 from backend.search import search_server
@@ -75,6 +76,8 @@ class EpubSection(BaseModel):
     parts: list[EpubPart]
     previous: str | None
     next: str | None
+    # the section's own coverage ladder (V2.a), which the app sets from the search; None where it has not
+    ladder: PageLadder | None = None
 
 
 @dataclass

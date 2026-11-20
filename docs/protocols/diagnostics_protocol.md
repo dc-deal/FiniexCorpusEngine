@@ -820,3 +820,11 @@ The record of how the diagnostics frontend came about, mistakes included.
   read in part. **Open with line 1:** the legacy-only works the shelf lists stand in no Sources row, though the corpus
   counts them; an EPUB the librarian does not serve has no section view to open (V2.a); the overview's tiles repeat two of
   the ladder's figures.
+- **V2.a, every page reachable** (the operator, 20 Nov), with U1.a's follow-ups (line 1's answers). **Found:** an export a
+  test invented read this machine's licensed shelf through `shelf.load`, so the new legacy-only rows put real work keys in a
+  failing test's output; each base's shelf is now handed to its store, as the catalog and the legacy pages are. A page's
+  image was drawn twice, for its view and its image route (0.6 s each for a scan's page), and is now kept for both. The page's
+  own ladder, held to one line per level, left its words 12 characters at 390 px, and a size container without a width folded
+  to nothing and hid the text served's fold (a browser check timed out on it); both are fixed and measured. Why search (BM25)
+  leaves a page out follows the branches of the core's `page_index.is_structural`, whose constants it takes; a `structural_why`
+  in the core would serve both, and is line 1's to decide. The image check was shown failing once, its image refused.

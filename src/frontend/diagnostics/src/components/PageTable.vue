@@ -22,7 +22,7 @@ import type { KnowledgeBase } from '@/types/api/source_types'
  * the hover. The judge needs no column of its own: the state says a judged page is ok, and the reasons name a bad verdict
  * (the operator's 5.a). On a narrow screen the table keeps its columns and scrolls in its own box; the page never does.
  * A PDF page no reader has read (V1.b) stands in its own quiet state, "planned" beside it where a plan holds it, its Why
- * saying what serves it; it has no reading to open, so its number is no link, and it cost nothing.
+ * saying what serves it, and it cost nothing; its number opens its own view, its image and ladder (V2.a).
  */
 withDefaults(defineProps<{
   rows: PageRow[]
@@ -70,8 +70,7 @@ function classChange(row: PageRow): string {
     <tbody>
       <tr v-for="row in rows" :key="row.pdf_page" :class="{ marked: marks?.marked.value.has(row.pdf_page) }" :data-page="row.pdf_page">
         <td>
-          <RouterLink v-if="row.read" :to="{ name: 'page', params: { kb, work, page: row.pdf_page } }">p. {{ row.pdf_page }}</RouterLink>
-          <span v-else class="unread-page">p. {{ row.pdf_page }}</span>
+          <RouterLink :to="{ name: 'page', params: { kb, work, page: row.pdf_page } }">p. {{ row.pdf_page }}</RouterLink>
         </td>
         <td class="printed">{{ row.printed_label ?? '' }}</td>
         <!-- beside the judge's state a person's standing verdict (166.a) and a page's category where it is not content
@@ -104,8 +103,7 @@ tr.marked > td:first-child {
 
 .printed,
 .why,
-.cost,
-.unread-page {
+.cost {
   color: var(--color-text-secondary);
 }
 </style>

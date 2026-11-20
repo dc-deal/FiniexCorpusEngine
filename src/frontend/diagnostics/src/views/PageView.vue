@@ -21,6 +21,8 @@ import FindingList from '@/components/FindingList.vue'
 import IntegrityMark from '@/components/IntegrityMark.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PageJump from '@/components/PageJump.vue'
+import PageLadderLines from '@/components/PageLadderLines.vue'
+import UnreadPage from '@/components/UnreadPage.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
@@ -115,7 +117,7 @@ watch(() => [props.kb, props.work, props.page, recallId.value] as const, async (
 // what the analysis shows: the reading the page shows, or the recalled one; the image it was read from sizes its frames
 const analysisReading = computed(() => (recallId.value ? recalled.value?.reading ?? null : shown.value?.reading ?? null))
 const analysisRaw = computed(() => (recallId.value ? recalled.value?.raw ?? null : shown.value?.raw ?? null))
-const analysisSize = computed(() => (recallId.value ? recalled.value?.image_size : shown.value?.trace.image_size) ?? [])
+const analysisSize = computed(() => (recallId.value ? recalled.value?.image_size : shown.value?.trace?.image_size) ?? [])
 const standing = computed(() => ({ name: 'page', params: { kb: props.kb, work: props.work, page: props.page } }))
 function recallLink(recall: string) {
   return { ...standing.value, query: { judgement: recall } }
@@ -158,7 +160,7 @@ watch(shown, async page => {
   readingBlocks.value?.scrollToBlock(focus, true)
 })
 // where everything is fine nothing is printed: a class that did not move and a first attempt say nothing
-const classMoved = computed(() => shown.value && shown.value.trace.class_when_collected !== shown.value.trace.class_now)
+const classMoved = computed(() => shown.value?.trace && shown.value.trace.class_when_collected !== shown.value.trace.class_now)
 // a reading file that is no longer what was checked is said in the line, in the core's word and what it means; a whole
 // file, or a page without a reading, says nothing (69.a: a tampered reading found by its hash, a deleted one by its gap)
 const INTEGRITY_SAYS: Record<string, string> = {
@@ -430,6 +432,10 @@ watch(box, async () => {
         <!-- a page that is not plainly ok says so in one plain sentence first, the API's (the operator on accounting p. 524: the head
              "reads as code"); its chips follow -->
         <p v-if="shown.said" class="said" data-part="said">{{ shown.said }}</p>
+        <!-- a page no reader has read (V2.a): its state, what serves it, its own ladder, the text served and its image; nothing
+             of a reading, which it has not -->
+        <UnreadPage v-if="!shown.read" :page="shown" :image-url="imageUrl" />
+        <template v-else>
         <!-- the page's record as labelled lines (decision 184, the operator: "I would rather have this line with labels"), the labels in
              one column and the values in another (the operator, 11 Nov): its state and a person's verdict, its category where it is not
              content, its route and why, its reading, and its findings, each block a jump to it. Every word is the API's, and
@@ -472,15 +478,15 @@ watch(box, async () => {
             </HoverCard>
           </LabelledLine>
           <!-- the provider's own words where a call failed, else the route's why where nothing else here says it (`why_line`) -->
-          <LabelledLine v-if="shown.why_line || shown.trace.error_message" label="Why">
-            <span v-if="shown.trace.error_message" class="error-message">{{ shown.trace.error_message }}</span>
+          <LabelledLine v-if="shown.why_line || shown.trace!.error_message" label="Why">
+            <span v-if="shown.trace!.error_message" class="error-message">{{ shown.trace!.error_message }}</span>
             <span v-else class="route-why">{{ shown.why_line }}</span>
           </LabelledLine>
           <LabelledLine label="Reading">
             <span v-if="readingOf" class="reading-part">{{ readingOf }}</span>
-            <span v-if="classMoved" class="class-move reading-part">{{ shown.trace.class_when_collected }} → {{ shown.trace.class_now }}</span>
-            <span v-if="shown.trace.attempt > 0" class="retry reading-part">retry {{ shown.trace.attempt }}</span>
-            <span class="cost reading-part" data-part="reading-cost">{{ readingCost(shown.trace.cost_usd) }}</span>
+            <span v-if="classMoved" class="class-move reading-part">{{ shown.trace!.class_when_collected }} → {{ shown.trace!.class_now }}</span>
+            <span v-if="shown.trace!.attempt > 0" class="retry reading-part">retry {{ shown.trace!.attempt }}</span>
+            <span class="cost reading-part" data-part="reading-cost">{{ readingCost(shown.trace!.cost_usd) }}</span>
             <span v-if="!shown.image.available" class="image-mark missing reading-part">
               <AppIcon name="status-unknown" /> original not available
             </span>
@@ -504,6 +510,9 @@ watch(box, async () => {
             </span>
             <span v-if="shown.findings_outcome" class="findings-outcome" data-part="findings-outcome">{{ `· ${shown.findings_outcome}` }}</span>
           </LabelledLine>
+          <!-- the page's own ladder (V2.a): its text layer, the text served, keyword search, its chunks, its reading; the text
+               served folded until asked for -->
+          <LabelledLine v-if="shown.ladder" label="Coverage" data-part="page-coverage"><PageLadderLines :ladder="shown.ladder" /></LabelledLine>
         </LabelledLines>
         <VerdictDialog v-if="verdictsTaken && verdictOpen && verdictStore.form" :page="shown" :knowledge-base="kb" :work="work"
                        :form="verdictStore.form" @close="verdictOpen = false" @recorded="verdictRecorded" />
@@ -702,8 +711,8 @@ watch(box, async () => {
             <!-- the three stages of the check, each its own row, then a person (the operator: "in the details, all three stages one by one") -->
             <dt>Stage 1 · format</dt>
             <dd data-stage="1">
-              at collect {{ shown.trace.class_when_collected }} · under today's validator {{ shown.trace.class_now }}
-              <span class="secondary">· validator {{ shown.trace.validator }}</span>
+              at collect {{ shown.trace!.class_when_collected }} · under today's validator {{ shown.trace!.class_now }}
+              <span class="secondary">· validator {{ shown.trace!.validator }}</span>
             </dd>
             <dt>Stage 2 · text layer</dt>
             <dd data-stage="2">
@@ -750,38 +759,39 @@ watch(box, async () => {
               <span v-else class="secondary">no person has judged this page</span>
             </dd>
             <dt>Reading key</dt>
-            <dd class="hash">{{ shown.trace.reading_key }}</dd>
+            <dd class="hash">{{ shown.trace!.reading_key }}</dd>
             <dt>Model</dt>
-            <dd>{{ shown.trace.model }}</dd>
+            <dd>{{ shown.trace!.model }}</dd>
             <dt>Contract</dt>
-            <dd>{{ shown.trace.contract }} · validator {{ shown.trace.validator }} · form {{ shown.trace.form }}</dd>
-            <template v-if="shown.trace.error_type">
+            <dd>{{ shown.trace!.contract }} · validator {{ shown.trace!.validator }} · form {{ shown.trace!.form }}</dd>
+            <template v-if="shown.trace!.error_type">
               <dt>Error</dt>
-              <dd>{{ shown.trace.error_type }}</dd>
+              <dd>{{ shown.trace!.error_type }}</dd>
             </template>
             <dt>Attempt</dt>
-            <dd>{{ shown.trace.attempt }}</dd>
+            <dd>{{ shown.trace!.attempt }}</dd>
             <dt>Cost</dt>
-            <dd>{{ readingCost(shown.trace.cost_usd) }}</dd>
+            <dd>{{ readingCost(shown.trace!.cost_usd) }}</dd>
             <dt>Stored</dt>
-            <dd><HumanTime :at="shown.trace.stored_at" /></dd>
-            <template v-if="shown.trace.text_sha256">
+            <dd><HumanTime :at="shown.trace!.stored_at" /></dd>
+            <template v-if="shown.trace!.text_sha256">
               <dt>Text sha256</dt>
-              <dd class="hash">{{ shown.trace.text_sha256 }}</dd>
+              <dd class="hash">{{ shown.trace!.text_sha256 }}</dd>
             </template>
             <dt>Image</dt>
             <dd>
-              {{ shown.trace.image_size.join(' × ') }} px · resolution {{ shown.trace.resolution }} ·
-              <span class="hash">{{ shown.trace.image_sha256 }}</span>
+              {{ shown.trace!.image_size.join(' × ') }} px · resolution {{ shown.trace!.resolution }} ·
+              <span class="hash">{{ shown.trace!.image_sha256 }}</span>
             </dd>
           </DetailList>
         </FoldSection>
+        </template>
       </template>
     </RecordZone>
 
     <!-- the analysis (181.a): the original beside its reading, under its own heading, the one part that takes the wide
          container (183); framed as an overlay while a judgement is recalled -->
-    <AnalysisSection v-if="shown && !detailError" ref="analysis" :overlay="!!recallId">
+    <AnalysisSection v-if="shown && !detailError && shown.read" ref="analysis" :overlay="!!recallId">
       <template #hint>
         <span v-if="!recallId" class="analysis-hint">the image the reader received, beside its reading</span>
         <!-- while a judgement is recalled the analysis says so in its own heading too, the overlay's glyph and words -->

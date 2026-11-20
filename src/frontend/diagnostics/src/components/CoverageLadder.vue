@@ -92,6 +92,7 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 .ladder-full {
   width: 100%;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .rungs {
@@ -103,6 +104,13 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 
 .rung-level {
   color: var(--color-text-secondary);
+}
+
+/* where the record is narrow, a level's words wrap at their spaces and its meter narrows, as the page's own ladder does */
+@container (max-width: 32rem) {
+  .rungs {
+    grid-template-columns: min-content minmax(2rem, 4rem) minmax(0, 1fr);
+  }
 }
 
 .rung-said :deep(.hover-card-host) {

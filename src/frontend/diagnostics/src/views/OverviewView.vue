@@ -51,8 +51,7 @@ function percent(share: number | null | undefined): string {
   return typeof share === 'number' ? `${(share * 100).toFixed(1)} %` : ''
 }
 
-// the shares of the planned pages that were read and that passed, the API's
-const shareRead = computed(() => (typeof headline.value?.share_read === 'number' ? `${percent(headline.value.share_read)} of planned` : null))
+// the share of the planned pages that passed, the API's
 const share = computed(() => (typeof headline.value?.share_passed === 'number' ? `${percent(headline.value.share_passed)} of planned` : null))
 
 // the history's columns: the date and the figures as wide as their longest, the milestone's words the rest, ranked so a
@@ -88,7 +87,8 @@ const number = (value: number | null | undefined): string => (typeof value === '
         <KnowledgeBaseMark :kb="left.knowledge_base" /> {{ left.why }}
       </p>
 
-      <!-- the corpus in one line: each figure the sum over the bases served, its part per base in its card (O3.a) -->
+      <!-- the corpus in one line: each figure the sum over the bases served, its part per base in its card (O3.a); the pages
+           read and served stand in the coverage ladder below (U1.a), never twice -->
       <div class="tiles" data-part="headline">
         <HoverCard v-if="headline.works" class="tile-card" title="Works on the shelf" :rows="parts(headline.works)">
           <RouterLink class="tile" to="/sources" data-tile="works">
@@ -102,24 +102,11 @@ const number = (value: number | null | undefined): string => (typeof value === '
             <span class="tile-label">pages planned</span>
           </RouterLink>
         </HoverCard>
-        <HoverCard v-if="headline.read" class="tile-card" title="Pages read" :rows="parts(headline.read)">
-          <RouterLink class="tile" to="/shelf" data-tile="read">
-            <span class="tile-value">{{ headline.read.total.toLocaleString('en') }}</span>
-            <span class="tile-label">read</span>
-            <span v-if="shareRead" class="tile-share" data-part="share-read">{{ shareRead }}</span>
-          </RouterLink>
-        </HoverCard>
         <HoverCard v-if="headline.passed" class="tile-card" title="Pages passed" :rows="parts(headline.passed)">
           <RouterLink class="tile" to="/shelf" data-tile="passed">
             <span class="tile-value">{{ headline.passed.total.toLocaleString('en') }}</span>
             <span class="tile-label">passed</span>
             <span v-if="share" class="tile-share" data-part="share">{{ share }}</span>
-          </RouterLink>
-        </HoverCard>
-        <HoverCard v-if="headline.served" class="tile-card" title="Pages the search serves" :rows="parts(headline.served)">
-          <RouterLink class="tile" to="/shelf" data-tile="served">
-            <span class="tile-value">{{ headline.served.total.toLocaleString('en') }}</span>
-            <span class="tile-label">pages served</span>
           </RouterLink>
         </HoverCard>
         <HoverCard class="tile-card" title="Pages to look at" :rows="parts(headline.to_look_at)">

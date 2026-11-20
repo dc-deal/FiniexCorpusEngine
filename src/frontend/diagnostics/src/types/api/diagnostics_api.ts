@@ -1034,6 +1034,7 @@ export interface components {
             previous: string | null;
             /** Next */
             next: string | null;
+            ladder?: components["schemas"]["PageLadder"] | null;
         };
         /** EpubSectionRow */
         EpubSectionRow: {
@@ -1390,6 +1391,7 @@ export interface components {
              * @default false
              */
             dropped: boolean;
+            ladder?: components["schemas"]["PageLadder"] | null;
             /**
              * @default {
              *       "splitter": "RecursiveCharacterTextSplitter",
@@ -1821,7 +1823,7 @@ export interface components {
             reset?: components["schemas"]["PageReset"] | null;
             /** Listed State */
             listed_state?: string | null;
-            trace: components["schemas"]["Trace"];
+            trace: components["schemas"]["Trace"] | null;
             check: components["schemas"]["Check"];
             /** Page Findings */
             page_findings: components["schemas"]["Finding"][];
@@ -1839,6 +1841,12 @@ export interface components {
              * @default []
              */
             human: components["schemas"]["PersonVerdict"][];
+            /**
+             * Read
+             * @default true
+             */
+            read: boolean;
+            ladder?: components["schemas"]["PageLadder"] | null;
         };
         /** PageImage */
         PageImage: {
@@ -1852,6 +1860,32 @@ export interface components {
             height: number | null;
             /** Same As Read */
             same_as_read: boolean | null;
+            /**
+             * Kind
+             * @default reading
+             */
+            kind: string;
+            /**
+             * Format
+             * @default png
+             */
+            format: string;
+            /** Said */
+            said?: string | null;
+        };
+        /**
+         * PageLadder
+         * @description A page's or a section's own ladder (the operator's V2.a, 20 Nov), and the text the librarian serves for it.
+         */
+        PageLadder: {
+            /** Rungs */
+            rungs: components["schemas"]["PageRung"][];
+            /** Served Text */
+            served_text?: string | null;
+            /** Served Why Not */
+            served_why_not?: string | null;
+            /** Held */
+            held?: string | null;
         };
         /**
          * PageLink
@@ -1951,6 +1985,21 @@ export interface components {
             read: boolean;
             /** Planned */
             planned?: boolean | null;
+        };
+        /**
+         * PageRung
+         * @description One level of a page's or a section's own ladder (V2.a): whether the page reaches it, said in a line.
+         */
+        PageRung: {
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "text layer" | "text served" | "keyword search" | "semantic chunks" | "reading and check";
+            /** Reached */
+            reached: boolean | null;
+            /** Said */
+            said: string;
         };
         /**
          * PersonMark
@@ -3422,6 +3471,7 @@ export interface operations {
                 };
                 content: {
                     "image/png": unknown;
+                    "image/jpeg": unknown;
                 };
             };
             /** @description Validation Error */
