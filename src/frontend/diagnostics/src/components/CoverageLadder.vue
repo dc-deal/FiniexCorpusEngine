@@ -15,9 +15,13 @@ import type { Ladder, Rung } from '@/types/api/ladder_types'
  *
  * Compact, for a table's cell: the five meters stacked, their words, every state of the read pages and why a file is held or
  * not served in the card under the pointer and on the keyboard's focus (the operator: "the details go into hints or
- * expandable parts, not more columns"). Full, for a work's record and the overview: a line per level, its word, its meter and
- * its figures; on the overview (`linked`) a level the Pages view can list opens its pages, and each base's part stands in the
- * level's card; what the levels mean is a hint on demand, and a slot takes the details' fold.
+ * expandable parts, not more columns"). In the card each level takes two lines (line 1, 20 Nov, the operator: "teils
+ * platzproblem"): its number, word, meter and share, then its words a step in beneath, across the card; the levels a block of
+ * their own, so the meters stand under each other as in the cell and the states' long labels beneath never narrow them. Full,
+ * for a work's record and the overview: a line per level, its word, its meter, its share and its figures, and where the record
+ * is narrow the figures on a line of their own beneath, as in the card; on the overview (`linked`) a level the Pages view can
+ * list opens its pages, and each base's part stands in the level's card; what the levels mean is a hint on demand, and a
+ * slot takes the details' fold.
  */
 const props = withDefaults(defineProps<{
   ladder: Ladder
@@ -27,16 +31,11 @@ const props = withDefaults(defineProps<{
 
 const legendOpen = ref(false)
 
-// the card of the compact ladder: each level's line with its number, its meter as the column draws it and its share, so the
-// eye finds in the card the line a coloured bit in the column stands for (the operator, 20 Nov: "the card follows the colours",
-// L1.a); then, apart under a rule, each state of the read pages as the lists count it, the read pages' breakdown and no meter,
-// the issues in the API's words; then why the file is held or not served. A row without a value is left out by the card
-interface LadderCardRow extends CardRow {
-  rung?: Rung
-}
-
-const cardRows = computed<LadderCardRow[]>(() => [
-  ...props.ladder.rungs.map(rung => ({ label: rung.level, value: rung.said, rung, group: 'levels' })),
+// the card's rows beneath its levels (which stand in its lead, each with its number, its meter as the column draws it and its
+// share, so the eye finds in the card the line a coloured bit in the column stands for: "the card follows the colours", L1.a):
+// apart under a rule, each state of the read pages as the lists count it, the read pages' breakdown and no meter, the issues in
+// the API's words; then why the file is held or not served. A row without a value is left out by the card
+const cardRows = computed<CardRow[]>(() => [
   ...props.ladder.states.map(state => ({ label: state.value.replace(/_/g, ' '),
     value: state.said ?? `${state.count.toLocaleString('en')}${state.served ? ` · ${state.served.toLocaleString('en')} served` : ''}`,
     group: 'states', caption: 'read pages by state', indent: true })),
@@ -58,17 +57,15 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
 
 <template>
   <HoverCard v-if="compact" class="ladder-card" title="Coverage" :rows="cardRows">
-    <template #label="{ row }">
-      <template v-if="row.rung"><span class="level-number">{{ row.rung.number }}</span> {{ row.label }}</template>
-      <template v-else>{{ row.label }}</template>
-    </template>
-    <template #value="{ row }">
-      <span v-if="row.rung" class="card-level">
-        <LadderBar :count="row.rung.count" :of="row.rung.of" :issues="row.rung.issues" :warn="row.rung.warn" :data-level="row.rung.level" />
-        <span class="level-share" :data-share="row.rung.level">{{ shareOf(row.rung) }}</span>
-        <span class="card-said">{{ row.value }}</span>
+    <template #lead>
+      <span class="card-levels" data-part="card-levels">
+        <span v-for="rung in ladder.rungs" :key="rung.level" class="card-level" :data-row="rung.level">
+          <span class="card-label"><span class="level-number">{{ rung.number }}</span> {{ rung.level }}</span>
+          <LadderBar :count="rung.count" :of="rung.of" :issues="rung.issues" :warn="rung.warn" :data-level="rung.level" />
+          <span class="level-share" :data-share="rung.level">{{ shareOf(rung) }}</span>
+          <span class="card-said">{{ rung.said }}</span>
+        </span>
       </span>
-      <template v-else>{{ row.value }}</template>
     </template>
     <span class="ladder-compact" data-part="ladder" :aria-label="ladder.rungs.map(rung => `${rung.number} ${rung.level}: ${rung.said}`).join('; ')">
       <LadderBar v-for="rung in ladder.rungs" :key="rung.level" :count="rung.count" :of="rung.of" :issues="rung.issues" :warn="rung.warn"
@@ -112,14 +109,30 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
   padding: 0.35em 0;
 }
 
-/* a level's line in the card: its meter as wide as a short word, the same forms and colours as the column's, its share, its
-   words; each part in a column of its own width, so the five lines' meters and shares stand under each other */
-.card-level {
-  display: inline-grid;
-  grid-template-columns: 4rem 5ch minmax(0, 1fr);
+/* the card's levels, a block across the card: a level's number and word, its meter as wide as a short word (the same forms
+   and colours as the column's) and its share on one line, its words on the next, a step in and across the card. The words span
+   the last column, which takes what is left, so their length never widens the word's column and the five meters stand under
+   each other; the states beneath keep the card's own columns */
+.card-levels {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: max-content 4rem 5ch minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
+  column-gap: var(--space-sm);
+}
+
+.card-level {
+  display: contents;
+}
+
+.card-levels .card-label {
+  color: var(--color-text-secondary);
+}
+
+.card-said {
+  grid-column: 1 / -1;
+  padding-left: var(--indent-step);
+  margin-bottom: 2px;
 }
 
 /* a level's share beside its meter, its figures right-aligned and of one width, so the lines' shares read down a column */
@@ -153,10 +166,17 @@ const opens = (rung: Rung): boolean => props.linked && rung.pages_filter !== nul
   color: var(--color-text-secondary);
 }
 
-/* where the record is narrow, a level's words wrap at their spaces and its meter narrows, as the page's own ladder does */
+/* where the record is narrow, a level takes two lines, as in the card (line 1, 20 Nov): its word, meter and share, then its
+   figures a step in beneath, across the ladder; the words' last column takes what is left, so the meters stand under each other */
 @container (max-width: 32rem) {
   .rungs {
-    grid-template-columns: min-content minmax(2rem, 4rem) max-content minmax(0, 1fr);
+    grid-template-columns: minmax(min-content, max-content) minmax(2rem, 4rem) max-content minmax(0, 1fr);
+  }
+
+  .rung-said {
+    grid-column: 1 / -1;
+    padding-left: var(--indent-step);
+    margin-bottom: 2px;
   }
 }
 

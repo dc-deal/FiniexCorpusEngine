@@ -287,9 +287,14 @@ describe('SourcesView', () => {
     expect(card.findAll('[data-row] .card-label').slice(0, 5).map(label => label.text())).toEqual(['1 text served', '2 keyword search',
       '3 semantic chunks', '4 read', '5 checked'])
     expect(card.findAll('.level-share').map(share => share.text())).toEqual(['97 %', '86 %', '', '100 %', '65 %'])
+    // each level two lines (line 1, 20 Nov): its number, word, meter and share, then its words beneath, across the card
+    const semantic = card.find('.card-level[data-row="semantic chunks"]')
+    expect(semantic.findAll(':scope > *').map(part => part.classes()[0])).toEqual(['card-label', 'ladder-bar', 'level-share', 'card-said'])
+    expect(semantic.find('.card-said').text()).toBe('not vectorised yet (#8)')
     // the states are no level: under a rule, captioned as the read pages' breakdown, a step in, no number and no meter; the
     // file's own line apart once more, uncaptioned
-    const shown = card.findAll('.card-row, .card-rule, .card-caption').map(part => part.attributes('data-row') ?? part.classes()[0])
+    const shown = card.findAll('.card-level, .card-row, .card-rule, .card-caption')
+      .map(part => part.attributes('data-row') ?? part.classes()[0])
     expect(shown).toEqual(['text served', 'keyword search', 'semantic chunks', 'read', 'checked', 'card-rule', 'card-caption', 'ok',
       'issue', 'blocked', 'card-rule', 'held'])
     expect(card.find('.card-caption').text()).toBe('read pages by state')

@@ -858,3 +858,20 @@ The record of how the diagnostics frontend came about, mistakes included.
   with its words; they now look at the cell's meters and the line's words alone. A third, skipped today, still expected the
   issue line's old figure and takes its words now. A browser check holds the card's five meters under each other and its shares'
   right edges in one line; it was shown failing once with the share column given its content's width.
+- **A level on two lines, every card inside the window** (the operator, 20 Nov: "teils platzproblem", "tooltips immer im Bild").
+  **Found:** the card's levels shared the card's two columns with the states beneath, so the longest state's label set the width
+  of the levels' words; the levels now stand in a lead of the card's own (`HoverCard`'s `lead` slot), their words spanning a
+  last column that takes what is left, so their length never widens the word's column. The card's `label` and `value` slots of
+  the morning went with it, nothing else drawing through them. **Placement by Floating UI** (`@floating-ui/dom`, now a direct
+  dependency at the version Reka UI already installs, 0 advisories): `flip` with `bestFit`, `shift`, `size` and `hide`, and
+  `autoUpdate` while the card is open, in place of the hand-made rule of 11 Nov, which flipped only where the room above was
+  enough and never placed again; a first own rule written this afternoon was dropped for it before it shipped. **Decided:** a
+  card that scrolls is the one card that takes the pointer; it waits 300 ms after the pointer leaves its host
+  (`HOVER_DELAY.crossMs`), so the pointer can cross the gap into it, and closes when the pointer leaves it; the keyboard reaches
+  it by Tab from its host. Every other card still lets the pointer through and closes at once. The unit suite holds what the
+  card asks of Floating UI and does with its answer (jsdom draws nothing); the browser holds where it stands. The new browser
+  checks were shown failing: against the merged build the card stayed put while its host scrolled and a narrow ladder kept its
+  figures beside its meter; on the new build a level's words held to eight characters ran to five lines, and a card without its
+  height bound ran out of a 260 px window. **Asked by line 1, answered:** the folded legacy work's title was never a link: a
+  work served from the IDE's Markdown alone has no view here (bb2cf9e, "with no view"); its stand-in's page list is the link on
+  its row.
