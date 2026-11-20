@@ -948,6 +948,22 @@ export interface components {
             /** Count */
             count: number;
         };
+        /**
+         * Coverage
+         * @description A PDF work's pages: how many are read, what serves the rest, and how many of those are planned, said in one line.
+         */
+        Coverage: {
+            /** Pdf Pages */
+            pdf_pages: number;
+            /** Read */
+            read: number;
+            /** Unread */
+            unread: components["schemas"]["UnreadPart"][];
+            /** Planned */
+            planned: number;
+            /** Said */
+            said: string;
+        };
         /** DiffLine */
         DiffLine: {
             /**
@@ -1820,7 +1836,8 @@ export interface components {
              *       "decided_by_an_automated_review",
              *       "blocked",
              *       "issue",
-             *       "stopped"
+             *       "stopped",
+             *       "not_read"
              *     ]
              */
             state_order: string[];
@@ -1873,6 +1890,13 @@ export interface components {
             category_said?: string | null;
             /** Listed State */
             listed_state?: string | null;
+            /**
+             * Read
+             * @default true
+             */
+            read: boolean;
+            /** Planned */
+            planned?: boolean | null;
         };
         /**
          * PersonMark
@@ -2721,6 +2745,19 @@ export interface components {
             resolution: string;
         };
         /**
+         * UnreadPart
+         * @description The unread pages of a work one thing serves.
+         */
+        UnreadPart: {
+            /**
+             * Served By
+             * @enum {string}
+             */
+            served_by: "legacy markdown" | "text layer" | "nothing";
+            /** Pages */
+            pages: number;
+        };
+        /**
          * Unverifiable
          * @description A block stage 2 cannot check against the text layer, and why; an older plan gives the why alone.
          */
@@ -2894,6 +2931,7 @@ export interface components {
             outside_outline: components["schemas"]["WorkReadings"] | null;
             /** Pages */
             pages: components["schemas"]["PageRow"][];
+            coverage?: components["schemas"]["Coverage"] | null;
         };
         /**
          * WorkReadings

@@ -18,6 +18,7 @@ from collections import Counter
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Literal
 
 import pymupdf
@@ -28,6 +29,8 @@ from backend.conversion.checks import integrity
 from backend.conversion.contract import page_contract
 from backend.conversion.reading import page_render
 from backend.conversion.store import reading_export, reading_store, served_readings
+from backend.diagnostics import unread_pages
+from backend.diagnostics.unread_pages import Coverage
 
 FREE_EXPORT = data_paths.FREE_READINGS
 LICENSED_EXPORT = data_paths.LICENSED_WORKING / 'readings'
@@ -284,6 +287,10 @@ class PageRow(BaseModel):
     category_said: str | None = None  # what the category means, for its hover (177.a); None for content
     # the state a list counts and narrows it by (`listed_state`, 211.a): its check's, or `DECIDED` where a person settled it
     listed_state: str | None = None
+    # False for a PDF page no reader has read (V1.b, `unread_pages`): in the state `not_read`, with no reading to open and no
+    # image; its Why says what serves it, and `planned` whether a plan holds it (None for a page with a reading)
+    read: bool = True
+    planned: bool | None = None
 
 
 class RouteRow(BaseModel):
@@ -319,6 +326,9 @@ class WorkPages(BaseModel):
     outline: list[OutlineUnit] | None
     outside_outline: WorkReadings | None
     pages: list[PageRow]
+    # every PDF page counted (V1.b): how many are read and what serves the rest, said in one line; None where the work's PDF
+    # is not on this machine, and then its pages are the read ones alone
+    coverage: Coverage | None = None
 
 
 class Trace(BaseModel):
@@ -698,9 +708,9 @@ DECIDED_BY_REVIEW = 'decided_by_an_automated_review'
 
 
 # The order states are counted in wherever they stand side by side, so a column of chapter heads reads alike: fine first,
-# then what is not known, then what a person settled, then what a review settled, then what to look at. A state the core
-# adds later follows, in the order it appears.
-STATE_ORDER = ('ok', 'ok_unjudged', UNCHECKED, DECIDED, DECIDED_BY_REVIEW, 'blocked', 'issue', 'stopped')
+# then what is not known, then what a person settled, then what a review settled, then what to look at, and last a page no
+# reader has read (V1.b). A state the core adds later follows, in the order it appears.
+STATE_ORDER = ('ok', 'ok_unjudged', UNCHECKED, DECIDED, DECIDED_BY_REVIEW, 'blocked', 'issue', 'stopped', unread_pages.UNREAD)
 
 # The counts of a chapter that open their pages (225.a): what a person should look at, and what a person decided, whose
 # verdict is worth seeing again (accounting p. 398 left the issues for this bucket on 12 Nov); a fine count, and one not
@@ -981,8 +991,9 @@ def said_of(row: dict, errors: list[str]) -> str | None:
     return f'Not served: {why}; {instead}.'
 
 
-# The order a person reads the levels in: the checked reading first, the one that stands with a note, then the fallback
-LEVEL_ORDER = tuple(served_readings.ROUTE_LEVELS)
+# The order a person reads the levels in: the checked reading first, the one that stands with a note, then the fallback,
+# then a page no reader has read (V1.b), which is no fault of a route
+LEVEL_ORDER = (*served_readings.ROUTE_LEVELS, unread_pages.UNREAD_LEVEL)
 
 
 def routes_of(rows: list[dict]) -> list[RouteRow]:
@@ -999,9 +1010,12 @@ def routes_of(rows: list[dict]) -> list[RouteRow]:
 
 
 def levels_of(routes: list[RouteRow]) -> list[RouteLevel]:
-    """Each level in the core's order, with its words and the pages its routes serve."""
-    return [RouteLevel(level=level, says=says, pages=sum(route.pages for route in routes if route.level == level))
-            for level, says in served_readings.ROUTE_LEVELS.items()]
+    """Each level in the core's order, with its words and the pages its routes serve, and after them the pages no reader has
+    read, where the work has any (V1.b)."""
+    unread = sum(route.pages for route in routes if route.level == unread_pages.UNREAD_LEVEL)
+    return [*(RouteLevel(level=level, says=says, pages=sum(route.pages for route in routes if route.level == level))
+              for level, says in served_readings.ROUTE_LEVELS.items()),
+            *([RouteLevel(level=unread_pages.UNREAD_LEVEL, says=unread_pages.UNREAD_LEVEL_SAYS, pages=unread)] if unread else [])]
 
 
 UNIT_FIELDS = ('id', 'level', 'title', 'parent', 'first_page', 'last_page', 'indexed')
@@ -1285,8 +1299,12 @@ def _render(pdf: Path, pdf_page: int, resolution: str, modified: int) -> page_re
 
 def licensed_readings() -> 'Readings | None':
     """The licensed knowledge base's export (decision 80.a), git-ignored and on this machine only, so a clone has none.
-    This is the one place that reads it, and the one that hands it the licensed catalog (N1.a): never under --public-only."""
-    return Readings(LICENSED_EXPORT, catalog=data_paths.LICENSED_CATALOG) if (LICENSED_EXPORT / 'index.json').exists() else None
+    This is the one place that reads it, and the one that hands it the licensed catalog (N1.a), and the legacy pages and plans
+    that say what serves and what awaits a page without a reading (V1.b): never under --public-only."""
+    if not (LICENSED_EXPORT / 'index.json').exists():
+        return None
+    return Readings(LICENSED_EXPORT, catalog=data_paths.LICENSED_CATALOG, legacy=unread_pages.legacy_pages,
+                    planned=unread_pages.planned_pages)
 
 
 class Series(BaseModel):
@@ -1419,7 +1437,8 @@ def why_line(row: dict, said: str | None, blocks: 'list[Block]') -> str | None:
 class Readings:
     """One knowledge base's export; its index is read again whenever the file changes."""
 
-    def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None, catalog: Path | None = None):
+    def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None, catalog: Path | None = None,
+                 legacy: Callable[[], dict[str, set[int]]] | None = None, planned: Callable[[], set[tuple[str, int]]] | None = None):
         self.export = export
         self.root = root  # what a work's `pdf` path is relative to; None: the repository's layout, the data in _data/
         self.index = export / 'index.json'
@@ -1433,6 +1452,12 @@ class Readings:
         self._works: list[dict] = []
         self._entries: dict[str, CatalogEntry] = {}
         self._unread: list[CatalogEntry] = []
+        # what serves a page without a reading and which are planned (V1.b): the licensed works' legacy pages and plans, handed in
+        # by `licensed_readings` alone; None: no work has legacy Markdown and every page is planned, as a free PDF's are
+        self.legacy = legacy
+        self.planned = planned
+        # each work's pages without a reading and its coverage (V1.b), by the state they were built from
+        self._unread_pages: dict[str, tuple[tuple, tuple[list[dict], Coverage] | None]] = {}  # source id -> (state, built)
 
     def _index(self) -> dict:
         if not self.index.exists():
@@ -1502,11 +1527,36 @@ class Readings:
     def summary(self, source_id: str) -> WorkReadings | None:
         return readings_of(self.rows_of(source_id))
 
+    def pdf_of(self, work: dict) -> Path:
+        """A work's PDF as its export names it: a free one in _data/, a licensed one in _sources/; under a test's own root
+        there."""
+        return self.root / work['pdf'] if self.root else data_paths.locate(work['pdf'])
+
+    def unread_of(self, work: dict | None, rows: list[dict]) -> tuple[list[dict], Coverage] | None:
+        """A work's PDF pages without a reading and its coverage (V1.b), built once per state of the export, its PDF, the
+        legacy pages and the plans; None where the work's PDF is not on this machine."""
+        if work is None or not work.get('pdf'):
+            return None
+        pdf = self.pdf_of(work)
+        if not pdf.exists():
+            return None
+        legacy = self.legacy() if self.legacy else None
+        planned = self.planned() if self.planned else None
+        state = (self._read_at, unread_pages.stamp(pdf), legacy, planned)  # the two built anew whenever their sources change
+        kept = self._unread_pages.get(work['source_id'])
+        if kept is None or kept[0][:2] != state[:2] or kept[0][2] is not legacy or kept[0][3] is not planned:
+            kept = (state, unread_pages.unread_rows(work, rows, pdf, legacy, planned))
+            self._unread_pages[work['source_id']] = kept
+        return kept[1]
+
     def pages(self, knowledge_base: KnowledgeBase, source_id: str, title: str) -> WorkPages:
         """A work's pages under the knowledge base its export entry names; only a catalog work that no export lists, one
-        not read page by page and so without pages, keeps the one it was asked under."""
+        not read page by page and so without pages, keeps the one it was asked under. Every PDF page stands, a page no
+        reader has read among them in a state of its own (V1.b), so each count below counts it."""
         work = self.work(source_id)
-        rows = self.rows_of(source_id)
+        read = self.rows_of(source_id)
+        unread = self.unread_of(work, read)
+        rows = sorted([*read, *unread[0]], key=lambda row: row['pdf_page']) if unread else read
         routes = routes_of(rows)
         return WorkPages(knowledge_base=work['knowledge_base'] if work else knowledge_base, source_id=source_id,
                          title=title, summary=readings_of(rows), routes=routes, route_levels=levels_of(routes),
@@ -1518,11 +1568,14 @@ class Readings:
                                         class_now=row['class_now'], attempt=row['attempt'], cost_usd=reading_cost(row),
                                         error_message=row.get('error_message'),
                                         from_fallback=row['route'] in NOT_SERVED_ROUTES,
-                                        route_level=row.get('route_level'), route_why=route_parts(row['route'])[2],
+                                        route_level=row.get('route_level'),
+                                        route_why=row['unread']['said'] if 'unread' in row else route_parts(row['route'])[2],
                                         person=person_mark(row), category=row.get('category'),
                                         page_kind=row.get('page_kind'), category_said=category_said(row),
-                                        listed_state=listed_state(row))
-                                for row in rows])
+                                        listed_state=listed_state(row), read='unread' not in row,
+                                        planned=row['unread']['planned'] if 'unread' in row else None)
+                                for row in rows],
+                         coverage=unread[1] if unread else None)
 
     def image(self, source_id: str, pdf_page: int) -> tuple[PageImage, bytes | None]:
         row = self.row(source_id, pdf_page)
@@ -1533,7 +1586,7 @@ class Readings:
         if work is None:
             return PageImage(available=False, why_not='the export names no PDF for this work', width=None, height=None,
                              same_as_read=None), None
-        pdf = self.root / work['pdf'] if self.root else data_paths.locate(work['pdf'])  # a free PDF in _data/, a licensed one in _sources/
+        pdf = self.pdf_of(work)
         if not pdf.exists():
             # a free PDF can be fetched again; a licensed one exists only on the machine it was bought for
             why_not = (f"{work['pdf']} is not downloaded: run python -m backend.ingestion.acquire"

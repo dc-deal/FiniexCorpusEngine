@@ -60,6 +60,9 @@ def warm(bases: dict[str, readings.Readings], search: search_hits.Search) -> Non
     for store in bases.values():
         overview.counted(store)
     overview.pages(bases, {})  # the Pages view's one load (P1.a), 1.9 s natively when cold
+    for store in bases.values():  # what serves a licensed page without a reading (V1.b), 15.8 s natively, which a work's pages need
+        if store.legacy:
+            store.legacy()
     search.service()
     if 'licensed' in bases:  # the licensed EPUBs cut ahead, so the sources list counts their sections (123.a)
         epub_works.warm()

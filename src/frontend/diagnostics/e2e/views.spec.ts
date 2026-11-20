@@ -289,6 +289,75 @@ test('a work lists its pages and narrows them by state', async ({ page, request 
   await page.screenshot({ path: `${SHOTS}/work_pages.png` })
 })
 
+test('a work lists every PDF page, one no reader has read quiet and without a link, the API\'s line above (V1.b)', async ({ page, request }) => {
+  type Row = { pdf_page: number, check: { state: string }, read: boolean }
+  const real = await (await request.get(`/api/free/works/${KELLY}/pages`)).json() as
+    { pages: Row[], coverage: { said: string, pdf_pages: number } }
+  // the free export reads every page of its PDFs: the line says so, and every page of the PDF stands
+  expect(real.coverage.pdf_pages).toBe(real.pages.length)
+  await page.goto(`/#/free/sources/${KELLY}`)
+  await settled(page)
+  await expect(page.locator('[data-part="coverage"]')).toHaveText(real.coverage.said)
+
+  // no free page lacks a reading today: Kelly's last pages stand as the API gives such a page (`unread_pages`), invented
+  const why = { 13: 'served from the PDF\'s text layer', 14: 'served from the PDF\'s text layer', 15: 'nothing served: the page has no text layer' }
+  const pages = real.pages.map(row => (row.pdf_page in why ? {
+    ...row, read: false, planned: row.pdf_page !== 15, listed_state: 'not_read', route_level: 'not read',
+    route: row.pdf_page === 15 ? 'nothing served: the page has no reading' : 'text layer: the page has no reading',
+    route_why: why[row.pdf_page as keyof typeof why], from_fallback: row.pdf_page !== 15, class_when_collected: '', class_now: '',
+    attempt: 0, cost_usd: null, error_message: null, person: null, category: null, page_kind: null, category_said: null,
+    printed_label: null, check: { state: 'not_read', reasons: [], judged: false, why_judged: 'not read', verdict: null },
+  } : row))
+  const said = '12 of 15 PDF pages read; of the other 3, 2 are served from the PDF\'s text layer; nothing serves 1; 2 of them are planned'
+  const counts = [...new Set(pages.map(row => row.check.state))]
+    .map(value => ({ value, count: pages.filter(row => row.check.state === value).length }))
+  // the levels as the API counts them, the pages without a reading at their own
+  const levelOf = (row: object) => (row as { route_level: string | null }).route_level
+  const levels = [...(real as unknown as { route_levels: { level: string, says: string }[] }).route_levels,
+    { level: 'not read', says: 'a PDF page no reader has read yet' }]
+    .map(level => ({ ...level, pages: pages.filter(row => levelOf(row) === level.level).length }))
+  await page.route(`**/api/free/works/${KELLY}/pages`, route => route.fulfill({
+    json: { ...real, pages, route_levels: levels, summary: { ...(real as unknown as { summary: object }).summary, states: counts },
+      coverage: { pdf_pages: 15, read: 12, planned: 2, said,
+        unread: [{ served_by: 'text layer', pages: 2 }, { served_by: 'nothing', pages: 1 }] } },
+  }))
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(`/#/free/sources/${KELLY}`)
+    await page.reload()  // the same address keeps the answer it had: loaded again, the invented one stands
+    await settled(page)
+    await asTable(page)
+    await expect(page.locator('[data-part="coverage"]')).toHaveText(said)
+    await expect(page.locator('tr[data-page]')).toHaveCount(15)
+    // a page without a reading has nothing to open, and its state is its own, in no status colour
+    await expect(page.locator('tr[data-page="14"] a')).toHaveCount(0)
+    await expect(page.locator('tr[data-page="12"] a')).toHaveCount(1)
+    const mark = page.locator('tr[data-page="14"] .state-mark')
+    await expect(mark).toHaveAttribute('data-state', 'not_read')
+    await expect(mark.locator('.state-word')).toHaveText('not read')
+    // quiet as the row's own secondary words are
+    const quiet = await page.locator('tr[data-page="15"] td.why').evaluate(element => getComputedStyle(element).color)
+    expect(await mark.evaluate(element => getComputedStyle(element).color), 'a page without a reading in a status colour').toBe(quiet)
+    await expect(page.locator('tr[data-page="14"] .state-cell')).toContainText('planned')
+    // the second word stands on the state's own line
+    const middle = async (selector: string) => {
+      const box = await page.locator(selector).boundingBox()
+      return box ? box.y + box.height / 2 : Number.NaN
+    }
+    expect(Math.abs(await middle('tr[data-page="14"] .state-word') - await middle('tr[data-page="14"] [data-part="state-also"]')),
+      'planned off the line of not read').toBeLessThanOrEqual(1)
+    await expect(page.locator('tr[data-page="15"] .state-cell')).not.toContainText('planned')
+    await expect(page.locator('tr[data-page="15"] .why')).toHaveText('nothing served: the page has no text layer')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+      `the page scrolls sideways at ${width} px`).toBe(true)
+    await page.screenshot({ path: `${SHOTS}/work_unread_${width}.png` })
+  }
+  // the bar narrows to them as to any state
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await pick(page, 'state', 'not_read')
+  await expect(page.locator('tr[data-page]')).toHaveCount(3)
+})
+
 test('a work folds its routes to one line of levels, opens them to a row each, and a route chosen keeps its pages', async ({ page, request }) => {
   type Route = { route: string, level: string | null, pages: number }
   type Listed = { routes: Route[], route_levels: { level: string, pages: number }[], pages: { route: string }[] }

@@ -1,0 +1,161 @@
+"""Every PDF page of a work in its page list, a page no reader has read in a state of its own (the operator's V1.b, 20 Nov), and
+one line above the list saying how many are read and what serves the rest. Every work, page and PDF here is invented over
+the free paper's export, so no licensed title or text can stand in a tracked file."""
+
+import json
+
+import pymupdf
+import pytest
+from fastapi.testclient import TestClient
+
+from backend.conversion.store import served_readings
+from backend.diagnostics import readings, unread_pages
+from backend.diagnostics.app import create_app
+from backend.diagnostics.unread_pages import UnreadPart
+from test_diagnostics_readings import KELLY, a_corpus, kelly_rows
+
+LOCAL = 'http://127.0.0.1'
+
+
+def a_pdf(path, pages: int, blank: tuple[int, ...] = ()) -> None:
+    """An invented PDF: each page says its number in its text layer, except the blank ones, which have none (a scan)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    document = pymupdf.open()
+    for number in range(1, pages + 1):
+        page = document.new_page()
+        if number not in blank:
+            page.insert_text((72, 72), f'invented page {number}')
+    document.save(path)
+    document.close()
+
+
+def a_work(tmp_path, read: int = 3, pages: int = 6, blank: tuple[int, ...] = (6,), knowledge_base: str = 'free', **fields):
+    """Kelly's first `read` rows as a work's export, its PDF invented with `pages` pages."""
+    rows = [{**row, 'knowledge_base': knowledge_base} for row in kelly_rows()[:read]]
+    corpus = a_corpus(tmp_path, rows, knowledge_base=knowledge_base, **fields)
+    a_pdf(tmp_path / corpus.work(KELLY)['pdf'], pages, blank)
+    return corpus
+
+
+@pytest.mark.readings
+def test_every_pdf_page_stands_one_without_a_reading_served_by_its_text_layer_where_it_has_text(tmp_path):
+    answer = a_work(tmp_path).pages('free', KELLY, 'Kelly')
+    assert [page.pdf_page for page in answer.pages] == [1, 2, 3, 4, 5, 6]
+    read, unread = answer.pages[:3], answer.pages[3:]
+    assert all(page.read and page.planned is None for page in read)
+    assert all(not page.read and page.check.state == 'not_read' and page.listed_state == 'not_read' for page in unread)
+    # a free PDF is read whole, so each of its pages is planned (the shelf's count)
+    assert all(page.planned for page in unread)
+    assert [page.route for page in unread] == [served_readings.TEXT_LAYER_WHY['unread']] * 2 + [unread_pages.NOTHING_ROUTE]
+    assert [page.route_why for page in unread] == ["served from the PDF's text layer"] * 2 + ['nothing served: the page has no text layer']
+    assert [page.from_fallback for page in unread] == [True, True, False]
+    assert all(page.route_level == 'not read' and page.cost_usd is None and page.check.reasons == [] for page in unread)
+    # counted as every page is: the summary, the states in their order, the routes and their levels
+    assert answer.summary.pages == 6
+    assert answer.summary.states[-1].value == 'not_read' and answer.summary.states[-1].count == 3
+    assert answer.route_levels[-1].level == 'not read' and answer.route_levels[-1].pages == 3
+    assert {route.route: route.pages for route in answer.routes if route.level == 'not read'} == {
+        served_readings.TEXT_LAYER_WHY['unread']: 2, unread_pages.NOTHING_ROUTE: 1}
+    assert answer.coverage.model_dump() == {
+        'pdf_pages': 6, 'read': 3, 'planned': 3,
+        'unread': [{'served_by': 'text layer', 'pages': 2}, {'served_by': 'nothing', 'pages': 1}],
+        'said': "3 of 6 PDF pages read; of the other 3, 2 are served from the PDF's text layer; nothing serves 1; "
+                'every one of them is planned'}
+
+
+@pytest.mark.readings
+def test_a_work_with_legacy_markdown_is_served_by_it_where_it_has_the_page_and_by_nothing_elsewhere(tmp_path):
+    # the librarian's rule (`with_readings`): a legacy work never falls back to its PDF's text layer, though page 5 has text
+    corpus = a_work(tmp_path, knowledge_base='licensed')
+    file = corpus.work(KELLY)['file']
+    corpus.legacy = lambda: {file: {1, 4}}  # as `licensed_readings` hands them in
+    corpus.planned = lambda: {(file, 5), ('another.pdf', 4)}
+    answer = corpus.pages('licensed', KELLY, 'Kelly')
+    unread = answer.pages[3:]
+    assert [(page.pdf_page, page.route, page.route_why, page.planned) for page in unread] == [
+        (4, served_readings.LEGACY_WHY['unread'], "served from the IDE's Markdown", False),
+        (5, unread_pages.NOTHING_ROUTE, "nothing served: the IDE's Markdown has no such page", True),
+        (6, unread_pages.NOTHING_ROUTE, "nothing served: the IDE's Markdown has no such page", False)]
+    assert answer.coverage.said == ("3 of 6 PDF pages read; of the other 3, 1 is served from the IDE's Markdown; nothing serves 2; "
+                                    '1 of them is planned')
+
+
+@pytest.mark.readings
+def test_a_page_without_a_reading_lies_in_the_deepest_units_whose_pages_hold_it_and_each_chapter_counts_it(tmp_path):
+    outline = [{'id': 'u001', 'level': 1, 'title': 'One', 'parent': None, 'first_page': 2, 'last_page': 6, 'indexed': True},
+               {'id': 'u002', 'level': 2, 'title': 'One.a', 'parent': 'u001', 'first_page': 2, 'last_page': 4, 'indexed': True},
+               {'id': 'u003', 'level': 2, 'title': 'One.b', 'parent': 'u001', 'first_page': 4, 'last_page': 6, 'indexed': True}]
+    assert unread_pages.units_at(outline, 1) == []  # before the first unit
+    assert unread_pages.units_at(outline, 3) == ['u002']
+    assert unread_pages.units_at(outline, 4) == ['u002', 'u003']  # where one ends and the next begins
+    assert unread_pages.units_at(None, 4) is None  # no outline exported
+    rows = [{**row, 'units': units} for row, units in zip(kelly_rows()[:3], ([], ['u002'], ['u002']), strict=True)]
+    corpus = a_corpus(tmp_path, rows, outline=outline)
+    a_pdf(tmp_path / corpus.work(KELLY)['pdf'], 6)
+    answer = corpus.pages('free', KELLY, 'Kelly')
+    units = {unit.id: unit for unit in answer.outline}
+    assert (units['u001'].pages, units['u002'].pages, units['u003'].pages) == (5, 3, 3)
+    assert [(count.value, count.count) for count in units['u003'].states] == [('not_read', 3)]
+    # the two read pages in whatever state the free export holds them today, the page without a reading last
+    assert units['u002'].states[-1].model_dump(include={'value', 'count'}) == {'value': 'not_read', 'count': 1}
+    assert sum(count.count for count in units['u002'].states) == 3
+
+
+@pytest.mark.readings
+def test_a_work_whose_pdf_is_not_on_this_machine_lists_its_read_pages_alone_without_a_coverage(tmp_path):
+    corpus = a_corpus(tmp_path, kelly_rows()[:3])
+    answer = corpus.pages('free', KELLY, 'Kelly')
+    assert answer.coverage is None and [page.pdf_page for page in answer.pages] == [1, 2, 3]
+    assert all(page.read for page in answer.pages)
+
+
+@pytest.mark.readings
+def test_the_pages_without_a_reading_are_built_once_per_state_of_the_export(tmp_path, monkeypatch):
+    corpus = a_work(tmp_path)
+    built = []
+    real = unread_pages.unread_rows
+    monkeypatch.setattr(unread_pages, 'unread_rows', lambda *args: built.append(1) or real(*args))
+    corpus.pages('free', KELLY, 'Kelly')
+    corpus.pages('free', KELLY, 'Kelly')
+    assert len(built) == 1
+    index = json.loads(corpus.index.read_text(encoding='utf-8'))
+    index['pages'] = index['pages'][:2]
+    corpus.index.write_text(json.dumps(index), encoding='utf-8')
+    answer = corpus.pages('free', KELLY, 'Kelly')
+    assert len(built) == 2 and answer.coverage.read == 2 and not answer.pages[2].read
+
+
+def test_the_coverage_line_says_what_serves_the_unread_pages_in_one_line():
+    said = unread_pages.coverage_said
+    assert said(300, 300, [], 0) == '300 of 300 PDF pages read'
+    assert said(300, 120, [UnreadPart(served_by='legacy markdown', pages=180)], 0) == (
+        "120 of 300 PDF pages read; the other 180 are served from the IDE's Markdown")
+    assert said(2, 1, [UnreadPart(served_by='text layer', pages=1)], 1) == (
+        "1 of 2 PDF pages read; the other one is served from the PDF's text layer; it is planned")
+    assert said(10, 2, [UnreadPart(served_by='nothing', pages=8)], 0) == '2 of 10 PDF pages read; nothing serves the other 8'
+    assert said(1500, 100, [UnreadPart(served_by='legacy markdown', pages=1300), UnreadPart(served_by='text layer', pages=100)], 26) == (
+        "100 of 1,500 PDF pages read; of the other 1,400, 1,300 are served from the IDE's Markdown and 100 from the PDF's text "
+        'layer; 26 of them are planned')
+
+
+@pytest.mark.readings
+def test_the_api_counts_every_pdf_page_and_never_asks_for_a_licensed_one_under_public_only(monkeypatch):
+    def refused():
+        raise AssertionError('the licensed legacy pages were asked for under --public-only')
+
+    monkeypatch.setattr(unread_pages, 'legacy_pages', refused)
+    client = TestClient(create_app(public_only=True), base_url=LOCAL)
+    answer = client.get(f'/api/free/works/{KELLY}/pages').json()
+    pdf_pages = answer['coverage']['pdf_pages']
+    assert len(answer['pages']) == pdf_pages == answer['summary']['pages']
+    assert answer['coverage']['said'].startswith(f"{answer['coverage']['read']} of {pdf_pages} PDF pages read")
+    # a page without a reading has no page of its own to open
+    unread = [page['pdf_page'] for page in answer['pages'] if not page['read']]
+    for pdf_page in unread[:1]:
+        assert client.get(f'/api/free/works/{KELLY}/pages/{pdf_page}').status_code == 404
+
+
+def test_the_state_and_level_of_a_page_without_a_reading_follow_every_other():
+    assert readings.STATE_ORDER[-1] == unread_pages.UNREAD and readings.LEVEL_ORDER[-1] == unread_pages.UNREAD_LEVEL
+    # the core's own words for a page without a reading, so a search hit and the page list name its route alike
+    assert unread_pages.ROUTES['text layer'] == served_readings.route_of(None)

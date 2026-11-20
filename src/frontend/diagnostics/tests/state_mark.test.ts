@@ -25,6 +25,15 @@ describe('StateMark', () => {
     expect(mark.classes()).toContain('warning')
   })
 
+  it('says a page no reader has read in its own glyph and word, quiet, a plan held in a second word beside it (V1.b)', () => {
+    const mark = mount(StateMark, { props: { state: 'not_read', also: 'planned' } })
+    expect(mark.classes()).toEqual(expect.arrayContaining(['state-mark', 'quiet']))
+    expect(mark.find('[data-icon="status-not-read"]').exists()).toBe(true)
+    expect(mark.find('.state-word').text()).toBe('not read')
+    expect(mark.find('[data-part="state-also"]').text()).toBe('planned')
+    expect(mount(StateMark, { props: { state: 'not_read' } }).find('[data-part="state-also"]').exists()).toBe(false)
+  })
+
   it('shows a state it does not know as unfamiliar, in the core\'s own word', () => {
     const mark = mount(StateMark, { props: { state: 'quarantined' } })
     expect(mark.text()).toBe('quarantined')

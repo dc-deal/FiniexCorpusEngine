@@ -141,6 +141,56 @@ describe('WorkPagesView', () => {
     expect(view.find('[data-page="4"] a').attributes('href')).toBe(`#/free/sources/${KELLY}/page/4`)
   })
 
+  it('lists every PDF page, one no reader has read quiet in its own state, what serves it said, no link and no cost (V1.b)', async () => {
+    const unread = (pdfPage: number, route: string, why: string, planned: boolean) => aPageRow({
+      pdf_page: pdfPage, route, route_level: 'not read', route_why: why, listed_state: 'not_read', class_when_collected: '',
+      class_now: '', cost_usd: null, from_fallback: route.startsWith('legacy markdown'), read: false, planned,
+      check: aCheck({ state: 'not_read', judged: false, why_judged: 'not read: no reader has read this page yet', verdict: null }),
+    })
+    const said = '1 of 3 PDF pages read; of the other 2, 1 is served from the IDE\'s Markdown; nothing serves 1; 1 of them is planned'
+    vi.mocked(getWorkPages).mockResolvedValue({
+      ...aWorkPages([aPageRow({ pdf_page: 1 }),
+        unread(2, 'legacy markdown: the page has no reading', 'served from the IDE\'s Markdown', true),
+        unread(3, 'nothing served: the page has no reading', 'nothing served: the page has no text layer', false)]),
+      summary: { pages: 3, routes: [], people: [], reviews: [], categories: [],
+        states: [{ value: 'ok', count: 1 }, { value: 'not_read', count: 2 }] },
+      coverage: { pdf_pages: 3, read: 1, planned: 1, said,
+        unread: [{ served_by: 'legacy markdown', pages: 1 }, { served_by: 'nothing', pages: 1 }] },
+    })
+    const view = mountView()
+    await flushPromises()
+    // the API's one line above the list stands where the read pages' count stood
+    expect(view.find('[data-part="coverage"]').text()).toBe(said)
+    expect(view.findAll('tbody tr').map(row => row.attributes('data-page'))).toEqual(['1', '2', '3'])
+    // a read page opens its view; a page without a reading has none to open
+    expect(view.find('[data-page="1"] a').exists()).toBe(true)
+    expect(view.find('[data-page="2"] a').exists()).toBe(false)
+    expect(view.find('[data-page="2"] td').text()).toBe('p. 2')
+    // its own glyph and word, quiet: nothing is wrong with it
+    const mark = view.find('[data-page="2"] .state-mark')
+    expect(mark.attributes('data-state')).toBe('not_read')
+    expect(mark.classes()).toEqual(expect.arrayContaining(['state-mark', 'quiet']))
+    expect(mark.find('.state-word').text()).toBe('not read')
+    const [, legacy, nothing] = cells(view)
+    // the second word where a plan holds the page, the Why what serves it, no glyph of a fallback, and no cost
+    expect(mark.find('[data-part="state-also"]').text()).toBe('planned')
+    expect(view.find('[data-page="3"] [data-part="state-also"]').exists()).toBe(false)
+    expect(legacy[4]).toBe('served from the IDE\'s Markdown')
+    expect(nothing[4]).toBe('nothing served: the page has no text layer')
+    expect(view.find('[data-page="2"] .route-why .app-icon').exists()).toBe(false)
+    expect(legacy[7]).toBe('')
+    // the bar narrows to it as to any state
+    await pickFacet(view, 'state', 'not_read')
+    expect(view.findAll('tbody tr').map(row => row.attributes('data-page'))).toEqual(['2', '3'])
+  })
+
+  it('counts the read pages alone where the API has no coverage, a PDF not on this machine (V1.b)', async () => {
+    vi.mocked(getWorkPages).mockResolvedValue({ ...aWorkPages([aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 4 })]), coverage: null })
+    const view = mountView()
+    await flushPromises()
+    expect(view.find('[data-part="coverage"]').text()).toBe('2 pages')
+  })
+
   it('opens a licensed work\'s pages within the licensed knowledge base, and jumps there', async () => {
     // invented: no licensed title or text stands in a tracked file
     vi.mocked(getWorkPages).mockResolvedValue({

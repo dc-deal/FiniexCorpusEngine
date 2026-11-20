@@ -1712,3 +1712,22 @@ natively, then 0.1 s. **Measured, both bases:** before, in the container, `/api/
 and the unfiltered view drew all 10,224 rows after 3.1 s; after, natively, the API 0.11 s warm and the view's first 500
 pages after 1.1 s; the container after the merge is line 1's to measure. 384 unit tests, 79 checks in the browser
 (3 skipped on today's data), 1,466 Python tests.
+
+**Every PDF page in a work's list (the operator's V1.b, 20 Nov).** A work's page list showed the pages with a reading, so a
+work read in part looked whole. It now shows every page of its PDF, and the record's Pages line is one sentence from the API:
+"120 of 300 PDF pages read; the other 180 are served from the IDE's Markdown", split where more than one thing serves them
+and saying how many of them a plan holds. A page without a reading stands in a state of its own, `not_read`, quiet, with its
+own glyph and no status colour, since nothing is wrong with it; "planned" beside it where the rollout's plan or a session's
+list holds it; its Why says what serves it; its number opens nothing, since it has no reading and no image. It counts as
+every page does, so the states line, the routes (a level of its own, "not read", after the core's three), the chapters'
+Pages and their own "not read" column, and the facet bar all hold it. **What serves such a page is the librarian's rule,
+asked of its data:** a licensed work's page-numbered legacy Markdown where it has the page and nothing where it has not,
+since the librarian never falls back to that work's text layer; any other PDF its text layer where the page has text, and
+nothing on a page without. The first rule proposed, the text layer wherever no Markdown has the page, was measured against
+the librarian's own pages and would have named the text layer for a legacy work's pages the Markdown leaves out; the rule
+here matched every unread licensed page. A page's chapters come from the outline's ranges, as it has no text to place.
+Built once per state of the export, the PDF, the legacy pages and the plans; the legacy pages take 15.8 s natively and are
+built ahead at the app's start; none of it is read of the licensed base under --public-only. **Measured:** every work's list
+natively, the free works 0.2 s cold and 0.1 s warm in all, the licensed ones 3.2 s and 0.7 s, in the main tree's layout;
+the container after the merge is line 1's to measure. 387 unit tests, 80 checks in the browser (3 skipped on today's data), 1,475
+Python tests.
