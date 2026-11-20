@@ -34,7 +34,7 @@ import type { KnowledgeBase } from '@/types/api/source_types'
 import type { FacetDefinition, FacetSelection, SortDefinition } from '@/types/facet_types'
 
 /**
- * Every read page of one work, narrowed by check state and route. Where the work has an order of its own (a PDF's
+ * Every PDF page of one work, a page no reader has read among them in its own state (V1.b), narrowed by check state and route. Where the work has an order of its own (a PDF's
  * bookmarks, decision 84.a), its pages stand under its chapters, folded, each chapter with the states of all its pages,
  * and the flat table in PDF order is one click away (the operator: the table, but not as the first view). A work without an order
  * is listed flat and says why. The work's knowledge base stands once, above its pages.
@@ -213,7 +213,11 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
       <div class="summary work-facts" data-part="work-facts">
         <LabelledLines :label-chars="10">
           <LabelledLine label="Work" class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></LabelledLine>
-          <LabelledLine v-if="shown.summary" label="Pages"><span class="page-total">{{ pageCount(shown.summary.pages) }}</span></LabelledLine>
+          <!-- how many of the PDF's pages are read and what serves the rest, the API's one line (V1.b); the read pages' count
+               where the PDF is not on this machine -->
+          <LabelledLine v-if="shown.summary" label="Pages">
+            <span class="page-total" data-part="coverage">{{ shown.coverage?.said ?? pageCount(shown.summary.pages) }}</span>
+          </LabelledLine>
           <!-- the API's totals over the work's pages, whatever the bar narrows (the operator's SC1.a), the served tally kept -->
           <LabelledLine v-if="shown.summary" label="States" data-part="totals"><StateCounts :counts="shown.summary.states" /></LabelledLine>
           <LabelledLine v-if="shown.summary" label="PDF page"><PageJump :kb="kb" :work="work" bare /></LabelledLine>

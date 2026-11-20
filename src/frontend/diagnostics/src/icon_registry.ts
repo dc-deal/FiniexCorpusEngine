@@ -6,6 +6,7 @@ import {
   IconCircleCheck,
   IconCircleDashed,
   IconCircleX,
+  IconEyeOff,
   IconFileText,
   IconFlag,
   IconGavel,
@@ -41,6 +42,8 @@ export const ICONS = {
   'status-decided': IconGavel,
   // a page an automated review settled (Q.a, 18 Nov): apart from a person's, a machine's drawing
   'status-reviewed': IconRobot,
+  // a PDF page no reader has read yet (V1.b): quiet, since nothing is wrong with it, a page not looked at
+  'status-not-read': IconEyeOff,
   // a finding of the judge, beside its kind and severity
   'finding': IconFlag,
   // the text the search and the chat quote for a page, beside the reading as parsed and as stored

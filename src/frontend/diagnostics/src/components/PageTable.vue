@@ -21,6 +21,8 @@ import type { KnowledgeBase } from '@/types/api/source_types'
  * where it gave one, else its route's level and why as the API parts them, the fallback with its glyph, the whole route in
  * the hover. The judge needs no column of its own: the state says a judged page is ok, and the reasons name a bad verdict
  * (the operator's 5.a). On a narrow screen the table keeps its columns and scrolls in its own box; the page never does.
+ * A PDF page no reader has read (V1.b) stands in its own quiet state, "planned" beside it where a plan holds it, its Why
+ * saying what serves it; it has no reading to open, so its number is no link, and it cost nothing.
  */
 withDefaults(defineProps<{
   rows: PageRow[]
@@ -68,17 +70,18 @@ function classChange(row: PageRow): string {
     <tbody>
       <tr v-for="row in rows" :key="row.pdf_page" :class="{ marked: marks?.marked.value.has(row.pdf_page) }" :data-page="row.pdf_page">
         <td>
-          <RouterLink :to="{ name: 'page', params: { kb, work, page: row.pdf_page } }">p. {{ row.pdf_page }}</RouterLink>
+          <RouterLink v-if="row.read" :to="{ name: 'page', params: { kb, work, page: row.pdf_page } }">p. {{ row.pdf_page }}</RouterLink>
+          <span v-else class="unread-page">p. {{ row.pdf_page }}</span>
         </td>
         <td class="printed">{{ row.printed_label ?? '' }}</td>
         <!-- beside the judge's state a person's standing verdict (166.a) and a page's category where it is not content
              (172.a), wrapping beneath it where the column is narrow; one line, since a template drops a space at a break -->
-        <td class="state-cell"><StateMark :state="row.check.state" :quiet="isDecided(row.listed_state)" /> <PersonStanding :mark="row.person" /> <CategoryMark :category="row.category" :said="row.category_said" :kind="row.page_kind" /></td>
+        <td class="state-cell"><StateMark :state="row.check.state" :quiet="isDecided(row.listed_state)" :also="row.planned ? 'planned' : null" /> <PersonStanding :mark="row.person" /> <CategoryMark :category="row.category" :said="row.category_said" :kind="row.page_kind" /></td>
         <td><ReasonList :reasons="row.check.reasons" /></td>
         <td class="why"><RouteWhy :row="row" /></td>
         <td>{{ classChange(row) }}</td>
         <td class="number">{{ row.attempt > 0 ? row.attempt : '' }}</td>
-        <td class="number cost">{{ row.cost_usd === null ? NOT_MEASURABLE : usd(row.cost_usd) }}</td>
+        <td class="number cost">{{ !row.read ? '' : row.cost_usd === null ? NOT_MEASURABLE : usd(row.cost_usd) }}</td>
       </tr>
     </tbody>
   </DataTable>
@@ -101,7 +104,8 @@ tr.marked > td:first-child {
 
 .printed,
 .why,
-.cost {
+.cost,
+.unread-page {
   color: var(--color-text-secondary);
 }
 </style>

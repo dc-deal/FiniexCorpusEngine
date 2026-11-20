@@ -2604,6 +2604,43 @@
         ],
         "title": "Count"
       },
+      "Coverage": {
+        "properties": {
+          "pdf_pages": {
+            "type": "integer",
+            "title": "Pdf Pages"
+          },
+          "read": {
+            "type": "integer",
+            "title": "Read"
+          },
+          "unread": {
+            "items": {
+              "$ref": "#/components/schemas/UnreadPart"
+            },
+            "type": "array",
+            "title": "Unread"
+          },
+          "planned": {
+            "type": "integer",
+            "title": "Planned"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pdf_pages",
+          "read",
+          "unread",
+          "planned",
+          "said"
+        ],
+        "title": "Coverage",
+        "description": "A PDF work's pages: how many are read, what serves the rest, and how many of those are planned, said in one line."
+      },
       "DiffLine": {
         "properties": {
           "kind": {
@@ -5318,7 +5355,8 @@
               "decided_by_an_automated_review",
               "blocked",
               "issue",
-              "stopped"
+              "stopped",
+              "not_read"
             ]
           }
         },
@@ -5521,6 +5559,22 @@
               }
             ],
             "title": "Listed State"
+          },
+          "read": {
+            "type": "boolean",
+            "title": "Read",
+            "default": true
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned"
           }
         },
         "type": "object",
@@ -8185,6 +8239,30 @@
         "title": "Trace",
         "description": "Where a reading came from: everything the export records about it except its check."
       },
+      "UnreadPart": {
+        "properties": {
+          "served_by": {
+            "type": "string",
+            "enum": [
+              "legacy markdown",
+              "text layer",
+              "nothing"
+            ],
+            "title": "Served By"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "served_by",
+          "pages"
+        ],
+        "title": "UnreadPart",
+        "description": "The unread pages of a work one thing serves."
+      },
       "Unverifiable": {
         "properties": {
           "why": {
@@ -8757,6 +8835,16 @@
             },
             "type": "array",
             "title": "Pages"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Coverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

@@ -11,6 +11,8 @@ import type { IconName } from '@/icon_registry'
 const props = defineProps<{
   state: string
   quiet?: boolean
+  // a second word of the state, in the mark's own line and ink: "planned" for a page not read yet that a plan holds (V1.b)
+  also?: string | null
 }>()
 
 interface Look {
@@ -31,6 +33,8 @@ const LOOKS: Record<string, Look> = {
   decided_by_a_person: { icon: 'status-decided', role: 'quiet' },
   // the same settled by an automated review (Q.a, 18 Nov), never counted as a person's
   decided_by_an_automated_review: { icon: 'status-reviewed', role: 'quiet' },
+  // a PDF page no reader has read yet (V1.b): its own word, quiet and in no status colour, since nothing is wrong with it
+  not_read: { icon: 'status-not-read', role: 'quiet' },
 }
 
 const look = computed<Look>(() => LOOKS[props.state] ?? { icon: 'status-unknown', role: 'warning' })
@@ -41,6 +45,7 @@ const word = computed(() => props.state.replace(/_/g, ' '))
   <span class="state-mark" :class="quiet ? 'quiet' : look.role" :data-state="state">
     <AppIcon :name="look.icon" />
     <span class="state-word">{{ word }}</span>
+    <span v-if="also" class="state-also" data-part="state-also">{{ also }}</span>
   </span>
 </template>
 
@@ -50,6 +55,11 @@ const word = computed(() => props.state.replace(/_/g, ' '))
   align-items: center;
   gap: var(--space-xs);
   white-space: nowrap;
+}
+
+/* the second word parted from the state as the routes' line parts its levels: "not read · planned" */
+.state-also::before {
+  content: '· ';
 }
 
 .quiet {

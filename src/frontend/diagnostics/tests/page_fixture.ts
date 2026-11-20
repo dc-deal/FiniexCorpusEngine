@@ -32,6 +32,7 @@ export function aPageRow(overrides: Partial<PageRow> = {}): PageRow {
     cost_usd: 0.0163,
     error_message: null,
     from_fallback: false,
+    read: true,
     ...overrides,
   }
 }

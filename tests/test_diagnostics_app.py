@@ -214,8 +214,11 @@ def test_a_licensed_export_is_served_beside_the_free_one_each_row_marked(monkeyp
     assert [(work['id'], work['title'], work['authors'], work['readings']['pages']) for work in licensed] == \
         [('a_licensed_book', 'a_licensed_book', None, 3)]
     pages = both.get('/api/licensed/works/a_licensed_book/pages').json()
-    assert pages['knowledge_base'] == 'licensed' and [page['pdf_page'] for page in pages['pages']] == [1, 2, 4]
-    assert pages['pages'][2]['check']['state'] == 'not_yet_checked'
+    assert pages['knowledge_base'] == 'licensed' and [page['pdf_page'] for page in pages['pages'] if page['read']] == [1, 2, 4]
+    # every page of its PDF stands, those without a reading in their own state (V1.b)
+    assert len(pages['pages']) == pages['coverage']['pdf_pages'] and pages['coverage']['read'] == 3
+    assert {page['check']['state'] for page in pages['pages'] if not page['read']} == {'not_read'}
+    assert pages['pages'][3]['check']['state'] == 'not_yet_checked'
     assert both.get('/api/licensed/works/a_licensed_book/pages/4').json()['check']['state'] == 'not_yet_checked'
     detail = both.get('/api/licensed/works/a_licensed_book/pages/1').json()
     assert detail['knowledge_base'] == 'licensed' and detail['reading'] and detail['image']['same_as_read']

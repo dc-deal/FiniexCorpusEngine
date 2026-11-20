@@ -793,3 +793,17 @@ The record of how the diagnostics frontend came about, mistakes included.
   500. **A probe that lied:** a timing script given the view's address on the command line saw only the page's empty shell
   for five minutes, on the old and the new build alike; the address had not survived the shell, and with it written into
   the script both views drew at once. The bar's counts now stand in English figures ("1,822"), as every count here does.
+- **V1.b, every PDF page in a work's list** (the operator, 20 Nov). **A rule changed on measuring:** the handoff said every
+  unread page that no Markdown has is served from the text layer; asked of the librarian's own pages (183.7 s to build every
+  licensed page), a legacy work's pages the Markdown leaves out are served by nothing, since `with_readings` never falls back
+  to that work's text layer, and a text-layer page without text by nothing too. The rule here follows the librarian, and the
+  measurement matched it page for page. **Found:** in the worktree a licensed PDF is not found, since `data_paths.locate`
+  resolves the export's `_sources/…` against the repository root and not the originals the local configuration names
+  (285.a); a licensed page's image has the same gap there. A first fix took the archive by the file's name, against the
+  rule that a PDF is the export's `pdf`; a test with an invented licensed work caught it, it was undone, and the question
+  went to line 1. The figures were measured in the main tree's layout. Asking for the legacy pages before the PDF was found
+  had the tests build the real ones; they are now handed in by `licensed_readings` alone, as the catalog is. The "planned" word first
+  stood beside the state mark and sat 2 px below its word, so it moved into the mark's own line, and a browser check holds it
+  there (shown failing once at 2 px), as it holds the quiet ink (shown failing once in a status colour). The example figures
+  of the handoff were replaced by invented ones in every tracked file, as a count of the licensed collection never stands
+  in one (251.a).
