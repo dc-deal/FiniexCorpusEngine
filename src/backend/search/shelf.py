@@ -216,6 +216,38 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
     for file in sorted(set(archive) - used):  # a file no work serves: held back, or an EPUB with no legacy text yet
         held = HELD if not reading_cells.may_send(file) else None
         out.append(file_row(None, file, [], held=held, not_served=held or NO_ROUTE))
+    from backend.search import editions
+
+    return with_editions(out, editions.load(), editions.catalog())
+
+
+def with_editions(rows: list[dict], families: dict[str, dict], entries: list[dict]) -> list[dict]:
+    """A work's editions on its rows (E1.a, the operator, 20 Nov: one work, its editions a level under it, one served): every
+    row of a family carries the family (`editions`: which edition is served, when and why it was chosen, each edition with its
+    label, year and format), a kept edition the key of the served one (`kept_for`); a file that looks like another edition and
+    is linked with none says so (`possible_edition_of`), for a person to decide. A row is matched by its work key, else its
+    file's stem, which is how the editions list and the catalog name it."""
+    from backend.search import editions
+
+    by_id = {entry['id']: entry for entry in entries}
+    unlinked = editions.possible_editions(entries, families)
+    out = []
+    for row in rows:
+        key = row['work'] or (Path(row['file']).stem if row.get('file') else None)
+        name = editions.family_of(key, families) if key else None
+        if name:
+            family = families[name]
+            listed = sorted(family['editions'], key=lambda edition: (by_id.get(edition, {}).get('year') or 0, edition))
+            row = {**row, 'editions': {'work': name, 'serves': family['serves'], 'chosen': family['chosen'], 'why': family['why'],
+                                       'editions': [{'key': edition, 'label': editions.label(by_id.get(edition)),
+                                                     'year': by_id.get(edition, {}).get('year'),
+                                                     'format': by_id.get(edition, {}).get('format'),
+                                                     'served': edition == family['serves']} for edition in listed]}}
+            if key != family['serves']:
+                row['kept_for'] = family['serves']
+        if key in unlinked:
+            row = {**row, 'possible_edition_of': unlinked[key]}
+        out.append(row)
     return out
 
 
@@ -250,6 +282,7 @@ def totals(rows: list[dict]) -> dict:
     total = Counter()
     for row in rows:
         total['works'] += 1
+        total['kept_editions'] += 1 if row.get('kept_for') else 0  # E1.a: a work's other edition, kept and not searched
         total['planned'] += row['planned'] or 0
         total['read'] += row['read']
         total['passed'] += row['passed']

@@ -158,7 +158,7 @@ def test_the_server_searches_the_private_index_only_where_it_gives_the_private_b
     built = []
 
     class Recording:
-        def __init__(self, sources, frozen_plans=None, private=False):
+        def __init__(self, sources, frozen_plans=None, private=False, kept=frozenset()):
             built.append(private)
 
         def search(self, question, hits, **given):

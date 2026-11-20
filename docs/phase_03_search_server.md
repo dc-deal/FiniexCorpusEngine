@@ -215,3 +215,14 @@ chat model, a stage of its own.
   chain over both indexes and fuses the two by rank (reciprocal rank fusion, k = 60, as 39.a fuses two indexes), every hit
   naming its knowledge base; a server that does not give the private base out (`--public-only`, so the chat and every
   measurement) or a machine without the index searches the free index alone, exactly as before.
+- **A work's editions: one served, the others kept** (the operator's E1.a, E2.a, E3.a, 20 Nov). A work held in two
+  editions stood as two works, and a question could find the same passage twice. An edition is now a level under its work
+  (work, edition, page or section), never a work of its own, and exactly one edition is served. A kept edition keeps all it
+  has: its readings, its chunks, its pages in the view and in `open_page` by its own key. Only the two searches skip it: the
+  keyword index leaves its pages out (`search_server.with_editions`), and the semantic search drops its chunks after the
+  private query, which asks for twice the hits for that (`SemanticSearch(kept=...)`). A page's fingerprint holds no ranking
+  flag, so a switch embeds nothing again. Which edition is served changes only on the operator's word, through a command
+  (`python -m backend.search.editions serve KEY --why TEXT`), and the list is private data beside the stand-ins' list,
+  refused wherever git would track it. A file that looks like another edition (the same main title, an author in common,
+  no series) is flagged on the shelf (`possible_edition_of`) and changes nothing until it is linked. Every hit, every opened
+  page and `works` now name the edition and year from the catalog, so a citation says which edition its page belongs to.

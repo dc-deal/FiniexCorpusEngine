@@ -56,11 +56,15 @@ class SemanticSearch:
     """The chain, built once per process on its first question, so a server starts fast and keyword search needs no key."""
 
     def __init__(self, sources: dict, config: dict | None = None, router_chain=None, store=None, keyword_index=None,
-                 frozen_plans: dict | None = None, private: bool = False, private_store=None, private_keywords=None):
+                 frozen_plans: dict | None = None, private: bool = False, private_store=None, private_keywords=None,
+                 kept: frozenset[str] = frozenset()):
         self.sources = sources  # source id -> {'work': the key `search` uses, 'path': the raw file}
         # The private base's index too (#8): only where the server gives the private base out and its index was built, so a
         # --public-only start and every measurement search the free index alone, as before
         self.private, self._private_store, self._private_keywords = private, private_store, private_keywords
+        # A kept edition's chunks (E1.a, 20 Nov): they stay in the private index, so a switch embeds nothing, and are dropped
+        # from its results here; the private chain asks for twice the hits then, so the dropped ones leave no gap
+        self.kept = kept
         # Evaluation only: the router's plans of an earlier run, by question, so a comparison run differs from it only by the
         # change it measures; a question without one is routed live (phase 6, the neighbouring project's "freeze inputs").
         self.frozen_plans = frozen_plans or {}
@@ -133,8 +137,12 @@ class SemanticSearch:
             # The same chain over the private index, the two fused by rank (reciprocal rank fusion, k = 60, as 39.a fuses
             # two indexes): scores of two indexes are not comparable, ranks are. The free chain and its trace stay as they were.
             private_trace: dict = {}
+            private_chain = {**chain, 'k': max(1, hits) * 2} if self.kept else chain
             private, private_relevance = query_routing.search(plan, store=self._private_store,
-                                                              keyword_index=self._private_keywords, trace=private_trace, **chain)
+                                                              keyword_index=self._private_keywords, trace=private_trace,
+                                                              **private_chain)
+            if self.kept:
+                private = [result for result in private if result['citation'].get('source_id') not in self.kept][:max(1, hits)]
             results = retrieval.reciprocal_rank_fusion([results, private])[:max(1, hits)]
             relevance = max((value for value in (relevance, private_relevance) if value is not None), default=None)
             trace['licensed'] = private_trace

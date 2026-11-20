@@ -82,6 +82,10 @@ class Work:
     printed: dict = dataclasses.field(default_factory=dict)  # kept for callers of the first version; pages carry it now
     subject: str | None = None  # what the work is for here, in one sentence (decision 124.a); None where none is written
     view_id: str | None = None  # the work's id in the diagnostics view, None where the view shows no page of it (226.a)
+    # the edition a citation names (E1.a, 20 Nov): "2nd" and its year, from the catalog; None where the catalog has none
+    edition: str | None = None
+    year: int | None = None
+    kept_for: str | None = None  # a kept edition (E1.a): the key of the edition its work serves; the searches skip it
 
 
 def legacy_headings(path: Path, offset: int = 0) -> list[dict]:
@@ -176,7 +180,7 @@ def free_pdf_pages() -> tuple[list[page_index.Page], dict]:
             continue
         key = keys.get(path.name, source['id'])
         work = works[key] = Work(key, source['title'], 'free', source['licence'], 'per page', subject=source.get('subject'),
-                                 view_id=source['id'])
+                                 view_id=source['id'], year=source.get('year'))
         own = pdf_work_pages(key, path, rows.get(path.name, {}), reading_export.quoted_pages('free', path.name), EXPORT, 'free')
         pages += own
         work.pages += sum(page.searchable for page in own)
@@ -194,7 +198,7 @@ def free_html_pages() -> tuple[list[page_index.Page], dict]:
         if source.get('format') != 'html' or not all(data_paths.locate(entry['path']).exists() for entry in source['files']):
             continue
         work = works[source['id']] = Work(source['id'], source['title'], 'free', source['licence'], 'html, parsed by section',
-                                          subject=source.get('subject'), view_id=source['id'])
+                                          subject=source.get('subject'), view_id=source['id'], year=source.get('year'))
         for section in load_html_sections(source, manifest, data_paths.DATA):
             if not section.text.strip():
                 continue
@@ -433,6 +437,27 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
     for key, subject in licensed_subjects().items():
         if key in works:
             works[key].subject = subject
+    return with_editions(pages, works, keys)
+
+
+def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str], families: dict[str, dict] | None = None
+                  ) -> tuple[list[page_index.Page], dict]:
+    """Each licensed work's edition and year from the local catalog, and a kept edition's pages out of the keyword index (E1.a,
+    the operator, 20 Nov): one edition of a work is served, the others kept. A kept edition's pages stay openable by its own key
+    and keep their text, place and route, so its chunks in the private index stay as they are (their fingerprint holds no
+    ranking flag) and a switch embeds nothing again."""
+    from backend.ingestion.licensed_index import catalog_entries
+    from backend.search import editions
+
+    for key, entry in catalog_entries(keys).items():
+        if key in works:
+            works[key].edition, works[key].year = entry.get('edition'), entry.get('year')
+    kept = editions.kept(families)
+    for key, served in kept.items():
+        if key in works:
+            works[key].kept_for, works[key].pages = served, 0
+    if kept:
+        pages = [dataclasses.replace(page, searchable=False) if page.work in kept else page for page in pages]
     return pages, works
 
 
@@ -524,6 +549,7 @@ class SearchService:
         work = self.works[page.work]
         found, missing = page_index.coverage(page.words, query)
         return {'score': round(score, 2), 'knowledge_base': page.knowledge_base, 'work': page.work, 'title': work.title,
+                'edition': work.edition, 'year': work.year,
                 'page': {'label': page.page, 'pdf': page.pdf, 'printed': page.printed}, 'section': page.section,
                 'where': self._where(page), 'snippet': page_index.snippet(page.text, query), 'terms_found': found,
                 'terms_missing': missing, 'licence': work.licence, 'route': page.route or work.route,
@@ -560,7 +586,8 @@ class SearchService:
         if found is None:
             return {'state': 'nothing found', 'work': work, 'page': str(page), **({'printed': True} if printed else {})}
         meta = self.works[work]
-        return {'state': 'found', 'work': work, 'title': meta.title, 'knowledge_base': found.knowledge_base,
+        return {'state': 'found', 'work': work, 'title': meta.title, 'edition': meta.edition, 'year': meta.year,
+                **({'kept_for': meta.kept_for} if meta.kept_for else {}), 'knowledge_base': found.knowledge_base,
                 'page': {'label': found.page, 'pdf': found.pdf, 'printed': found.printed}, 'section': found.section,
                 'where': self._where(found), 'text': found.text, 'licence': meta.licence, 'route': found.route or meta.route,
                 'reading_key': found.reading_key, 'view_url': self.view_of(work, found.page, found.pdf),
@@ -605,16 +632,28 @@ class SearchService:
 
             # the private base's index too (#8), where this server gives that base out and its index was built here
             private = 'licensed' in self.bases and retrieval.licensed_index_built()
-            self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans, private=private)
+            kept = frozenset(key for key, work in self.works.items() if work.kept_for)  # a kept edition's chunks stay out (E1.a)
+            self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans, private=private,
+                                                            kept=kept)
         given = {'search_query': search_query, 'concept_query': concept_query, 'keywords': keywords}  # the caller's own translation
         found = self._semantic.search(question, hits, **{name: value for name, value in given.items() if value})
         for hit in found.get('hits') or []:
             hit['view_url'] = self.view_of(hit.get('work'), (hit.get('page') or {}).get('label'), (hit.get('page') or {}).get('pdf'))
+            work = self.works.get(hit.get('work'))
+            hit['edition'], hit['year'] = (work.edition, work.year) if work else (None, None)
         return found
 
     def list_works(self) -> list[dict]:
-        return [{'work': work.key, 'title': work.title, 'knowledge_base': work.knowledge_base, 'licence': work.licence,
-                 'route': work.route, 'pages': work.pages, 'subject': work.subject}
+        """Every work the server knows; a kept edition (E1.a) names the edition its work serves, the served one its kept ones."""
+        kept_by: dict[str, list[str]] = {}
+        for work in self.works.values():
+            if work.kept_for:
+                kept_by.setdefault(work.kept_for, []).append(work.key)
+        return [{'work': work.key, 'title': work.title, 'edition': work.edition, 'year': work.year,
+                 'knowledge_base': work.knowledge_base, 'licence': work.licence, 'route': work.route, 'pages': work.pages,
+                 'subject': work.subject,
+                 **({'kept_for': work.kept_for} if work.kept_for else {}),
+                 **({'kept_editions': sorted(kept_by[work.key])} if work.key in kept_by else {})}
                 for work in sorted(self.works.values(), key=lambda work: work.key)]
 
     def search_works(self, query: str, corpus: str = 'all', hits: int = 10) -> dict:
@@ -908,7 +947,9 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
 
     @server.tool()
     def works(*, ctx: Context) -> list[dict]:
-        """Every work the server knows: key, title, knowledge base, licence, route and how many pages are searchable."""
+        """Every work the server knows: key, title, edition and year, knowledge base, licence, route and how many pages are
+        searchable. Where a work is held in more than one edition, one is searched and the others are kept: a kept edition
+        names the edition searched (`kept_for`) and still opens by its own key."""
         return logged('works', ctx, service.list_works)
 
     @server.tool()
