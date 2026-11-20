@@ -1779,3 +1779,10 @@ card's. Measured with the dataviz validator: the issue's red beside the fill's g
 too, a gap of 2 px from the fill and a pixel more on each side than its track. A hover card opens once the pointer has rested
 500 ms (`HOVER_DELAY`, one value for every card), so a pointer crossing a table opens nothing; the keyboard's focus opens it
 at once. 395 unit tests, 83 checks in the browser (3 skipped on today's data), 1,493 Python tests.
+
+**The private base in the ladders (issue #8, 20 Nov).** The private base has its own vector index now, local only, and the
+semantic level says what it holds: a licensed work its chunks and the PDF pages they cover, a page its chunks by the work's
+key, an EPUB section its chunks by `<work key>:<ordinal>`, the corpus both bases summed. A work the provenance list holds back
+is never embedded and says "held back: never embedded"; a file the librarian serves not at all says "not served: never
+embedded"; "not vectorised yet (#8)" stands only on a machine without the private index. 395 unit tests, 83 checks in the
+browser (3 skipped on today's data), 1,501 Python tests.

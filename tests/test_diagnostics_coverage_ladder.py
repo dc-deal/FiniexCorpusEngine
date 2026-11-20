@@ -54,9 +54,18 @@ def test_a_pdf_climbs_five_levels_each_against_its_pages_the_checked_ones_those_
     assert ladder.by_route == {'vision reading': 80, 'text layer': 16} and ladder.planned == 100 and ladder.passed == 80
 
 
-def test_a_level_not_measured_says_why_never_none_of_all():
+def test_a_level_not_measured_says_why_never_none_of_all(monkeypatch):
+    # the private index (#8): absent on a machine, said so; present, a work held back or not served was never embedded
+    monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: False)
     licensed = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic=None), [])
     assert said(licensed)['semantic chunks'] == (None, 100, 'not vectorised yet (#8)')
+    monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: True)
+    held = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic=None, held='held back by the list'), [])
+    assert said(held)['semantic chunks'] == (None, 100, 'held back: never embedded')
+    beside = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic=None, not_served='a stand-in beside its legacy text'), [])
+    assert said(beside)['semantic chunks'] == (None, 100, 'not served: never embedded')
+    embedded = coverage_ladder.work_ladder(a_row(knowledge_base='licensed', semantic={'chunks': 50, 'pages': 40}), [])
+    assert said(embedded)['semantic chunks'] == (40, 100, '50 chunks over 40 of 100 PDF pages')
     free = coverage_ladder.work_ladder(a_row(semantic=None), [])
     assert said(free)['semantic chunks'] == (None, 100, 'not in the vector index on this machine')
     unread = coverage_ladder.work_ladder(a_row(read=0, passed=0), [])

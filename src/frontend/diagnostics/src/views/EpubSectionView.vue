@@ -53,7 +53,7 @@ function neighbour(label: string | null | undefined) {
       <PagerLinks :previous="neighbour(shown.previous)" :next="neighbour(shown.next)" label="Previous and next section" />
       <h1 class="view-title" data-part="heading-path">{{ shown.heading_path || shown.work_title }}</h1>
       <p class="place" data-part="place">{{ shown.label }}<template v-if="shown.place"> · {{ shown.place }}</template></p>
-      <!-- the section's own ladder (V2.a): born digital, its text served, keyword search, not vectorised yet (#8) -->
+      <!-- the section's own ladder (V2.a): born digital, its text served, keyword search, its chunks in the private index (#8) -->
       <PageLadderLines v-if="shown.ladder" class="section-ladder" :ladder="shown.ladder" />
       <!-- the text in its runs, its line breaks kept; an image where its mark stood, inline in its line or a block of its own -->
       <div class="section-text" data-part="section-text">

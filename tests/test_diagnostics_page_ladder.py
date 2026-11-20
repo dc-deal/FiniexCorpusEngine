@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.diagnostics import page_ladder, unread_pages
+from backend.diagnostics import coverage_ladder, page_ladder, unread_pages
 from backend.diagnostics.app import create_app
 from backend.search.page_index import Page
 from test_diagnostics_readings import KELLY, kelly_rows
@@ -65,7 +65,10 @@ def test_a_page_climbs_its_five_levels_each_said(tmp_path, monkeypatch):
     corpus = a_work(tmp_path)
     pdf = corpus.pdf_of(corpus.work(KELLY))
     unread = corpus.any_row(KELLY, 4)
-    monkeypatch.setattr(page_ladder, 'semantic_detail', lambda: {KELLY: {'pages': {4: 3}, 'sections': {}}})
+    # each base's index, invented: the free one by the work's source id, the private one (#8) by its work key
+    detail = {'free': {KELLY: {'pages': {4: 3}, 'sections': {}}}, 'licensed': {'kelly-key': {'pages': {1: 2}, 'sections': {}}}}
+    monkeypatch.setattr(page_ladder, 'semantic_detail', lambda knowledge_base: detail[knowledge_base])
+    monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: True)
     service = a_service(a_page('prose ' * 60, work='kelly-key'))
     ladder = page_ladder.page_ladder('free', KELLY, 4, unread, pdf, 'kelly-key', service, None)
     assert [(rung.level, rung.reached) for rung in ladder.rungs] == [
@@ -77,14 +80,24 @@ def test_a_page_climbs_its_five_levels_each_said(tmp_path, monkeypatch):
     assert [(rung.reached, rung.said) for rung in blank.rungs][:4] == [
         (False, 'none: a scan, or a page without text'), (False, 'nothing served: the page has no text layer'),
         (False, 'not in search (BM25): nothing is served for it'), (False, 'no chunk of this page')]
-    # a read page says its reading and its state; a licensed one is not vectorised yet, never 0 of N
-    read = page_ladder.page_ladder('licensed', KELLY, 1, corpus.any_row(KELLY, 1), pdf, None, None, 'held back by the list')
-    assert read.rungs[3].said == 'not vectorised yet (#8)' and read.rungs[3].reached is None
-    assert read.rungs[4].said.startswith('reading ') and read.held == 'held back by the list'
-    assert read.rungs[1].reached is True  # its reading, or the text layer in its place: either way text is served
+    # a read page says its reading and its state; a licensed one its chunks in the private index, by its work key (#8)
+    read = page_ladder.page_ladder('licensed', KELLY, 1, corpus.any_row(KELLY, 1), pdf, 'kelly-key', None, None)
+    assert (read.rungs[3].said, read.rungs[3].reached) == ('2 chunks', True)
+    assert read.rungs[4].said.startswith('reading ') and read.rungs[1].reached is True
+    # a work held back is never embedded; a machine without the private index says so, never 0 of N
+    held = page_ladder.page_ladder('licensed', KELLY, 1, corpus.any_row(KELLY, 1), pdf, 'a-held-key', None, 'held back by the list')
+    assert (held.rungs[3].said, held.rungs[3].reached, held.held) == ('held back: never embedded', None, 'held back by the list')
+    # a clone: no private index, so nothing in it to find
+    monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: False)
+    monkeypatch.setattr(page_ladder, 'semantic_detail', lambda knowledge_base: {})
+    clone = page_ladder.page_ladder('licensed', KELLY, 1, corpus.any_row(KELLY, 1), pdf, 'kelly-key', None, None)
+    assert (clone.rungs[3].said, clone.rungs[3].reached) == ('not vectorised yet (#8)', None)
 
 
-def test_a_section_is_born_digital_its_chunks_its_own_and_a_licensed_one_not_vectorised():
+def test_a_section_is_born_digital_its_chunks_its_own_and_a_licensed_one_s_in_the_private_index(monkeypatch):
+    # the private index (#8), invented: an EPUB section by `<work key>:<ordinal>`, its position from 0 in four figures
+    monkeypatch.setattr(page_ladder, 'semantic_detail', lambda knowledge_base: {'an-epub': {'pages': {}, 'sections': {'an-epub:0002': 4}}})
+    monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: True)
     service = a_service(a_page('prose ' * 60, work='an-html-work', pdf=None, page='s3'))
     html = page_ladder.section_ladder('free', 's3', 2, 'an-html-work', service)
     assert [(rung.level, rung.reached, rung.said) for rung in html.rungs] == [
@@ -92,7 +105,10 @@ def test_a_section_is_born_digital_its_chunks_its_own_and_a_licensed_one_not_vec
         ('keyword search', True, 'in search (BM25)'), ('semantic chunks', True, '2 chunks'),
         ('reading and check', None, 'not needed: born digital')]
     epub = page_ladder.section_ladder('licensed', 's3', None, 'an-epub', None)
-    assert epub.rungs[3].said == 'not vectorised yet (#8)' and epub.rungs[2].said == page_ladder.NOT_BUILT
+    assert epub.rungs[3].said == '4 chunks' and epub.rungs[2].said == page_ladder.NOT_BUILT
+    assert page_ladder.section_ladder('licensed', 's9', None, 'an-epub', None).rungs[3].said == 'no chunk of this section'
+    monkeypatch.setattr(coverage_ladder, 'licensed_index_built', lambda: False)
+    assert page_ladder.section_ladder('licensed', 's3', None, 'a-held-epub', None, 'held').rungs[3].said == 'not vectorised yet (#8)'
 
 
 @pytest.mark.readings

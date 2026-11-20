@@ -3,8 +3,9 @@ one ladder of five levels, the same for a work and for the corpus, every figure 
 
 1. text served: the pages, for an HTML or EPUB work the sections, the librarian serves text for;
 2. keyword search: of those, the ones in "search (BM25)";
-3. semantic chunks: the chunks in the vector index and the PDF pages they cover; a base without a vector index (the licensed
-   one until issue #8) says so, never 0 of N;
+3. semantic chunks: the chunks in the vector index and the PDF pages they cover, the private base's in its own (#8); a work
+   the provenance list holds back is never embedded, and says so, and a machine without the private index says that, never
+   0 of N;
 4. read: the pages with a vision reading, and of them those whose reading passed;
 5. checked: the pages whose reading the checks found fine, or a person or an automated review settled (`CHECKED`), every
    state counted beside them.
@@ -28,7 +29,9 @@ MEANS: dict[str, str] = {
 }
 # the states whose reading is checked and stands: what the judge passed, and what a person or a review settled
 CHECKED = ('ok', DECIDED, DECIDED_BY_REVIEW)
-NOT_VECTORISED = 'not vectorised yet (#8)'
+NOT_VECTORISED = 'not vectorised yet (#8)'  # only where this machine holds no private index (`retrieval.licensed_index_built`)
+HELD_NOT_EMBEDDED = 'held back: never embedded'  # a work the provenance list holds back, which #8 never embeds (line 1, 20 Nov)
+NOT_SERVED_NOT_EMBEDDED = 'not served: never embedded'  # a file the librarian serves not at all, whose text #8 never sees
 NOT_IN_INDEX = 'not in the vector index on this machine'
 BY_HEADING = 'not read page by page: cut by its headings'
 LEGACY_ONLY = 'legacy markdown'  # a work the shelf serves from the IDE's Markdown alone, its source file not held here
@@ -47,16 +50,32 @@ def checked_of(states: list[StateCount] | list[LadderState]) -> int:
     return sum(count.count for count in states if count.value in CHECKED)
 
 
+def licensed_index_built() -> bool:
+    """Whether this machine holds the private base's vector index (#8), as the core says it."""
+    from backend.search import retrieval
+
+    return retrieval.licensed_index_built()
+
+
+def not_embedded(knowledge_base: str, held: str | None, not_served: str | None = None) -> str:
+    """Why a work, a page or a section has no chunks to count: no private index here, held back, not served, or not in the
+    index."""
+    if knowledge_base == 'licensed' and not licensed_index_built():
+        return NOT_VECTORISED
+    return HELD_NOT_EMBEDDED if held else NOT_SERVED_NOT_EMBEDDED if not_served else NOT_IN_INDEX
+
+
 def semantic_rung(row: dict, whole: int | None, unit: str, pdf: bool) -> Rung:
     semantic = row.get('semantic')
     if semantic is None:
         return Rung(level='semantic chunks', count=None, of=whole,
-                    said=NOT_VECTORISED if row['knowledge_base'] == 'licensed' else NOT_IN_INDEX)
+                    said=not_embedded(row['knowledge_base'], row.get('held'), row.get('not_served')))
     chunks = f"{semantic['chunks']:,} {'chunk' if semantic['chunks'] == 1 else 'chunks'}"
     if pdf:
         return Rung(level='semantic chunks', count=semantic['pages'], of=whole,
                     said=f"{chunks} over {figure(semantic['pages'], whole, unit)}")
-    # an HTML work's sections are embedded whole: every section has its chunks once the index holds the work
+    # an HTML or EPUB work's sections, and a legacy work's Markdown pages, are embedded whole: each has its chunks once the
+    # index holds the work
     return Rung(level='semantic chunks', count=whole if semantic['chunks'] else 0, of=whole, said=f'{chunks} from its {unit}')
 
 
