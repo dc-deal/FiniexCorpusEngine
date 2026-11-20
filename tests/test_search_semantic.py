@@ -122,3 +122,56 @@ def test_with_the_router_switched_off_the_question_searches_as_it_stands():
     answer = semantic_search.SemanticSearch(SOURCES, config, None, Store(), keywords()).search('what does the sharpe ratio measure?')
     assert answer['plan']['translated_by'] == 'nobody: the router is off'
     assert answer['plan']['search_query'] == 'what does the sharpe ratio measure?' and answer['usage']['router']['model'] is None
+
+
+def test_the_private_index_is_searched_beside_the_free_one_and_fused_by_rank():
+    # issue #8: the same chain over the private index, the two fused by rank; every hit names its knowledge base
+    from langchain_core.documents import Document
+
+    from backend.search.retrieval import KeywordIndex
+
+    private_text = 'The Sharpe ratio of a strategy, measured before costs, overstates what a trader keeps.'
+    private_meta = {'chunk_id': 'book:0003:000', 'source_id': 'book', 'source_title': 'A Private Book', 'authors': 'A. Author',
+                    'licence': 'licensed, local use only', 'shelf': 'trading_finance', 'pdf_page': 41,
+                    'route': 'vision reading (m)', 'knowledge_base': 'licensed'}
+
+    class PrivateStore:
+        def similarity_search_with_score(self, query, k, filter=None):
+            return [(Document(page_content=private_text, metadata=private_meta), 0.2)]
+
+    engine = semantic_search.SemanticSearch(SOURCES, app_config.load(), chain(plan()), Store(), keywords(), private=True,
+                                            private_store=PrivateStore(),
+                                            private_keywords=KeywordIndex([(private_meta['chunk_id'], private_text, private_meta)]))
+    answer = engine.search('what does the sharpe ratio measure?', hits=5)
+    assert {hit['knowledge_base'] for hit in answer['hits']} == {'free', 'licensed'}
+    private_hit = next(hit for hit in answer['hits'] if hit['knowledge_base'] == 'licensed')
+    assert private_hit['page']['pdf'] == '41' and private_hit['route'] == 'vision reading (m)'
+    assert 'licensed' in answer['search'] and answer['relevance'] is not None
+    alone = searching(plan()).search('what does the sharpe ratio measure?', hits=5)
+    assert {hit['knowledge_base'] for hit in alone['hits']} == {'free'} and 'licensed' not in alone['search']
+
+
+def test_the_server_searches_the_private_index_only_where_it_gives_the_private_base_out(monkeypatch):
+    # --public-only, and a clone without the index: the free index alone, as every measurement uses it
+    from backend.search import retrieval
+
+    built = []
+
+    class Recording:
+        def __init__(self, sources, frozen_plans=None, private=False):
+            built.append(private)
+
+        def search(self, question, hits, **given):
+            return {'state': 'nothing found', 'hits': []}
+
+    monkeypatch.setattr(semantic_search, 'SemanticSearch', Recording)
+    monkeypatch.setattr(retrieval, 'licensed_index_built', lambda: True)
+    public = service()
+    public.bases = ['free']  # as a --public-only start builds it
+    public.semantic_search('a question')
+    both = service()
+    both.semantic_search('a question')
+    monkeypatch.setattr(retrieval, 'licensed_index_built', lambda: False)
+    unbuilt = service()
+    unbuilt.semantic_search('a question')
+    assert built == [False, True, False]

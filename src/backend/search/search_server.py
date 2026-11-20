@@ -594,13 +594,18 @@ class SearchService:
 
     def semantic_search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
                         keywords: list[str] | None = None) -> dict:
-        """The chat's retrieval chain over the free index (decision 98.c): route, then search by meaning and by keywords."""
+        """The chat's retrieval chain (decision 98.c): route, then search by meaning and by keywords; over the free index, and
+        the private one fused by rank where this server gives the private base out and its index was built (#8)."""
         from backend.search import semantic_search
 
         if refused := hits_refused(hits):  # before the router is built or called: a refused call costs nothing
             return {'state': 'error', 'error': refused, 'question': question, 'hits': []}
         if self._semantic is None:
-            self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans)
+            from backend.search import retrieval
+
+            # the private base's index too (#8), where this server gives that base out and its index was built here
+            private = 'licensed' in self.bases and retrieval.licensed_index_built()
+            self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans, private=private)
         given = {'search_query': search_query, 'concept_query': concept_query, 'keywords': keywords}  # the caller's own translation
         found = self._semantic.search(question, hits, **{name: value for name, value in given.items() if value})
         for hit in found.get('hits') or []:

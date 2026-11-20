@@ -56,8 +56,11 @@ class SemanticSearch:
     """The chain, built once per process on its first question, so a server starts fast and keyword search needs no key."""
 
     def __init__(self, sources: dict, config: dict | None = None, router_chain=None, store=None, keyword_index=None,
-                 frozen_plans: dict | None = None):
+                 frozen_plans: dict | None = None, private: bool = False, private_store=None, private_keywords=None):
         self.sources = sources  # source id -> {'work': the key `search` uses, 'path': the raw file}
+        # The private base's index too (#8): only where the server gives the private base out and its index was built, so a
+        # --public-only start and every measurement search the free index alone, as before
+        self.private, self._private_store, self._private_keywords = private, private_store, private_keywords
         # Evaluation only: the router's plans of an earlier run, by question, so a comparison run differs from it only by the
         # change it measures; a question without one is routed live (phase 6, the neighbouring project's "freeze inputs").
         self.frozen_plans = frozen_plans or {}
@@ -77,6 +80,10 @@ class SemanticSearch:
             self._store = retrieval.default_store()
         if self._keywords is None:
             self._keywords = retrieval.default_keyword_index()
+        if self.private and self._private_store is None:
+            self._private_store = retrieval.licensed_store()
+        if self.private and self._private_keywords is None:
+            self._private_keywords = retrieval.licensed_keyword_index()
 
     def search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
                keywords: list[str] | None = None) -> dict:
@@ -116,11 +123,21 @@ class SemanticSearch:
             return {**answer, 'state': 'declined'}
         settings = self._config['retrieval']
         trace: dict = {}
-        results, relevance = query_routing.search(
-            plan, k=max(1, hits), use_shelf_filter=settings['shelf_filter'], use_concept_query=settings['concept_query'],
-            use_keyword_search=settings['keyword_search'], bm25_on_keywords=settings['bm25_on_keywords'], store=self._store,
-            keyword_index=self._keywords, with_signal=True, trace=trace,
-            demote_sections=frozenset(settings.get('demote_sections') or ()))
+        chain = dict(k=max(1, hits), use_shelf_filter=settings['shelf_filter'], use_concept_query=settings['concept_query'],
+                     use_keyword_search=settings['keyword_search'], bm25_on_keywords=settings['bm25_on_keywords'],
+                     with_signal=True, demote_sections=frozenset(settings.get('demote_sections') or ()))
+        results, relevance = query_routing.search(plan, store=self._store, keyword_index=self._keywords, trace=trace, **chain)
+        if self.private:
+            from backend.search import retrieval
+
+            # The same chain over the private index, the two fused by rank (reciprocal rank fusion, k = 60, as 39.a fuses
+            # two indexes): scores of two indexes are not comparable, ranks are. The free chain and its trace stay as they were.
+            private_trace: dict = {}
+            private, private_relevance = query_routing.search(plan, store=self._private_store,
+                                                              keyword_index=self._private_keywords, trace=private_trace, **chain)
+            results = retrieval.reciprocal_rank_fusion([results, private])[:max(1, hits)]
+            relevance = max((value for value in (relevance, private_relevance) if value is not None), default=None)
+            trace['licensed'] = private_trace
         floor = settings['relevance_floor']
         return {**answer, 'state': 'found' if results else 'nothing found', 'relevance': relevance,
                 'below_floor': relevance is None or relevance < floor, 'relevance_floor': floor, 'search': trace,

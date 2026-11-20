@@ -206,3 +206,12 @@ chat model, a stage of its own.
   legacy Markdown, the text layer, or none where the reading is served. The route keeps its reason under the new source
   (`legacy markdown: the judge found the reading bad, a person looks at it`), and `served_readings.FALLBACK_ROUTES` holds
   every route that serves no reading.
+- **The private knowledge base gets the semantic search** (issue #8, the operator's S2.a, 20 Nov). Its pages come by four
+  routes, so its vector index is built from the librarian's own pages (`backend.ingestion.licensed_index`): the very text
+  the keyword search serves, each page a section with its PDF page, route and reading key, split by the free index's
+  splitter (1,000 characters, 200 overlap) and stored in the free index's format, in its own folder under the private
+  working data, refused wherever git would track it. A work whose file the provenance list holds back stays out whole, its
+  earlier Markdown and EPUB sections included, since an embedding sends text to a provider. `semantic_search` runs the same
+  chain over both indexes and fuses the two by rank (reciprocal rank fusion, k = 60, as 39.a fuses two indexes), every hit
+  naming its knowledge base; a server that does not give the private base out (`--public-only`, so the chat and every
+  measurement) or a machine without the index searches the free index alone, exactly as before.

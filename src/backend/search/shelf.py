@@ -179,6 +179,7 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
     for page in pages:
         by_work[page.work].append(page)
     out, used = [], set()
+    semantic = semantic_counts(data_paths.LICENSED_INDEX / 'knowledge.sqlite3')  # the private index (#8), by work key
 
     def file_row(key: str | None, file: str, served: list, why: str | None = None, held: str | None = None,
                  not_served: str | None = None) -> dict:
@@ -186,7 +187,8 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
         quoted = reading_export.quoted_pages('licensed', file) if own and why is None else None
         used.add(file)
         return row_of('licensed', key, Path(file).stem, Path(file).stem, file, path.suffix.lower().lstrip('.'), page_count(path),
-                      planned.get(file) or None, own, served, unplaced_reasons(own, served, quoted, why), held, not_served)
+                      planned.get(file) or None, own, served, unplaced_reasons(own, served, quoted, why), held, not_served,
+                      semantic=semantic.get(key) if key else None)
 
     for key in sorted(works):
         served = by_work.get(key, [])
@@ -204,7 +206,8 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
             why = None if numbered or not rows.get(file) else NO_NUMBERS
             out.append(file_row(key, file, served, why, held))
         else:
-            out.append(row_of('licensed', key, slug, slug, None, 'legacy markdown', None, None, {}, served, {}))
+            out.append(row_of('licensed', key, slug, slug, None, 'legacy markdown', None, None, {}, served, {},
+                              semantic=semantic.get(key)))
         for file in alternates:  # read, perhaps, but its work's legacy text stands (or the file is held)
             held = None if reading_cells.may_send(file) else HELD
             out.append(file_row(None, file, [], BESIDE_LEGACY, held, BESIDE_LEGACY))

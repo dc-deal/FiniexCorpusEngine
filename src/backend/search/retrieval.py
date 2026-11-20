@@ -29,7 +29,8 @@ DATABASE = data_paths.INDEX / 'knowledge.sqlite3'
 CITATION_FIELDS = ('source_id', 'source_title', 'authors', 'licence', 'licence_url', 'shelf',
                    'format', 'chapter', 'section', 'heading_path', 'printed_page', 'pdf_page',
                    'url', 'anchor',
-                   'pdf_page_end', 'printed_page_end', 'route', 'reading_key')  # the trace of phase 5, shown with a hit (98.c)
+                   'pdf_page_end', 'printed_page_end', 'route', 'reading_key',  # the trace of phase 5, shown with a hit (98.c)
+                   'knowledge_base')  # a private chunk says so (#8); a free chunk has none, and a hit reads it as free
 
 
 @functools.cache
@@ -133,6 +134,27 @@ class KeywordIndex:
 def default_keyword_index() -> KeywordIndex:
     """The keyword index over the built corpus, built once per process."""
     return KeywordIndex.from_database()
+
+
+LICENSED_CHROMA = data_paths.LICENSED_INDEX / 'chroma'
+LICENSED_DATABASE = data_paths.LICENSED_INDEX / 'knowledge.sqlite3'
+
+
+def licensed_index_built() -> bool:
+    """Whether this machine holds the private base's vector index (#8); a clone, and every --public-only start, has none."""
+    return LICENSED_DATABASE.exists() and LICENSED_CHROMA.exists()
+
+
+@functools.cache
+def licensed_store():
+    """The private base's vector index, opened once per process; only where it was built (`licensed_index_built`)."""
+    return index_store.chroma(LICENSED_CHROMA, embedding_route.embeddings(), embedding_route.INDEX_MODEL)
+
+
+@functools.cache
+def licensed_keyword_index() -> KeywordIndex:
+    """The keyword index over the private base's chunks, as the free one is over its own."""
+    return KeywordIndex.from_database(LICENSED_DATABASE)
 
 
 def demoted(results: list[dict], sections) -> list[dict]:
