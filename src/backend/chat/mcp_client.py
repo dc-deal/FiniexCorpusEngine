@@ -93,7 +93,14 @@ class SearchClient:
         self._requests: asyncio.Queue | None = None
         self._tools = concurrent.futures.Future()
         self._session = asyncio.run_coroutine_threadsafe(self._serve(), self._loop)
-        self.server_tools = self._tools.result(timeout=START_SECONDS)
+        try:
+            self.server_tools = self._tools.result(timeout=START_SECONDS)
+        except BaseException:
+            # a session that never opened leaves no loop behind: found by line 2, 21 Nov, each attempt on a librarian that was
+            # down kept one thread running
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            self._thread.join(timeout=10)
+            raise
 
     async def _serve(self) -> None:
         self._requests = asyncio.Queue()

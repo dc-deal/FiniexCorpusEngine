@@ -99,3 +99,19 @@ def test_a_client_may_keep_the_router_out_of_a_semantic_search():
     server = search_server.build_server(service(), None)
     schema = next(tool.input_schema for tool in asyncio.run(server.list_tools()) if tool.name == 'semantic_search')
     assert schema['properties']['router']['default'] is True
+
+
+def test_a_session_that_never_opens_leaves_no_thread_behind():
+    # found by line 2, 21 Nov: each attempt on a librarian that was down kept its loop's thread running
+    import threading
+
+    import mcp
+    import pytest
+
+    from backend.chat import mcp_client
+
+    before = {thread.ident for thread in threading.enumerate()}
+    with pytest.raises(Exception):
+        mcp_client.SearchClient(mcp.StdioServerParameters(command='a-command-that-does-not-exist'), call_seconds=5)
+    left = [thread for thread in threading.enumerate() if thread.ident not in before and thread.name == 'mcp-search-client']
+    assert left == []
