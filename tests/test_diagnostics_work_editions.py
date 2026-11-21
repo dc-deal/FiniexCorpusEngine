@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from backend.diagnostics import chat, coverage_ladder, readings, search_hits, work_editions
+from backend.diagnostics import coverage_ladder, librarian, readings, work_editions
 from backend.diagnostics.ladder_types import Rung
 from test_diagnostics_app import licensed_with_a_catalog
 
@@ -66,13 +66,12 @@ def test_a_kept_edition_s_levels_say_so_in_neutral_words_never_the_warning_role(
 
 
 def test_a_hit_and_an_opened_page_name_their_edition_beside_the_title():
-    hit = search_hits.SearchHit(score=1.0, knowledge_base='licensed', work='a-licensed-book', title='An Invented Book',
-                                page={'label': '27', 'pdf': '44', 'printed': '27'}, section=None, where='x', snippet='', terms_found=[],
-                                terms_missing=[], licence='private copy', route='vision reading', reading_key=None, view=None,
-                                edition='2nd', year=2003)
-    assert hit.edition_said == '2nd edition, 2003'
-    assert chat.Hit.model_validate({'title': 'An Invented Report', 'year': 2017}).model_dump()['edition_said'] == '2017'
-    assert chat.ServerAnswer.model_validate({'state': 'found', 'title': 'A free work'}).edition_said is None
+    # as the Librarian page shows what the tools answer (L1.a)
+    hits = librarian.hits_of({'hits': [{'title': 'An Invented Book', 'edition': '2nd', 'year': 2003, 'page': {'label': '27'}},
+                                       {'title': 'An Invented Report', 'year': 2017}]})
+    assert [hit.edition_said for hit in hits] == ['2nd edition, 2003', '2017']
+    opened = librarian.shaped('open_page', {}, {'state': 'found', 'title': 'A free work', 'text': 'x'}, 0.01)
+    assert opened.page.edition_said is None
 
 
 @pytest.mark.corpus

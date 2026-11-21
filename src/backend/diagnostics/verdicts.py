@@ -4,24 +4,21 @@ run of its own, append-only, by "maintainer" as from the command line), and the 
 in this process's background (`export_queue.ExportQueue`, one per knowledge base served); the view follows its status and
 reloads the page when it has finished.
 
-The route answers only a request addressed to this machine by name (as the chat's does) and, where a browser says where
-the request comes from (`Origin`), only one from this machine's own pages: a page elsewhere can neither reach it nor make
-a browser send it. Under `--public-only` the licensed knowledge base is not served, so no verdict can be given on it.
+The route answers only a request addressed to this machine by name and, where a browser says where the request comes
+from (`Origin`), only one from this machine's own pages (`local_only.guarded`): a page elsewhere can neither reach it nor
+make a browser send it. Under `--public-only` the licensed knowledge base is not served, so no verdict can be given on it.
 """
 
 import difflib
 import re
 from collections.abc import Callable
 from typing import Literal
-from urllib.parse import urlsplit
-
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 from pydantic import BaseModel
 
 from backend.conversion.checks import human_verdict
 from backend.conversion.judge import correction_proposal
 from backend.conversion.store import export_queue, pipeline_db, reading_export
-from backend.diagnostics.chat import LOCAL_HOSTS, local_host_only
 from backend.diagnostics.readings import Cell, KnowledgeBase, Readings, table_correction
 
 SWITCHED_OFF = 'Verdicts are given here only when the app was started with --allow-verdicts; it is read-only now.'
@@ -176,23 +173,6 @@ class TablePreview(BaseModel):
     None where it is no table, or not a clean one."""
 
     rows: list[list[Cell]] | None = None
-
-
-def local_origin_only(request: Request) -> None:
-    """Refuses a request a browser sent from a page elsewhere: where it names its origin, that origin must be this
-    machine's own. A request with no origin (a command line on this machine) passes, as the host check has passed."""
-    origin = request.headers.get('origin')
-    if origin is None:
-        return
-    host = urlsplit(origin).hostname or ''
-    if host not in LOCAL_HOSTS:
-        raise HTTPException(403, 'A verdict is taken only from this machine\'s own pages.')
-
-
-def guarded(request: Request) -> None:
-    """The write route's guard: addressed to this machine, and sent from its own pages."""
-    local_host_only(request)
-    local_origin_only(request)
 
 
 class VerdictService:

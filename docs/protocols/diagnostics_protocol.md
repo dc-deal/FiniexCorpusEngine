@@ -974,3 +974,25 @@ The record of how the diagnostics frontend came about, mistakes included.
   a chunk; a row's words set 6 px below its label's. Measured on three free pages: the chunks route 27 to 47 ms; finance p. 469
   four chunks, fifteen blocks, none cut by a border; a page served from its text layer places none of its chunks in its reading,
   and offers no "as served".
+- **The Librarian in place of the chat** (L1.a, 21 Nov). `librarian.py` holds the page's one session (`LibrarianService`: opened
+  under a lock on the first call; a librarian found down asked again no sooner than 5 s on; a call that fails on its way closes
+  the session, so the next opens it anew). `tool_of` parts an input schema into typed fields (an optional argument's `anyOf`
+  with null, an enum a choice, an array a list), the view's own defaults beside the server's (`VIEW_DEFAULTS`: the router off)
+  and the fields it folds (`FOLDED`). `cost_of` takes the description's own words for cost and time, a fixed list of phrases in
+  the order the description says them, "free" not where it names the free base. `shaped` gives each tool's parts beside the
+  answer as it came, the image's pixels replaced there by their size; a page image is drawn from png or jpeg and base64 alone; a
+  `view_url` becomes this view's route (the part after its '#', a page, section or article route alone), so a link opens here
+  whatever address the server names. The guard moved into `local_only` (the chat's host check, the verdict's origin check),
+  which the verdict routes and the call both take. The view: `LibrarianView`, `SchemaForm` with `SchemaField`, `LibrarianAnswer`
+  with `HitCards`, `LibrarianWorks` and `ContentsTree`; `librarian_form.ts` turns a form into arguments, the address and back: a
+  value the server takes by default is left out, a field whose form starts other than the server would is always sent, the
+  router either way, so the address opens its form as it was. Gone: the chat's route, service and models (`chat.py`), `GET
+  /api/search` and its models, `ChatView`, `ChatTurn`, `ChatServerAnswer`, the chat's and the search's stores, `SearchView`,
+  `render_markdown` and the `markdown-it` package, which only the chat's Markdown used. **Found on the way:** the core's
+  `SearchClient` leaves its thread's loop running where a session fails to open, so each attempt on a librarian that is down
+  would leave one behind; the service asks again no sooner than 5 s on, and line 1 was told. Checked against the running
+  librarian with the free tools before the gates: every answer shaped without an error, the server's own error for 0 hits among
+  them. **Shown failing:** the tabs under the pointer with a line set before them; the router passed through ticked (true)
+  beside unticked (false); the call made once for its address and once more on F5, none for a tab alone. Never the real
+  librarian in a test: a fake client in pytest, mocks in Vitest, the browser's own fixtures in the browser check, whose app
+  starts with `--no-librarian`.

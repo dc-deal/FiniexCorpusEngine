@@ -12,7 +12,7 @@ import { useFrameStore } from '@/stores/frame_store'
  * what a person comes for: to ask, to see what is held, to check the readings, to follow the runs and the calls.
  */
 const MENU = [
-  { group: 'Ask', routes: ['chat', 'search'] },
+  { group: 'Ask', routes: ['librarian'] },
   { group: 'Holding', routes: ['sources', 'shelf'] },
   { group: 'Checks', routes: ['issues', 'errors', 'prompts'] },
   { group: 'Operations', routes: ['runs', 'calls'] },

@@ -463,7 +463,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/chat": {
+    "/api/librarian": {
         parameters: {
             query?: never;
             header?: never;
@@ -471,37 +471,37 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Chat Info
-         * @description Whether the chat answers here, and its example questions.
+         * Librarian Tools
+         * @description The librarian's tools as the running server lists them (L1.a), in its staggered order, each with its description,
+         *     a line on what it costs and takes, and its form's fields from its input schema; the page's first call opens its one
+         *     session with the librarian. Where the librarian does not answer, it says so in words.
          */
-        get: operations["chat_info"];
+        get: operations["librarian_tools"];
         put?: never;
-        /**
-         * Chat Turn
-         * @description One turn of the chat, the one route here that spends money: the core's chat agent answers, the turn goes to
-         *     its conversation's log, and the turn comes back as the log keeps it, without the agent's own words.
-         */
-        post: operations["chat_turn"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/search": {
+    "/api/librarian/call": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Search Pages
-         * @description The search the MCP server answers with, over the knowledge bases given out; "nothing found" is an answer.
-         */
-        get: operations["search_pages"];
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Librarian Call
+         * @description One tool call over MCP to the running librarian, as an IDE session makes it, its client named "view": the answer
+         *     as it came and its parts for the page. Local only and Origin-checked, since `semantic_search` spends a fraction of a
+         *     cent, and a model call with the router on. 503 where the page calls nothing here or the librarian does not answer,
+         *     404 for a tool it does not offer, 502 where the call failed on its way; a tool's own error is an answer.
+         */
+        post: operations["librarian_call"];
         delete?: never;
         options?: never;
         head?: never;
@@ -620,22 +620,6 @@ export interface components {
             title: string;
             /** Subtitle */
             subtitle?: string | null;
-        };
-        /**
-         * ArticleLink
-         * @description Where the diagnostics shows an HTML section the chat cites: its article, scrolled to the section (decision 164.a).
-         */
-        ArticleLink: {
-            /**
-             * Knowledge Base
-             * @default free
-             * @enum {string}
-             */
-            knowledge_base: "free" | "licensed";
-            /** Source Id */
-            source_id: string;
-            /** Label */
-            label: string;
         };
         /**
          * Attempt
@@ -783,6 +767,38 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        /**
+         * CallHead
+         * @description The answer's head line: its state and words, relevance against its floor, how long it took, whether a model ran.
+         */
+        CallHead: {
+            /** State */
+            state?: string | null;
+            /** Said */
+            said?: string | null;
+            /** Count */
+            count?: string | null;
+            /** Relevance */
+            relevance?: number | null;
+            /** Relevance Floor */
+            relevance_floor?: number | null;
+            /** Below Floor */
+            below_floor?: boolean | null;
+            /** Floor Said */
+            floor_said?: string | null;
+            /** Seconds */
+            seconds: number;
+            /**
+             * Model Ran
+             * @default false
+             */
+            model_ran: boolean;
+            /**
+             * Model Said
+             * @default no model
+             */
+            model_said: string;
+        };
         /** CallList */
         CallList: {
             /** Why Not */
@@ -823,6 +839,18 @@ export interface components {
              */
             calls: components["schemas"]["Call"][];
         };
+        /** CallRequest */
+        CallRequest: {
+            /** Tool */
+            tool: string;
+            /**
+             * Arguments
+             * @default {}
+             */
+            arguments: {
+                [key: string]: unknown;
+            };
+        };
         /** Cell */
         Cell: {
             /** Segments */
@@ -833,69 +861,6 @@ export interface components {
             rowspan: number;
             /** Colspan */
             colspan: number;
-        };
-        /** ChatInfo */
-        ChatInfo: {
-            /** Enabled */
-            enabled: boolean;
-            /** Why Not */
-            why_not: string | null;
-            /** Examples */
-            examples: string[];
-        };
-        /** ChatRequest */
-        ChatRequest: {
-            /** Message */
-            message: string;
-            /**
-             * Thread Id
-             * Format: uuid
-             */
-            thread_id: string;
-        };
-        /** ChatResult */
-        ChatResult: {
-            /** Kind */
-            kind: string;
-            /** Turn Id */
-            turn_id: string;
-            /** Question */
-            question: string;
-            /**
-             * Text
-             * @default
-             */
-            text: string;
-            /** Disclaimer */
-            disclaimer?: string | null;
-            turn?: components["schemas"]["KnowledgeTurn"] | null;
-            server?: components["schemas"]["ServerTurn"] | null;
-            /** Usd */
-            usd?: number | null;
-            /**
-             * Seconds
-             * @default 0
-             */
-            seconds: number;
-            /**
-             * Model Calls
-             * @default 0
-             */
-            model_calls: number;
-            /** Call Limit Reached */
-            call_limit_reached?: string | null;
-            /**
-             * Security
-             * @default []
-             */
-            security: components["schemas"]["SecurityCheck"][];
-            /**
-             * Logged
-             * @default true
-             */
-            logged: boolean;
-        } & {
-            [key: string]: unknown;
         };
         /** Check */
         Check: {
@@ -1009,30 +974,24 @@ export interface components {
              */
             shared: boolean;
         };
-        /** Citation */
-        Citation: {
+        /** Contents */
+        Contents: {
+            /** Work */
+            work?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Source */
+            source?: string | null;
             /**
-             * Text
-             * @default
+             * Left Out
+             * @default 0
              */
-            text: string;
-            /** Link */
-            link?: string | null;
-            /** Licence */
-            licence?: string | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /** CitedPage */
-        CitedPage: {
-            /** Label */
-            label?: string | null;
-            /** Pdf */
-            pdf?: string | null;
-            /** Printed */
-            printed?: string | null;
-        } & {
-            [key: string]: unknown;
+            left_out: number;
+            /**
+             * Entries
+             * @default []
+             */
+            entries: components["schemas"]["TocEntry"][];
         };
         /**
          * Cost
@@ -1332,6 +1291,32 @@ export interface components {
             /** Severity */
             severity?: string | null;
         };
+        /** FoundWork */
+        FoundWork: {
+            /** Rank */
+            rank: number;
+            /** Work */
+            work: string;
+            /** Title */
+            title?: string | null;
+            /** Subject */
+            subject?: string | null;
+            /** Knowledge Base */
+            knowledge_base?: string | null;
+            /** Licence */
+            licence?: string | null;
+            /** Score */
+            score?: number | null;
+            /** Pages Matching */
+            pages_matching?: number | null;
+            /** Pages With Every Term */
+            pages_with_every_term?: number | null;
+            /**
+             * Best Sections
+             * @default []
+             */
+            best_sections: components["schemas"]["SectionHit"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1364,40 +1349,41 @@ export interface components {
             cost_usd: components["schemas"]["Cost"];
             ladder?: components["schemas"]["Ladder"] | null;
         };
-        /** Hit */
-        Hit: {
+        /** HitCard */
+        HitCard: {
+            /** Rank */
+            rank: number;
             /** Knowledge Base */
             knowledge_base?: string | null;
             /** Work */
             work?: string | null;
             /** Title */
             title?: string | null;
-            page?: components["schemas"]["CitedPage"] | null;
+            /** Edition Said */
+            edition_said?: string | null;
+            /** Page */
+            page?: string | null;
+            /** Page Said */
+            page_said?: string | null;
             /** Section */
             section?: string | null;
+            /** Score */
+            score?: number | null;
             /** Snippet */
             snippet?: string | null;
-            view?: components["schemas"]["PageLink"] | null;
-            /** Edition */
-            edition?: string | null;
-            /** Year */
-            year?: number | null;
+            /** Text */
+            text?: string | null;
+            /** Route */
+            route?: string | null;
+            /** Licence */
+            licence?: string | null;
             /**
-             * Edition Said
-             * @description The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone.
+             * Terms Missing
+             * @default []
              */
-            readonly edition_said: string | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /** HitPage */
-        HitPage: {
-            /** Label */
-            label: string;
-            /** Pdf */
-            pdf: string | null;
-            /** Printed */
-            printed: string | null;
+            terms_missing: string[];
+            /** View */
+            view?: string | null;
         };
         /**
          * HtmlArticle
@@ -1747,40 +1733,6 @@ export interface components {
             /** Recall */
             recall?: string | null;
         };
-        /** KnowledgeTurn */
-        KnowledgeTurn: {
-            /** Behaviour */
-            behaviour: string;
-            /**
-             * Answer
-             * @default
-             */
-            answer: string;
-            /**
-             * Quotes
-             * @default []
-             */
-            quotes: components["schemas"]["Quote"][];
-            /**
-             * Sources
-             * @default []
-             */
-            sources: components["schemas"]["Source"][];
-            /** Gaps */
-            gaps?: string | null;
-            /** Follow Up */
-            follow_up?: string | null;
-            /** Disclaimer */
-            disclaimer?: string | null;
-            /** Relevance */
-            relevance?: number | null;
-            /** Relevance Floor */
-            relevance_floor?: number | null;
-            /** Below Floor */
-            below_floor?: boolean | null;
-        } & {
-            [key: string]: unknown;
-        };
         /**
          * Ladder
          * @description A work's or the corpus's coverage ladder, and the details a fold or a card shows.
@@ -1849,6 +1801,103 @@ export interface components {
             /** Why */
             why: string;
         };
+        /** LibrarianCall */
+        LibrarianCall: {
+            /** Tool */
+            tool: string;
+            /** Arguments */
+            arguments: {
+                [key: string]: unknown;
+            };
+            head: components["schemas"]["CallHead"];
+            /** Hits */
+            hits?: components["schemas"]["HitCard"][] | null;
+            /** Works */
+            works?: components["schemas"]["WorkRow"][] | null;
+            /** Found Works */
+            found_works?: components["schemas"]["FoundWork"][] | null;
+            contents?: components["schemas"]["Contents"] | null;
+            page?: components["schemas"]["OpenedPage"] | null;
+            image?: components["schemas"]["SentImage"] | null;
+            plan?: components["schemas"]["RouterPlan"] | null;
+            /** Answer */
+            answer?: unknown;
+        };
+        /**
+         * LibrarianField
+         * @description One argument of a tool, as its input schema gives it, for the form.
+         */
+        LibrarianField: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text" | "integer" | "number" | "boolean" | "list" | "choice";
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Default */
+            default?: unknown;
+            /** Server Default */
+            server_default?: unknown;
+            /**
+             * Choices
+             * @default []
+             */
+            choices: string[];
+            /** Minimum */
+            minimum?: number | null;
+            /** Maximum */
+            maximum?: number | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Folded
+             * @default false
+             */
+            folded: boolean;
+        };
+        /** LibrarianInfo */
+        LibrarianInfo: {
+            /** Enabled */
+            enabled: boolean;
+            /** Url */
+            url?: string | null;
+            /** Why Not */
+            why_not?: string | null;
+            /**
+             * Tools
+             * @default []
+             */
+            tools: components["schemas"]["LibrarianTool"][];
+        };
+        /** LibrarianTool */
+        LibrarianTool: {
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
+            /** Cost Said */
+            cost_said?: string | null;
+            /**
+             * Fields
+             * @default []
+             */
+            fields: components["schemas"]["LibrarianField"][];
+            /** Folded Title */
+            folded_title?: string | null;
+            /**
+             * Input Schema
+             * @default {}
+             */
+            input_schema: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * Milestone
          * @description One line of the corpus's history (X1.a, line 1, 19 Nov): its date, its name, and its figures summed over the knowledge
@@ -1877,6 +1926,31 @@ export interface components {
             parts: {
                 [key: string]: components["schemas"]["Shares"];
             };
+        };
+        /** OpenedPage */
+        OpenedPage: {
+            /** Work */
+            work?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Edition Said */
+            edition_said?: string | null;
+            /** Knowledge Base */
+            knowledge_base?: string | null;
+            /** Page */
+            page?: string | null;
+            /** Page Said */
+            page_said?: string | null;
+            /** Section */
+            section?: string | null;
+            /** Route */
+            route?: string | null;
+            /** Licence */
+            licence?: string | null;
+            /** Text */
+            text?: string | null;
+            /** View */
+            view?: string | null;
         };
         /** Option */
         Option: {
@@ -2442,23 +2516,6 @@ export interface components {
             /** Why Not */
             why_not?: string | null;
         };
-        /** Quote */
-        Quote: {
-            /** Passage */
-            passage: number;
-            /** Text */
-            text: string;
-            /**
-             * @default {
-             *       "text": ""
-             *     }
-             */
-            citation: components["schemas"]["Citation"];
-            view?: components["schemas"]["PageLink"] | null;
-            article?: components["schemas"]["ArticleLink"] | null;
-        } & {
-            [key: string]: unknown;
-        };
         /**
          * QuotedText
          * @description The text the search and the chat quote for a page (decision 93.a), from the core's one function for it: the served
@@ -2627,6 +2684,25 @@ export interface components {
             /** Pages */
             pages: number;
         };
+        /**
+         * RouterPlan
+         * @description The plan the router made, where it ran.
+         */
+        RouterPlan: {
+            /** Search Query */
+            search_query?: string | null;
+            /** Concept Query */
+            concept_query?: string | null;
+            /**
+             * Keywords
+             * @default []
+             */
+            keywords: string[];
+            /** Behaviour */
+            behaviour?: string | null;
+            /** Fell Back */
+            fell_back?: boolean | null;
+        };
         /** RunBase */
         RunBase: {
             /**
@@ -2762,80 +2838,16 @@ export interface components {
              */
             readonly share: number | null;
         };
-        /** SearchAnswer */
-        SearchAnswer: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "found" | "nothing found" | "error";
-            /** Query */
-            query: string;
-            /** Corpus */
-            corpus: string;
-            /** Knowledge Bases */
-            knowledge_bases: string[];
-            /** Hits */
-            hits: components["schemas"]["SearchHit"][];
-            /** Error */
-            error?: string | null;
-        };
-        /** SearchHit */
-        SearchHit: {
-            /** Score */
-            score: number;
-            /**
-             * Knowledge Base
-             * @enum {string}
-             */
-            knowledge_base: "free" | "licensed";
-            /** Work */
-            work: string;
-            /** Title */
-            title: string;
-            page: components["schemas"]["HitPage"];
+        /** SectionHit */
+        SectionHit: {
             /** Section */
-            section: string | null;
-            /** Where */
-            where: string;
-            /** Snippet */
-            snippet: string;
-            /** Terms Found */
-            terms_found: string[];
-            /** Terms Missing */
-            terms_missing: string[];
-            /** Licence */
-            licence: string;
-            /** Route */
-            route: string;
-            /** Reading Key */
-            reading_key: string | null;
-            view: components["schemas"]["PageLink"] | null;
-            /** Edition */
-            edition?: string | null;
-            /** Year */
-            year?: number | null;
-            /**
-             * Edition Said
-             * @description The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone.
-             */
-            readonly edition_said: string | null;
-        };
-        /** SecurityCheck */
-        SecurityCheck: {
-            /** Check */
-            check: string;
-            /** Name */
-            name: string;
-            /** Status */
-            status: string;
-            /**
-             * Detail
-             * @default
-             */
-            detail: string;
-        } & {
-            [key: string]: unknown;
+            section?: string | null;
+            /** Page */
+            page?: string | null;
+            /** Page Said */
+            page_said?: string | null;
+            /** Score */
+            score?: number | null;
         };
         /**
          * Segment
@@ -2856,6 +2868,21 @@ export interface components {
             note?: string | null;
             /** Note Text */
             note_text?: string | null;
+        };
+        /** SentImage */
+        SentImage: {
+            /** Src */
+            src: string;
+            /**
+             * Described
+             * @default []
+             */
+            described: [
+                string,
+                string
+            ][];
+            /** Page Said */
+            page_said?: string | null;
         };
         /**
          * Series
@@ -2898,54 +2925,6 @@ export interface components {
             by_route: {
                 [key: string]: number;
             };
-        };
-        /** ServerAnswer */
-        ServerAnswer: {
-            /** State */
-            state?: string | null;
-            /** Hits */
-            hits?: components["schemas"]["Hit"][] | null;
-            /** Title */
-            title?: string | null;
-            /** Page */
-            page?: components["schemas"]["CitedPage"] | string | null;
-            /** Text */
-            text?: string | null;
-            /** Why */
-            why?: string | null;
-            /** Error */
-            error?: string | null;
-            /** Result */
-            result?: unknown[] | null;
-            /** Edition */
-            edition?: string | null;
-            /** Year */
-            year?: number | null;
-            /**
-             * Edition Said
-             * @description The edition its citation names beside the title (E1.a): "2nd edition, 2003", or the year alone.
-             */
-            readonly edition_said: string | null;
-        } & {
-            [key: string]: unknown;
-        };
-        /** ServerTurn */
-        ServerTurn: {
-            /** Tool */
-            tool: string;
-            /**
-             * Args
-             * @default {}
-             */
-            args: {
-                [key: string]: unknown;
-            };
-            /** @default {} */
-            answer: components["schemas"]["ServerAnswer"];
-            /** Image Src */
-            image_src?: string | null;
-        } & {
-            [key: string]: unknown;
         };
         /**
          * Shares
@@ -3036,24 +3015,6 @@ export interface components {
             not_served: string | null;
             /** Has Pages */
             has_pages: boolean;
-        };
-        /** Source */
-        Source: {
-            /** Number */
-            number: number;
-            /** Work */
-            work?: string | null;
-            page?: components["schemas"]["CitedPage"] | null;
-            /**
-             * @default {
-             *       "text": ""
-             *     }
-             */
-            citation: components["schemas"]["Citation"];
-            view?: components["schemas"]["PageLink"] | null;
-            article?: components["schemas"]["ArticleLink"] | null;
-        } & {
-            [key: string]: unknown;
         };
         /**
          * Splitter
@@ -3186,6 +3147,15 @@ export interface components {
         TablePreview: {
             /** Rows */
             rows?: components["schemas"]["Cell"][][] | null;
+        };
+        /** TocEntry */
+        TocEntry: {
+            /** Level */
+            level: number;
+            /** Title */
+            title: string;
+            /** Page */
+            page?: string | null;
         };
         /** ToolFigures */
         ToolFigures: {
@@ -3470,6 +3440,32 @@ export interface components {
              * @default []
              */
             categories: components["schemas"]["Count"][];
+        };
+        /** WorkRow */
+        WorkRow: {
+            /** Work */
+            work: string;
+            /** Title */
+            title?: string | null;
+            /** Edition Said */
+            edition_said?: string | null;
+            /** Knowledge Base */
+            knowledge_base?: string | null;
+            /** Licence */
+            licence?: string | null;
+            /** Route */
+            route?: string | null;
+            /** Pages */
+            pages?: number | null;
+            /** Subject */
+            subject?: string | null;
+            /** Kept For */
+            kept_for?: string | null;
+            /**
+             * Kept Editions
+             * @default []
+             */
+            kept_editions: string[];
         };
         /** DiffPart */
         backend__diagnostics__prompts__DiffPart: {
@@ -4151,7 +4147,7 @@ export interface operations {
             };
         };
     };
-    chat_info: {
+    librarian_tools: {
         parameters: {
             query?: never;
             header?: never;
@@ -4166,12 +4162,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ChatInfo"];
+                    "application/json": components["schemas"]["LibrarianInfo"];
                 };
             };
         };
     };
-    chat_turn: {
+    librarian_call: {
         parameters: {
             query?: never;
             header?: never;
@@ -4180,7 +4176,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ChatRequest"];
+                "application/json": components["schemas"]["CallRequest"];
             };
         };
         responses: {
@@ -4190,40 +4186,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ChatResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    search_pages: {
-        parameters: {
-            query?: {
-                q?: string;
-                corpus?: "all" | "free" | "licensed";
-                hits?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchAnswer"];
+                    "application/json": components["schemas"]["LibrarianCall"];
                 };
             };
             /** @description Validation Error */

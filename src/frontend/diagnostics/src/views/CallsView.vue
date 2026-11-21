@@ -20,7 +20,7 @@ import { counted, noun } from '@/counted'
 /**
  * The search server's call log (19.a, decision 98.c): who asked what, which pages answered, how long it took. On top, each
  * tool's figures; then the calls newest first, by day, filtered by tool, state, caller and knowledge base. The caller is the
- * client's own name: "chat" for the chat, "evaluation" for a measurement run, an IDE session's name for an IDE. Every figure
+ * client's own name: "view" for the Librarian page, "evaluation" for a measurement run, an IDE session's name for an IDE. Every figure
  * is the API's; an answered page opens its page view where the export holds it.
  */
 const store = useCallsStore()
