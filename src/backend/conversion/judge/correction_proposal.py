@@ -163,7 +163,7 @@ def ask_anthropic(params: dict):
 
 
 def propose(knowledge_base: str, reading_key: str, block_id: str, findings: list[dict], *, version: str | None = None,
-            asker=ask_anthropic, spent=spent_usd) -> dict:
+            asker=ask_anthropic, spent=spent_usd, model: str | None = None) -> dict:
     """A proposal for one block of one stored reading, asked once and kept; the same question answers from the store.
 
     Raises Refused with the reason where the page or the file is never sent, the block is not in the reading, no version
@@ -171,6 +171,8 @@ def propose(knowledge_base: str, reading_key: str, block_id: str, findings: list
     from backend.configuration.app_config_manager import AppConfigManager
 
     config = AppConfigManager().get_correction()
+    if model:  # a calibration on another model (the operator's A1.b, 21 Nov); the view always asks the configured one
+        config = config.model_copy(update={'model': model})
     if config.provider.value != 'anthropic':
         raise Refused(f'no route for provider {config.provider.value!r}: the request carries the page image')
     version = version or active_version()
@@ -263,7 +265,7 @@ def edit_scores(original: str, person: str, proposal: str) -> tuple[float, float
     return (hit / person_size if person_size else 1.0), (hit / proposal_size if proposal_size else (1.0 if not person_size else 0.0))
 
 
-def calibrate(version: str, dry_run: bool, asker=ask_anthropic) -> dict:
+def calibrate(version: str, dry_run: bool, asker=ask_anthropic, model: str | None = None) -> dict:
     cases = calibration_cases()
     rows = []
     for case in cases:
@@ -275,9 +277,11 @@ def calibrate(version: str, dry_run: bool, asker=ask_anthropic) -> dict:
         if dry_run:
             from backend.configuration.app_config_manager import AppConfigManager
 
-            row['estimate_usd'] = estimate_usd(AppConfigManager().get_correction().model, record, block_view(block), instructions(version))
+            row['estimate_usd'] = estimate_usd(model or AppConfigManager().get_correction().model, record, block_view(block),
+                                               instructions(version))
         else:
-            found = propose(case['knowledge_base'], case['reading_key'], case['block'], case['findings'], version=version, asker=asker)
+            found = propose(case['knowledge_base'], case['reading_key'], case['block'], case['findings'], version=version, asker=asker,
+                            model=model)
             proposal = found.get('correction')
             recall, precision = edit_scores(block.body, case['person'], proposal) if proposal is not None else (0.0, 0.0)
             row.update(state=found['state'], agrees=found.get('agrees_with_judge'), flags=found.get('flags'),
@@ -295,16 +299,18 @@ def main(argv: list[str] | None = None) -> int:
     calibrating = commands.add_parser('calibrate', help='the prototype on every correction a person made, then the gate')
     calibrating.add_argument('--version', default=f'{ROLE}/1')
     calibrating.add_argument('--dry-run', action='store_true')
+    calibrating.add_argument('--model', help='another model than the configured one, for a comparison')
     args = parser.parse_args(argv)
     sys.stdout.reconfigure(encoding='utf-8')
-    report = calibrate(args.version, args.dry_run)
+    report = calibrate(args.version, args.dry_run, model=args.model)
     rows = report['rows']
     if args.dry_run:
         print(f"{len(rows)} cases, {sum(row['in_gate'] for row in rows)} in the gate; "
               f"estimate {sum(row['estimate_usd'] for row in rows):.3f} USD, spent so far {spent_usd():.2f} of {SPEND_CAP_USD:.0f}")
         return 0
     # the report holds the proposals' keys, never their text; it lies beside the private working data all the same
-    path = data_paths.LICENSED_WORKING / 'corrections' / f"calibration_{args.version.replace('/', '')}.json"
+    suffix = f"_{args.model}" if args.model else ''
+    path = data_paths.LICENSED_WORKING / 'corrections' / f"calibration_{args.version.replace('/', '')}{suffix}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(json.dumps(report, indent=1, ensure_ascii=False).encode('utf-8'))
     gate = [row for row in rows if row['in_gate']]
