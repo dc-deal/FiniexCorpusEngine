@@ -996,3 +996,6 @@ The record of how the diagnostics frontend came about, mistakes included.
   beside unticked (false); the call made once for its address and once more on F5, none for a tab alone. Never the real
   librarian in a test: a fake client in pytest, mocks in Vitest, the browser's own fixtures in the browser check, whose app
   starts with `--no-librarian`.
+- **The search tools' names in the view** (21 Nov, line 1 on the standing rule). `LibrarianTool.label`, from `librarian.LABELS`,
+  gives a tab its words; the name stays the code name, which the tab's head shows and the address carries. The changed browser
+  check was shown failing against the build before it (the tabs said `search` and `semantic_search`).

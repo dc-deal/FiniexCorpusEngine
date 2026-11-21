@@ -5369,6 +5369,10 @@
             "type": "string",
             "title": "Name"
           },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
           "description": {
             "type": "string",
             "title": "Description"
@@ -5413,6 +5417,7 @@
         "type": "object",
         "required": [
           "name",
+          "label",
           "description"
         ],
         "title": "LibrarianTool"

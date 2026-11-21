@@ -1879,6 +1879,8 @@ export interface components {
         LibrarianTool: {
             /** Name */
             name: string;
+            /** Label */
+            label: string;
             /** Description */
             description: string;
             /** Cost Said */

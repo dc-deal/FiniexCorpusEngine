@@ -2581,7 +2581,7 @@ function aField(name: string, kind: string, extra: Record<string, unknown> = {})
 }
 
 function aLibrarianTool(name: string, fields: ReturnType<typeof aField>[], extra: Record<string, unknown> = {}) {
-  return { name, description: `Invented: what ${name} does. Local, no model, milliseconds, free.`, cost_said: 'local · no model · milliseconds · free',
+  return { name, label: ({ search: 'search (BM25)', semantic_search: 'semantic (hybrid)' } as Record<string, string>)[name] ?? name, description: `Invented: what ${name} does. Local, no model, milliseconds, free.`, cost_said: 'local · no model · milliseconds · free',
     fields, folded_title: null, input_schema: {}, ...extra }
 }
 
@@ -2647,8 +2647,10 @@ test('the Librarian stands each tool a tab in the server\'s order, a form from i
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/#/librarian')
   await settled(page)
-  await expect(page.locator('[data-part="tabs"] button')).toHaveText(['works', 'search_works', 'search', 'semantic_search', 'toc',
+  // the two search tools by the view's names, the code name in the tab's head (the standing rule)
+  await expect(page.locator('[data-part="tabs"] button')).toHaveText(['works', 'search_works', 'search (BM25)', 'semantic (hybrid)', 'toc',
     'open_page', 'page_image'])
+  await expect(page.locator('[data-part="tool-name"]')).toHaveText('tool: works')
   // works, which requires nothing, called on the page's own address: a client's first call
   await expect(page.locator('[data-part="works-table"] tr[data-work]')).toHaveCount(2)
   expect(posts).toEqual([{ tool: 'works', arguments: {} }])
@@ -2660,6 +2662,7 @@ test('the Librarian stands each tool a tab in the server\'s order, a form from i
     expect(await tab.boundingBox(), `the tabs moved after ${name}`).toEqual(at)
   }
   // search: its form from its schema, Run, the hit as a card, its page a link into this view, the address naming the call
+  await expect(page.locator('[data-part="tool-name"]')).toHaveText('tool: search')
   await page.locator('[data-field="query"] input').fill('kelly fraction')
   await page.locator('[data-part="run"]').click()
   await expect(page.locator('[data-hit="1"] [data-part="hit-page"]')).toHaveAttribute('href', `#/free/sources/${KELLY}/page/3`)

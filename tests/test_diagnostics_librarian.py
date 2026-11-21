@@ -86,6 +86,9 @@ def test_the_tools_stand_in_the_server_s_staggered_order_and_a_new_one_after_the
     listed = [a_tool(name) for name in ('page_image', 'a_new_tool', 'search', 'works', 'toc', 'semantic_search', 'open_page',
                                         'search_works')]
     assert [tool.name for tool in librarian.in_order(listed)] == [*librarian.TOOL_ORDER, 'a_new_tool']
+    # the two search tools by the view's names, every other by its own (the standing rule)
+    assert [librarian.tool_of(tool).label for tool in librarian.in_order(listed)] == [
+        'works', 'search_works', 'search (BM25)', 'semantic (hybrid)', 'toc', 'open_page', 'page_image', 'a_new_tool']
 
 
 def test_a_line_on_cost_and_time_comes_from_the_description_s_own_words():

@@ -26,6 +26,9 @@ from backend.diagnostics import work_editions
 
 # the staggered order the server's instructions give (25b9fd3): from cheap and exact to costly and broad, then reading
 TOOL_ORDER = ('works', 'search_works', 'search', 'semantic_search', 'toc', 'open_page', 'page_image')
+# the two search tools as the view names them (the standing rule, dcd, 16 Nov): "search (BM25)" and "semantic (hybrid)"; their
+# code names stay what a client calls, beside them in the tab's head, and in the address
+LABELS = {'search': 'search (BM25)', 'semantic_search': 'semantic (hybrid)'}
 # the view's own defaults where they differ from the server's: the operator wants the bare semantic search (S1.a, L1.a), so the
 # router, a language model, runs only when a person ticks it
 VIEW_DEFAULTS: dict[str, dict[str, Any]] = {'semantic_search': {'router': False}}
@@ -71,7 +74,8 @@ class LibrarianField(BaseModel):
 
 
 class LibrarianTool(BaseModel):
-    name: str
+    name: str  # what a client calls, and the address names
+    label: str  # what its tab says: the name, or the view's name for a search tool
     description: str
     cost_said: str | None = None  # "local · no model · milliseconds · free", from the description's own words
     fields: list[LibrarianField] = []
@@ -249,7 +253,8 @@ def tool_of(tool: Any) -> LibrarianTool:
     fields = [field_of(name, spec, name in required, VIEW_DEFAULTS.get(tool.name, {}), folded)
               for name, spec in (schema.get('properties') or {}).items()]
     description = tool.description or ''
-    return LibrarianTool(name=tool.name, description=description, cost_said=cost_of(description), fields=fields,
+    return LibrarianTool(name=tool.name, label=LABELS.get(tool.name, tool.name), description=description,
+                         cost_said=cost_of(description), fields=fields,
                          folded_title=folded_title if folded else None, input_schema=schema)
 
 
