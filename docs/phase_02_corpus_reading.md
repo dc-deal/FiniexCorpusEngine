@@ -224,6 +224,11 @@ removes against the reading; a swap of two values or a description worded otherw
 |---|---|---|---|---|
 | correction/1 | the first instructions | 8 of 14: failed | 1 of 3 | 0.27 USD |
 | correction/2 | tables as HTML, inline marks kept, chart values read at the axis | 13 of 14: passed | 2 of 3 | 0.27 USD |
+| correction/2 on Opus | the same instructions, `claude-opus-5-5` | 12 of 14: passed | 2 of 3 | 0.54 USD |
+
+On Opus the chart's crossing came out as the person read it (2012), which Sonnet, the reader's and the judge's model,
+missed; Opus kept an unclear time cell's first reading where the person put the other first (a swap the word measure
+counts as a pass, read as a miss) and read one chart value -9.5 where the person read -10.
 
 correction/1 wrote three empty tables as pipe tables (its own format line named the pipe), one with a header the page does
 not print, and dropped an unclear mark the person kept. correction/2's one miss is p. 94's crossing again: the person read
