@@ -342,21 +342,24 @@ def test_public_only_never_opens_the_licensed_catalog(monkeypatch):
 
 
 def test_the_start_switch_reaches_the_app_and_the_search_is_warmed(monkeypatch):
-    from backend.diagnostics import chat
+    from backend.diagnostics import librarian
 
     built, served = [], {}
-    monkeypatch.setattr(start, 'create_app', lambda public_only, warm_search, chat_agent, allow_verdicts:
-                        built.append((public_only, warm_search, chat_agent, allow_verdicts)) or 'the app')
+    monkeypatch.setattr(start, 'create_app', lambda public_only, warm_search, librarian_client, allow_verdicts:
+                        built.append((public_only, warm_search, librarian_client, allow_verdicts)) or 'the app')
     monkeypatch.setattr(start.uvicorn, 'run', lambda app, **options: served.update(app=app, **options))
     monkeypatch.setattr(sys, 'argv', ['backend.diagnostics', '--public-only'])
     start.main()
-    # the start command turns the chat on; --no-chat, as the browser check gives it, leaves no way to a model
-    monkeypatch.setattr(sys, 'argv', ['backend.diagnostics', '--no-chat'])
-    start.main()
+    # the start command lets the Librarian page call the running librarian; --no-librarian, as the browser check gives it,
+    # leaves no way to it, and --no-chat, its name while the chat stood here, is taken the same
+    for switch in ('--no-librarian', '--no-chat'):
+        monkeypatch.setattr(sys, 'argv', ['backend.diagnostics', switch])
+        start.main()
     # verdicts from the page view only where asked for (213.b, 223.a): read-only otherwise
     monkeypatch.setattr(sys, 'argv', ['backend.diagnostics', '--public-only', '--allow-verdicts'])
     start.main()
-    assert built == [(True, True, chat.default_agent, False), (False, True, None, False), (True, True, chat.default_agent, True)]
+    assert built == [(True, True, librarian.default_client, False), (False, True, None, False), (False, True, None, False),
+                     (True, True, librarian.default_client, True)]
     assert served == {'app': 'the app', 'host': '127.0.0.1', 'port': 8001}
 
 

@@ -71,8 +71,8 @@ describe('the frame (decision 149.c, the operator 2026-11-10)', () => {
     expect(button.attributes('aria-expanded')).toBe('true')
     const groups = frame.findAll('#frame-menu [data-group]')
     expect(groups.map(group => [group.find('h2').text(), group.findAll('a').map(link => link.text())])).toEqual([
-      // each search says which it is (the operator, 16 Nov)
-      ['Ask', ['Chat · semantic (hybrid)', 'Search · BM25, no model']],
+      // the librarian's tools on one page, in place of the chat and the search (L1.a)
+      ['Ask', ['Librarian']],
       ['Holding', ['Sources', 'Shelf']],
       ['Checks', ['Issues', 'Errors', 'Prompts']],
       ['Operations', ['Runs', 'Calls']],

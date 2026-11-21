@@ -2,16 +2,15 @@ import axios from 'axios'
 import { ApiError } from '@/api/api_error'
 import type { AppInfo } from '@/types/api/app_types'
 import type { CallList } from '@/types/api/calls_types'
-import type { ChatInfo, ChatResult } from '@/types/api/chat_types'
 import type { ErrorClassList } from '@/types/api/errors_types'
 import type { EpubSection, EpubWork } from '@/types/api/epub_types'
 import type { HtmlArticle, HtmlWork } from '@/types/api/html_types'
+import type { LibrarianCall, LibrarianInfo } from '@/types/api/librarian_types'
 import type { Overview, PageList } from '@/types/api/overview_types'
 import type { PromptList } from '@/types/api/prompts_types'
 import type { IssueList, PageChunks, PageDetail, Recalled, WorkPages } from '@/types/api/page_types'
 import type { RunDetail, RunList } from '@/types/api/runs_types'
 import type { Shelf } from '@/types/api/shelf_types'
-import type { Corpus, SearchAnswer } from '@/types/api/search_types'
 import type { KnowledgeBase, Work } from '@/types/api/source_types'
 import type { Proposal, ProposalRequest, TablePreview, VerdictForm, VerdictGiven, VerdictRequest } from '@/types/api/verdict_types'
 
@@ -118,14 +117,16 @@ export async function getCalls(): Promise<CallList> {
   return response.data
 }
 
-export async function getChatInfo(): Promise<ChatInfo> {
-  const response = await http.get<ChatInfo>('/chat')
+/** The librarian's tools as the running server lists them (L1.a); the page's first call opens its one session with it. */
+export async function getLibrarian(): Promise<LibrarianInfo> {
+  const response = await http.get<LibrarianInfo>('/librarian')
   return response.data
 }
 
-/** One turn of the chat: the one request here that spends money. A turn takes seconds, the first after a start longer. */
-export async function askChat(message: string, threadId: string): Promise<ChatResult> {
-  const response = await http.post<ChatResult>('/chat', { message, thread_id: threadId })
+/** One tool call over MCP to the running librarian, as an IDE session makes it: `semantic_search` spends a fraction of a
+ * cent, and a model call with the router on. */
+export async function callLibrarian(tool: string, args: Record<string, unknown>): Promise<LibrarianCall> {
+  const response = await http.post<LibrarianCall>('/librarian/call', { tool, arguments: args })
   return response.data
 }
 
@@ -152,12 +153,6 @@ export async function getOverview(): Promise<Overview> {
 /** The pages behind a figure of the overview: every page served that matches every filter given. */
 export async function getPages(filters: Record<string, string>): Promise<PageList> {
   const response = await http.get<PageList>('/pages', { params: filters })
-  return response.data
-}
-
-/** The search the MCP server answers with; the first one after a start may wait for the index: 20 s free, 50 s with both. */
-export async function searchPages(query: string, corpus: Corpus): Promise<SearchAnswer> {
-  const response = await http.get<SearchAnswer>('/search', { params: { q: query, corpus } })
   return response.data
 }
 

@@ -1908,3 +1908,27 @@ part, marked "(part)", the text the two share dashed in both; a block never quot
 here holds is listed apart. The mode's head says how many chunks the page lies in: finance p. 469 "lies in 4 chunks: A runs in
 from p. 468; B, C, D begin here", the route answering in 27 ms. While the keyword index is built after a start, its level says
 "BM25 being built after a start". 417 unit tests, 87 checks in the browser (3 skipped on today's data), 1,555 Python tests.
+
+**The Librarian in place of the chat (the operator's L1.a, 21 Nov).** The chat was built for the capstone's presentation; the
+view now shows bare what an MCP client gets from each of the librarian's tools, for a person and for debugging. One page,
+Librarian, holds every tool as a tab, in the staggered order the server's instructions give: `works`, `search_works`, `search`,
+`semantic_search`, `toc`, `open_page`, `page_image`. The search screen ("Search · BM25, no model") became its `search` tab; the
+chat's view, route and store went, so nothing in the view starts the chat's own search server any more, while the core's chat
+stays for the answer evaluation. Every call goes over MCP to the running librarian, never around it (the core's `SearchClient`
+over streamable HTTP, `LIBRARIAN_URL` and the bearer token from `.env`), so the page shows what an IDE session gets, errors
+included: one session per process, opened on the page's first call and closed with the app, its calls named "view" in the call
+log. Each tab shows the tool's own description from the server, folded, with a line on what it costs and takes in the
+description's own words ("local · no model · milliseconds · free"); a form built from the tool's input schema, so a new tool or
+argument appears by itself; and, after Run, the answer: hits as cards (rank, knowledge base, work with edition and year, the
+page a link into this view, section, score, the snippet, a semantic hit's whole chunk folded), the works as a table, a subject's
+works with their best sections, contents as a tree, each page in it a call of `open_page`, a page as its text with its route, an
+image with what it is. The head line says the state, how many, the server's own words, relevance against its floor (below it in
+words and in the warning role), how long the call took and whether a model ran; the raw JSON is one click away, always.
+`semantic_search` keeps the router off by default, the bare semantic search the operator wants; ticked, the plan the router made
+stands above the hits, and a caller's own translation is folded beneath the form. The address names the tool and the arguments
+of the last run (`#/librarian?tool=search&query=kelly`), so F5 and a pasted link make the same call again; `#/search` and
+`#/chat` lead to their tabs. A librarian that does not answer is said in words. The call is guarded as a verdict is (this
+machine's host and pages), since `semantic_search` spends; the start command's `--no-librarian` (`--no-chat`, its old name, the
+same) keeps the page from calling anything, as the browser check runs it. Measured against the running librarian, free tools
+only: the tools listed in 2.5 s with the session opened, `works` in 0.1 s, `search` in 18 ms, `toc` in 0.47 s, `page_image` in
+0.34 s. 383 unit tests, 85 checks in the browser (3 skipped on today's data), 1,557 Python tests.

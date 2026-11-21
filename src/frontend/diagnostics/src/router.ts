@@ -9,7 +9,6 @@ import PromptsView from '@/views/PromptsView.vue'
 import PageView from '@/views/PageView.vue'
 import RunsView from '@/views/RunsView.vue'
 import RunView from '@/views/RunView.vue'
-import SearchView from '@/views/SearchView.vue'
 import ShelfView from '@/views/ShelfView.vue'
 import SourcesView from '@/views/SourcesView.vue'
 import WorkPagesView from '@/views/WorkPagesView.vue'
@@ -100,11 +99,10 @@ export const router = createRouter({
     { path: '/issues', name: 'issues', component: IssuesView, meta: { label: 'Issues' } },
     // the findings grouped by kind, block class and work: what kind of error recurs, and where
     { path: '/errors', name: 'errors', component: ErrorClassesView, meta: { label: 'Errors' } },
-    // the chat, compact (decision 100.a): the one view whose requests spend money. Loaded when opened, since its
-    // Markdown and sanitising libraries are needed nowhere else
-    // its label says which search answers there, as the search's says its own (the operator, 16 Nov: a question typed into the
-    // keyword search was expected to find what the chat's hybrid search finds)
-    { path: '/chat', name: 'chat', component: () => import('@/views/ChatView.vue'), meta: { label: 'Chat · semantic (hybrid)' } },
+    // the Librarian (L1.a, in place of the chat): every tool of the running librarian a tab, called over MCP as a client calls
+    // it; the tool and the arguments of its last run in the address (`?tool=search&query=…`), so a call can be linked. The
+    // one view whose requests can spend. Loaded when opened
+    { path: '/librarian', name: 'librarian', component: () => import('@/views/LibrarianView.vue'), meta: { label: 'Librarian' } },
     // the search server's call log: who asked what, which pages answered, how long it took (19.a)
     { path: '/calls', name: 'calls', component: CallsView, meta: { label: 'Calls' } },
     // every run of the pipeline, and one run whole: the place of a replay's trace in the review demo (21.a)
@@ -119,10 +117,14 @@ export const router = createRouter({
       meta: { label: 'Run' },
       props: route => ({ kb: route.params.kb as KnowledgeBase, run: Number(route.params.run) }),
     },
-    // the question in the address (`?q=…&corpus=…`), so a search can be linked like a page
-    // no model at all, neither embeddings nor a language model (the operator, 16 Nov: "search without LLMs"); the naming rule from
-    // then: `search` is called search (BM25), `semantic_search` semantic (hybrid)
-    { path: '/search', name: 'search', component: SearchView, meta: { label: 'Search · BM25, no model' } },
+    // the search and the chat as they were linked: now the Librarian's `search` tab, its question its query, and its
+    // `semantic_search` tab (L1.a)
+    {
+      path: '/search',
+      redirect: to => ({ name: 'librarian', query: { tool: 'search', ...(to.query.q ? { query: to.query.q } : {}),
+        ...(to.query.corpus ? { corpus: to.query.corpus } : {}) } }),
+    },
+    { path: '/chat', redirect: { name: 'librarian', query: { tool: 'semantic_search' } } },
     // Addresses handed out before the knowledge base was part of them, when only free works were served.
     { path: '/sources/:work', redirect: to => ({ name: 'work', params: { kb: 'free', work: to.params.work } }) },
     {

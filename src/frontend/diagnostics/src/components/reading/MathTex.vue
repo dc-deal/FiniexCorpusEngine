@@ -5,8 +5,8 @@ import katex from 'katex'
 /**
  * LaTeX typeset by KaTeX, pinned to the version the core checks formulas with (0.19.1), so a formula renders here as it
  * was checked. KaTeX builds its markup from the LaTeX and escapes every character it does not typeset, and with `trust`
- * off it renders no link, class or style the LaTeX asks for. Beside the chat's Markdown, sanitised in `render_markdown`, it
- * is the one `v-html` in this UI. A formula KaTeX
+ * off it renders no link, class or style the LaTeX asks for. It and an HTML section's original, sanitised in `render_html`,
+ * are the two `v-html` in this UI. A formula KaTeX
  * refuses is shown in place with its error, never hidden.
  */
 const props = defineProps<{

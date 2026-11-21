@@ -862,11 +862,12 @@ async function sizesOffScale(page: Page): Promise<string[]> {
 
 test('every view sets its text in the one size, its details and menus opened', async ({ page, request }) => {
   test.setTimeout(180_000)
+  await mockLibrarian(page)  // the Librarian with an answer, from the invented librarian (L1.a)
   const WIKIPEDIA = 'wikipedia_trading_set'
   const runs = (await (await request.get('/api/runs')).json() as { runs: { knowledge_base: string, run_id: number }[] }).runs
   const views = ['/#/overview', '/#/sources', '/#/shelf', `/#/free/sources/${FINANCE}`, `/#/free/sources/${FINANCE}/page/5`,
     '/#/free/sources/openstax_principles_of_accounting_v1/page/305', '/#/pages?knowledge_base=free&state=blocked', '/#/issues',
-    '/#/errors', '/#/runs', '/#/prompts?version=judge%2F2', '/#/calls', '/#/search', '/#/chat', `/#/free/html/${WIKIPEDIA}`,
+    '/#/errors', '/#/runs', '/#/prompts?version=judge%2F2', '/#/calls', '/#/librarian?tool=search&query=kelly', `/#/free/html/${WIKIPEDIA}`,
     `/#/free/html/${WIKIPEDIA}/s1`, ...runs.slice(-1).map(run => `/#/${run.knowledge_base}/runs/${run.run_id}`)]
   const off: string[] = []
   for (const view of views) {
@@ -901,10 +902,11 @@ async function machineTimesShown(page: Page): Promise<string[]> {
 
 test('no view shows a machine\'s timestamp as text, and every time it says has its full form on hover', async ({ page, request }) => {
   test.setTimeout(180_000)
+  await mockLibrarian(page)  // the Librarian with an answer, from the invented librarian (L1.a)
   const runs = (await (await request.get('/api/runs')).json() as { runs: { knowledge_base: string, run_id: number }[] }).runs
   // the oldest run chose readings, the newest a judge's run: both kinds of run page
   const views = ['/#/overview', '/#/sources', '/#/shelf', '/#/runs', '/#/calls', '/#/prompts?version=judge%2F2', '/#/issues',
-    '/#/errors', '/#/pages?knowledge_base=free&state=issue', '/#/search', '/#/chat', `/#/free/sources/${FINANCE}`,
+    '/#/errors', '/#/pages?knowledge_base=free&state=issue', '/#/librarian?tool=search&query=kelly', `/#/free/sources/${FINANCE}`,
     `/#/free/sources/${KELLY}/page/7`, `/#/free/sources/${FINANCE}/page/5`, '/#/free/html/wikipedia_trading_set',
     '/#/free/html/wikipedia_trading_set/s1', ...[runs.at(-1), runs[0]].filter(Boolean)
       .map(run => `/#/${run!.knowledge_base}/runs/${run!.run_id}`)]
@@ -1059,10 +1061,11 @@ test('every fold sets its content one indent step right of its title, and folds 
 // 159.a: at a phone's width no view scrolls sideways; a table or a grid wider than the window scrolls in its own box
 test('no view scrolls sideways at 390 px, its tables scrolling in their own boxes', async ({ page, request }) => {
   test.setTimeout(180_000)
+  await mockLibrarian(page)  // the Librarian with an answer, from the invented librarian (L1.a)
   const runs = (await (await request.get('/api/runs')).json() as { runs: { knowledge_base: string, run_id: number }[] }).runs
   const views = ['/#/overview', '/#/sources', '/#/shelf', `/#/free/sources/${FINANCE}`, `/#/free/sources/${FINANCE}/page/5`,
     '/#/pages?knowledge_base=free&state=issue', '/#/issues', '/#/errors', '/#/runs', '/#/prompts?version=judge%2F2', '/#/calls',
-    '/#/search', '/#/chat', '/#/free/html/wikipedia_trading_set', '/#/free/html/wikipedia_trading_set/s1',
+    '/#/librarian?tool=search&query=kelly', '/#/free/html/wikipedia_trading_set', '/#/free/html/wikipedia_trading_set/s1',
     ...runs.slice(-1).map(run => `/#/${run.knowledge_base}/runs/${run.run_id}`)]
   const sideways = () => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
   await page.setViewportSize({ width: 390, height: 900 })
@@ -2524,25 +2527,6 @@ test('a finding of the judge stands beneath the block it names, and the line abo
   expect(await page.evaluate(() => window.scrollY)).toBe(0)
 })
 
-test('a question finds its pages, each with its page numbers and route, and opens the page beside its original', async ({ page }) => {
-  // the first search after the start waits for the index, which the server builds as it comes up: about 20 s, free alone
-  test.setTimeout(150_000)
-  await page.goto('/#/search?q=kelly%20criterion%20growth%20rate')
-  await expect(page.locator('[data-hit]').first()).toBeVisible({ timeout: 120_000 })
-  await expect(page.locator('[data-hit] .route').first()).not.toBeEmpty()
-  await page.screenshot({ path: `${SHOTS}/search.png` })
-  await page.locator('[data-hit] a.hit-title').first().click()
-  await expect(page).toHaveURL(/#\/free\/sources\/.+\/page\/\d+$/)
-  await settled(page)
-  await expect(page.locator('.original img')).toBeVisible()
-})
-
-test('a question no page answers says so, as an answer', async ({ page }) => {
-  test.setTimeout(150_000)
-  await page.goto('/#/search?q=xylophonequartzbanjo')
-  await expect(page.locator('.nothing')).toContainText('Nothing found', { timeout: 120_000 })
-})
-
 type IssueRow = { knowledge_base: string, source_id: string, pdf_page: number, route: string, from_fallback: boolean,
   route_why: string | null, check: { state: string }, listed_state: string }
 
@@ -2588,78 +2572,162 @@ test('a page the judge found bad but whose reading is served says why in the iss
   await page.screenshot({ path: `${SHOTS}/issues_served_despite.png` })
 })
 
-// The chat in the browser check: the app runs with --no-chat, so these answers come from the browser and no check reaches
-// a model. Invented words over a free work, so the screenshot holds no licensed text.
-const CHAT_TURN = {
-  kind: 'knowledge', turn_id: 'a1b2c3d4', question: 'What is the Kelly criterion?', text: '', server: null, usd: 0.0031,
-  seconds: 11.2, model_calls: 2, call_limit_reached: null, logged: true,
-  turn: {
-    behaviour: 'answer', answer: 'The Kelly criterion sizes a bet as a **fraction** of wealth [1].', gaps: null, follow_up: null,
-    disclaimer: 'Not trading advice. For educational purposes only.',
-    quotes: [{ passage: 1, text: 'the optimal strategy is to bet a fraction of wealth',
-      citation: { text: 'Practical Implementation of the Kelly Criterion · p. 3', link: null, licence: 'CC BY 4.0' },
-      view: { knowledge_base: 'free', source_id: KELLY, pdf_page: 3 } }],
-    sources: [{ number: 1, work: KELLY, page: { label: '3', pdf: '3', printed: null },
-      citation: { text: 'Practical Implementation of the Kelly Criterion · p. 3', link: null, licence: 'CC BY 4.0' },
-      view: { knowledge_base: 'free', source_id: KELLY, pdf_page: 3 } }],
-  },
-  security: [{ check: 'input', name: 'Input check: not empty, not too long', status: 'passed', detail: '28 characters' }],
+// The Librarian in the browser check (L1.a): the app runs with --no-librarian, so these tools and answers come from the
+// browser and no check reaches the librarian or a model. Invented words over a free work, so a screenshot holds no licensed
+// text; the tools' names and their arguments are the server's.
+function aField(name: string, kind: string, extra: Record<string, unknown> = {}) {
+  return { name, kind, required: false, default: null, server_default: null, choices: [], minimum: null, maximum: null, description: null,
+    folded: false, ...extra }
 }
 
-test('the chat answers, each quote word for word, and a quote opens the page it comes from', async ({ page }) => {
-  await page.route('**/api/chat', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: { enabled: true, why_not: null, examples: ['What is the Kelly criterion?', 'What is a maximum drawdown?'] } })
-    : route.fulfill({ json: CHAT_TURN }))
-  await page.goto('/#/chat')
-  await settled(page)
-  await page.locator('.examples button').first().click()
-  await expect(page.locator('textarea')).toHaveValue('What is the Kelly criterion?')
-  await page.locator('textarea').press('Enter')
-  await expect(page.locator('.chat-turn .quote-text')).toHaveText('the optimal strategy is to bet a fraction of wealth')
-  await expect(page.locator('.chat-turn .answer strong')).toHaveText('fraction')
-  await page.screenshot({ path: `${SHOTS}/chat.png` })
-  await page.locator('.quote a.open').click()
-  await expect(page).toHaveURL(new RegExp(`#/free/sources/${KELLY}/page/3$`))
-})
+function aLibrarianTool(name: string, fields: ReturnType<typeof aField>[], extra: Record<string, unknown> = {}) {
+  return { name, description: `Invented: what ${name} does. Local, no model, milliseconds, free.`, cost_said: 'local · no model · milliseconds · free',
+    fields, folded_title: null, input_schema: {}, ...extra }
+}
 
-// 164.a: a quote from an HTML section opens its article, scrolled to the section, beside the source's own page; the
-// section is a real one of the index, its words in the fixture invented
-test('a quote from an HTML section opens its article at that section', async ({ page, request }) => {
-  const WIKIPEDIA = 'wikipedia_trading_set'
-  const work = await (await request.get(`/api/free/html/${WIKIPEDIA}`)).json() as {
-    why_not: string | null, outline: { title: string, parent: string | null, id: string, label: string | null }[]
+const REQUIRED = { required: true }
+const LIBRARIAN = { enabled: true, url: 'http://librarian:8765/mcp', why_not: null, tools: [
+  aLibrarianTool('works', []),
+  aLibrarianTool('search_works', [aField('query', 'text', REQUIRED), aField('corpus', 'text', { default: 'all', server_default: 'all' }),
+    aField('hits', 'integer', { default: 10, server_default: 10, minimum: 1, maximum: 50 })]),
+  aLibrarianTool('search', [aField('query', 'text', REQUIRED), aField('corpus', 'text', { default: 'all', server_default: 'all' }),
+    aField('hits', 'integer', { default: 6, server_default: 6, minimum: 1, maximum: 50 }), aField('work', 'text')]),
+  aLibrarianTool('semantic_search', [aField('question', 'text', REQUIRED), aField('hits', 'integer', { default: 10, server_default: 10 }),
+    aField('search_query', 'text', { folded: true }), aField('concept_query', 'text', { folded: true }),
+    aField('keywords', 'list', { folded: true }), aField('router', 'boolean', { default: false, server_default: true })],
+  { folded_title: 'your own translation, which spares the router', cost_said: 'about two seconds · a paid API · a fraction of a cent' }),
+  aLibrarianTool('toc', [aField('work', 'text', REQUIRED), aField('depth', 'integer', { default: 2, server_default: 2 })]),
+  aLibrarianTool('open_page', [aField('work', 'text', REQUIRED), aField('page', 'text', REQUIRED),
+    aField('printed', 'boolean', { default: false, server_default: false })]),
+  aLibrarianTool('page_image', [aField('work', 'text', REQUIRED), aField('page', 'text', REQUIRED)]),
+] }
+const LIBRARIAN_HIT = { rank: 1, knowledge_base: 'free', work: 'carta-conversano-kelly-2020', title: 'Practical Implementation of the Kelly Criterion',
+  edition_said: '2020', page: '3', page_said: 'PDF p. 3', section: '2 The model', score: 9.12, snippet: 'the optimal strategy is to bet a fraction of wealth',
+  text: null, route: 'vision reading', licence: 'CC BY 4.0', terms_missing: [], view: `/free/sources/${KELLY}/page/3` }
+
+// what the invented librarian answers each tool, in the API's shape: its head, its parts, the answer as it came
+function librarianAnswer(tool: string, args: Record<string, unknown>) {
+  const quick = { seconds: 0.036, model_ran: false, model_said: 'no model' }
+  if (tool === 'works') {
+    return { tool, arguments: args, head: { state: 'found', count: '2 works', ...quick }, answer: { result: [] }, works: [
+      { work: 'carta-conversano-kelly-2020', title: 'Practical Implementation of the Kelly Criterion', edition_said: '2020', knowledge_base: 'free',
+        licence: 'CC BY 4.0', route: 'vision reading', pages: 12, subject: 'How big a bet should be.', kept_for: null, kept_editions: [] },
+      { work: 'an-invented-glossary', title: 'An Invented Glossary', edition_said: null, knowledge_base: 'free', licence: 'CC BY 4.0',
+        route: 'html, parsed by section', pages: 40, subject: null, kept_for: null, kept_editions: [] }] }
   }
-  test.skip(Boolean(work.why_not), 'no search index on this machine, as on a clone')
-  const sharpe = work.outline.find(node => node.title === 'Sharpe ratio' && node.parent === null)
-  const history = work.outline.find(node => node.title === 'History' && node.parent === sharpe?.id)
-  test.skip(!history?.label, 'the index holds no Sharpe ratio history')
-  const article = { knowledge_base: 'free', source_id: WIKIPEDIA, label: history!.label }
-  const citation = { text: 'Sharpe ratio (Wikipedia) · History', link: 'https://en.wikipedia.org/wiki/Sharpe_ratio#History', licence: 'CC BY-SA 4.0' }
-  const turn = { ...CHAT_TURN, turn: { ...CHAT_TURN.turn, answer: 'Sharpe developed it in 1966 [1].',
-    quotes: [{ passage: 1, text: 'In 1966, William F. Sharpe developed the ratio.', citation, view: null, article }],
-    sources: [{ number: 1, work: WIKIPEDIA, page: { label: history!.label, pdf: null, printed: null }, citation, view: null, article }] } }
-  await page.route('**/api/chat', route => route.request().method() === 'GET'
-    ? route.fulfill({ json: { enabled: true, why_not: null, examples: ['What is the Sharpe ratio?'] } })
-    : route.fulfill({ json: turn }))
-  await page.goto('/#/chat')
+  if (tool === 'search') {
+    return { tool, arguments: args, head: { state: 'found', count: '1 hit', ...quick }, hits: [LIBRARIAN_HIT],
+      answer: { state: 'found', query: args.query, corpus: 'all', hits: [{ title: LIBRARIAN_HIT.title, page: { label: '3', pdf: '3' } }] } }
+  }
+  if (tool === 'semantic_search') {
+    const routed = args.router === true
+    return { tool, arguments: args, answer: { state: 'found', question: args.question, relevance: 0.41, relevance_floor: 0.45, below_floor: true },
+      head: { state: 'found', count: '1 hit', relevance: 0.41, relevance_floor: 0.45, below_floor: true, seconds: 2.04,
+        floor_said: 'below the floor (0.410 < 0.450): the books likely say nothing on this', model_ran: routed,
+        model_said: routed ? 'a model ran: an-invented-model' : 'no model ran' },
+      plan: routed ? { search_query: 'bond discount', concept_query: 'bond pricing', keywords: ['bond', 'discount'], behaviour: 'answer', fell_back: false } : null,
+      hits: [{ ...LIBRARIAN_HIT, score: 0.41, text: 'the optimal strategy is to bet a fraction of wealth, the whole chunk of the page' }] }
+  }
+  return { tool, arguments: args, head: { state: 'nothing found', ...quick }, answer: { state: 'nothing found' } }
+}
+
+// the invented librarian on the page's two routes; every call's body as the page sent it
+async function mockLibrarian(page: Page, posts: { tool: string, arguments: Record<string, unknown> }[] = []): Promise<void> {
+  await page.route('**/api/librarian', route => route.fulfill({ json: LIBRARIAN }))
+  await page.route('**/api/librarian/call', route => {
+    const body = route.request().postDataJSON() as { tool: string, arguments: Record<string, unknown> }
+    posts.push(body)
+    return route.fulfill({ json: librarianAnswer(body.tool, body.arguments) })
+  })
+}
+
+test('the Librarian stands each tool a tab in the server\'s order, a form from its schema, an answer with its raw JSON a click away (L1.a)', async ({ page }) => {
+  const posts: { tool: string, arguments: Record<string, unknown> }[] = []
+  await mockLibrarian(page, posts)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto('/#/librarian')
   await settled(page)
-  await page.locator('textarea').fill('Who developed the Sharpe ratio?')
-  await page.locator('textarea').press('Enter')
-  const quote = page.locator('.chat-turn .quote')
-  await expect(quote.locator('a.open')).toHaveText(['open the source', 'open in the article'])
-  await quote.locator('[data-part="article"]').click()
-  await expect(page).toHaveURL(new RegExp(`#/free/html/${WIKIPEDIA}/${history!.label}$`))
+  await expect(page.locator('[data-part="tabs"] button')).toHaveText(['works', 'search_works', 'search', 'semantic_search', 'toc',
+    'open_page', 'page_image'])
+  // works, which requires nothing, called on the page's own address: a client's first call
+  await expect(page.locator('[data-part="works-table"] tr[data-work]')).toHaveCount(2)
+  expect(posts).toEqual([{ tool: 'works', arguments: {} }])
+  // the tabs stay under the pointer, tab after tab
+  const tab = page.locator('[data-tab="search"]')
+  const at = await tab.boundingBox()
+  for (const name of ['toc', 'semantic_search', 'works', 'page_image', 'search']) {
+    await page.locator(`[data-tab="${name}"]`).click()
+    expect(await tab.boundingBox(), `the tabs moved after ${name}`).toEqual(at)
+  }
+  // search: its form from its schema, Run, the hit as a card, its page a link into this view, the address naming the call
+  await page.locator('[data-field="query"] input').fill('kelly fraction')
+  await page.locator('[data-part="run"]').click()
+  await expect(page.locator('[data-hit="1"] [data-part="hit-page"]')).toHaveAttribute('href', `#/free/sources/${KELLY}/page/3`)
+  await expect(page).toHaveURL(/#\/librarian\?tool=search&query=kelly(\+|%20)fraction$/)
+  expect(posts.at(-1)).toEqual({ tool: 'search', arguments: { query: 'kelly fraction' } })
+  const raw = page.locator('[data-part="raw-json"]')
+  await raw.locator('summary').click()
+  expect(JSON.parse(await raw.locator('pre').textContent() ?? '')).toMatchObject({ state: 'found', query: 'kelly fraction' })
+  await page.screenshot({ path: `${SHOTS}/librarian_search.png` })
+  // F5 makes the same call again from the address; a tab alone that requires an argument makes none
+  const made = posts.length
+  await page.reload()
   await settled(page)
-  const entry = page.locator(`[data-entry="${history!.label}"]`)
-  await expect(entry).toHaveClass(/chosen/)
-  await expect(entry).toBeInViewport()
-  await page.screenshot({ path: `${SHOTS}/chat_article.png` })
+  await expect(page.locator('[data-hit="1"]')).toBeVisible()
+  expect(posts.slice(made)).toEqual([{ tool: 'search', arguments: { query: 'kelly fraction' } }])
+  await page.locator('[data-tab="toc"]').click()
+  await expect(page).toHaveURL(/tool=toc$/)
+  expect(posts.length).toBe(made + 1)
+  // and the check sees the tabs move where they do: a line set before them, a moment
+  await page.evaluate(() => document.querySelector('[data-part="tabs"]')!.before(Object.assign(document.createElement('p'), {
+    textContent: 'a line that pushes the tabs down' })))
+  expect(await tab.boundingBox()).not.toEqual(at)
 })
 
-test('without its fixtures the chat in the browser check is switched off, so no check can reach a model', async ({ page }) => {
-  await page.goto('/#/chat')
+test('semantic_search keeps the router off by default and passes it through, its relevance below the floor in the warning role (L1.a)', async ({ page }) => {
+  const posts: { tool: string, arguments: Record<string, unknown> }[] = []
+  await mockLibrarian(page, posts)
+  await page.goto('/#/librarian?tool=semantic_search')
   await settled(page)
-  await expect(page.locator('.switched-off')).toContainText('--no-chat')
+  const router = page.locator('[data-field="router"] input')
+  await expect(router).not.toBeChecked()
+  expect(posts).toEqual([])  // a tab alone calls nothing that requires an argument
+  // the caller's own translation folded beneath
+  await expect(page.locator('[data-part="folded-fields"] summary')).toHaveText('your own translation, which spares the router')
+  await page.locator('[data-field="question"] input').fill('what is a bond discount?')
+  await page.locator('[data-part="run"]').click()
+  await expect(page.locator('[data-part="model"]')).toHaveText('no model ran')
+  expect(posts.at(-1)).toEqual({ tool: 'semantic_search', arguments: { question: 'what is a bond discount?', router: false } })
+  await expect(page.locator('[data-part="plan"]')).toHaveCount(0)
+  // below the floor in words and in the warning role, apart from the head's other words
+  const floor = page.locator('[data-part="floor"]')
+  await expect(floor).toContainText('below the floor')
+  const colour = (selector: string) => page.locator(selector).first().evaluate(element => getComputedStyle(element).color)
+  expect(await colour('[data-part="floor"]')).not.toBe(await colour('[data-part="count"]'))
+  // the whole chunk folded beneath its card
+  await page.locator('[data-part="whole-chunk"] summary').click()
+  await expect(page.locator('[data-part="whole-chunk"] .chunk-text')).toContainText('the whole chunk of the page')
+  await page.screenshot({ path: `${SHOTS}/librarian_semantic.png` })
+  // ticked, the router reaches the librarian as true, and the plan it made stands
+  await router.check()
+  await page.locator('[data-part="run"]').click()
+  await expect(page.locator('[data-part="plan"]')).toContainText('bond discount')
+  expect(posts.at(-1)).toEqual({ tool: 'semantic_search', arguments: { question: 'what is a bond discount?', router: true } })
+  await expect(page).toHaveURL(/router=true/)
+})
+
+test('a librarian that does not answer is said in words, and without its fixtures the page calls nothing (L1.a)', async ({ page }) => {
+  await page.route('**/api/librarian', route => route.fulfill({ json: { enabled: true, url: 'http://librarian:8765/mcp', tools: [],
+    why_not: 'The librarian does not answer at http://librarian:8765/mcp: ConnectError: connection refused' } }))
+  await page.goto('/#/librarian')
+  await settled(page)
+  await expect(page.locator('[data-part="why-not"]')).toContainText('does not answer')
+  await expect(page.locator('[data-part="tabs"]')).toHaveCount(0)
+  // the app of the browser check runs with --no-librarian: the page says so, and no call can reach the librarian
+  await page.unroute('**/api/librarian')
+  await page.reload()
+  await settled(page)
+  await expect(page.locator('[data-part="why-not"]')).toContainText('--no-librarian')
 })
 
 test('the calls list who asked what, and an answered page opens its view', async ({ page, request }) => {

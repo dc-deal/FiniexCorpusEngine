@@ -1194,33 +1194,35 @@
         }
       }
     },
-    "/api/chat": {
+    "/api/librarian": {
       "get": {
-        "summary": "Chat Info",
-        "description": "Whether the chat answers here, and its example questions.",
-        "operationId": "chat_info",
+        "summary": "Librarian Tools",
+        "description": "The librarian's tools as the running server lists them (L1.a), in its staggered order, each with its description,\na line on what it costs and takes, and its form's fields from its input schema; the page's first call opens its one\nsession with the librarian. Where the librarian does not answer, it says so in words.",
+        "operationId": "librarian_tools",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatInfo"
+                  "$ref": "#/components/schemas/LibrarianInfo"
                 }
               }
             }
           }
         }
-      },
+      }
+    },
+    "/api/librarian/call": {
       "post": {
-        "summary": "Chat Turn",
-        "description": "One turn of the chat, the one route here that spends money: the core's chat agent answers, the turn goes to\nits conversation's log, and the turn comes back as the log keeps it, without the agent's own words.",
-        "operationId": "chat_turn",
+        "summary": "Librarian Call",
+        "description": "One tool call over MCP to the running librarian, as an IDE session makes it, its client named \"view\": the answer\nas it came and its parts for the page. Local only and Origin-checked, since `semantic_search` spends a fraction of a\ncent, and a model call with the router on. 503 where the page calls nothing here or the librarian does not answer,\n404 for a tool it does not offer, 502 where the call failed on its way; a tool's own error is an answer.",
+        "operationId": "librarian_call",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChatRequest"
+                "$ref": "#/components/schemas/CallRequest"
               }
             }
           },
@@ -1232,75 +1234,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/search": {
-      "get": {
-        "summary": "Search Pages",
-        "description": "The search the MCP server answers with, over the knowledge bases given out; \"nothing found\" is an answer.",
-        "operationId": "search_pages",
-        "parameters": [
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Q"
-            }
-          },
-          {
-            "name": "corpus",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "enum": [
-                "all",
-                "free",
-                "licensed"
-              ],
-              "type": "string",
-              "default": "all",
-              "title": "Corpus"
-            }
-          },
-          {
-            "name": "hits",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 10,
-              "title": "Hits"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SearchAnswer"
+                  "$ref": "#/components/schemas/LibrarianCall"
                 }
               }
             }
@@ -1608,34 +1542,6 @@
         ],
         "title": "AppInfo",
         "description": "The name the view shows in its header and its browser tab (decision 149.c): a working name, kept in the app's own\nconfig so it changes in one place, without code."
-      },
-      "ArticleLink": {
-        "properties": {
-          "knowledge_base": {
-            "type": "string",
-            "enum": [
-              "free",
-              "licensed"
-            ],
-            "title": "Knowledge Base",
-            "default": "free"
-          },
-          "source_id": {
-            "type": "string",
-            "title": "Source Id"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_id",
-          "label"
-        ],
-        "title": "ArticleLink",
-        "description": "Where the diagnostics shows an HTML section the chat cites: its article, scrolled to the section (decision 164.a)."
       },
       "Attempt": {
         "properties": {
@@ -2195,6 +2101,107 @@
         ],
         "title": "Call"
       },
+      "CallHead": {
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "relevance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance"
+          },
+          "relevance_floor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance Floor"
+          },
+          "below_floor": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Floor"
+          },
+          "floor_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Said"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "model_ran": {
+            "type": "boolean",
+            "title": "Model Ran",
+            "default": false
+          },
+          "model_said": {
+            "type": "string",
+            "title": "Model Said",
+            "default": "no model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seconds"
+        ],
+        "title": "CallHead",
+        "description": "The answer's head line: its state and words, relevance against its floor, how long it took, whether a model ran."
+      },
       "CallList": {
         "properties": {
           "why_not": {
@@ -2262,6 +2269,27 @@
         "type": "object",
         "title": "CallList"
       },
+      "CallRequest": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Tool"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments",
+            "default": {}
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "CallRequest"
+      },
       "Cell": {
         "properties": {
           "segments": {
@@ -2292,165 +2320,6 @@
           "colspan"
         ],
         "title": "Cell"
-      },
-      "ChatInfo": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          },
-          "why_not": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Why Not"
-          },
-          "examples": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Examples"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled",
-          "why_not",
-          "examples"
-        ],
-        "title": "ChatInfo"
-      },
-      "ChatRequest": {
-        "properties": {
-          "message": {
-            "type": "string",
-            "maxLength": 10000,
-            "title": "Message"
-          },
-          "thread_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Thread Id"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "message",
-          "thread_id"
-        ],
-        "title": "ChatRequest"
-      },
-      "ChatResult": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "turn_id": {
-            "type": "string",
-            "title": "Turn Id"
-          },
-          "question": {
-            "type": "string",
-            "title": "Question"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text",
-            "default": ""
-          },
-          "disclaimer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Disclaimer"
-          },
-          "turn": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/KnowledgeTurn"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "server": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ServerTurn"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "usd": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usd"
-          },
-          "seconds": {
-            "type": "number",
-            "title": "Seconds",
-            "default": 0.0
-          },
-          "model_calls": {
-            "type": "integer",
-            "title": "Model Calls",
-            "default": 0
-          },
-          "call_limit_reached": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Call Limit Reached"
-          },
-          "security": {
-            "items": {
-              "$ref": "#/components/schemas/SecurityCheck"
-            },
-            "type": "array",
-            "title": "Security",
-            "default": []
-          },
-          "logged": {
-            "type": "boolean",
-            "title": "Logged",
-            "default": true
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "kind",
-          "turn_id",
-          "question"
-        ],
-        "title": "ChatResult"
       },
       "Check": {
         "properties": {
@@ -2745,14 +2614,9 @@
         "title": "ChunkRun",
         "description": "A run of a block's text in a chunk: whether another chunk of the page holds it too, so that it stands in both."
       },
-      "Citation": {
+      "Contents": {
         "properties": {
-          "text": {
-            "type": "string",
-            "title": "Text",
-            "default": ""
-          },
-          "link": {
+          "work": {
             "anyOf": [
               {
                 "type": "string"
@@ -2761,9 +2625,9 @@
                 "type": "null"
               }
             ],
-            "title": "Link"
+            "title": "Work"
           },
-          "licence": {
+          "title": {
             "anyOf": [
               {
                 "type": "string"
@@ -2772,52 +2636,35 @@
                 "type": "null"
               }
             ],
-            "title": "Licence"
+            "title": "Title"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "left_out": {
+            "type": "integer",
+            "title": "Left Out",
+            "default": 0
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TocEntry"
+            },
+            "type": "array",
+            "title": "Entries",
+            "default": []
           }
         },
-        "additionalProperties": true,
         "type": "object",
-        "title": "Citation"
-      },
-      "CitedPage": {
-        "properties": {
-          "label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Label"
-          },
-          "pdf": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pdf"
-          },
-          "printed": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Printed"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "title": "CitedPage"
+        "title": "Contents"
       },
       "Cost": {
         "properties": {
@@ -3619,6 +3466,109 @@
         ],
         "title": "FindingsAt"
       },
+      "FoundWork": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "knowledge_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Base"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "pages_matching": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Matching"
+          },
+          "pages_with_every_term": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages With Every Term"
+          },
+          "best_sections": {
+            "items": {
+              "$ref": "#/components/schemas/SectionHit"
+            },
+            "type": "array",
+            "title": "Best Sections",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "work"
+        ],
+        "title": "FoundWork"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3776,8 +3726,12 @@
         "title": "Headline",
         "description": "The corpus in one line: summed over the knowledge bases served, each base's part kept as the detail. The shelf's\nfigures are summed over the bases whose shelf is built (`shelf_left_out` names the others); the export's over the\nbases served (`left_out`)."
       },
-      "Hit": {
+      "HitCard": {
         "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
           "knowledge_base": {
             "anyOf": [
               {
@@ -3811,15 +3765,38 @@
             ],
             "title": "Title"
           },
-          "page": {
+          "edition_said": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CitedPage"
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Edition Said"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "page_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Said"
           },
           "section": {
             "anyOf": [
@@ -3832,6 +3809,17 @@
             ],
             "title": "Section"
           },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
           "snippet": {
             "anyOf": [
               {
@@ -3843,95 +3831,64 @@
             ],
             "title": "Snippet"
           },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "terms_missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms Missing",
+            "default": []
+          },
           "view": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PageLink"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "edition": {
-            "anyOf": [
-              {
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Edition"
-          },
-          "year": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Year"
-          },
-          "edition_said": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Edition Said",
-            "description": "The edition its citation names beside the title (E1.a): \"2nd edition, 2003\", or the year alone.",
-            "readOnly": true
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "edition_said"
-        ],
-        "title": "Hit"
-      },
-      "HitPage": {
-        "properties": {
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "pdf": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pdf"
-          },
-          "printed": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Printed"
+            "title": "View"
           }
         },
         "type": "object",
         "required": [
-          "label",
-          "pdf",
-          "printed"
+          "rank"
         ],
-        "title": "HitPage"
+        "title": "HitCard"
       },
       "HtmlArticle": {
         "properties": {
@@ -4994,107 +4951,6 @@
         "title": "Judgement",
         "description": "One judge's judgement of one reading (147.a), oldest first: by which version of the judge's prompt, in which state\nthat version is (a prototype, the active one, retired), whether the judge was asked again, and whether it counts."
       },
-      "KnowledgeTurn": {
-        "properties": {
-          "behaviour": {
-            "type": "string",
-            "title": "Behaviour"
-          },
-          "answer": {
-            "type": "string",
-            "title": "Answer",
-            "default": ""
-          },
-          "quotes": {
-            "items": {
-              "$ref": "#/components/schemas/Quote"
-            },
-            "type": "array",
-            "title": "Quotes",
-            "default": []
-          },
-          "sources": {
-            "items": {
-              "$ref": "#/components/schemas/Source"
-            },
-            "type": "array",
-            "title": "Sources",
-            "default": []
-          },
-          "gaps": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gaps"
-          },
-          "follow_up": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Follow Up"
-          },
-          "disclaimer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Disclaimer"
-          },
-          "relevance": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relevance"
-          },
-          "relevance_floor": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relevance Floor"
-          },
-          "below_floor": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Below Floor"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "behaviour"
-        ],
-        "title": "KnowledgeTurn"
-      },
       "Ladder": {
         "properties": {
           "unit": {
@@ -5272,6 +5128,295 @@
         "title": "LeftOut",
         "description": "A knowledge base a sum leaves out, and why: not served, no export, or no shelf built here."
       },
+      "LibrarianCall": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments"
+          },
+          "head": {
+            "$ref": "#/components/schemas/CallHead"
+          },
+          "hits": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HitCard"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hits"
+          },
+          "works": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WorkRow"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Works"
+          },
+          "found_works": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FoundWork"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found Works"
+          },
+          "contents": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Contents"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenedPage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SentImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouterPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answer": {
+            "title": "Answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool",
+          "arguments",
+          "head"
+        ],
+        "title": "LibrarianCall"
+      },
+      "LibrarianField": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "integer",
+              "number",
+              "boolean",
+              "list",
+              "choice"
+            ],
+            "title": "Kind"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "default": {
+            "title": "Default"
+          },
+          "server_default": {
+            "title": "Server Default"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Choices",
+            "default": []
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "folded": {
+            "type": "boolean",
+            "title": "Folded",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "LibrarianField",
+        "description": "One argument of a tool, as its input schema gives it, for the form."
+      },
+      "LibrarianInfo": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Not"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/LibrarianTool"
+            },
+            "type": "array",
+            "title": "Tools",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "LibrarianInfo"
+      },
+      "LibrarianTool": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "cost_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Said"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/LibrarianField"
+            },
+            "type": "array",
+            "title": "Fields",
+            "default": []
+          },
+          "folded_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folded Title"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input Schema",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "LibrarianTool"
+      },
       "Milestone": {
         "properties": {
           "at": {
@@ -5376,6 +5521,133 @@
         ],
         "title": "Milestone",
         "description": "One line of the corpus's history (X1.a, line 1, 19 Nov): its date, its name, and its figures summed over the knowledge\nbases it holds that this app serves, each base's part beside them. A line taken over from the person's file before\n19 Nov holds both bases summed (`summed`, no parts), and is never shown under `--public-only`, as it holds licensed\ncounts."
+      },
+      "OpenedPage": {
+        "properties": {
+          "work": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "edition_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition Said"
+          },
+          "knowledge_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Base"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "page_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Said"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          }
+        },
+        "type": "object",
+        "title": "OpenedPage"
       },
       "Option": {
         "properties": {
@@ -7212,51 +7484,6 @@
         "title": "ProposeState",
         "description": "Whether a model's correction can be proposed here (W2.a): only where verdicts are taken and a version of the role is\nactive, which a person makes so after its gate; why not, in words, where it cannot."
       },
-      "Quote": {
-        "properties": {
-          "passage": {
-            "type": "integer",
-            "title": "Passage"
-          },
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "citation": {
-            "$ref": "#/components/schemas/Citation",
-            "default": {
-              "text": ""
-            }
-          },
-          "view": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PageLink"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "article": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ArticleLink"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "passage",
-          "text"
-        ],
-        "title": "Quote"
-      },
       "QuotedText": {
         "properties": {
           "knowledge_base": {
@@ -7756,6 +7983,65 @@
         "title": "RouteRow",
         "description": "One route a work's pages are served by, as a person reads the routes (the operator, 10 Nov: \"is this route a faulty one?\"): how good it is, where the text comes from, by which reader, why, and on how many pages."
       },
+      "RouterPlan": {
+        "properties": {
+          "search_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Query"
+          },
+          "concept_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concept Query"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords",
+            "default": []
+          },
+          "behaviour": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Behaviour"
+          },
+          "fell_back": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fell Back"
+          }
+        },
+        "type": "object",
+        "title": "RouterPlan",
+        "description": "The plan the router made, where it ran."
+      },
       "RunBase": {
         "properties": {
           "knowledge_base": {
@@ -8189,86 +8475,8 @@
         "title": "Rung",
         "description": "One level of a ladder: how many of the whole reach it, said in a line."
       },
-      "SearchAnswer": {
+      "SectionHit": {
         "properties": {
-          "state": {
-            "type": "string",
-            "enum": [
-              "found",
-              "nothing found",
-              "error"
-            ],
-            "title": "State"
-          },
-          "query": {
-            "type": "string",
-            "title": "Query"
-          },
-          "corpus": {
-            "type": "string",
-            "title": "Corpus"
-          },
-          "knowledge_bases": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Knowledge Bases"
-          },
-          "hits": {
-            "items": {
-              "$ref": "#/components/schemas/SearchHit"
-            },
-            "type": "array",
-            "title": "Hits"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          }
-        },
-        "type": "object",
-        "required": [
-          "state",
-          "query",
-          "corpus",
-          "knowledge_bases",
-          "hits"
-        ],
-        "title": "SearchAnswer"
-      },
-      "SearchHit": {
-        "properties": {
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "knowledge_base": {
-            "type": "string",
-            "enum": [
-              "free",
-              "licensed"
-            ],
-            "title": "Knowledge Base"
-          },
-          "work": {
-            "type": "string",
-            "title": "Work"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "page": {
-            "$ref": "#/components/schemas/HitPage"
-          },
           "section": {
             "anyOf": [
               {
@@ -8280,37 +8488,7 @@
             ],
             "title": "Section"
           },
-          "where": {
-            "type": "string",
-            "title": "Where"
-          },
-          "snippet": {
-            "type": "string",
-            "title": "Snippet"
-          },
-          "terms_found": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Terms Found"
-          },
-          "terms_missing": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Terms Missing"
-          },
-          "licence": {
-            "type": "string",
-            "title": "Licence"
-          },
-          "route": {
-            "type": "string",
-            "title": "Route"
-          },
-          "reading_key": {
+          "page": {
             "anyOf": [
               {
                 "type": "string"
@@ -8319,19 +8497,9 @@
                 "type": "null"
               }
             ],
-            "title": "Reading Key"
+            "title": "Page"
           },
-          "view": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PageLink"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "edition": {
+          "page_said": {
             "anyOf": [
               {
                 "type": "string"
@@ -8340,81 +8508,22 @@
                 "type": "null"
               }
             ],
-            "title": "Edition"
+            "title": "Page Said"
           },
-          "year": {
+          "score": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Year"
-          },
-          "edition_said": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Edition Said",
-            "description": "The edition its citation names beside the title (E1.a): \"2nd edition, 2003\", or the year alone.",
-            "readOnly": true
+            "title": "Score"
           }
         },
         "type": "object",
-        "required": [
-          "score",
-          "knowledge_base",
-          "work",
-          "title",
-          "page",
-          "section",
-          "where",
-          "snippet",
-          "terms_found",
-          "terms_missing",
-          "licence",
-          "route",
-          "reading_key",
-          "view",
-          "edition_said"
-        ],
-        "title": "SearchHit"
-      },
-      "SecurityCheck": {
-        "properties": {
-          "check": {
-            "type": "string",
-            "title": "Check"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "detail": {
-            "type": "string",
-            "title": "Detail",
-            "default": ""
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "check",
-          "name",
-          "status"
-        ],
-        "title": "SecurityCheck"
+        "title": "SectionHit"
       },
       "Segment": {
         "properties": {
@@ -8465,6 +8574,48 @@
         ],
         "title": "Segment",
         "description": "A piece of prose as the core parsed it: text, math, code, or an inline mark of its own (decision 206.a): a note's\nmarker (`fn`, \"[4]{.fn}\"), a superscript (`sup`) or a subscript (`sub`). A marker names the footnote on the same page\nwhose `marker` is its content (`with_notes`), and carries that note's text, so the view links the two; both None where\nthe page has no such note."
+      },
+      "SentImage": {
+        "properties": {
+          "src": {
+            "type": "string",
+            "title": "Src"
+          },
+          "described": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Described",
+            "default": []
+          },
+          "page_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "src"
+        ],
+        "title": "SentImage"
       },
       "Series": {
         "properties": {
@@ -8534,181 +8685,6 @@
         },
         "type": "object",
         "title": "Served"
-      },
-      "ServerAnswer": {
-        "properties": {
-          "state": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State"
-          },
-          "hits": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/Hit"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hits"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "page": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CitedPage"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Page"
-          },
-          "text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Text"
-          },
-          "why": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Why"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "result": {
-            "anyOf": [
-              {
-                "items": {},
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Result"
-          },
-          "edition": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Edition"
-          },
-          "year": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Year"
-          },
-          "edition_said": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Edition Said",
-            "description": "The edition its citation names beside the title (E1.a): \"2nd edition, 2003\", or the year alone.",
-            "readOnly": true
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "edition_said"
-        ],
-        "title": "ServerAnswer"
-      },
-      "ServerTurn": {
-        "properties": {
-          "tool": {
-            "type": "string",
-            "title": "Tool"
-          },
-          "args": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Args",
-            "default": {}
-          },
-          "answer": {
-            "$ref": "#/components/schemas/ServerAnswer",
-            "default": {}
-          },
-          "image_src": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Src"
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "tool"
-        ],
-        "title": "ServerTurn"
       },
       "Shares": {
         "properties": {
@@ -9037,67 +9013,6 @@
           "has_pages"
         ],
         "title": "ShelfRow"
-      },
-      "Source": {
-        "properties": {
-          "number": {
-            "type": "integer",
-            "title": "Number"
-          },
-          "work": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work"
-          },
-          "page": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CitedPage"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "citation": {
-            "$ref": "#/components/schemas/Citation",
-            "default": {
-              "text": ""
-            }
-          },
-          "view": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PageLink"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "article": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ArticleLink"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "additionalProperties": true,
-        "type": "object",
-        "required": [
-          "number"
-        ],
-        "title": "Source"
       },
       "Splitter": {
         "properties": {
@@ -9450,6 +9365,35 @@
         "type": "object",
         "title": "TablePreview",
         "description": "A correction's text as the table it would be, read by the core's table parser as a reading's table is (204.a);\nNone where it is no table, or not a clean one."
+      },
+      "TocEntry": {
+        "properties": {
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "title"
+        ],
+        "title": "TocEntry"
       },
       "ToolFigures": {
         "properties": {
@@ -10355,6 +10299,115 @@
         ],
         "title": "WorkReadings",
         "description": "A work's page readings in figures, each value as often as it occurs."
+      },
+      "WorkRow": {
+        "properties": {
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "edition_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition Said"
+          },
+          "knowledge_base": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge Base"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "kept_for": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept For"
+          },
+          "kept_editions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Kept Editions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "work"
+        ],
+        "title": "WorkRow"
       },
       "backend__diagnostics__prompts__DiffPart": {
         "properties": {

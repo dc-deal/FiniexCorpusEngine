@@ -1,7 +1,8 @@
 """Start the diagnostics UI: `python -m backend.diagnostics`, then open http://127.0.0.1:8001.
 
 `--public-only` serves the free knowledge base alone and never reads the licensed one: for a recorded review.
-`--no-chat` switches the chat off, so nothing this process does can spend money: the browser check starts it this way.
+`--no-librarian` keeps the Librarian page from calling the running librarian, so nothing this process does can spend money:
+the browser check starts it this way. `--no-chat`, its name while the chat stood here, is taken the same.
 `--allow-verdicts` opens the one write route: a person's verdict from the page view (213.b). Off by default (223.a), so a
 clone stays read-only.
 """
@@ -10,7 +11,7 @@ import argparse
 
 import uvicorn
 
-from backend.diagnostics import chat
+from backend.diagnostics import librarian
 from backend.diagnostics.app import create_app
 
 
@@ -22,7 +23,8 @@ def main() -> None:
                              '127.0.0.1 alone (docker-compose.yml)')
     parser.add_argument('--public-only', action='store_true',
                         help='serve the free knowledge base alone; the licensed one is never read')
-    parser.add_argument('--no-chat', action='store_true', help='switch the chat off: no model is ever called')
+    parser.add_argument('--no-librarian', '--no-chat', dest='no_librarian', action='store_true',
+                        help='the Librarian page calls nothing: no tool call reaches the running librarian, no model is called')
     parser.add_argument('--allow-verdicts', action='store_true',
                         help="take a person's verdict from the page view, recorded in the pipeline database and exported in "
                              'the background; without it the app is read-only')
@@ -33,7 +35,8 @@ def main() -> None:
     # Loopback only: the UI can show readings of the licensed works, which never leave this machine; in a container it listens
     # on its own interface and Docker publishes the port on 127.0.0.1 alone. The search index is built while the server comes
     # up, so the first search does not wait for it.
-    uvicorn.run(create_app(public_only=args.public_only, warm_search=True, chat_agent=None if args.no_chat else chat.default_agent,
+    uvicorn.run(create_app(public_only=args.public_only, warm_search=True,
+                           librarian_client=None if args.no_librarian else librarian.default_client,
                            allow_verdicts=args.allow_verdicts),
                 host=args.host, port=args.port)
 

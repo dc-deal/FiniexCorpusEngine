@@ -1,12 +1,13 @@
-"""The diagnostics UI's server: a read-only JSON API under /api, the chat's one route, and the built UI at /.
+"""The diagnostics UI's server: a read-only JSON API under /api, the Librarian page's calls, and the built UI at /.
 
 The UI is a Vue app whose build is committed in `src/frontend/diagnostics/dist/`, so a reviewer needs no Node: this one
 process serves both. During development Vite serves the UI instead and forwards /api here.
 
 A work is addressed within its knowledge base, `/api/<knowledge base>/works/<id>/...`, because an id alone is not a key
 (decision 80.a); the lists of works and of issues span every knowledge base served, each row marked with its own. The
-chat (decision 100.a) is the one route that spends; see `chat`. The app is read-only unless started with --allow-verdicts;
-then one write route, a person's verdict from the page view, local only, Origin-checked, append-only; see `verdicts`.
+Librarian page's call (L1.a) is the one route that can spend, a call over MCP to the running librarian, local only and
+Origin-checked; see `librarian`. The app is read-only unless started with --allow-verdicts; then one write route, a
+person's verdict from the page view, local only, Origin-checked, append-only; see `verdicts`.
 Every route answers only a request addressed to this machine by name; see `TRUSTED_HOSTS`.
 """
 
@@ -16,19 +17,18 @@ import traceback
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.chat import app_config
-from backend.diagnostics import (calls, chat, coverage_ladder, epub_works, error_classes, html_works, overview, page_integrity,
-                                 page_chunks, page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, stamps,
-                                 verdicts, work_editions)
-from backend.search.search_server import MAX_HITS
+from backend.diagnostics import (calls, coverage_ladder, epub_works, error_classes, html_works, librarian, local_only, overview,
+                                 page_integrity, page_chunks, page_ladder, prompts, readings, runs, search_hits, shelf_rows,
+                                 sources, stamps, verdicts, work_editions)
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
 # the licensed catalog's fields the sources view shows beside a work's title (N1.a)
@@ -36,8 +36,8 @@ CATALOG_FIELDS = {'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 
 
 # The names a request may address this server by: a page elsewhere can point a domain of its own at 127.0.0.1 (DNS
 # rebinding) and read what the GET routes serve, licensed pages and the coding sessions' questions among them, so any
-# other Host is refused with 400 before a route runs. Starlette's TrustedHostMiddleware does the check; the chat's and
-# the verdict route's own Host and Origin checks stay as a second wall. An IPv6 address keeps its brackets, as the
+# other Host is refused with 400 before a route runs. Starlette's TrustedHostMiddleware does the check; the Librarian's and
+# the verdict routes' own Host and Origin checks stay as a second wall (`local_only`). An IPv6 address keeps its brackets, as the
 # middleware parses it.
 TRUSTED_HOSTS = ['127.0.0.1', 'localhost', '[::1]']
 
@@ -99,23 +99,24 @@ def run_warm(steps: list[Step], say: Callable[[str], None] = lambda line: print(
     say(f'warm-up done in {time.perf_counter() - started:.0f} s')
 
 
-def create_app(public_only: bool = False, warm_search: bool = False, chat_agent: Callable[[], Any] | None = None,
+def create_app(public_only: bool = False, warm_search: bool = False, librarian_client: Callable[[], Any] | None = None,
                allow_verdicts: bool = False, export_run: Callable[[], None] | None = None) -> FastAPI:
     """The app over the knowledge bases it may give out. With `public_only` the licensed one is never read (decision 81.a),
     so a recorded review cannot show a licensed title, page or count. `warm_search` reads every reading file and builds the
-    search index while the app comes up, as the start command does; the tests leave it off. `chat_agent` builds the chat's
-    agent on its first message; without it the chat is switched off, as in every test, so no test can reach a model.
+    search index while the app comes up, as the start command does; the tests leave it off. `librarian_client` opens the
+    Librarian page's one session with the running librarian on its first call (L1.a); without it the page calls nothing, as
+    in every test, so no test reaches the librarian or a model.
     `allow_verdicts` opens the one write route, a person's verdict from the page view (213.b, 223.a); off, the app is
     read-only. `export_run` replaces the export a verdict sets going, for the tests, so none writes the real export."""
     bases = readings.knowledge_bases(public_only)
     search = search_hits.Search(public_only)
-    talk = chat.ChatService(chat_agent, bases)
+    library = librarian.LibrarianService(librarian_client)
     judged = verdicts.VerdictService(allow_verdicts, bases, run=export_run)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         yield
-        talk.close()  # the agent's search server is a subprocess: it ends with the app
+        library.close()  # the page's one session with the librarian ends with the app
 
     app = FastAPI(title='Diagnostics', version='0.8.0', generate_unique_id_function=operation_id, lifespan=lifespan,
                   summary='Read-only views of the knowledge bases: where every source and reading came from.')
@@ -525,29 +526,29 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         --public-only only the calls that concern the free knowledge base alone, and how many were left out."""
         return calls.call_list(bases, public_only)
 
-    @app.get('/api/chat')
-    def chat_info() -> chat.ChatInfo:
-        """Whether the chat answers here, and its example questions."""
-        return talk.info()
+    @app.get('/api/librarian')
+    def librarian_tools() -> librarian.LibrarianInfo:
+        """The librarian's tools as the running server lists them (L1.a), in its staggered order, each with its description,
+        a line on what it costs and takes, and its form's fields from its input schema; the page's first call opens its one
+        session with the librarian. Where the librarian does not answer, it says so in words."""
+        return library.info()
 
-    @app.post('/api/chat', dependencies=[Depends(chat.local_host_only)])
-    def chat_turn(asked: chat.ChatRequest) -> chat.ChatResult:
-        """One turn of the chat, the one route here that spends money: the core's chat agent answers, the turn goes to
-        its conversation's log, and the turn comes back as the log keeps it, without the agent's own words."""
-        if not talk.enabled:
-            raise HTTPException(503, chat.SWITCHED_OFF)
+    @app.post('/api/librarian/call', dependencies=[Depends(local_only.guarded)])
+    def librarian_call(asked: librarian.CallRequest) -> librarian.LibrarianCall:
+        """One tool call over MCP to the running librarian, as an IDE session makes it, its client named "view": the answer
+        as it came and its parts for the page. Local only and Origin-checked, since `semantic_search` spends a fraction of a
+        cent, and a model call with the router on. 503 where the page calls nothing here or the librarian does not answer,
+        404 for a tool it does not offer, 502 where the call failed on its way; a tool's own error is an answer."""
+        if not library.enabled:
+            raise HTTPException(503, librarian.SWITCHED_OFF)
         try:
-            return talk.ask(asked.message, str(asked.thread_id))
-        except chat.ChatUnavailable as error:
+            return library.call(asked.tool, asked.arguments)
+        except librarian.UnknownTool as error:
+            raise HTTPException(404, str(error)) from error
+        except librarian.LibrarianDown as error:
             raise HTTPException(503, str(error)) from error
-        except Exception as error:  # a provider or the search server failed: said in one sentence, never as a trace
-            raise HTTPException(502, chat.failed(error)) from error
-
-    @app.get('/api/search')
-    def search_pages(q: str = '', corpus: search_hits.Corpus = 'all',
-                     hits: Annotated[int, Query(ge=1, le=MAX_HITS)] = 10) -> search_hits.SearchAnswer:
-        """The search the MCP server answers with, over the knowledge bases given out; "nothing found" is an answer."""
-        return search.answer(q, corpus, hits, bases)
+        except librarian.CallFailed as error:
+            raise HTTPException(502, str(error)) from error
 
     @app.get('/api/verdict')
     def verdict_form() -> verdicts.VerdictForm:
@@ -555,7 +556,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         the core's words, and each knowledge base's background export, which the view follows to reload a page."""
         return judged.form()
 
-    @app.post('/api/verdict', dependencies=[Depends(verdicts.guarded)])
+    @app.post('/api/verdict', dependencies=[Depends(local_only.guarded)])
     def give_verdict(asked: verdicts.VerdictRequest) -> verdicts.VerdictGiven:
         """A person's verdict on the reading a page shows, the one route here that writes (213.b): recorded at once by the
         core, append-only, and the export set going in the background. 403 when the app was started without
@@ -565,14 +566,14 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 
-    @app.post('/api/verdict/propose', dependencies=[Depends(verdicts.guarded)])
+    @app.post('/api/verdict/propose', dependencies=[Depends(local_only.guarded)])
     def propose_correction(asked: verdicts.ProposalRequest) -> verdicts.Proposal:
         """✦ propose (W2.a): a model's correction of one block, asked of the core with the judge's findings on it, kept by
         the core and answered again from its store for free; never recorded by itself. 409 with the core's reason where it
         sends nothing; 403 unless the app was started with --allow-verdicts or where the request comes from elsewhere."""
         return judged.propose(asked)
 
-    @app.post('/api/verdict/preview', dependencies=[Depends(verdicts.guarded)])
+    @app.post('/api/verdict/preview', dependencies=[Depends(local_only.guarded)])
     def preview_correction(asked: verdicts.PreviewRequest) -> verdicts.TablePreview:
         """A correction's text as the table it would be (204.a's path), for the dialog to show before it is sent; writes
         nothing."""
