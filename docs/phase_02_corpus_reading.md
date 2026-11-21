@@ -230,6 +230,18 @@ On Opus the chart's crossing came out as the person read it (2012), which Sonnet
 missed; Opus kept an unclear time cell's first reading where the person put the other first (a swap the word measure
 counts as a pass, read as a miss) and read one chart value -9.5 where the person read -10.
 
+**Then on open issues** (the operator's C1.a): 11 blocks of open issue pages without a person's verdict, both models on
+each, every proposal read by line 1 against the page image (0.47 USD). Opus was right on 9, Sonnet on 6. Four of the 11
+were false alarms of the judge; Opus left all four as they were, Sonnet followed the judge on two of them. Both followed
+the judge on one chart value and missed the order of a blurred screenshot's axis labels.
+
+**The whole verdict prefilled** (F1.a). The model gives only what needs the image; fixed rules (`correction_proposal.prefill`)
+give the rest, so one answer always fills the form alike: a block left as it was is accepted as the judge's false alarm (a
+new reason, `judge_false_alarm`); a changed block that is never quoted is accepted with its correction, since what is served
+stays right; a changed block that is quoted is rejected as `reading_wrong`, and the page takes its fallback until it is read
+again. The judge's assessment follows the model's agreement (yes right, partly right for a wrong reason, no false alarm), the
+note is what the model says the image shows. Nothing is recorded until a person records it.
+
 correction/1 wrote three empty tables as pipe tables (its own format line named the pipe), one with a header the page does
 not print, and dropped an unclear mark the person kept. correction/2's one miss is p. 94's crossing again: the person read
 2012, the proposal 2008 to 2010, and the judge's wrong 2006 to 2007 was not followed. On the three false alarms beside the

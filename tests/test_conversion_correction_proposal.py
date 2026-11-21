@@ -109,3 +109,28 @@ def test_a_person_is_told_when_a_proposal_changes_nothing_much_or_finds_no_error
 def test_a_proposal_is_scored_by_the_person_s_edit(proposal, scores):
     original, person = 'The rate rose to 4.5% in the second year.', 'The rate rose to 4.6% in the second year.'
     assert correction_proposal.edit_scores(original, person, proposal) == scores
+
+
+def test_the_proposal_fills_the_whole_verdict_by_fixed_rules():
+    # F1.a (21 Nov): the model gives what needs the image, fixed rules the rest; nothing is recorded by it
+    from backend.conversion.contract.page_contract import parse
+
+    blocks = {block.id: block for block in parse(READING, 'markdown').blocks}
+    proposed = lambda agrees, correction: {'state': 'proposed', 'agrees_with_judge': agrees, 'correction': correction,  # noqa: E731
+                                           'image_shows': 'what the image shows'}
+    fields = ('verdict', 'reason', 'judge_assessment', 'correction')
+    left = correction_proposal.prefill(proposed('no', blocks['b01'].body), blocks['b01'])
+    assert [left[field] for field in fields] == ['accept', 'judge_false_alarm', 'false_alarm', None]
+    quoted = correction_proposal.prefill(proposed('yes', 'Another sentence.'), blocks['b01'])
+    assert [quoted[field] for field in fields] == ['reject', 'reading_wrong', 'right', 'Another sentence.']
+    described = correction_proposal.prefill(proposed('partly', 'Bars.'), blocks['b03'])
+    assert [described[field] for field in fields] == ['accept', 'finding_on_unquoted_block', 'right_for_a_wrong_reason', 'Bars.']
+    assert described['block'] == 'b03' and described['note'] == 'what the image shows'
+    assert correction_proposal.prefill({'state': 'no proposal'}, blocks['b01']) is None
+
+
+def test_every_reason_the_prefill_names_is_one_a_person_may_give():
+    from backend.conversion.store import pipeline_db
+
+    assert {'judge_false_alarm', 'reading_wrong', 'finding_on_unquoted_block', 'other'} <= set(pipeline_db.HUMAN_REASONS)
+    assert set(correction_proposal.ASSESSMENT_OF.values()) <= set(pipeline_db.JUDGE_ASSESSMENTS)

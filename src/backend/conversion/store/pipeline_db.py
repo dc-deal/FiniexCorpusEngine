@@ -121,6 +121,9 @@ HUMAN_REASONS = {
     'judge_contradicts_itself': "the judge's finding contradicts its own evidence",
     'judge_misread_name': 'the judge took a name or a term for a wrong word',
     'finding_on_unquoted_block': "the judge's finding lies on a block never quoted",
+    # the proposer's prefill names it where the image shows no error (the operator's F1.a, 21 Nov): of 11 open issues read
+    # against the image, 4 were false alarms, and "other" with a note was the only way to say so
+    'judge_false_alarm': 'the judge reported an error that is not there',
     'reading_wrong': 'the reading does not say what the page prints',
     'not_worth_reading': 'a page with nothing to quote: blank, a cover, a list of sponsors',
     'other': 'another reason, said in the note',

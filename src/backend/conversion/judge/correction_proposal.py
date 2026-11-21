@@ -193,7 +193,8 @@ def propose(knowledge_base: str, reading_key: str, block_id: str, findings: list
                       max_tokens=config.max_tokens)
     kept = store.path('corrections', key[:2], key + '.json')
     if kept.exists():
-        return json.loads(kept.read_text(encoding='utf-8'))
+        found = json.loads(kept.read_text(encoding='utf-8'))
+        return {**found, 'prefill': prefill(found, block)}
     estimate = estimate_usd(config.model, record, view, system_text)
     if spent() + GUARD_FACTOR * estimate > SPEND_CAP_USD:
         raise Refused(f'the spend guard: {spent():.2f} USD spent of the cap of {SPEND_CAP_USD:.0f}')
@@ -223,7 +224,37 @@ def propose(knowledge_base: str, reading_key: str, block_id: str, findings: list
         found.update(state='proposed', agrees_with_judge=answer['agrees_with_judge'], image_shows=answer.get('image_shows', ''),
                      correction=answer['correction'], flags=flags_of(block, answer['correction'], answer['agrees_with_judge']))
     store._write(kept, json.dumps(found, indent=1, ensure_ascii=False).encode('utf-8'))
-    return found
+    return {**found, 'prefill': prefill(found, block)}
+
+
+# What a person's verdict says when the proposal is taken as it stands (the operator's F1.a, 21 Nov: "fill with AI" fills
+# every field). The model gives only what needs the image: whether it confirms the finding, what it shows, the block as it
+# should read; fixed rules give the rest, so the same answer always fills the form alike and the rule stands written here.
+ASSESSMENT_OF = {'yes': 'right', 'partly': 'right_for_a_wrong_reason', 'no': 'false_alarm'}
+PREFILL_SAID = "filled by the model's reading of the image and the fixed rules of F1.a; nothing is recorded until a person records it"
+
+
+def prefill(found: dict, block) -> dict | None:
+    """The verdict form as the proposal fills it, or None where there is no proposal. A block left as it was: accept, the
+    judge's error not there. A block changed: accept where it is never quoted (a description, a page header), since what is
+    served stays right; reject where it is quoted, since the served page then takes its fallback until it is read again."""
+    from backend.conversion.store import served_readings
+
+    if found.get('state') != 'proposed':
+        return None
+    changed = found['correction'].strip() != block.body.strip()
+    quoted = block.cls not in served_readings.NOT_QUOTED
+    if not changed:
+        verdict, reason = 'accept', 'judge_false_alarm' if found['agrees_with_judge'] == 'no' else 'other'
+    elif quoted:
+        verdict, reason = 'reject', 'reading_wrong'
+    else:
+        verdict, reason = 'accept', 'finding_on_unquoted_block'
+    note = found.get('image_shows') or ''
+    if reason == 'other':  # the model saw the error and changed nothing: a person must look, and the note says why
+        note = f'the model agreed with the judge but proposed no change. {note}'.strip()
+    return {'verdict': verdict, 'reason': reason, 'block': block.id, 'judge_assessment': ASSESSMENT_OF[found['agrees_with_judge']],
+            'note': note, 'correction': found['correction'] if changed else None, 'said': PREFILL_SAID}
 
 
 # --- calibration: the prototype against the corrections persons already made --------------------------------------------
