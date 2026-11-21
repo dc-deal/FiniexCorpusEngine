@@ -82,10 +82,12 @@ def test_a_page_turned_away_or_a_file_held_back_is_never_sent(a_reading, monkeyp
         correction_proposal.propose('free', 'r' * 64, 'b01', [FINDING], version='correction/1', asker=never, spent=lambda: 0.0)
 
 
-def test_nothing_is_asked_without_an_active_version_or_over_the_spend_cap(a_reading):
+def test_nothing_is_asked_without_an_active_version_or_over_the_spend_cap(a_reading, monkeypatch):
     never = lambda params: pytest.fail('asked')  # noqa: E731
+    assert correction_proposal.active_version() == 'correction/2'  # the operator's M1.b, 21 Nov
+    monkeypatch.setattr(correction_proposal, 'active_version', lambda: None)  # as before a person made one active
     with pytest.raises(correction_proposal.Refused, match='no active'):
-        correction_proposal.propose('free', 'r' * 64, 'b01', [FINDING], asker=never, spent=lambda: 0.0)  # correction/1 is a prototype
+        correction_proposal.propose('free', 'r' * 64, 'b01', [FINDING], asker=never, spent=lambda: 0.0)
     with pytest.raises(correction_proposal.Refused, match='spend guard'):
         correction_proposal.propose('free', 'r' * 64, 'b01', [FINDING], version='correction/1', asker=never, spent=lambda: 199.999)
 

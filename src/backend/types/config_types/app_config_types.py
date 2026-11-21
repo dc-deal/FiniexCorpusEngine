@@ -47,7 +47,9 @@ class CorrectionConfig(StrictConfigModel):
     `prompt_versions.json`."""
 
     provider: ChatProvider = ChatProvider.ANTHROPIC  # the request carries the page image; only Anthropic's route is built
-    model: str = 'claude-sonnet-5-5'  # the reader's and the judge's model, so it reads the image as they did
+    # another model than the reader's and the judge's (the operator's M1.b, 21 Nov): on 11 open issues read against the image
+    # it was right on 9 where Sonnet, which read and judged them, was right on 6, and it told the judge's false alarms apart
+    model: str = 'claude-opus-5-5'
     max_tokens: int = 4000  # a whole table written again, its thinking included
 
 

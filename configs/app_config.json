@@ -23,7 +23,7 @@
   "correction": {
     "_comment": "The model that proposes how one block of a reading should read, from the page image and a judge's finding (the operator's W2.a, 21 Nov 2026); a person records the proposal or not, and it never enters the reading. Its instructions are the active version of the role correction in src/backend/conversion/prompt_versions.json. Only anthropic is built, since the request carries the page image; a page a provider's filter blocked or a reader refused, and a file held back from providers, are never sent.",
     "provider": "anthropic",
-    "model": "claude-sonnet-5-5",
+    "model": "claude-opus-5-5",
     "max_tokens": 4000
   },
   "router": {
