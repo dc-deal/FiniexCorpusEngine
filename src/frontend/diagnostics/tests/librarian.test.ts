@@ -34,7 +34,7 @@ const FIELDS: LibrarianField[] = [
 ]
 
 function aTool(name: string, fields: LibrarianField[] = [], overrides: Partial<LibrarianTool> = {}): LibrarianTool {
-  return { name, description: `Invented: what ${name} does. Local, no model, milliseconds, free.`, cost_said: 'local · no model · milliseconds · free',
+  return { name, label: { search: 'search (BM25)', semantic_search: 'semantic (hybrid)' }[name] ?? name, description: `Invented: what ${name} does. Local, no model, milliseconds, free.`, cost_said: 'local · no model · milliseconds · free',
     fields, folded_title: null, input_schema: {}, ...overrides }
 }
 
@@ -161,7 +161,9 @@ describe('LibrarianView (L1.a)', () => {
   it('stands every tool as a tab in the API\'s order, each with its description and its line on cost', async () => {
     const view = mountView()
     await flushPromises()
-    expect(view.findAll('[data-part="tabs"] button').map(tab => tab.text())).toEqual(['works', 'search', 'semantic_search'])
+    // the two search tools by the view's names, the code name in the tab's head (the standing rule)
+    expect(view.findAll('[data-part="tabs"] button').map(tab => tab.text())).toEqual(['works', 'search (BM25)', 'semantic (hybrid)'])
+    expect(view.find('[data-part="tool-name"]').text()).toBe('tool: works')
     // the first tab chosen
     expect(view.find('[data-tab="works"]').attributes('aria-pressed')).toBe('true')
     expect(view.find('[data-part="description"] .fold-count').text()).toBe('· local · no model · milliseconds · free')
@@ -176,6 +178,7 @@ describe('LibrarianView (L1.a)', () => {
     await router.push({ name: 'librarian', query: { tool: 'semantic_search' } })
     const view = mountView()
     await flushPromises()
+    expect(view.find('[data-part="tool-name"]').text()).toBe('tool: semantic_search')
     expect((view.find('[data-field="router"] input').element as HTMLInputElement).checked).toBe(false)
     expect(vi.mocked(callLibrarian)).not.toHaveBeenCalled()  // a tab alone calls nothing that requires an argument
     await view.find('[data-field="question"] input').setValue('what is a bond discount?')

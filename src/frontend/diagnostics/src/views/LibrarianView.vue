@@ -74,10 +74,12 @@ function run(): void {
       <!-- the tools in the server's staggered order, a tab each, first in their row so they stay under the pointer -->
       <nav v-if="tools.length" class="tabs" aria-label="The librarian's tools" data-part="tabs">
         <AppButton v-for="one in tools" :key="one.name" size="compact" :active="tool?.name === one.name" :data-tab="one.name" @click="choose(one.name)">
-          {{ one.name }}
+          {{ one.label }}
         </AppButton>
       </nav>
       <div v-if="tool" class="tool" :data-tool="tool.name">
+        <!-- the tool's code name, what a client calls, in the tab's head beside the view's name for it -->
+        <p class="tool-name" data-part="tool-name">tool: <code>{{ tool.name }}</code></p>
         <!-- the tool's own description, as the server gives it to every client, and what it costs and takes in its words -->
         <FoldSection class="description" remember="librarian.description" title="What the server says" :count="tool.cost_said" data-part="description">
           <p class="description-text">{{ tool.description }}</p>
@@ -99,7 +101,8 @@ function run(): void {
 }
 
 .lead,
-.description-text {
+.description-text,
+.tool-name {
   color: var(--color-text-secondary);
   max-width: 100ch;
 }

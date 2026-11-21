@@ -1932,3 +1932,8 @@ machine's host and pages), since `semantic_search` spends; the start command's `
 same) keeps the page from calling anything, as the browser check runs it. Measured against the running librarian, free tools
 only: the tools listed in 2.5 s with the session opened, `works` in 0.1 s, `search` in 18 ms, `toc` in 0.47 s, `page_image` in
 0.34 s. 383 unit tests, 85 checks in the browser (3 skipped on today's data), 1,557 Python tests.
+
+**The two search tools by their names in the view (21 Nov).** The standing rule names them "search (BM25)" and "semantic
+(hybrid)" in the view, the code names staying what a client calls: the Librarian's two tabs say so, and every tab's head names
+its tool as a client calls it ("tool: semantic_search"), as the address does (`tool=semantic_search`). 383 unit tests, 85 checks
+in the browser (3 skipped on today's data), 1,558 Python tests.
