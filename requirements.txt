@@ -50,6 +50,7 @@ rank-bm25==0.2.2                   # BM25Okapi, the version lesson 2 was tested 
 mcp==2.3.0                         # the official SDK, MCPServer over stdio, as in the course's workshop
 uvicorn==0.54.0                    # serves its streamable HTTP transport (--http), already pulled in by mcp
 httpx==0.28.1                      # the tests call that transport in-process; already pulled in by mcp
+httpx2==2.16.2                     # the client side of that transport, with the bearer token (L1.a); already pulled in by mcp
 
 # Tests
 pytest==9.1.1

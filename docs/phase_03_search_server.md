@@ -226,3 +226,13 @@ chat model, a stage of its own.
   refused wherever git would track it. A file that looks like another edition (the same main title, an author in common,
   no series) is flagged on the shelf (`possible_edition_of`) and changes nothing until it is linked. Every hit, every opened
   page and `works` now name the edition and year from the catalog, so a citation says which edition its page belongs to.
+- **Each tool says what it costs, takes and returns** (T1.a, the operator, 21 Nov). The server's instructions and every
+  tool's description now name the order to use them in, from cheap and exact to costly and broad, with cost and time in
+  orders of magnitude the call log keeps true (search 36 ms and semantic_search 2.0 s in the median on 21 Nov), how to read
+  a score, `relevance` and `below_floor`, that both knowledge bases are searched where given out, and what a kept edition
+  means. `semantic_search` takes `router` (true by default): false keeps the language model out of a call even without a
+  translation, so the question searches as it stands and the call costs the question's embedding alone. A test holds that
+  the instructions name every tool and each tool states its cost and time.
+- **The view calls the librarian as a client does** (L1.a, 21 Nov): `mcp_client.http_server()` reaches the running server
+  over streamable HTTP with the bearer token from .env, at LIBRARIAN_URL (the compose service `librarian:8765` from the
+  view's container, which the server's host guard now names) or this machine's 127.0.0.1:8765.

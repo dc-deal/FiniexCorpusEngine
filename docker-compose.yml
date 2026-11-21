@@ -38,6 +38,8 @@ services:
         required: false
     environment:
       - DIAGNOSTICS_VIEW_URL=http://127.0.0.1:8021
+      # the view's Librarian page calls the running librarian over MCP, as a client does (L1.a)
+      - LIBRARIAN_URL=http://librarian:8765/mcp
     depends_on:
       - librarian
     restart: unless-stopped

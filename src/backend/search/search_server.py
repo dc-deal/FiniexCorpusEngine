@@ -993,21 +993,23 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
 
     @server.tool()
     def semantic_search(question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None, *, ctx: Context) -> dict:
+                        keywords: list[str] | None = None, router: bool = True, *, ctx: Context) -> dict:
         """Search by meaning and by keywords at once, the way the chat does, over every knowledge base this server gives out
         (the licensed one beside the free one where it is given out, the two fused by rank). About two seconds; the question is
         embedded through a paid API (a fraction of a cent). Translate the question yourself for the best results and to spare
         a language model call: `search_query`, the question as a short standalone English search query in the words textbooks
         use; `concept_query`, a step back to the underlying concept as a textbook would name it; `keywords`, two to five terms
         of art. Without them the server's router, a language model, translates where it is switched on, else the question
-        searches as it stands. The passages closest in meaning and the best keyword matches are fused by rank. Returns up to
+        searches as it stands; `router` false keeps the language model out of this call even without a translation, so the
+        question searches as it stands. The passages closest in meaning and the best keyword matches are fused by rank. Returns up to
         `hits` passages (1 to 50), each a chunk of about 1,000 characters with its full text, its knowledge base, work, edition
         and year, page and section, licence and route, its score, and `view_url`, a link to the page in the diagnostics view;
         or state "declined", "nothing found" or "error". `relevance` is the best similarity of meaning found; `below_floor`
         true means it lies under the floor that parts covered questions from uncovered ones, so the books likely say nothing
         on this: say so rather than answer from the passages. Use it for a question in plain words; use `search` for exact
         terms."""
-        return logged('semantic_search', ctx, lambda: service.semantic_search(question, hits, search_query, concept_query, keywords),
+        return logged('semantic_search', ctx,
+                      lambda: service.semantic_search(question, hits, search_query, concept_query, keywords, route=router),
                       query=question, hits=hits)
 
     @server.tool()
@@ -1029,7 +1031,8 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
 
 TOKEN_ENV = 'CORPUS_SEARCH_TOKEN'
 # A container reaches a service of the host as host.docker.internal; the package's DNS-rebinding guard must know that name.
-ALLOWED_HOSTS = ['127.0.0.1:*', 'localhost:*', 'host.docker.internal:*']
+# The diagnostics view's container reaches the librarian by its compose service name (the operator's L1.a, 21 Nov).
+ALLOWED_HOSTS = ['127.0.0.1:*', 'localhost:*', 'host.docker.internal:*', 'librarian:*']
 
 
 class BearerGate:

@@ -55,6 +55,31 @@ def stdio_server(public_only: bool = False, frozen_plans: Path | None = None) ->
                                            *(['--frozen-plans', str(frozen_plans)] if frozen_plans else [])])
 
 
+LIBRARIAN_URL_ENV = 'LIBRARIAN_URL'
+DEFAULT_LIBRARIAN_URL = 'http://127.0.0.1:8765/mcp'
+
+
+def http_server(url: str | None = None, token: str | None = None):
+    """The running librarian over streamable HTTP, as an IDE session reaches it: `url` from LIBRARIAN_URL (the view's
+    container names the compose service, librarian:8765), else this machine's 127.0.0.1:8765, and the bearer token the
+    server's gate asks for from .env (the operator's L1.a, 21 Nov: the view's Librarian page calls the tools as a client
+    does, so what it shows is what a client gets)."""
+    import os
+
+    import httpx2
+    from dotenv import load_dotenv
+    from mcp.client.streamable_http import streamable_http_client
+
+    from backend.search.search_server import TOKEN_ENV
+
+    load_dotenv(REPO / '.env')
+    token = token or os.environ.get(TOKEN_ENV)
+    if not token:
+        raise RuntimeError(f'set {TOKEN_ENV} in .env first: the librarian answers no HTTP call without it')
+    client = httpx2.AsyncClient(headers={'Authorization': f'Bearer {token}'}, timeout=CALL_SECONDS)
+    return streamable_http_client(url or os.environ.get(LIBRARIAN_URL_ENV) or DEFAULT_LIBRARIAN_URL, http_client=client)
+
+
 class SearchClient:
     """One session with the search server, held in a background thread; `call` and the tools are synchronous."""
 

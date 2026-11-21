@@ -65,3 +65,37 @@ def test_an_evaluation_run_names_itself_apart_from_the_chat(tmp_path, capsys):
 
 def test_a_list_the_server_returns_arrives_whole(client):
     assert [work['work'] for work in client.call('works', {})['result']] == ['free-book']
+
+
+def test_the_running_librarian_is_reached_over_http_with_its_token(monkeypatch):
+    # L1.a (the operator, 21 Nov): the view's Librarian page calls the tools as an IDE session does, over HTTP with the token
+    import pytest
+    from mcp.client import streamable_http
+
+    from backend.chat import mcp_client
+
+    asked = {}
+    monkeypatch.setattr(streamable_http, 'streamable_http_client',
+                        lambda url, http_client=None: asked.update(url=url, auth=http_client.headers.get('authorization')))
+    monkeypatch.setattr('dotenv.load_dotenv', lambda *args, **kwargs: None)
+    monkeypatch.delenv('LIBRARIAN_URL', raising=False)
+    monkeypatch.setenv('CORPUS_SEARCH_TOKEN', 'a-test-token')
+    mcp_client.http_server()
+    assert asked == {'url': 'http://127.0.0.1:8765/mcp', 'auth': 'Bearer a-test-token'}
+    monkeypatch.setenv('LIBRARIAN_URL', 'http://librarian:8765/mcp')
+    mcp_client.http_server()
+    assert asked['url'] == 'http://librarian:8765/mcp'
+    monkeypatch.delenv('CORPUS_SEARCH_TOKEN')
+    with pytest.raises(RuntimeError, match='CORPUS_SEARCH_TOKEN'):
+        mcp_client.http_server()
+
+
+def test_a_client_may_keep_the_router_out_of_a_semantic_search():
+    import asyncio
+
+    from backend.search import search_server
+    from test_search_server import service
+
+    server = search_server.build_server(service(), None)
+    schema = next(tool.input_schema for tool in asyncio.run(server.list_tools()) if tool.name == 'semantic_search')
+    assert schema['properties']['router']['default'] is True
