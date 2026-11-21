@@ -35,7 +35,11 @@ const props = withDefaults(defineProps<{
   // quoted one in the form the search and the chat quote; with the page's chunks, where each begins and what it shares (W4)
   asServed?: boolean
   chunks?: PageChunks | null
-}>(), { highlight: null, errors: () => [], asServed: false, chunks: null })
+  // a person's verdict is taken here (V1.a): a ⚖ at each block opens the verdict panel on it, always shown on a block with a
+  // finding and on the pointer or the keyboard's focus otherwise; the block the open panel is about is outlined
+  verdicts?: boolean
+  verdictBlock?: string | null
+}>(), { highlight: null, errors: () => [], asServed: false, chunks: null, verdicts: false, verdictBlock: null })
 
 // each quoted block's served form in the runs the API cut it into by the chunks; without them, the form whole
 const servedParts = computed(() => new Map((props.chunks?.blocks ?? []).map(block => [block.block, block.parts])))
@@ -93,6 +97,8 @@ const emit = defineEmits<{
   jump: [id: string]
   // a validator's error asks for its line in the raw text (228.a)
   raw: [line: number]
+  // a block's ⚖ asks for the verdict panel on it (V1.a)
+  verdict: [id: string]
 }>()
 
 const list = ref<HTMLElement | null>(null)
@@ -186,7 +192,7 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
       :key="block.id"
       class="block"
       :class="[block.group, { highlighted: block.id === highlight, 'has-findings': block.findings.length > 0,
-                              'not-served': asServed && !block.served }]"
+                              'not-served': asServed && !block.served, 'verdict-about': block.id === verdictBlock }]"
       :data-block="block.id"
       @mouseenter="emit('hover', block.id)"
       @mouseleave="emit('hover', null)"
@@ -196,6 +202,17 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
         <span class="block-class">{{ block.block_class }}</span>
         <span v-if="shownAttrs(block)" class="block-attrs">{{ shownAttrs(block) }}</span>
         <span v-if="block.content === 'D'" class="derived">derived, never quoted</span>
+        <AppButton
+          v-if="verdicts"
+          variant="quiet"
+          size="compact"
+          glyph
+          class="verdict-mark"
+          :class="{ always: block.findings.some(finding => !finding.void) }"
+          :aria-label="`A verdict on ${block.id}`"
+          data-part="verdict-mark"
+          @click.stop="emit('verdict', block.id)"
+        >⚖</AppButton>
       </div>
       <!-- a person's correction first, as the block's content (229.a): a table's as a table, any other as its text -->
       <div v-if="block.correction" class="standing-correction" data-part="standing-correction">
@@ -297,6 +314,24 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
 /* as served: a block never quoted recedes, still to be read; a quoted one in its served form, as the search holds it */
 .block.not-served {
   opacity: 0.45;
+}
+
+/* the block the open verdict panel is about, outlined as its frame on the image is */
+.block.verdict-about {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* a block's ⚖ at the end of its head: always where it has a finding, else on the pointer and the keyboard's focus */
+.verdict-mark {
+  margin-left: auto;
+  visibility: hidden;
+}
+
+.block:hover .verdict-mark,
+.block:focus-within .verdict-mark,
+.verdict-mark.always {
+  visibility: visible;
 }
 
 .served-form {

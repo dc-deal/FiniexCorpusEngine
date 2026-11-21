@@ -1847,7 +1847,7 @@ test('a line break in a table cell is drawn as a line, and a table without one a
 // --allow-verdicts, so a page has no control and the one write route refuses. The dialog's look is checked with the form
 // answered as a switched-on app answers it and the correction's preview answered with the cells the API gives for the
 // block, and nothing is ever sent. The page is found at run time: one whose first finding names a table
-test('a page offers no verdict where the app is read-only, and the dialog opens on the finding\'s block, never sending', async ({ page, request }) => {
+test('a page offers no verdict where the app is read-only, and the panel opens over the page on a block, moving nothing, never sending (V1.a)', async ({ page, request }) => {
   type Block = { id: string, block_class: string, body?: string | null, rows: unknown[] | null,
     correction: { text: string, rows: unknown[] | null } | null }
   type Detail = { focus?: string | null, reading: { blocks: Block[] } | null }
@@ -1869,9 +1869,11 @@ test('a page offers no verdict where the app is read-only, and the dialog opens 
   // the field starts from the correction that stands for the block (229.a), else from the block's own text
   const prefill = found!.block.correction?.text ?? found!.block.body ?? ''
   const cells = found!.block.correction ? found!.block.correction.rows : found!.block.rows
+  await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto(`/#/free/sources/${found!.work}/page/${found!.page}`)
   await settled(page)
   await expect(page.locator('[data-part="give-verdict"]')).toHaveCount(0)
+  await expect(page.locator('[data-part="verdict-mark"]')).toHaveCount(0)
 
   let sent = 0
   await page.route('**/api/verdict', route => {
@@ -1879,25 +1881,64 @@ test('a page offers no verdict where the app is read-only, and the dialog opens 
       sent++
       return route.abort()
     }
-    return route.fulfill({ json: { ...form, enabled: true, why_not: null } })
+    return route.fulfill({ json: { ...form, enabled: true, why_not: null, propose: { available: false, why_not: 'no active correction version' } } })
   })
   await page.route('**/api/verdict/preview', route => route.fulfill({ json: { rows: cells } }))
+  await page.route('**/api/verdict/propose', route => {
+    sent++
+    return route.abort()
+  })
   await page.reload()
   await settled(page)
-  await page.locator('[data-part="give-verdict"]').click()
-  const dialog = page.locator('[data-part="verdict-dialog"]')
-  await expect(dialog).toBeVisible()
-  await expect(dialog.locator('[data-part="block"]')).toHaveValue(found!.block.id)
-  await expect(dialog.locator('[data-part="correction-field"]')).toHaveValue(prefill)
-  if (cells?.length) await expect(dialog.locator('[data-part="correction-preview"] table.cells tr')).toHaveCount(cells.length)
+  // where everything stands before the panel opens
+  const places = async () => page.evaluate(() => [...['.view-title', '[data-part="page-facts"]', '.reading', '.original-pane'].map(selector => {
+    const box = document.querySelector(selector)?.getBoundingClientRect()
+    return box ? [Math.round(box.x), Math.round(box.y), Math.round(box.width), Math.round(box.height)].join(',') : 'none'
+  }), `page ${document.documentElement.scrollHeight}`])
+  const before = await places()
+  // the ⚖ on the block the finding names, always shown there, opens the panel on that block
+  await page.locator(`[data-block="${found!.block.id}"] [data-part="verdict-mark"]`).click()
+  const panel = page.locator('[data-part="verdict-panel"]')
+  await expect(panel).toBeVisible()
+  expect(await places(), 'the panel moved the page').toEqual(before)
+  // once it has slid in (160 ms), it stands against the window's right edge
+  await expect.poll(async () => { const box = (await panel.boundingBox())!; return Math.round(box.x + box.width) }).toBe(1280)
+  // nothing laid over the rest of the page: a point left of the panel is the page's own, and the page still scrolls
+  expect(await page.evaluate(() => document.elementFromPoint(40, 450)?.closest('.page-view') !== null), 'a backdrop covers the page').toBe(true)
+  const scrolled = await page.evaluate(async () => {
+    const from = window.scrollY
+    window.scrollBy(0, 120)
+    await new Promise(resolve => requestAnimationFrame(resolve))
+    return window.scrollY !== from || document.documentElement.scrollHeight <= window.innerHeight
+  })
+  expect(scrolled, 'the page beneath does not scroll').toBe(true)
+  await expect(page.locator(`[data-block="${found!.block.id}"]`)).toHaveClass(/verdict-about/)
+  await expect(panel.locator('[data-part="block"]')).toHaveValue(found!.block.id)
+  await expect(panel.locator('[data-part="current-text"]')).toHaveText(prefill)
+  await expect(panel.locator('[data-part="correction-field"]')).toHaveValue(prefill)
+  if (cells?.length) await expect(panel.locator('[data-part="correction-preview"] table.cells tr')).toHaveCount(cells.length)
+  // ✦ propose says why it cannot, and asks nothing
+  await expect(panel.locator('[data-part="propose"]')).toBeDisabled()
+  await expect(panel.locator('[data-part="propose-why-not"]')).toHaveText('no active correction version')
   // a verdict and a reason before it can be sent; chosen here, and still not sent
-  await expect(dialog.locator('[data-part="send"]')).toBeDisabled()
-  await dialog.locator('[data-verdict="note"]').click()
-  await dialog.locator('[data-part="reason"]').selectOption('reading_wrong')
-  await expect(dialog.locator('[data-part="send"]')).toBeEnabled()
-  await dialog.screenshot({ path: `${SHOTS}/verdict_dialog.png` })
-  await dialog.locator('[data-part="cancel"]').click()
-  await expect(dialog).toHaveCount(0)
+  await expect(panel.locator('[data-part="send"]')).toBeDisabled()
+  await panel.locator('[data-verdict="note"]').click()
+  await panel.locator('[data-part="reason"]').selectOption('reading_wrong')
+  await expect(panel.locator('[data-part="send"]')).toBeEnabled()
+  await page.screenshot({ path: `${SHOTS}/verdict_panel.png` })
+  // Esc with a change asks before it is lost; Keep keeps it, Close closes
+  await page.keyboard.press('Escape')
+  await expect(panel.locator('[data-part="panel-ask"]')).toBeVisible()
+  await panel.locator('[data-part="discard"]').click()
+  await expect(panel).toHaveCount(0)
+  // on a phone it comes from the window's foot, as wide as the window
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.locator('[data-part="give-verdict"]').click()
+  await expect.poll(async () => {
+    const narrow = (await page.locator('[data-part="verdict-panel"]').boundingBox())!
+    return [Math.round(narrow.x), Math.round(narrow.width), Math.round(narrow.y + narrow.height)]
+  }).toEqual([0, 390, 800])
+  await page.screenshot({ path: `${SHOTS}/verdict_panel_390.png` })
   expect(sent).toBe(0)
 })
 

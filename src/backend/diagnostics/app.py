@@ -565,6 +565,13 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 
+    @app.post('/api/verdict/propose', dependencies=[Depends(verdicts.guarded)])
+    def propose_correction(asked: verdicts.ProposalRequest) -> verdicts.Proposal:
+        """✦ propose (W2.a): a model's correction of one block, asked of the core with the judge's findings on it, kept by
+        the core and answered again from its store for free; never recorded by itself. 409 with the core's reason where it
+        sends nothing; 403 unless the app was started with --allow-verdicts or where the request comes from elsewhere."""
+        return judged.propose(asked)
+
     @app.post('/api/verdict/preview', dependencies=[Depends(verdicts.guarded)])
     def preview_correction(asked: verdicts.PreviewRequest) -> verdicts.TablePreview:
         """A correction's text as the table it would be (204.a's path), for the dialog to show before it is sent; writes

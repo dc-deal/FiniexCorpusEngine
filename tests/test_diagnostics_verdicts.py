@@ -104,3 +104,86 @@ def test_a_block_carries_its_body_for_the_correction_to_start_from():
     page = readings.Readings().page(FINANCE, 94, 'Finance')
     b05 = next(block for block in page.reading.blocks if block.id == 'b05')
     assert b05.body and b05.body.strip() in page.raw
+
+
+def test_the_form_says_whether_a_correction_can_be_proposed_and_why_not(given, monkeypatch):
+    # W2.a, 21 Nov: no version of the role is active until a person makes one so after its gate
+    client, _ = given
+    monkeypatch.setattr(verdicts.correction_proposal, 'active_version', lambda: None)
+    assert client.get('/api/verdict').json()['propose'] == {'available': False, 'why_not': 'no active correction version'}
+    monkeypatch.setattr(verdicts.correction_proposal, 'active_version', lambda: 'correction/2')
+    assert client.get('/api/verdict').json()['propose'] == {'available': True, 'why_not': None}
+    off = TestClient(create_app(public_only=True), base_url='http://127.0.0.1:8001')
+    assert off.get('/api/verdict').json()['propose']['available'] is False
+
+
+def a_finding_block(client) -> tuple[int, dict]:
+    """A free page of finance with a block the judge found something on, from the API, and that block."""
+    for row in readings.Readings().rows_of(FINANCE):
+        detail = client.get(f"/api/free/works/{FINANCE}/pages/{row['pdf_page']}").json()
+        for block in (detail['reading'] or {}).get('blocks', []):
+            if any(not finding['void'] for finding in block['findings']):
+                return row['pdf_page'], block
+    pytest.skip('no page of finance holds a block with a finding today')
+
+
+@pytest.mark.readings
+def test_a_proposal_is_asked_of_the_core_with_the_block_s_findings_and_never_recorded(given, monkeypatch):
+    client, recorded = given
+    pdf_page, block = a_finding_block(client)
+    asked = []
+
+    def propose(knowledge_base, reading_key, block_id, findings, **kwargs):
+        asked.append((knowledge_base, block_id, findings))
+        # invented: a proposal that keeps the block's words and adds a few
+        return {'state': 'proposed', 'agrees_with_judge': 'partly', 'image_shows': 'an invented reading of the image',
+                'correction': f"{block['body']} and an invented end", 'flags': ['large change'], 'cost_usd': 0.0123,
+                'version': 'correction/2', 'model': 'an-invented-model',
+                'prefill': {'verdict': 'reject', 'reason': 'reading_wrong', 'block': block_id, 'judge_assessment': 'right_for_a_wrong_reason',
+                            'note': 'an invented reading of the image', 'correction': f"{block['body']} and an invented end",
+                            'said': 'filled by an invented model; nothing is recorded until a person records it'}}
+
+    monkeypatch.setattr(verdicts.correction_proposal, 'propose', propose)
+    answer = client.post('/api/verdict/propose', json={'knowledge_base': 'free', 'work': FINANCE, 'pdf_page': pdf_page,
+                                                       'block': block['id']}, headers=LOCAL)
+    assert answer.status_code == 200
+    proposal = answer.json()
+    assert (proposal['state'], proposal['agrees_said'], proposal['flags'], proposal['cost_usd']) == (
+        'proposed', 'partly agrees with the judge', ['large change'], 0.0123)
+    # the judge's findings on the block, from the page's own data, void ones left out, never from the browser
+    assert asked == [('free', block['id'], [{'kind': finding['kind'], 'severity': finding['severity'], 'evidence': finding['evidence']}
+                                            for finding in block['findings'] if not finding['void']])]
+    # the block's current text against the proposal, word by word: what it keeps, then what it adds
+    assert proposal['diff'][-1] == {'kind': 'added', 'text': ' and an invented end'}
+    assert ''.join(part['text'] for part in proposal['diff'] if part['kind'] != 'added') == (block['correction'] or {}).get('text', block['body'])
+    # the whole verdict as the proposal fills it (F1.a), passed on as the core gave it
+    assert proposal['prefill'] == {'verdict': 'reject', 'reason': 'reading_wrong', 'block': block['id'],
+                                   'judge_assessment': 'right_for_a_wrong_reason', 'note': 'an invented reading of the image',
+                                   'correction': f"{block['body']} and an invented end",
+                                   'said': 'filled by an invented model; nothing is recorded until a person records it'}
+    assert recorded == []  # nothing recorded by a proposal
+
+
+@pytest.mark.readings
+def test_a_proposal_the_core_refuses_says_its_reason_and_one_from_elsewhere_is_refused(given, monkeypatch):
+    client, _ = given
+    pdf_page, block = a_finding_block(client)
+
+    def refuse(*args, **kwargs):
+        raise verdicts.correction_proposal.Refused('no active correction version: a person makes one active after its gate')
+
+    monkeypatch.setattr(verdicts.correction_proposal, 'propose', refuse)
+    asked = {'knowledge_base': 'free', 'work': FINANCE, 'pdf_page': pdf_page, 'block': block['id']}
+    refused = client.post('/api/verdict/propose', json=asked, headers=LOCAL)
+    assert refused.status_code == 409 and refused.json()['detail'].startswith('no active correction version')
+    assert client.post('/api/verdict/propose', json={**asked, 'block': 'b999'}, headers=LOCAL).status_code == 404
+    elsewhere = client.post('/api/verdict/propose', json=asked, headers={**LOCAL, 'origin': 'https://elsewhere.example'})
+    assert elsewhere.status_code == 403
+    off = TestClient(create_app(public_only=True), base_url='http://127.0.0.1:8001')
+    assert off.post('/api/verdict/propose', json=asked, headers=LOCAL).status_code == 403
+
+
+def test_a_diff_keeps_what_both_hold_and_marks_what_is_taken_out_and_put_in():
+    parts = verdicts.word_diff('The rate is 1.043 per year.', 'The rate is 1.034 per year.')
+    assert [(part.kind, part.text) for part in parts] == [('same', 'The rate is '), ('removed', '1.043'), ('added', '1.034'),
+                                                          ('same', ' per year.')]

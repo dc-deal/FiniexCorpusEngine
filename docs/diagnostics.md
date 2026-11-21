@@ -1874,3 +1874,18 @@ line with what it shares with the chunk before, a chunk begun on the page before
 foot. A chunk is placed by its text in its section's text, and the page's quoted text in that section the same way, never by an
 offset; one that cannot be placed is said in words and never drawn. The page's image stays as it was. 409 unit tests, 86 checks
 in the browser (3 skipped on today's data), 1,539 Python tests.
+
+**A verdict beside the page, and the form filled with AI (the operator's V1.a, W2.a, F1.a, 21 Nov).** The verdict's form stood
+inside the page and moved it, "nothing I hate more". It is now a panel that slides in from the window's right edge, from its
+foot on a narrow screen, and stands over the page without moving it; the page beneath stays to be scrolled and clicked. "Give a
+verdict" opens it on the page as a whole, a ⚖ at each block of the reading on that block (always shown where the block has a
+finding, on the pointer and the keyboard's focus otherwise), and a ⚖ on another block while it is open turns it there. While it
+is open, the block it is about is outlined on the image and in the reading, and the panel shows the block's text read only above
+the correction, so nothing behind it is needed. Esc and Close shut it, and where a change would be lost it asks first, as it
+does before turning. For a block, "✦ fill with AI" asks the core for a model's proposal and fills the whole form from it, every
+field still the person's to change: the verdict, its reason, the judge's assessment and the note by the core's fixed rules and
+the model's reading of the image, the correction by the model; beside it what the model sees in the image, whether it agrees
+with the judge, its flags ("the image shows no such error" in the warning role), the block's text against the proposal word by
+word and what the proposal cost. Nothing is recorded until a person records it; where the core sends nothing (no active version,
+a file held back, the spend guard), the button says why. 414 unit tests, 86 checks in the browser (3 skipped on today's data),
+1,553 Python tests.

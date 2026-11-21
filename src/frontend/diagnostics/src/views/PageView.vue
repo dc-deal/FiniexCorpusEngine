@@ -30,7 +30,7 @@ import RecordZone from '@/components/base/RecordZone.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import PersonVerdictList from '@/components/PersonVerdictList.vue'
 import ReaderRuleList from '@/components/ReaderRuleList.vue'
-import VerdictDialog from '@/components/VerdictDialog.vue'
+import VerdictPanel from '@/components/VerdictPanel.vue'
 import ReadingBlocks from '@/components/reading/ReadingBlocks.vue'
 import ReasonList from '@/components/ReasonList.vue'
 import StateMark from '@/components/StateMark.vue'
@@ -73,14 +73,21 @@ const hovered = ref<string | null>(null)
 const pane = ref<HTMLElement | null>(null)
 const boxElement = ref<HTMLElement | null>(null)
 const readingBlocks = ref<InstanceType<typeof ReadingBlocks> | null>(null)
-const verdictOpen = ref(false)
+// the verdict panel (V1.a): closed (null), or open on the whole page ('') or on a block; the panel itself asks before it
+// turns where a change would be lost
+const verdictTarget = ref<string | null>(null)
+const verdictPanel = ref<InstanceType<typeof VerdictPanel> | null>(null)
+function openVerdict(target: string): void {
+  if (verdictTarget.value === null || !verdictPanel.value) verdictTarget.value = target
+  else verdictPanel.value.retarget(target)
+}
 const analysis = ref<InstanceType<typeof AnalysisSection> | null>(null)
 const address = useRoute()
 
 watch(() => [props.kb, props.work, props.page] as const, ([kb, work, page]) => {
   highlight.value = null
   hovered.value = null
-  verdictOpen.value = false
+  verdictTarget.value = null
   rawLine.value = null
   void store.loadPage(kb, work, page)
 }, { immediate: true })
@@ -116,7 +123,7 @@ const verdictStore = useVerdictStore()
 void verdictStore.loadForm()
 const verdictsTaken = computed(() => Boolean(verdictStore.form?.enabled) && !recallId.value)
 function verdictRecorded(): void {
-  verdictOpen.value = false
+  verdictTarget.value = null
   void store.reloadPage(props.kb, props.work, props.page)
 }
 const recalled = computed(() => (recallId.value ? store.recallOf(props.kb, props.work, props.page, recallId.value) : null))
@@ -368,7 +375,7 @@ async function showBlock(id: string): Promise<void> {
  * without either draws no frame.
  */
 const box = computed(() => {
-  const id = hovered.value ?? highlight.value
+  const id = hovered.value ?? highlight.value ?? (verdictTarget.value || null)
   const blocks = analysisReading.value?.blocks ?? []
   const block = blocks.find(candidate => candidate.id === id)
   const [width, height] = analysisSize.value
@@ -468,7 +475,7 @@ watch(box, async () => {
             <span>Recalled: {{ recalled ? recalled.said : recallError ? 'a judgement this page does not have' : 'a judgement' }}</span>
             <RouterLink :to="standing" class="show-standing" data-part="show-standing">Show standing</RouterLink>
           </p>
-          <AppButton v-if="verdictsTaken" size="compact" :active="verdictOpen" data-part="give-verdict" @click="verdictOpen = !verdictOpen">
+          <AppButton v-if="verdictsTaken" size="compact" :active="verdictTarget !== null" data-part="give-verdict" @click="openVerdict('')">
             Give a verdict
           </AppButton>
         </header>
@@ -558,8 +565,6 @@ watch(box, async () => {
                served folded until asked for -->
           <LabelledLine v-if="shown.ladder" label="Coverage" data-part="page-coverage"><PageLadderLines :ladder="shown.ladder" /></LabelledLine>
         </LabelledLines>
-        <VerdictDialog v-if="verdictsTaken && verdictOpen && verdictStore.form" :page="shown" :knowledge-base="kb" :work="work"
-                       :form="verdictStore.form" @close="verdictOpen = false" @recorded="verdictRecorded" />
 
         <!-- the findings about the page as a whole, a person's verdict on the whole page that applies to this reading the last
              voice (178.a) -->
@@ -924,6 +929,9 @@ watch(box, async () => {
               :errors="analysisReading.error_places ?? []"
               :as-served="servedMode"
               :chunks="servedMode ? chunks : null"
+              :verdicts="verdictsTaken"
+              :verdict-block="verdictTarget || null"
+              @verdict="openVerdict"
               @hover="hovered = $event"
               @jump="showBlock"
               @raw="showRaw"
@@ -936,6 +944,19 @@ watch(box, async () => {
         </div>
       </div>
     </AnalysisSection>
+    <!-- the verdict beside the page, over it, the page beneath unmoved (V1.a) -->
+    <VerdictPanel
+      v-if="verdictsTaken && verdictTarget !== null && verdictStore.form && shown"
+      ref="verdictPanel"
+      :page="shown"
+      :knowledge-base="kb"
+      :work="work"
+      :form="verdictStore.form"
+      :target="verdictTarget"
+      @close="verdictTarget = null"
+      @recorded="verdictRecorded"
+      @target="verdictTarget = $event"
+    />
   </section>
 </template>
 
