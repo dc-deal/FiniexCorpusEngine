@@ -81,3 +81,31 @@ def test_an_input_the_record_refuses_is_a_value_error_the_view_can_answer(a_base
     with pytest.raises(ValueError):
         human_verdict.record(a_base, **given)
     assert ('w.pdf', 7) not in pipeline_db.human_verdicts('free')
+
+
+def test_the_status_says_since_when_an_export_runs_and_how_long_one_usually_takes(tmp_path, monkeypatch):
+    # E1.a (the operator, 21 Nov): a person who records a verdict is told how long it waits for the export
+    import sqlite3
+    import threading
+
+    from backend.conversion.store import pipeline_db
+
+    database = tmp_path / 'pipeline.sqlite3'
+    with pipeline_db.connect('free', database) as db:
+        rows = [('python -m backend.conversion.store.reading_export --knowledge-base free', '2026-11-20T10:00:00+00:00', '2026-11-20T10:05:00+00:00'),
+                ('python -m backend.conversion.store.reading_export --knowledge-base free', '2026-11-19T10:00:00+00:00', '2026-11-19T10:03:00+00:00'),
+                (export_queue.VIEW_COMMAND.format('free'), '2026-11-21T10:00:00+00:00', '2026-11-21T10:10:00+00:00')]
+        for command, started, ended in rows:
+            db.execute("INSERT INTO runs (knowledge_base, command, started_at, ended_at, outcome) VALUES ('free', ?, ?, ?, 'ok')",
+                       (command, started, ended))
+    assert export_queue.expected_seconds('free', database) == 600  # the view's own runs first: its container is slower
+    monkeypatch.setattr(export_queue, 'expected_seconds', lambda name: 600)
+    release = threading.Event()
+    queue = export_queue.ExportQueue(reading_export.BASES['free'], run=lambda: release.wait(5))
+    queue.request()
+    running = queue.status()
+    assert running['running'] and running['started_at'] and running['expected_seconds'] == 600
+    release.set()
+    assert queue.wait(5)
+    idle = queue.status()
+    assert idle['started_at'] is None and idle['expected_seconds'] is None
