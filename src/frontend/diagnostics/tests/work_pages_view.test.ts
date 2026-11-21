@@ -345,19 +345,19 @@ describe('WorkPagesView', () => {
     expect(view.find('.summary .page-jump input').exists()).toBe(true)
   })
 
-  it('says its record in labelled lines as a page does, the jump named by its line (219.a)', async () => {
+  it('says its record in the rows a page\'s record has, the jump named by its line (219.a, H1.a)', async () => {
     vi.mocked(getWorkPages).mockResolvedValue(aWorkPages([aPageRow({ pdf_page: 1 }), aPageRow({ pdf_page: 4 })]))
     const view = mountView()
     await flushPromises()
-    const labels = view.findAll('[data-part="work-facts"] .line-label').map(label => label.text())
+    const labels = view.findAll('[data-part="work-facts"] .fold-label').map(label => label.text())
     expect(labels).toEqual(['Work:', 'Pages:', 'States:', 'PDF page:'])
     // the jump's field named for a reader that cannot see the line's label
     expect(view.find('[data-label="PDF page"] .page-jump-label').exists()).toBe(false)
     expect(view.find('[data-label="PDF page"] input').attributes('aria-label')).toBe('PDF page')
-    // the head's grid holds its label column to the page head's ten characters
-    const widths = view.findAll('[data-part="work-facts"] .labelled-lines').map(grid => grid.attributes('style'))
+    // the head's rows hold their label column to the page record's
+    const widths = view.findAll('[data-part="work-facts"] .record-rows').map(grid => grid.attributes('style'))
     expect(widths.length).toBe(1)
-    expect(widths.every(style => style?.includes('--label-width: 10ch'))).toBe(true)
+    expect(widths.every(style => style?.includes('--label-width: 17ch'))).toBe(true)
   })
 
   it('says so when a work has no page readings', async () => {

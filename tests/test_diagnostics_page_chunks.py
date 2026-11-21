@@ -1,6 +1,7 @@
-"""A page "as served" (the operator, 21 Nov): each quoted block in the form the search and the chat quote, and the page's chunks
-of semantic search placed in it by their text, never by an offset (W4). Every page, chunk and index here is invented, the
-route's test excepted, which takes a free page's own served text and invents the index around it."""
+"""A page "as served", chunk first (the operator, 21 Nov): the page as the chunks semantic search holds of it, each a group of
+the quoted blocks it holds in the form the search and the chat quote, placed by their text, never by an offset. Every page,
+chunk and index here is invented, the route's test excepted, which takes a free page's own served text and invents the index
+around it."""
 
 import json
 import sqlite3
@@ -58,36 +59,58 @@ def test_a_page_is_found_in_a_section_as_a_whole_at_its_end_at_its_start_or_hold
     assert page_chunks.page_part('Another text altogether.', PAGE) is None
 
 
-def test_chunks_are_placed_by_their_text_one_running_over_each_edge_and_one_that_cannot_be_placed_is_said(tmp_path):
+def runs_of(block: page_chunks.ChunkBlock) -> tuple:
+    return block.block, block.part, [(run.text, run.shared) for run in block.runs]
+
+
+def test_each_chunk_is_a_group_of_the_blocks_it_holds_a_split_block_in_both_and_their_overlap_in_both(tmp_path):
     before, after = 'The page before ends here.\n\n', '\n\nThe next page begins.'
     section = before + PAGE + after
-    chunks = [('c1', 's1', 'ends here.\n\nThe bet grows the bankroll.', {'pdf_page': 6, 'pdf_page_end': 7, 'tokens': 9}),
-              ('c2', 's1', 'bankroll.\n\nA fraction of it is staked.', {'pdf_page': 7, 'tokens': 11}),
+    # A runs in from p. 6 and ends inside b01; B shares its last word and holds the rest of b01 and all of b03; C runs on to
+    # p. 8; the fourth stands in no page of the section
+    chunks = [('c1', 's1', 'ends here.\n\nThe bet grows', {'pdf_page': 6, 'pdf_page_end': 7, 'tokens': 6}),
+              ('c2', 's1', 'grows the bankroll.\n\nA fraction of it is staked.', {'pdf_page': 7, 'tokens': 11}),
               ('c3', 's1', 'The rest is held back.\n\nThe next page', {'pdf_page': 7, 'pdf_page_end': 8, 'tokens': 8}),
               ('c4', 's1', 'A sentence no page of it holds.', {'pdf_page': 7, 'tokens': 6})]
     database = an_index(tmp_path / 'index.sqlite3', chunks, {'s1': section})
     answer = page_chunks.page_chunks('free', 'a_work', 7, BLOCKS, database, 'a_work', 'not in the index')
-    assert [(chunk.number, chunk.id, chunk.start, chunk.end, chunk.overlap, chunk.continues_from, chunk.continues_on)
-            for chunk in answer.chunks] == [
-        (1, 'c1', 0, 27, 0, 6, None), (2, 'c2', 18, 56, 9, None, None), (3, 'c3', 58, 80, 0, None, 8), (4, 'c4', None, None, 0, None, None)]
-    assert answer.not_placed == "1 chunk of this page could not be placed in its quoted text"
-    # the count the page's semantic level gives: those that begin on it, the one run on from p. 6 apart
-    assert answer.count_said == '3 chunks of semantic search begin on this page'
-    # each quoted block in runs: where a chunk begins, and the text two chunks share
-    runs = {block.block: [(part.text, part.chunk, part.shared, part.starts) for part in block.parts] for block in answer.blocks}
-    assert runs['b01'] == [('The bet grows the ', 1, False, 1), ('bankroll.', 2, True, 2)]
-    assert runs['b03'] == [('A fraction of it is staked.', 2, False, None)]
-    assert runs['b04'] == [('The rest is held back.', 3, False, 3)]  # it began in the space between two blocks: it begins here
-    assert 'b02' not in runs  # never quoted, so in no chunk
+    assert answer.head_said == 'this page lies in 3 chunks: A runs in from p. 6; B, C begin here'
+    assert [(group.letter, group.id, group.head) for group in answer.groups] == [
+        ('A', 'c1', ['runs in from p. 6', '25 characters', 'pp. 6–7']),
+        ('B', 'c2', ['48 characters', 'p. 7', 'shares 5 characters with A']),
+        ('C', 'c3', ['37 characters', 'pp. 7–8', 'runs on to p. 8'])]
+    a, b, c = answer.groups
+    # the block A splits stands in both with its part, the word the two share in both and marked shared
+    assert [runs_of(block) for block in a.blocks] == [('b01', True, [('The bet ', False), ('grows', True)])]
+    assert [runs_of(block) for block in b.blocks] == [('b01', True, [('grows', True), (' the bankroll.', False)]),
+                                                     ('b03', False, [('A fraction of it is staked.', False)])]
+    assert [runs_of(block) for block in c.blocks] == [('b04', False, [('The rest is held back.', False)])]
+    # the block never quoted is in no chunk and nowhere in the mode; all the quoted text is in a chunk
+    assert 'b02' not in {block.block for group in answer.groups for block in group.blocks} and answer.outside == []
+    assert answer.not_placed == '1 chunk of this page could not be placed in its quoted text'
+    assert (a.runs_in_from, a.runs_on_to, b.shares, b.shares_with, c.runs_on_to) == (6, None, 5, 'A', 8)
 
 
-def test_a_page_with_no_chunk_or_no_index_says_why_and_still_shows_its_served_forms(tmp_path):
+def test_quoted_text_no_chunk_holds_is_listed_apart_and_a_kept_edition_s_chunks_say_they_are_held_back(tmp_path):
+    database = an_index(tmp_path / 'index.sqlite3', [('c1', 's1', 'The bet grows the bankroll.', {'pdf_page': 7})], {'s1': PAGE})
+    answer = page_chunks.page_chunks('free', 'a_work', 7, BLOCKS, database, 'a_work', 'not in the index',
+                                     held_back='held back from the search')
+    assert answer.groups[0].head == ['27 characters', 'p. 7', 'kept: held back from the search']
+    assert [runs_of(block) for block in answer.outside] == [('b03', False, [('A fraction of it is staked.', False)]),
+                                                           ('b04', False, [('The rest is held back.', False)])]
+    assert answer.head_said == 'this page lies in 1 chunk: A begins here'
+
+
+def test_a_page_with_no_chunk_or_no_index_says_why_and_still_shows_its_quoted_blocks(tmp_path):
     database = an_index(tmp_path / 'index.sqlite3', [], {})
     answer = page_chunks.page_chunks('free', 'a_work', 7, BLOCKS, database, 'a_work', 'not in the index', held_back='held back from the search')
-    assert (answer.said, answer.chunks, answer.held_back) == ('no chunk of this page', [], 'held back from the search')
-    assert [part.text for block in answer.blocks for part in block.parts] == [block.served for block in BLOCKS if block.served]
+    assert (answer.said, answer.groups, answer.head_said, answer.held_back) == (
+        'no chunk of this page', [], None, 'held back from the search')
+    assert [(block.block, block.part, block.runs[0].text) for block in answer.outside] == [
+        (block.id, False, block.served) for block in BLOCKS if block.served]
     gone = page_chunks.page_chunks('licensed', 'a_work', 7, BLOCKS, tmp_path / 'none.sqlite3', 'a_work', 'not vectorised yet (#8)')
     assert gone.said == 'not vectorised yet (#8)'
+    assert [page_chunks.letter(number) for number in (1, 26, 27, 28)] == ['A', 'Z', 'AA', 'AB']
 
 
 def test_a_block_carries_the_form_the_search_and_the_chat_quote_and_a_block_never_quoted_none():
@@ -103,7 +126,7 @@ def test_a_block_carries_the_form_the_search_and_the_chat_quote_and_a_block_neve
 
 def test_each_page_level_has_its_shortest_words_and_a_fallback_its_name():
     served = page_ladder.PageRung(level='text served', reached=True, said='its own text')
-    assert page_ladder.keyword(None, served, False)[0].short == 'BM25 not built'
+    assert page_ladder.keyword(None, served, False)[0].short == 'BM25 being built after a start'
     assert page_ladder.chunks_said(2, 'page').short == '2 chunks' and page_ladder.chunks_said(0, 'page').short == 'no chunk'
     assert page_ladder.unknown_semantic('not vectorised yet (#8)').short == 'not vectorised'
     unread = {'unread': {'served_by': 'text layer', 'said': "served from the PDF's text layer", 'planned': True}}
@@ -123,6 +146,6 @@ def test_the_route_places_a_free_page_s_chunks_in_its_own_served_text(tmp_path, 
         db.execute('update chunks set source_id = ?', (KELLY,))
     monkeypatch.setitem(page_ladder.INDEX_DB, 'free', lambda: database)
     answer = client.get(f'/api/free/works/{KELLY}/pages/1/chunks').json()
-    assert [(one['number'], one['start'], one['end']) for one in answer['chunks']] == [(1, 0, len(chunk))]
-    assert answer['blocks'][0]['parts'][0]['starts'] == 1
+    assert [(one['letter'], one['characters']) for one in answer['groups']] == [('A', len(chunk))]
+    assert answer['groups'][0]['blocks'][0]['block'] == next(block.id for block in blocks if block.served)
     assert client.get(f'/api/free/works/{KELLY}/pages/99999/chunks').status_code == 404

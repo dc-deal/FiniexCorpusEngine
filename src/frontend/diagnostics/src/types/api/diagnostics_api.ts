@@ -943,6 +943,72 @@ export interface components {
             /** Chosen At */
             chosen_at: string;
         };
+        /**
+         * ChunkBlock
+         * @description A quoted block in a chunk, or in none, in its served form: only the part the chunk holds where it holds part of it.
+         */
+        ChunkBlock: {
+            /** Block */
+            block: string;
+            /** Block Class */
+            block_class: string;
+            /**
+             * Part
+             * @default false
+             */
+            part: boolean;
+            /** Runs */
+            runs: components["schemas"]["ChunkRun"][];
+        };
+        /**
+         * ChunkGroup
+         * @description A chunk of the page as the index embedded it, lettered in page order, with its head's words and the blocks it holds.
+         */
+        ChunkGroup: {
+            /** Letter */
+            letter: string;
+            /** Id */
+            id: string;
+            /** Characters */
+            characters: number;
+            /** Pages */
+            pages: string;
+            /** Tokens */
+            tokens?: number | null;
+            /**
+             * Shares
+             * @default 0
+             */
+            shares: number;
+            /** Shares With */
+            shares_with?: string | null;
+            /** Runs In From */
+            runs_in_from?: number | null;
+            /** Runs On To */
+            runs_on_to?: number | null;
+            /** Kept */
+            kept?: string | null;
+            /** Head */
+            head: string[];
+            /**
+             * Blocks
+             * @default []
+             */
+            blocks: components["schemas"]["ChunkBlock"][];
+        };
+        /**
+         * ChunkRun
+         * @description A run of a block's text in a chunk: whether another chunk of the page holds it too, so that it stands in both.
+         */
+        ChunkRun: {
+            /** Text */
+            text: string;
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
+        };
         /** Citation */
         Citation: {
             /**
@@ -1863,32 +1929,6 @@ export interface components {
             /** Runs Why Not */
             runs_why_not?: string | null;
         };
-        /**
-         * PageChunk
-         * @description A chunk of the page as the index embedded it, numbered on the page in reading order: where it stands in the page's
-         *     quoted text (None where it cannot be placed), what it shares with the chunk before, and where it runs from or on to.
-         */
-        PageChunk: {
-            /** Number */
-            number: number;
-            /** Id */
-            id: string;
-            /** Start */
-            start: number | null;
-            /** End */
-            end: number | null;
-            /**
-             * Overlap
-             * @default 0
-             */
-            overlap: number;
-            /** Tokens */
-            tokens?: number | null;
-            /** Continues From */
-            continues_from?: number | null;
-            /** Continues On */
-            continues_on?: number | null;
-        };
         /** PageChunks */
         PageChunks: {
             /**
@@ -1901,17 +1941,17 @@ export interface components {
             /** Pdf Page */
             pdf_page: number;
             /**
-             * Chunks
+             * Groups
              * @default []
              */
-            chunks: components["schemas"]["PageChunk"][];
-            /** Count Said */
-            count_said?: string | null;
+            groups: components["schemas"]["ChunkGroup"][];
+            /** Head Said */
+            head_said?: string | null;
             /**
-             * Blocks
+             * Outside
              * @default []
              */
-            blocks: components["schemas"]["ServedBlock"][];
+            outside: components["schemas"]["ChunkBlock"][];
             /** Not Placed */
             not_placed?: string | null;
             /** Said */
@@ -1952,6 +1992,8 @@ export interface components {
             from_fallback: boolean;
             /** Said */
             said?: string | null;
+            /** Check Said */
+            check_said?: string | null;
             person?: components["schemas"]["PersonMark"] | null;
             /** Category */
             category?: string | null;
@@ -2856,31 +2898,6 @@ export interface components {
             by_route: {
                 [key: string]: number;
             };
-        };
-        /** ServedBlock */
-        ServedBlock: {
-            /** Block */
-            block: string;
-            /** Parts */
-            parts: components["schemas"]["ServedPart"][];
-        };
-        /**
-         * ServedPart
-         * @description A run of a quoted block's served form: the chunk it belongs to (the later one where two share it), whether it is shared
-         *     with the chunk before, and the chunk that begins where it begins.
-         */
-        ServedPart: {
-            /** Text */
-            text: string;
-            /** Chunk */
-            chunk?: number | null;
-            /**
-             * Shared
-             * @default false
-             */
-            shared: boolean;
-            /** Starts */
-            starts?: number | null;
         };
         /** ServerAnswer */
         ServerAnswer: {

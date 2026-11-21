@@ -589,8 +589,10 @@ class PageDetail(BaseModel):
     # reading is shown is not what the search and the chat quote, and the view says so (a reading the judge found bad, one
     # that stayed malformed, a page the reader declined). `from_text_layer` until stage D, 19 Nov
     from_fallback: bool
-    # A page that is not plainly ok says so in one sentence before its chips (`said_of`); None for an ok page
+    # A page that is not plainly ok says so in one sentence (`said_of`); None for an ok page
     said: str | None = None
+    # that sentence in the Check line's words, after the state and its reasons (H1.a, 21 Nov): "served all the same: …"
+    check_said: str | None = None
     person: PersonMark | None = None  # a person's standing verdict beside the state (166.a)
     # what kind of page it is (decision 172.a): the reader's `page_kind`, and the export's category from it (content,
     # exercise, index, contents, front matter, back matter, cover, blank, advertisement); None where no reading named it
@@ -934,7 +936,8 @@ READING_KEY = re.compile(r'^[0-9a-f]{16,128}$')
 
 
 def counted_as(count: int, word: str) -> str:
-    return f"{count} {word}{'' if count == 1 else 's'}"
+    """A count and its word, in the plural where the count is not one: "1 chunk", "1,204 characters"."""
+    return f"{count:,} {word}{'' if count == 1 else 's'}"
 
 
 def listed(parts: list[str]) -> str:
@@ -1009,6 +1012,17 @@ def said_of(row: dict, errors: list[str]) -> str | None:
         return f"Served despite the judge's findings: {why}." if judged else f'Served with a note: {why}.'
     instead = SERVED_INSTEAD.get(fallback_of(row), 'nothing is served in its place')
     return f'Not served: {why}; {instead}.'
+
+
+def check_words(said: str | None) -> str | None:
+    """The page's one sentence (`said_of`) in the Check line's words (the operator's H1.a, 21 Nov: the sentence above the
+    record goes, its content into the Check line): "served all the same: the findings lie on blocks never quoted". A page a
+    person or an automated review settled says nothing here: the verdict's own mark stands in the same line and says it."""
+    if not said or said.startswith(('Served: a person ', 'Served: an automated review ')):
+        return None
+    words = said.rstrip('.')
+    words = words.replace("Served despite the judge's findings", 'served all the same', 1)
+    return words[:1].lower() + words[1:]
 
 
 # The order a person reads the levels in: the checked reading first, the one that stands with a note, then the fallback,
@@ -1809,7 +1823,7 @@ class Readings:
                        key=lambda block: block.decorative is not None)
         said = said_of(row, errors)
         return PageDetail(
-            attempts=attempts_of(row), said=said, person=person_mark(row), category=row.get('category'),
+            attempts=attempts_of(row), said=said, check_said=check_words(said), person=person_mark(row), category=row.get('category'),
             page_kind=row.get('page_kind'), category_said=category_said(row),
             route_level=row.get('route_level'), route_source=source, route_reader=reader.split(', ') if reader else None,
             route_why=why, why_line=why_line(row, said, reading.blocks if reading else []),

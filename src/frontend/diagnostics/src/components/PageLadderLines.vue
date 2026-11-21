@@ -11,11 +11,13 @@ import type { PageLadder, PageRung } from '@/types/api/ladder_types'
  * other than its reading serves the page, the text it serves, folded and named (the operator, 21 Nov: where the reading is
  * served, the reading panel shows it). Folded to one line by default (21 Nov: "again: overview"): the five marks and each
  * level's shortest words, the API's; open or closed is kept with the reader's other folds. The marks are form and word, never
- * colour: a level a page does not reach is no fault.
+ * colour: a level a page does not reach is no fault. In a record it is the row "Coverage" (H1.a), its `label`; each mark
+ * of the folded line names its level and the API's words for a screen reader, which reads no glyph.
  */
-defineProps<{
+withDefaults(defineProps<{
   ladder: PageLadder
-}>()
+  label?: string | null
+}>(), { label: null })
 
 // reached, not reached, or not known here: three forms, one quiet ink
 function markOf(rung: PageRung): IconName {
@@ -24,10 +26,11 @@ function markOf(rung: PageRung): IconName {
 </script>
 
 <template>
-  <FoldSection class="page-ladder-fold" remember="page.coverage" data-part="page-ladder-fold">
+  <FoldSection class="page-ladder-fold" remember="page.coverage" data-part="page-ladder-fold" :label="label">
     <template #title>
       <span class="ladder-line" data-part="ladder-line">
-        <span v-for="rung in ladder.rungs" :key="rung.level" class="line-mark" :data-level="rung.level"
+        <span v-for="rung in ladder.rungs" :key="rung.level" class="line-mark" :data-level="rung.level" role="img"
+              :aria-label="`${rung.level}: ${rung.said}`"
               :data-reached="rung.reached === null ? 'unknown' : String(rung.reached)"><AppIcon :name="markOf(rung)" /></span>
         <span class="line-words">{{ ladder.rungs.map(rung => rung.short || rung.said).join(' · ') }}</span>
       </span>
@@ -56,16 +59,17 @@ function markOf(rung: PageRung): IconName {
 /* a line per level: its word as wide as the longest, the mark, the API's words the rest; where the record is narrow, as on a
    phone, a level's words wrap at their spaces, so the API's words keep the room to be read (measured at 390 px: held to one
    line, the levels took 18 characters and left the words 12) */
-/* the ladder folded to one line: the five marks close together, then the levels' shortest words */
+/* the ladder folded to one line: the five marks close together, then the levels' shortest words, in one run of text, so words
+   too long for the line wrap at their spaces after the marks and their first line stays beside the row's label (a run of flex
+   items put the words whole beneath the marks once "BM25 being built after a start" made them longer, 14 px below the label) */
 .ladder-line {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 var(--space-xs);
+  display: block;
 }
 
 .line-mark {
   display: inline-flex;
+  vertical-align: middle;
+  margin-right: var(--space-xs);
   color: var(--color-text-secondary);
 }
 

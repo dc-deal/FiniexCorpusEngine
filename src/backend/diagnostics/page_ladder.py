@@ -32,7 +32,8 @@ from backend.diagnostics.ladder_types import PageLadder, PageRung
 from backend.diagnostics.readings import NOT_SERVED_ROUTES, fallback_of, listed_state, route_parts
 from backend.search import page_index, shelf
 
-NOT_BUILT = 'not known yet: the search is built when the app starts and on a first search'
+NOT_BUILT = 'BM25 being built after a start'  # the keyword level's words while the search is built (the operator, 21 Nov)
+SERVED_WAITS = 'not known yet: the search is built when the app starts and on a first search'  # why no served text is shown
 BORN_DIGITAL = 'not needed: born digital'
 SERVER = {served_readings.LEGACY_ROUTE: "the IDE's Markdown", served_readings.TEXT_LAYER: "the PDF's text layer"}
 # a fallback in its shortest words, for the ladder folded to one line
@@ -128,9 +129,9 @@ def keyword(page, served_rung: PageRung, built: bool, kept: str | None = None) -
     if kept is not None:
         return (PageRung(level='keyword search', reached=False, said=kept_said(kept), short='kept'),
                 page.text if page is not None else None,
-                None if page is not None else (NOT_BUILT if not built else 'the search holds no page of it by this number'))
+                None if page is not None else (SERVED_WAITS if not built else 'the search holds no page of it by this number'))
     if not built:
-        return PageRung(level='keyword search', reached=None, said=NOT_BUILT, short='BM25 not built'), None, NOT_BUILT
+        return PageRung(level='keyword search', reached=None, said=NOT_BUILT, short=NOT_BUILT), None, SERVED_WAITS
     if page is None:
         why = ('nothing is served for it' if not served_rung.reached
                else 'the search holds no page of it by this number: its text stands whole, named by no page')

@@ -204,14 +204,17 @@ test('a page a person settled counts in its own bucket, folds apart in the Issue
   await fold.locator('summary').click()
   await expect(fold.locator(`tr[data-page="free/${FINANCE}/${one.pdf_page}"]`)).toBeVisible()
   await expect(page.locator(`tr[data-page="free/${FINANCE}/${one.pdf_page}"]`)).toHaveCount(1)
-  // its record: the person first, then the check's state, kept and receding
+  // its record: the person first in the Check line, then the check's state, kept and receding (H1.a)
   await page.goto(`/#/free/sources/${FINANCE}/page/${one.pdf_page}`)
   await settled(page)
   const facts = page.locator('[data-part="page-facts"]')
-  await expect(facts.locator('.line-label').first()).toHaveText('A person:')
+  await expect(facts.locator('[data-part="check-line"] > *').first()).toHaveAttribute('data-part', 'person-verdict')
   await expect(facts.locator('[data-label="Check"] .state-mark')).toHaveAttribute('data-state', one.check.state)
   await expect(facts.locator('[data-label="Check"] .state-mark')).toHaveClass(/quiet/)
 })
+
+// the record's rows, always these in this order (H1.a)
+const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', 'Reading History:', 'Lab:', 'Details:']
 
 // 219.a (the operator: "the detail page turned out well. Here I would carry the same line through"): a work's head reads as a page's
 // does, its labels in a column as wide, so neither its labels nor its values move from a work to one of its pages
@@ -219,12 +222,12 @@ test('a work\'s head stands on the grid of its pages\' head, labels and values w
   // measured once the head stands, and from the head's own edge: a centred column moves by half a scrollbar while a long
   // view is still filling, which the window's x would read as a head off its grid (one full run of twelve, 12 Nov)
   const columns = async (part: string) => {
-    await expect(page.locator(`[data-part="${part}"] .labelled-line`).first()).toBeVisible()
+    await expect(page.locator(`[data-part="${part}"] .fold-label`).first()).toBeVisible()
     return page.locator(`[data-part="${part}"]`).evaluate(head => {
       const edge = head.getBoundingClientRect().left
-      return [...head.querySelectorAll('.labelled-line')].map(line => ({
-        label: Math.round(line.querySelector('.line-label')!.getBoundingClientRect().left - edge),
-        value: Math.round(line.querySelector('.line-value')!.getBoundingClientRect().left - edge),
+      return [...head.querySelectorAll('.fold.labelled > .fold-row')].map(line => ({
+        label: Math.round(line.querySelector('.fold-label')!.getBoundingClientRect().left - edge),
+        value: Math.round(line.querySelector('.fold-title')!.getBoundingClientRect().left - edge),
       }))
     })
   }
@@ -244,14 +247,14 @@ test('a work\'s head stands on the grid of its pages\' head, labels and values w
   await settled(page)
   // by a rule rather than on the element: the view draws its head again when the work's pages arrive anew, and Vue sets
   // the grid's own width back on it then (a full run caught the control measuring the head already drawn again)
-  await page.addStyleTag({ content: '[data-part="work-facts"] .labelled-lines { --label-width: 14ch !important; }' })
+  await page.addStyleTag({ content: '[data-part="work-facts"] .record-rows { --label-width: 20ch !important; }' })
   expect((await columns('work-facts'))[0].value).not.toBe(one.value)
 })
 
 // A label's words and its value's words on one line (12 Nov): set by their baselines, a value that begins with a glyph (a
 // person's mark, a state's) put its label 3px below its words. Measured by the line box of each one's first text
 async function wordsApart(page: Page, part: string): Promise<string[]> {
-  return page.locator(`[data-part="${part}"] .labelled-line`).evaluateAll(lines => lines.flatMap(line => {
+  return page.locator(`[data-part="${part}"] .labelled-line, [data-part="${part}"] .fold.labelled > .fold-row`).evaluateAll(lines => lines.flatMap(line => {
     const firstText = (root: Element) => {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: node => (node.textContent!.trim() ? 1 : 3) })
       const node = walker.nextNode()
@@ -260,8 +263,10 @@ async function wordsApart(page: Page, part: string): Promise<string[]> {
       range.selectNodeContents(node)
       return range.getClientRects()[0]?.bottom ?? null
     }
-    const [label, value] = [firstText(line.querySelector('.line-label')!), firstText(line.querySelector('.line-value')!)]
-    return label !== null && value !== null && Math.abs(label - value) > 1 ? [`${(line as HTMLElement).dataset.label}: ${Math.round(label - value)}px`] : []
+    if (!(line as HTMLElement).offsetParent) return []  // a line inside a closed fold is not drawn
+    const [label, value] = [firstText(line.querySelector('.line-label, .fold-label')!), firstText(line.querySelector('.line-value, .fold-title')!)]
+    const name = (line.closest('[data-label]') as HTMLElement).dataset.label
+    return label !== null && value !== null && Math.abs(label - value) > 1 ? [`${name}: ${Math.round(label - value)}px`] : []
   }))
 }
 
@@ -272,8 +277,8 @@ test('a head\'s labels and their values\' words stand on one line, a value that 
   await page.goto(`/#/free/sources/${FINANCE}/page/119`)
   await settled(page)
   expect(await wordsApart(page, 'page-facts')).toEqual([])
-  // and the check sees them apart where they are: the lines set by their baselines again, a moment
-  await page.addStyleTag({ content: '.labelled-lines > .labelled-line { align-items: baseline !important; }' })
+  // and the check sees them apart where they are: a row's line set lower than its label, a moment
+  await page.addStyleTag({ content: '.fold.labelled > .fold-row > .fold-title { padding-top: 6px !important; }' })
   expect((await wordsApart(page, 'page-facts')).length).toBeGreaterThan(0)
 })
 
@@ -434,8 +439,8 @@ test('every page opens, read or not: its own ladder, the text served and, unread
   await page.goto(`/#/free/sources/${KELLY}/page/5`)
   await settled(page)
   // a read page: its own ladder in its record, beside everything a reading has
-  const coverage = page.locator('[data-part="page-coverage"]')
-  await coverage.locator('[data-part="page-ladder-fold"] > summary').click()
+  const coverage = page.locator('[data-label="Coverage"]')
+  await coverage.locator('> summary .fold-label').click()
   await expect(coverage.locator('.rung-level')).toHaveCount(5)
   await expect(coverage.locator('[data-said="text layer"]')).toHaveText(real.ladder!.rungs[0]!.said)
   // its reading is served: the reading panel shows it, and the coverage holds no "text served" fold (21 Nov)
@@ -453,18 +458,52 @@ test('every page opens, read or not: its own ladder, the text served and, unread
     await page.setViewportSize({ width, height: 900 })
     await page.reload()
     await settled(page)
-    const unread = page.locator('[data-part="unread-page"]')
-    await expect(unread.locator('.state-mark')).toHaveAttribute('data-state', 'not_read')
+    const unread = page.locator('[data-part="page-facts"]')
+    await expect(unread.locator('[data-label="Check"] .state-mark')).toHaveAttribute('data-state', 'not_read')
     await expect(unread.locator('[data-said="reading and check"]')).toHaveText('no reading')
     await expect(page.locator('.side-by-side')).toHaveCount(0)
     // the image arrived and was drawn, not a broken frame
-    const image = unread.locator('.own-image img')
+    const image = page.locator('.own-image img')
     await expect(image).toBeVisible()
     expect(await image.evaluate(element => (element as HTMLImageElement).naturalWidth), 'the own image drew nothing').toBeGreaterThan(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
       `an unread page scrolls sideways at ${width} px`).toBe(true)
     await page.screenshot({ path: `${SHOTS}/page_unread_${width}.png`, fullPage: width === 390 })
   }
+})
+
+// H1.a (the operator, 21 Nov): the page record's head is always the same rows in one order, a row that has nothing saying so in
+// one word, so the layout never jumps between pages. Measured on a read page and the same page as one no reader has read
+test('the record\'s rows stand in one order and in one place on a read and an unread page (H1.a)', async ({ page, request }) => {
+  const real = await (await request.get(`/api/free/works/${KELLY}/pages/5`)).json() as Record<string, unknown>
+  await page.setViewportSize({ width: 1280, height: 900 })
+  // every row's label, the x its line starts at and its top, from the record's own edge
+  const rows = () => page.locator('[data-part="page-facts"]').evaluate(record => {
+    const edge = record.getBoundingClientRect()
+    return [...record.querySelectorAll(':scope > .fold.labelled > .fold-row')].map(row => ({
+      label: row.querySelector('.fold-label')!.textContent,
+      line: Math.round(row.querySelector('.fold-title')!.getBoundingClientRect().left - edge.left),
+      top: Math.round(row.getBoundingClientRect().top - edge.top),
+    }))
+  })
+  await page.goto(`/#/free/sources/${KELLY}/page/5`)
+  await settled(page)
+  const read = await rows()
+  expect(read.map(row => row.label)).toEqual(RECORD_ROWS)
+  await page.route(`**/api/free/works/${KELLY}/pages/5`, route => route.fulfill({ json: {
+    ...real, read: false, trace: null, reading: null, raw: null, attempts: null, integrity: 'no reading', check_said: null,
+    route_why: "served from the PDF's text layer", check: { state: 'not_read', reasons: [], judged: false, why_judged: 'not read', verdict: null },
+  } }))
+  await page.reload()
+  await settled(page)
+  const unread = await rows()
+  // the same rows, their lines at one x, each where it stood: the layout did not move
+  expect(unread).toEqual(read)
+  await expect(page.locator('[data-label="Reading"] .fold-title')).toHaveText('none')
+  await page.locator('[data-part="page-facts"]').screenshot({ path: `${SHOTS}/page_rows_unread.png` })
+  // and the check sees a row gone where one goes: the Lab's row taken out, a moment
+  await page.addStyleTag({ content: '[data-part="page-facts"] > [data-label="Lab"] { display: none !important; }' })
+  expect(await rows()).not.toEqual(read)
 })
 
 test('a meter takes colour only where a look is called for, and a card waits for the pointer, never for the keyboard (C1.b)', async ({ page }) => {
@@ -602,14 +641,11 @@ test('a hint opens from its mark with its lead and closes, and a card shows a ro
   await expect(panel).toHaveCount(0)
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
-  await page.locator('[data-label="Route"] .route').hover()
-  const card = page.locator('[data-part="hover-card"]')
-  await expect(card.locator('.card-title')).toHaveText('Route')
-  await expect(card.locator('[data-row="level"] .card-value')).toHaveText('noted')
-  const box = (await card.boundingBox())!
-  expect(box.x).toBeGreaterThanOrEqual(0)
-  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width)
-  expect(await page.locator('[data-label="Route"] [title]').count()).toBe(0)
+  // the route's parts fold open beneath its line (H1.a), each named
+  const route = page.locator('[data-label="Route"]')
+  await route.locator('> summary .fold-label').click()
+  await expect(route.locator('[data-part="route-parts"] [data-label="Level"] .line-value')).toHaveText('noted')
+  expect(await route.locator('[title]').count()).toBe(0)
 })
 
 // 225.a (the operator, 12 Nov): a chapter's count of pages to look at, or of pages a person decided, is a way to them: a click opens
@@ -1207,6 +1243,13 @@ test('a page opens on one line of what matters, its details folded until asked f
   await expect(page.locator('.summary')).toBeInViewport()
   await expect(page.locator('.summary .image-mark.same')).toBeVisible()
   await expect(page.locator('.side-by-side')).toBeInViewport()
+  // the readable view alone: no raw text beneath it (it stood there while "as served" was off, found 21 Nov); and the check
+  // finds the raw text where it is, on "raw"
+  await expect(page.locator('ol.blocks')).toBeVisible()
+  await expect(page.locator('pre.raw')).toHaveCount(0)
+  await page.locator('.mode button', { hasText: 'raw' }).click()
+  await expect(page.locator('pre.raw')).toHaveCount(1)
+  await page.locator('.mode button', { hasText: 'readable' }).click()
   const details = page.locator('details.details')
   await expect(details).not.toHaveAttribute('open')
   await page.screenshot({ path: `${SHOTS}/page_summary.png` })
@@ -1347,8 +1390,10 @@ test('the details\' judge stage says why, the verdict and the judge each on a na
     const { check } = await (await request.get(`/api/free/works/${work}/pages/${number}`)).json() as Detail
     await page.goto(`/#/free/sources/${work}/page/${number}`)
     await settled(page)
-    if (!(await page.locator('details.details').getAttribute('open') !== null)) await page.locator('details.details > summary').click()
-    const stage3 = page.locator('[data-stage="3"]')
+    // the three stages fold open beneath the Check row (H1.a)
+    const checkRow = page.locator('[data-label="Check"]')
+    if ((await checkRow.getAttribute('open')) === null) await checkRow.locator('> summary .fold-label').click()
+    const stage3 = checkRow.locator('[data-stage="3"]')
     const labels = ['Why:', ...(check.verdict ? ['Verdict:'] : []), ...(check.judge ? ['Judge:'] : [])]
     await expect(stage3.locator('.line-label')).toHaveText(labels)
     await expect(stage3.locator('[data-part="stage3-why"] .line-value')).toHaveText(check.why_judged)
@@ -1358,7 +1403,7 @@ test('the details\' judge stage says why, the verdict and the judge each on a na
     const tops = await stage3.locator('.labelled-line').evaluateAll(lines => lines.map(line => line.getBoundingClientRect().top))
     tops.forEach((top, at) => { if (at > 0) expect(top).toBeGreaterThan(tops[at - 1]) })
     await stage3.scrollIntoViewIfNeeded()
-    await page.locator('details.details').screenshot({ path: `${SHOTS}/details_stage3_${number}.png` })
+    await checkRow.screenshot({ path: `${SHOTS}/details_stage3_${number}.png` })
   }
 })
 
@@ -1375,13 +1420,13 @@ test('a page parts its judgements into the Reading History and the Lab, and its 
   const tried = judgements.filter(j => !j.counts && (j.again > 0 || j.version_state === 'prototype'))
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
-  await expect(page.locator('details.history > summary')).toContainText('Reading History · ')
+  await expect(page.locator('details.history > summary')).toContainText('Reading History:')
   // every judgement once: the pipeline's under its reading, a folded reading's too, the rest in the Lab
   await expect(page.locator('.history tr.judgement')).toHaveCount(judgements.length - tried.length)
   await expect(page.locator('.lab tr.judgement')).toHaveCount(tried.length)
   await expect(page.locator('.history [data-part="prototype"], .history [data-part="again"]')).toHaveCount(0)
   if (tried.length) await page.locator('.lab > summary').click()
-  await page.locator('details.details > summary').click()
+  await page.locator('[data-label="Check"] > summary .fold-label').click()
   for (const stage of ['1', '2', '3', 'person']) await expect(page.locator(`[data-stage="${stage}"]`)).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/page_judgements.png` })
   if (detail.check.verdict?.findings.some(finding => finding.void)) {
@@ -2005,28 +2050,30 @@ test('a reader prototype\'s reading stands in the Lab, never in the history, and
 // its findings a jump. And each thing said once, the labels and values in two columns (the operator, 11 Nov: "best overview"):
 // a person's accept before the state, which recedes; no "Why:" and no outcome where the person's line and the note beneath
 // the block say it; the values in one place from page to page
-test('a page says its record in aligned labelled lines, each thing once, a person\'s accept first', async ({ page }) => {
+test('a page says its record in the rows every page has, each thing once, a person\'s accept first in its Check line', async ({ page }) => {
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
   const facts = page.locator('[data-part="page-facts"]')
-  // the page's own ladder closes the record (V2.a)
-  await expect(facts.locator('.line-label')).toHaveText(['A person:', 'Check:', 'Category:', 'Route:', 'Reading:', 'Findings:', 'Coverage:'])
-  expect(await facts.locator('.line-label').first().evaluate(element => Number(getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700)
+  // always the same rows in one order (H1.a); the page's own ladder among them (V2.a)
+  await expect(facts.locator('.fold.labelled > .fold-row > .fold-label')).toHaveText(RECORD_ROWS)
+  expect(await facts.locator('.fold-label').first().evaluate(element => Number(getComputedStyle(element).fontWeight))).toBeGreaterThanOrEqual(700)
   await expect(facts.locator('[data-label="Check"] .state-mark')).toHaveClass(/quiet/)
+  await expect(facts.locator('[data-part="check-line"] > *').first()).toHaveAttribute('data-part', 'person-verdict')
   const findings = facts.locator('[data-label="Findings"]')
   await expect(findings.locator('[data-jump="b12"]')).toBeVisible()
   await expect(findings.locator('[data-said]')).toHaveText('void by code')
   // a block whose findings code voided keeps the flag, receding with the ruling (the operator, 12 Nov)
   await expect(findings.locator('[data-finding-at="b12"]')).toHaveClass(/void/)
   await expect(findings.locator('[data-part="findings-outcome"]')).toHaveCount(0)
-  // every value starts where the others do, and where a page with fewer labels has its own
-  const starts = () => facts.locator('.line-value').evaluateAll(values => values.map(value => Math.round(value.getBoundingClientRect().left)))
+  // every line starts where the others do, and where a page with other words in its rows has its own
+  const starts = () => facts.locator('.fold.labelled > .fold-row > .fold-title')
+    .evaluateAll(values => values.map(value => Math.round(value.getBoundingClientRect().left)))
   const here = await starts()
   expect(new Set(here).size).toBe(1)
   await page.screenshot({ path: `${SHOTS}/page_facts.png` })
   await page.goto(`/#/free/sources/${KELLY}/page/7`)
   await settled(page)
-  await expect(facts.locator('[data-label="A person"]')).toHaveCount(0)
+  await expect(facts.locator('[data-part="person-verdict"]')).toHaveCount(0)
   expect(new Set([...here, ...(await starts())]).size).toBe(1)
 })
 
@@ -2055,7 +2102,7 @@ test('the head names a block\'s findings in the look they have beneath the block
   expect(await colourOf(`${head} .finding-mark`)).toBe(await colourOf(`${beneath} .finding-mark`))
   expect(await colourOf(`${head} [data-severity]`)).toBe(await colourOf(`${beneath} .severity`))
   // and it is not the text's own colour: it stands out
-  expect(await colourOf(`${head} .finding-mark`)).not.toBe(await colourOf('[data-label="Findings"] .line-label'))
+  expect(await colourOf(`${head} .finding-mark`)).not.toBe(await colourOf('[data-label="Findings"] .fold-label'))
   await page.locator('[data-part="page-facts"]').screenshot({ path: `${SHOTS}/page_head_findings.png` })
 })
 
@@ -2098,14 +2145,16 @@ test('a page verdict speaks for a finding no verdict names, and the head says th
   await expect(voice('b05').locator('.part-label')).toHaveText("A person's verdict:")
   await expect(voice('b10').locator('.person-standing')).toHaveText('accepted')
   await expect(voice('b10').locator('.part-label')).toHaveText("A person's verdict on the page:")
-  // the note stands once: the sentence above the head says the accept short, the note stands beneath the block the
-  // verdict speaks for, a line of its own, and the head has no "Why:" to say it again (the operator, 11 Nov)
-  await expect(page.locator('[data-part="said"]')).toHaveText('Served: a person accepted the reading.')
+  // the note stands once: the Check line says the accept by the person's mark (H1.a: no sentence above the record, no words
+  // that say it again), the note stands beneath the block the verdict speaks for, and the route says no why of its own
+  const check = page.locator('[data-label="Check"] [data-part="check-line"]')
+  await expect(check.locator('[data-part="person-verdict"] .person-standing')).toHaveText('accepted')
+  await expect(check.locator('[data-part="check-said"]')).toHaveCount(0)
+  await expect(page.locator('[data-part="said"]')).toHaveCount(0)
   await expect(page.locator('[data-block="b10"] [data-part="person-note"]')).toContainText('All 100 portfolio values')
-  // the head's, not the details' stage 3, whose "Why:" says why the judge looked (16 Nov)
-  await expect(page.locator('[data-part="page-facts"] [data-label="Why"]')).toHaveCount(0)
-  await expect(page.locator('[data-label="A person"] [data-part="protected"]')).toHaveText('protected')
-  await expect(page.locator('[data-label="A person"]')).not.toContainText('another reason')
+  await expect(page.locator('[data-label="Route"] .route-why')).toHaveCount(0)
+  await expect(check.locator('[data-part="protected"]')).toHaveText('protected')
+  await expect(check).not.toContainText('another reason')
 })
 
 // 2c and 194.a (the operator on finance pp. 94 and 387): a figure's labels run on in one line and fold beyond a dozen, a photo's
@@ -2207,18 +2256,16 @@ test('a page that is not content says its category beside its state, and the lis
 
 // The operator on accounting p. 524: its head "reads as code", and its readings said "attempt 0, 1, 0, 2". The sentence and each
 // reading's number and words are the API's, the core's words for what a reading was (86efdb2); checked against its JSON
-test('a page not served says why in one sentence first, and its readings stand numbered, each saying what it was', async ({ page, request }) => {
+test('a page not served says why in its Check line\'s words, and its readings stand numbered, each saying what it was', async ({ page, request }) => {
   const ACCOUNTING = 'openstax_principles_of_accounting_v1'
-  type Shown = { said: string | null, attempts: { number: number, purpose: string, attempt: number, shown: boolean, prototype: boolean | null }[] }
+  type Shown = { check_said: string | null, attempts: { number: number, purpose: string, attempt: number, shown: boolean, prototype: boolean | null }[] }
   const api = await (await request.get(`/api/free/works/${ACCOUNTING}/pages/524`)).json() as Shown
-  expect(api.said).toMatch(/^Not served: .+; the PDF's text layer is served instead\.$/)
+  expect(api.check_said).toMatch(/^not served: .+; the PDF's text layer is served instead$/)
   await page.goto(`/#/free/sources/${ACCOUNTING}/page/524`)
   await settled(page)
-  const said = page.locator('[data-part="said"]')
-  await expect(said).toHaveText(api.said!)
-  // the sentence stands first, above the chips
-  const [sentence, chips] = await Promise.all([said.boundingBox(), page.locator('.summary').boundingBox()])
-  expect(sentence!.y).toBeLessThan(chips!.y)
+  // the sentence that stood above the record is the Check line's words now (H1.a)
+  await expect(page.locator('[data-label="Check"] [data-part="check-said"]')).toHaveText(`· ${api.check_said!}`)
+  await expect(page.locator('[data-part="said"]')).toHaveCount(0)
   // the shown reading first, the others newest first, each by its number across readers and in the core's words; a reader
   // prototype's reading stands in the Lab, not here (210.a)
   const pipeline = api.attempts.filter(one => !one.prototype)
@@ -2398,8 +2445,8 @@ test('a page without a reading shows what serves it in its place in its coverage
   await page.goto(`/#/free/sources/${KELLY}/page/3`)
   await settled(page)
   await expect(page.locator('.mode button')).toHaveCount(0)
-  const coverage = page.locator('[data-part="page-coverage"]')
-  await coverage.locator('[data-part="page-ladder-fold"] > summary').click()
+  const coverage = page.locator('[data-label="Coverage"]')
+  await coverage.locator('> summary .fold-label').click()
   const served = coverage.locator('[data-part="served-text"]')
   await expect(served.locator('.fold-title').first()).toHaveText(`text served: ${detail.ladder!.served_by}`)
   await served.locator('summary').click()
@@ -2662,8 +2709,8 @@ test('an automated review\'s verdict is named so, never a person\'s, and settles
   await page.goto(`/#/free/sources/${NMS}/page/4`)
   await settled(page)
   const facts = page.locator('[data-part="page-facts"]')
-  await expect(facts.locator('[data-label="Automated review"] [data-icon="review"]')).toBeVisible()
-  await expect(facts.locator('[data-label="A person"]')).toHaveCount(0)
+  await expect(facts.locator('[data-label="Check"] [data-part="person-verdict"][data-by="Automated review"] [data-icon="review"]')).toBeVisible()
+  await expect(facts.locator('[data-part="person-verdict"][data-by="A person"]')).toHaveCount(0)
   await expect(page.locator('[data-part="protected"]')).toHaveCount(detail.protected ? 1 : 0)
   await facts.screenshot({ path: `${SHOTS}/page_automated_review.png` })
   if (detail.listed_state !== 'decided_by_an_automated_review') return
@@ -3010,7 +3057,7 @@ test('a work stands once over its editions, its kept edition opens in neutral wo
   await expect(bar.locator('a.edition')).toHaveAttribute('href', '#/licensed/sources/an_invented_second')
 })
 
-test('a page\'s coverage folds to one line kept over a reload, and "as served" greys what is never quoted and draws its chunks (21 Nov)', async ({ page, request }) => {
+test('a page\'s coverage folds to one line kept over a reload, and "as served" shows the page chunk first, nothing never quoted (21 Nov)', async ({ page, request }) => {
   // the operator's example: free finance p. 469, a formula and its description
   const FINANCE_PAGE = `/api/free/works/${FINANCE}/pages/469`
   type Block = { id: string, block_class: string, served: string | null }
@@ -3032,20 +3079,29 @@ test('a page\'s coverage folds to one line kept over a reload, and "as served" g
   await page.reload()
   await settled(page)
   await expect(page.locator('[data-part="page-ladder-fold"]')).toHaveAttribute('open', '')
-  // as served: the description greyed, still to be read; the formula in the LaTeX the search quotes
+  // as served, chunk first: the page as its chunks, each a group with its head in the API's words; the description never
+  // quoted nowhere; the formula in the LaTeX the search quotes
+  type Chunks = { head_said: string | null, said: string | null, groups: { letter: string, head: string[], blocks: { block: string }[] }[] }
+  const chunks = await (await request.get(`${FINANCE_PAGE}/chunks`)).json() as Chunks
   await page.locator('[data-part="as-served"]').click()
-  const greyed = page.locator(`[data-block="${description!.id}"]`)
-  await expect(greyed).toHaveClass(/not-served/)
-  expect(Number(await greyed.evaluate(element => getComputedStyle(element).opacity)), 'the description is not greyed').toBeLessThan(0.6)
-  await expect(page.locator(`[data-block="${formula!.id}"] [data-part="served-form"]`)).toContainText('\\[')
-  // its chunks, where the free index holds them: each beginning a dashed line; one running over an edge said there
-  const chunks = await (await request.get(`${FINANCE_PAGE}/chunks`)).json() as { chunks: { start: number | null, continues_from: number | null }[] }
-  if (chunks.chunks.length) {
-    await expect(page.locator('.chunk-start')).toHaveCount(chunks.chunks.filter(chunk => chunk.start !== null).length)
-    expect(await page.locator('.chunk-start').first().evaluate(element => getComputedStyle(element).borderTopStyle)).toBe('dashed')
-    if (chunks.chunks[0]!.continues_from) await expect(page.locator('[data-part="continues-from"]')).toBeVisible()
+  await expect(page.locator('[data-part="chunk-groups"]')).toBeVisible()
+  await expect(page.locator('ol.blocks')).toHaveCount(0)
+  await expect(page.locator('[data-part="chunks-said"]')).toContainText((chunks.head_said ?? chunks.said)!)
+  await expect(page.locator(`[data-part="chunk-groups"] [data-block="${description!.id}"]`)).toHaveCount(0)
+  await expect(page.locator(`[data-block="${formula!.id}"] [data-part="served-form"]`).first()).toContainText('\\[')
+  if (chunks.groups.length) {
+    await expect(page.locator('[data-part="chunk-head"]')).toHaveText(chunks.groups.map(group => `chunk ${group.letter} · ${group.head.join(' · ')}`))
+    expect(await page.locator('.chunk-group').first().evaluate(element => getComputedStyle(element).borderTopStyle)).toBe('dashed')
   }
   await page.screenshot({ path: `${SHOTS}/page_as_served.png` })
+  // and the check sees a never-quoted block where one stands: an answer that put the description into a chunk, a moment
+  await page.route(`**${FINANCE_PAGE}/chunks`, route => route.fulfill({ json: { ...chunks, outside: [], groups: [{ letter: 'A', id: 'x',
+    characters: 1, pages: 'p. 469', shares: 0, head: ['1 character'], blocks: [{ block: description!.id, block_class: 'description', part: false,
+      runs: [{ text: 'never quoted', shared: false }] }] }] } }))
+  await page.reload()
+  await settled(page)
+  await page.locator('[data-part="as-served"]').click()
+  await expect(page.locator(`[data-part="chunk-groups"] [data-block="${description!.id}"]`)).toHaveCount(1)
   // the page's image untouched: no veil and no box beyond the hover outline
   await expect(page.locator('.original .block-box.served, .original .veil')).toHaveCount(0)
 })

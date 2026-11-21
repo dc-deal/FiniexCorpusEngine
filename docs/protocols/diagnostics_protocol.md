@@ -951,3 +951,26 @@ The record of how the diagnostics frontend came about, mistakes included.
   1,180 to 1,881 px). The guard over licensed text in tracked files reads every tracked file and so fails on the inline form's
   file until its deletion is committed; its own check, run over every tracked file still there and every new one, found none
   over its harmless run.
+- **H1.a's fixed rows, chunk first, the BM25 wording** (21 Nov). `FoldSection` takes a `label` (the row's label in the record's
+  one column, `RecordRows`, 17 characters: "Reading History:" in bold) and `plain` (the same row with nothing to fold open, its
+  mark's place kept empty), so the record's rows are the one fold of every view and no component of their own; `LabelledLines`
+  stays for the lines inside a fold. The API adds `PageDetail.check_said`, `said_of`'s sentence in the Check line's words, None
+  where a person's verdict settled the page, whose mark in the same line says it; `said` stays for the API's other readers. The
+  route's hover card went: its parts fold open beneath its line. A section's record says none in every row but its coverage: the
+  API holds no check, route or reading of a section. `page_chunks` answers in groups: each chunk placed by its text as before;
+  each quoted block a span of the page's quoted text, a chunk holding of it what the two spans share; a run shared where another
+  placed chunk holds it too; the quoted text no placed chunk holds listed apart, every quoted block where the page has no chunk.
+  `readings.counted_as` groups thousands now and serves both modules. The keyword level's words while the search is built and
+  the served text's why are two constants now (`NOT_BUILT`, `SERVED_WAITS`). **Found on the way:** the readable view's raw text
+  stood beneath it whenever "as served" was off, since the raw `<pre>`'s `v-else` had come to hang on the paragraph that said
+  where the last chunk ran on (W4); the paragraph went, and a browser check holds the readable view alone, its control the raw
+  text found on "raw". **Found by the browser checks:** the new check of the rows' places failed on its first run, the Lab and
+  the Details 8 px lower on a read page, where the history and the Lab kept the margin they had as sections of their own; a
+  row's fold set its content at its line's x, not one step right of it as every fold's (179); a label column of 17 characters
+  left a work's coverage too little at 390 px and the page scrolled sideways, so a narrow record sets each label above its line
+  (a container query on `RecordRows`); and the longer "BM25 being built after a start" put the folded coverage's words whole
+  beneath its marks, 14 px below the row's label, since marks and words were flex items; they are one run of text now. **Shown
+  failing:** the rows' places with the Lab's row taken out; the never-quoted block with an answer that put the description into
+  a chunk; a row's words set 6 px below its label's. Measured on three free pages: the chunks route 27 to 47 ms; finance p. 469
+  four chunks, fifteen blocks, none cut by a border; a page served from its text layer places none of its chunks in its reading,
+  and offers no "as served".

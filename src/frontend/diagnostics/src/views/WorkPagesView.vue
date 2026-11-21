@@ -6,8 +6,6 @@ import ApiFailure from '@/components/ApiFailure.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import FacetBar from '@/components/base/FacetBar.vue'
-import LabelledLine from '@/components/base/LabelledLine.vue'
-import LabelledLines from '@/components/base/LabelledLines.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import CoverageLadder from '@/components/CoverageLadder.vue'
 import EditionBar from '@/components/EditionBar.vue'
@@ -16,6 +14,7 @@ import LadderDetails from '@/components/LadderDetails.vue'
 import OutlineUnitNode from '@/components/OutlineUnitNode.vue'
 import PageJump from '@/components/PageJump.vue'
 import PageTable from '@/components/PageTable.vue'
+import RecordRows from '@/components/base/RecordRows.vue'
 import RecordTrail from '@/components/RecordTrail.vue'
 import OwnPages from '@/components/OwnPages.vue'
 import RouteTable from '@/components/RouteTable.vue'
@@ -214,26 +213,30 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
       <h1 class="view-title">{{ shown.title }}</h1>
       <!-- its work's editions (E1.a), each a link to its record, this one's own marked -->
       <EditionBar v-if="shown.editions" :editions="shown.editions" :kb="kb" />
-      <!-- the work's record as a page's is (219.a, the operator: "carry the same line through, as far as possible and sensible"): labelled
-           lines, the label column as wide as the page head's, so nothing moves between a work and its pages. Every count
-           once (159.a): the work, its pages, the states and the rest as the toggles that also filter, a page to jump to -->
+      <!-- the work's record as a page's is (219.a, the operator: "carry the same line through, as far as possible and sensible"): the
+           record's rows (H1.a), their label column the page record's, so nothing moves between a work and its pages. Every
+           count once (159.a): the work, its pages, the states and the rest as the toggles that also filter, a page to jump to -->
       <div class="summary work-facts" data-part="work-facts">
-        <LabelledLines :label-chars="10">
-          <LabelledLine label="Work" class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></LabelledLine>
+        <RecordRows>
+          <FoldSection label="Work" class="work-id" plain>
+            <template #title><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></template>
+          </FoldSection>
           <!-- how far the work is refined (U1.a): five levels in words and figures, its read level the page list's own line of
                V1.b, the details folded beneath; where no shelf is built here, that line alone -->
-          <LabelledLine v-if="shown.ladder" label="Coverage" data-part="coverage-ladder">
-            <CoverageLadder :ladder="shown.ladder"><LadderDetails :ladder="shown.ladder" /></CoverageLadder>
-          </LabelledLine>
+          <FoldSection v-if="shown.ladder" label="Coverage" data-part="coverage-ladder" plain>
+            <template #title><CoverageLadder :ladder="shown.ladder"><LadderDetails :ladder="shown.ladder" /></CoverageLadder></template>
+          </FoldSection>
           <!-- how many of the PDF's pages are read and what serves the rest, the API's one line (V1.b); the read pages' count
                where the PDF is not on this machine -->
-          <LabelledLine v-else-if="shown.summary" label="Pages">
-            <span class="page-total" data-part="coverage">{{ shown.coverage?.said ?? pageCount(shown.summary.pages) }}</span>
-          </LabelledLine>
+          <FoldSection v-else-if="shown.summary" label="Pages" plain>
+            <template #title><span class="page-total" data-part="coverage">{{ shown.coverage?.said ?? pageCount(shown.summary.pages) }}</span></template>
+          </FoldSection>
           <!-- the API's totals over the work's pages, whatever the bar narrows (the operator's SC1.a), the served tally kept -->
-          <LabelledLine v-if="shown.summary" label="States" data-part="totals"><StateCounts :counts="shown.summary.states" /></LabelledLine>
-          <LabelledLine v-if="shown.summary" label="PDF page"><PageJump :kb="kb" :work="work" bare /></LabelledLine>
-        </LabelledLines>
+          <FoldSection v-if="shown.summary" label="States" data-part="totals" plain>
+            <template #title><StateCounts :counts="shown.summary.states" /></template>
+          </FoldSection>
+          <FoldSection v-if="shown.summary" label="PDF page" plain><template #title><PageJump :kb="kb" :work="work" bare /></template></FoldSection>
+        </RecordRows>
       </div>
       <p v-if="!shown.summary" class="empty">This work has no page readings.</p>
       <template v-else>
