@@ -41,11 +41,22 @@ class PathsConfig(StrictConfigModel):
     logs: str = 'logs'  # the chat's turn log, the search server's call log, audit samples
 
 
+class CorrectionConfig(StrictConfigModel):
+    """The model that proposes how one block should read, from the page image and a judge's finding (the operator's W2.a, 21
+    Nov); a person records the proposal or not. Its instructions are the active version of the role `correction` in
+    `prompt_versions.json`."""
+
+    provider: ChatProvider = ChatProvider.ANTHROPIC  # the request carries the page image; only Anthropic's route is built
+    model: str = 'claude-sonnet-5-5'  # the reader's and the judge's model, so it reads the image as they did
+    max_tokens: int = 4000  # a whole table written again, its thinking included
+
+
 class AppConfig(StrictConfigModel):
     """The whole file; an unknown section is refused like an unknown key."""
 
     paths: PathsConfig = PathsConfig()
     embeddings: EmbeddingsConfig = EmbeddingsConfig()
+    correction: CorrectionConfig = CorrectionConfig()
     router: dict[str, Any]
     agent: dict[str, Any]
     generator: dict[str, Any]

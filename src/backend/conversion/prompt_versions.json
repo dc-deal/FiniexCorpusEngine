@@ -4,7 +4,8 @@
   "rules": "Reader: what to transcribe and how faithfully, the blocks and their classes",
   "format": "Format: the page file the reader writes, Markdown blocks with YAML front matter",
   "judge": "Judge: how a model compares a reading with the page image, and what counts as a finding",
-  "classcheck": "Class check: a cheap model names which classes a page holds, before any reading is bought"
+  "classcheck": "Class check: a cheap model names which classes a page holds, before any reading is bought",
+  "correction": "Correction: a model proposes how one block should read, from the page image and a judge's finding, for a person to record or not"
  },
  "versions": [
   {"role": "reader", "version": "page/1", "title": "Markdown blocks, contract page/1",
@@ -41,6 +42,14 @@
   {"role": "classcheck", "version": "classcheck/1", "title": "Which classes a page holds, named by a cheap model",
    "files": ["prompts/page_classes_check.txt"], "parts": {"prompts/page_classes_check.txt": "classcheck"},
    "model": "claude-haiku-5-5", "state": "active", "frozen_on": "2026-11-03",
-   "why": "The second step of the cascade (decision 64.a): on every page the free rules call text only, it names the classes through a schema, never the text, for about 0.00026 USD a page; Haiku found structure on 28 of 200 licensed pages the rules had missed (14 %)."}
+   "why": "The second step of the cascade (decision 64.a): on every page the free rules call text only, it names the classes through a schema, never the text, for about 0.00026 USD a page; Haiku found structure on 28 of 200 licensed pages the rules had missed (14 %)."},
+  {"role": "correction", "version": "correction/1", "title": "A minimal correction of one block, the judge's finding a pointer",
+   "files": ["prompts/correction_page1.txt"], "parts": {"prompts/correction_page1.txt": "correction"},
+   "model": "claude-sonnet-5-5", "state": "prototype", "frozen_on": "2026-11-21",
+   "why": "The operator's W2.a (21 Nov): a person correcting a block from a judge's finding writes the block by hand; a model may propose it. It sees the page image, the block and every finding on it, takes the finding as a pointer to check in the image, never as a fact, and changes as little as it can. Its gate, written before the run: the person corrections whose block carries a finding the person rated right or right for a wrong reason (14 on 21 Nov, in both pipeline databases). Per case the person's edit and the proposal's edit, as words added and removed against the reading: a case passes with edit recall at least 0.8 and edit precision at least 0.6, or, for a description a person worded their own way, where line 1 reads that the proposal corrects every fact the person corrected and adds no error (listed by name). It passes with at least 11 of the 14, at least 2 of the 4 rated right for a wrong reason among them, so a judge's wrong evidence is not followed. The three false alarms and the one case without a rating are reported beside it. At most 0.60 USD. → now (run 21 Nov, 0.27 USD): failed, 8 of 14 (6 by words, 2 descriptions by line 1's reading: a swap of two values the word measure cannot see, and a fact worded otherwise), 1 of the rated right for a wrong reason, of which there are 3, not 4 as the gate said. The misses: three empty tables written as pipe tables, one with a header the page does not print (its own format line named |); a chart's crossing read as 2010 where the person read 2012; a value -9.5 where the person read -10; an unclear mark dropped where the person kept it."},
+  {"role": "correction", "version": "correction/2", "title": "correction/1 + tables as HTML, inline marks kept, chart values at the axis",
+   "files": ["prompts/correction_page2.txt"], "parts": {"prompts/correction_page2.txt": "correction"},
+   "model": "claude-sonnet-5-5", "state": "prototype", "frozen_on": "2026-11-21",
+   "why": "correction/1's misses, each a rule: a table is HTML inside its block, never with a header the page does not print; the transcription's inline marks are kept, an unclear one too, the likelier reading first; a chart's value is read against the axis at the exact point, a crossing where the lines meet. Its gate, written before the run: the same 14 cases, 11 rated right and 3 right for a wrong reason; a case passes with edit recall at least 0.8 and edit precision at least 0.6, or, for a description or a swap of values the word measure cannot see, where line 1 reads that the proposal corrects every fact the person corrected and adds no error (listed by name). It passes with at least 11 of the 14 and 2 of the 3. At most 0.60 USD. → now (run 21 Nov, 0.27 USD): passed, 13 of 14 (11 by words, 2 descriptions by line 1's reading: a swap of two values, a fact worded otherwise), 2 of the 3; an unclear time cell came back exactly as the person wrote it. The miss: a chart's crossing the person read as 2012, the proposal as 2008 to 2010 (the judge's wrong 2006 to 2007 not followed). Beside the gate, on the three false alarms the proposal agreed with the judge at least in part each time, so a proposal never replaces a person's look at the image."}
  ]
 }

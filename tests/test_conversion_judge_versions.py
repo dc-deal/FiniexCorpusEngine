@@ -25,7 +25,9 @@ def test_every_registered_prompt_file_is_frozen_and_each_role_has_one_active_ver
     versions = json.loads(page_judge.VERSIONS.read_text(encoding='utf-8'))['versions']
     assert all(name in frozen for version in versions for name in version['files'])
     for role in {version['role'] for version in versions}:
-        assert [version['state'] for version in versions if version['role'] == role].count('active') == 1
+        # a new role starts with a prototype alone, active only by a person's decision after its gate (correction/1, 21 Nov)
+        active = [version['state'] for version in versions if version['role'] == role].count('active')
+        assert active == 1 if role in ('reader', 'judge', 'classcheck') else active <= 1
 
 
 def test_an_old_record_was_judged_by_judge_1_and_a_prototype_has_a_cell_of_its_own():

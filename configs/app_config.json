@@ -20,6 +20,12 @@
     "_comment": "Where the vectors are fetched (decision 278.a): openrouter (the course's key, until about 23 Nov 2026) or openai (OpenAI direct, the project key CORPUS_OPENAI_API_KEY in .env). Both serve text-embedding-3-small and return the same vectors (cosine 1.0, measured 2026-10-29), so the index stays when the route changes; a running server takes the change when it restarts.",
     "provider": "openrouter"
   },
+  "correction": {
+    "_comment": "The model that proposes how one block of a reading should read, from the page image and a judge's finding (the operator's W2.a, 21 Nov 2026); a person records the proposal or not, and it never enters the reading. Its instructions are the active version of the role correction in src/backend/conversion/prompt_versions.json. Only anthropic is built, since the request carries the page image; a page a provider's filter blocked or a reader refused, and a file held back from providers, are never sent.",
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "max_tokens": 4000
+  },
   "router": {
     "provider": "openrouter",
     "enabled": true,

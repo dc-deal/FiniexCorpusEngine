@@ -203,3 +203,31 @@ today; the gates were written before the run (protocol).
   description the next time.
 - page/2 stays a prototype; serving it means reading the free corpus again (about 21 USD), which waits for a person's
   decision. Run it with `python -m backend.conversion.measurement.reader_prototype report`.
+
+### A proposed correction of one block (the operator's W2.a, 21 Nov)
+
+A person who finds a block wrong records it with the block as it should read (decision 188.a), and wrote that text by
+hand. `backend.conversion.judge.correction_proposal` proposes it: a model sees the image the reader saw, the block as the
+judge saw it and every finding on it, and returns the whole block with as little changed as it can. The finding is a
+pointer to check in the image, never a fact, since a judge is right for a wrong reason at times (p. 94 above). The person
+reads the proposal, may change it and records it or not; it never enters a reading. Nothing is sent for a file the
+provenance list holds back or a page a provider's filter blocked or a reader refused in any attempt (280.a). A proposal is
+kept by a key of everything asked and never bought twice, its cost goes into the ledger, and the spend guard reserves 1.3
+times its estimate under the cap. The model is the configuration's `correction` section; the instructions are the
+active version of the role `correction` in `prompt_versions.json`.
+
+**Calibrated on the corrections persons already made** (18; the gate's 14 are those whose block carries a finding the
+person rated right or right for a wrong reason), each gate written before its run. Scored by the words each edit adds and
+removes against the reading; a swap of two values or a description worded otherwise is read by line 1 and named.
+
+| version | change | passed | right for a wrong reason | cost |
+|---|---|---|---|---|
+| correction/1 | the first instructions | 8 of 14: failed | 1 of 3 | 0.27 USD |
+| correction/2 | tables as HTML, inline marks kept, chart values read at the axis | 13 of 14: passed | 2 of 3 | 0.27 USD |
+
+correction/1 wrote three empty tables as pipe tables (its own format line named the pipe), one with a header the page does
+not print, and dropped an unclear mark the person kept. correction/2's one miss is p. 94's crossing again: the person read
+2012, the proposal 2008 to 2010, and the judge's wrong 2006 to 2007 was not followed. On the three false alarms beside the
+gate the proposal agreed with the judge at least in part each time, so a proposal never replaces a person's look at the
+image. `python -m backend.conversion.judge.correction_proposal calibrate [--version V] [--dry-run]` runs it again; the
+report lies beside the private working data and holds the proposals' keys, never their text.

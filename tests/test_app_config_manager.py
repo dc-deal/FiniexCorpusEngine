@@ -7,12 +7,13 @@ from pydantic import ValidationError
 
 from backend.configuration.app_config_manager import AppConfigManager
 from backend.configuration.config_file_loader import ConfigFileLoader
-from backend.types.config_types.app_config_types import AppConfig, EmbeddingsConfig, PathsConfig
+from backend.types.config_types.app_config_types import AppConfig, CorrectionConfig, EmbeddingsConfig, PathsConfig
 
 RAW = json.loads(ConfigFileLoader.CONFIG_FILE.read_text(encoding='utf-8'))
 
 
-@pytest.mark.parametrize('section, model', [('paths', PathsConfig), ('embeddings', EmbeddingsConfig)])
+@pytest.mark.parametrize('section, model', [('paths', PathsConfig), ('embeddings', EmbeddingsConfig),
+                                            ('correction', CorrectionConfig)])
 def test_every_typed_default_stands_in_the_file_with_the_same_value(section, model):
     for field, info in model.model_fields.items():
         assert RAW[section].get(field) == info.default, f'{section}.{field}: the file and the model disagree'
