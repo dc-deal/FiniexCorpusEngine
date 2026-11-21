@@ -544,3 +544,16 @@ def test_the_legacy_fallback_names_the_numbered_pages_of_a_work_routed_page_by_p
     pages, _ = search_server.licensed_pages()
     third = next(page for page in pages if page.work == 'key-a' and page.pdf == '3')
     assert third.route == search_server.LEGACY_ROUTE  # the issue on page 3 leaves its legacy page standing, as the export says
+
+
+def test_a_client_learns_what_each_tool_costs_and_takes_and_in_which_order_to_use_them():
+    # T1.a (the operator, 21 Nov): the clients knew neither that search is local and free nor that semantic_search takes
+    # seconds and a paid embedding, and the instructions never named semantic_search
+    server = search_server.build_server(service())
+    described = {tool.name: tool.description for tool in asyncio.run(server.list_tools())}
+    assert all(f'`{name}`' in search_server.INSTRUCTIONS for name in described)
+    assert all('free' in described[name] for name in ('search', 'search_works', 'works', 'toc', 'open_page', 'page_image'))
+    assert 'milliseconds' in described['search'] and 'milliseconds' in described['search_works']
+    semantic = described['semantic_search']
+    assert 'two seconds' in semantic and 'paid API' in semantic and 'language model' in semantic and 'below_floor' in semantic
+    assert 'free knowledge base' not in semantic  # since #8 it searches every base the server gives out

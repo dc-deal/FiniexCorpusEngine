@@ -748,10 +748,20 @@ class SearchService:
 
 # What an MCP host shows its model about the server as a whole (a consumer's request of 8 Nov: nobody knew to ask the shelf
 # first). The chat's agent sees only the tools it is given, so this changes nothing it was measured with.
-INSTRUCTIONS = ('A library of trading, finance, accounting and software reliability books, each answer a cited page. Start '
-                'with `works`: the whole shelf in one call, with a sentence per work on what it is for. Then `search_works` '
-                'to learn which works hold a subject (and that none does, when none does), `toc` to see the contents of a work, '
-                '`search` for exact words on pages, `open_page` to read one, `page_image` to check a quote against the page.')
+# Since T1.a (the operator, 21 Nov) it also says what each tool costs and takes, in orders of magnitude a measurement keeps
+# true (the call log of 21 Nov: search 36 ms, semantic_search 2.0 s in the median), and how to read what comes back.
+INSTRUCTIONS = (
+    'A library of trading, finance, accounting and software reliability books, each answer a cited page. Start with `works`: '
+    'the whole shelf in one call, with a sentence per work on what it is for. Then go from cheap and exact to costly and '
+    'broad. `search_works` (which works hold a subject, and that none does when none does) and `search` (exact words on '
+    'pages, BM25) run locally in milliseconds and cost nothing. `semantic_search` (a question in plain words, by meaning and '
+    'keywords at once) takes about two seconds and embeds the question through a paid API; without your own translation '
+    '(`search_query`, `concept_query`, `keywords`) it also asks a language model to translate it, so bring the translation. '
+    'Then `toc` and `open_page` to read the pages a hit names, and `page_image` only when a page\'s text is not enough to '
+    'check a quote; all three are local and free, but an image weighs on your own context. No tool lets a model write or '
+    'rephrase a text: every hit quotes the stored page as it stands. Every hit names its knowledge base, and its edition and '
+    'year where the catalog has them. A score ranks the hits of one call only; it is not comparable between tools or calls. '
+    'Where a work is held in more than one edition, the searches use one and skip the others, which `works` names.')
 
 
 CALL_LOG = data_paths.LOGS / 'search_server.jsonl'  # git-ignored: one line per tool call, never a page's text
@@ -934,30 +944,35 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
 
     @server.tool()
     def search(query: str, corpus: str = 'all', hits: int = 6, work: str | None = None, *, ctx: Context) -> dict:
-        """Search the books by keywords (BM25 over pages). Returns up to `hits` pages (1 to 50), best first, each with its
-        knowledge base, work, page (label, PDF page where known, printed number), section, file and lines, a snippet, licence
-        and the route that made its text, and `view_url`, a link to show a person the page in the diagnostics view (image,
-        reading, checks); or state "nothing found". corpus: "all", "free" or "licensed". work: one key from `works`."""
+        """Search the books by keywords (BM25 over pages): local, no model, milliseconds, free. Best for exact terms, names,
+        numbers and a formula's symbols; for a question in plain words use `semantic_search`. Returns up to `hits` pages
+        (1 to 50), best first, each with its knowledge base, work, edition and year, page (label, PDF page where known, printed
+        number), section, file and lines, a snippet, licence and the route that made its text, and `view_url`, a link to show
+        a person the page in the diagnostics view (image, reading, checks); or state "nothing found". The score ranks this
+        call's hits only. A page under 200 characters, mostly digits or a table is left out of the ranking but opens with
+        `open_page`. corpus: "all", "free" or "licensed". work: one key from `works`."""
         return logged('search', ctx, lambda: service.search(query, corpus, hits, work), query=query, corpus=corpus, hits=hits,
                       work=work)
 
     @server.tool()
     def open_page(work: str, page: str, printed: bool = False, *, ctx: Context) -> dict:
-        """One page in full, by work key and page label as a search hit gives them. With printed=true, `page` is the number
+        """One page in full, by work key and page label as a search hit gives them: local and free, the text exactly as stored
+        and served, never rewritten. With printed=true, `page` is the number
         printed on the page, as an index entry or a "see p. 291" in the text gives it; the answer names both numbers. `view_url`
         links the page in the diagnostics view, for a person to check it against its image."""
         return logged('open_page', ctx, lambda: service.open_page(work, page, printed), work=work, page=page, printed=printed)
 
     @server.tool()
     def works(*, ctx: Context) -> list[dict]:
-        """Every work the server knows: key, title, edition and year, knowledge base, licence, route and how many pages are
-        searchable. Where a work is held in more than one edition, one is searched and the others are kept: a kept edition
+        """Every work the server knows, local and free: key, title, edition and year, knowledge base, licence, route and how
+        many pages are searchable. Where a work is held in more than one edition, one is searched and the others are kept: a kept edition
         names the edition searched (`kept_for`) and still opens by its own key."""
         return logged('works', ctx, service.list_works)
 
     @server.tool()
     def search_works(query: str, corpus: str = 'all', hits: int = 10, *, ctx: Context) -> dict:
-        """Which works hold a subject: do we own a book about X? The same keyword ranking as `search`, summed per work over
+        """Which works hold a subject: do we own a book about X? Local, no model, milliseconds, free. The same keyword ranking
+        as `search`, summed per work over
         its best five pages, so a work about the subject outranks one strong page elsewhere (a glossary). Returns up to `hits`
         works (1 to 50), each with its key, title, the sentence on what it is for, knowledge base, licence, score, how many
         pages hold a query word and how many hold every one, and its best three sections with their pages; or state
@@ -968,7 +983,8 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
 
     @server.tool()
     def toc(work: str, depth: int = 2, *, ctx: Context) -> dict:
-        """A work's table of contents, to descend into before reading a page: its PDF's bookmarks, else the headings of
+        """A work's table of contents, local and free, to descend into before reading a page: its PDF's bookmarks, else the
+        headings of
         its text, each with the page label `open_page` takes, and where they come from. depth 1 to 6 (default 2): deeper
         entries are counted in `left_out`, not sent. work: one key from `works`."""
         return logged('toc', ctx, lambda: service.toc(work, depth), work=work, depth=depth)
@@ -976,19 +992,26 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
     @server.tool()
     def semantic_search(question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
                         keywords: list[str] | None = None, *, ctx: Context) -> dict:
-        """Search the free knowledge base by meaning and by keywords at once, the way the chat does. Translate the question
-        yourself for the best results: `search_query`, the question as a short standalone English search query in the words
-        textbooks use; `concept_query`, a step back to the underlying concept as a textbook would name it; `keywords`, two to
-        five terms of art. Without them the server's router translates where it is switched on, else the question searches as
-        it stands. The passages closest in meaning and the best keyword matches are fused. Returns up to `hits` passages
-        (1 to 50), each of about 1,000 characters with its full text, its page and section, licence and route, its score, and
-        `view_url`, a link to the page in the diagnostics view; or state "declined", "nothing found" or "error". Use it for a question in plain words; use `search` for exact terms."""
+        """Search by meaning and by keywords at once, the way the chat does, over every knowledge base this server gives out
+        (the licensed one beside the free one where it is given out, the two fused by rank). About two seconds; the question is
+        embedded through a paid API (a fraction of a cent). Translate the question yourself for the best results and to spare
+        a language model call: `search_query`, the question as a short standalone English search query in the words textbooks
+        use; `concept_query`, a step back to the underlying concept as a textbook would name it; `keywords`, two to five terms
+        of art. Without them the server's router, a language model, translates where it is switched on, else the question
+        searches as it stands. The passages closest in meaning and the best keyword matches are fused by rank. Returns up to
+        `hits` passages (1 to 50), each a chunk of about 1,000 characters with its full text, its knowledge base, work, edition
+        and year, page and section, licence and route, its score, and `view_url`, a link to the page in the diagnostics view;
+        or state "declined", "nothing found" or "error". `relevance` is the best similarity of meaning found; `below_floor`
+        true means it lies under the floor that parts covered questions from uncovered ones, so the books likely say nothing
+        on this: say so rather than answer from the passages. Use it for a question in plain words; use `search` for exact
+        terms."""
         return logged('semantic_search', ctx, lambda: service.semantic_search(question, hits, search_query, concept_query, keywords),
                       query=question, hits=hits)
 
     @server.tool()
     def page_image(work: str, page: str, *, ctx: Context) -> list[dict | Image]:
-        """A page's image, on request only: when a page's text is not enough to check a quote. A scanned page comes with its
+        """A page's image, on request only: when a page's text is not enough to check a quote. Local and free here, but an
+        image weighs on the caller's own context. A scanned page comes with its
         own embedded pixels, never upscaled (a JPEG2000 or fax image as a PNG of the same pixels); a born-digital page as a
         150 dpi render. The first block says which, with the stored format, pixels, dpi and bytes, so a poor scan can be told
         apart before its image is read; or why there is no image (no source, no PDF page, held back). Same work key and page
