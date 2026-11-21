@@ -936,3 +936,18 @@ The record of how the diagnostics frontend came about, mistakes included.
   the pane's own scroll; the pane is now as tall as the window shows beneath its top, measured as the window scrolls. The quoted
   tab's store and client went with it; its API route stays. The browser check of the mode was shown failing with the greying
   undone.
+- **The verdict panel, ✦ fill with AI** (V1.a, W2.a, F1.a, 21 Nov). `VerdictPanel` takes the inline form's fields, rules
+  (`verdict_rules`) and route unchanged; only where it stands changed, and the inline form is gone. It asks before a change is
+  lost inside itself, never in a browser dialog, so it can be tested and answered by keyboard. The route `POST
+  /api/verdict/propose` is guarded as the verdict's (this machine's host and pages, `--allow-verdicts`) and takes the judge's
+  findings on the block from the page's own data, void ones left out, never from the browser; the core's `Refused` answers 409
+  with its reason; the form says before any ask whether a version is active (`VerdictForm.propose`). The word diff is difflib's
+  matcher over words and the spaces between them, in the API. **Changed on the way:** the first version proposed the correction
+  alone and had a "use" step; F1.a made it fill the whole form, and the step went. "Give a verdict" opens on the page as a
+  whole, as line 1 asked; the block of the first finding is a ⚖ away. **Found by the browser check:** measured while it slid in,
+  the panel stood past the window's edge, so the check waits for it to arrive; the lines' value column took up to 100 characters
+  and ran past the panel's edge, and now takes what the panel leaves. The layout check holds the page's boxes and height unmoved
+  and a point left of the panel the page's own; it was shown failing with the panel set in the page's flow (the page grew from
+  1,180 to 1,881 px). The guard over licensed text in tracked files reads every tracked file and so fails on the inline form's
+  file until its deletion is committed; its own check, run over every tracked file still there and every new one, found none
+  over its harmless run.

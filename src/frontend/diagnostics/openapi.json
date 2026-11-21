@@ -1374,6 +1374,45 @@
         }
       }
     },
+    "/api/verdict/propose": {
+      "post": {
+        "summary": "Propose Correction",
+        "description": "✦ propose (W2.a): a model's correction of one block, asked of the core with the judge's findings on it, kept by\nthe core and answered again from its store for free; never recorded by itself. 409 with the core's reason where it\nsends nothing; 403 unless the app was started with --allow-verdicts or where the request comes from elsewhere.",
+        "operationId": "propose_correction",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/verdict/preview": {
       "post": {
         "summary": "Preview Correction",
@@ -2734,7 +2773,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/DiffPart"
+                  "$ref": "#/components/schemas/backend__diagnostics__prompts__DiffPart"
                 },
                 "type": "array"
               },
@@ -2751,24 +2790,6 @@
           "text"
         ],
         "title": "DiffLine"
-      },
-      "DiffPart": {
-        "properties": {
-          "text": {
-            "type": "string",
-            "title": "Text"
-          },
-          "changed": {
-            "type": "boolean",
-            "title": "Changed"
-          }
-        },
-        "type": "object",
-        "required": [
-          "text",
-          "changed"
-        ],
-        "title": "DiffPart"
       },
       "Edition": {
         "properties": {
@@ -6624,6 +6645,62 @@
         "title": "PersonVerdict",
         "description": "A person's verdict on a page or one of its blocks (146.a): accept, reject or a note, with the reason given. One\ngiven on an earlier reading of the page does not apply to the one shown, and says so."
       },
+      "Prefill": {
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "block": {
+            "type": "string",
+            "title": "Block"
+          },
+          "judge_assessment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Judge Assessment"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "correction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict",
+          "reason",
+          "block",
+          "said"
+        ],
+        "title": "Prefill",
+        "description": "The verdict as a proposal fills it (the operator's F1.a, 21 Nov: \"fill with AI\" fills the whole form): the model gives\nonly what needs the image, the core's fixed rules the rest (`correction_proposal.prefill`); every field stays a person's\nto change, and nothing is recorded until a person records it, which `said` says beneath the form."
+      },
       "PreviewRequest": {
         "properties": {
           "text": {
@@ -6853,6 +6930,201 @@
           "files"
         ],
         "title": "PromptVersion"
+      },
+      "Proposal": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "no proposal"
+            ],
+            "title": "State"
+          },
+          "agrees_with_judge": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "partly",
+                  "no"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agrees With Judge"
+          },
+          "agrees_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agrees Said"
+          },
+          "image_shows": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Shows"
+          },
+          "correction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          },
+          "diff": {
+            "items": {
+              "$ref": "#/components/schemas/backend__diagnostics__verdicts__DiffPart"
+            },
+            "type": "array",
+            "title": "Diff",
+            "default": []
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prefill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Prefill"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "Proposal",
+        "description": "A model's proposed correction of one block (W2.a), as the core gives it and keeps it, or why it gave none, and the\nwhole verdict it fills (F1.a); never recorded by itself: a person changes what they will and records it. `diff` is the block's current text against it,\nword by word; `cost_usd` what it cost when it was asked, nothing again when the core answers from its store."
+      },
+      "ProposalRequest": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base"
+          },
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "pdf_page": {
+            "type": "integer",
+            "title": "Pdf Page"
+          },
+          "block": {
+            "type": "string",
+            "title": "Block"
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_base",
+          "work",
+          "pdf_page",
+          "block"
+        ],
+        "title": "ProposalRequest",
+        "description": "A proposed correction of one block of the reading a page shows: the page by its work's id and PDF page, the block by\nits id. The judge's findings on it are taken here from the page's own data, never from the browser."
+      },
+      "ProposeState": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Not"
+          }
+        },
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "title": "ProposeState",
+        "description": "Whether a model's correction can be proposed here (W2.a): only where verdicts are taken and a version of the role is\nactive, which a person makes so after its gate; why not, in words, where it cannot."
       },
       "Quote": {
         "properties": {
@@ -9499,6 +9771,13 @@
             },
             "type": "array",
             "title": "Exports"
+          },
+          "propose": {
+            "$ref": "#/components/schemas/ProposeState",
+            "default": {
+              "available": false,
+              "why_not": "Verdicts are given here only when the app was started with --allow-verdicts; it is read-only now."
+            }
           }
         },
         "type": "object",
@@ -9510,7 +9789,7 @@
           "exports"
         ],
         "title": "VerdictForm",
-        "description": "What the page view's dialog offers: whether verdicts are given here at all, and if not why, the lists it chooses\nfrom in the core's own words, and each served knowledge base's export."
+        "description": "What the page view's verdict panel offers: whether verdicts are given here at all, and if not why, the lists it\nchooses from in the core's own words, each served knowledge base's export, and whether a correction can be proposed."
       },
       "VerdictGiven": {
         "properties": {
@@ -10052,6 +10331,47 @@
         ],
         "title": "WorkReadings",
         "description": "A work's page readings in figures, each value as often as it occurs."
+      },
+      "backend__diagnostics__prompts__DiffPart": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "changed"
+        ],
+        "title": "DiffPart"
+      },
+      "backend__diagnostics__verdicts__DiffPart": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "same",
+              "added",
+              "removed"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "DiffPart"
       }
     }
   }

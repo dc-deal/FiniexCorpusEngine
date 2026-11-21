@@ -13,7 +13,7 @@ import type { RunDetail, RunList } from '@/types/api/runs_types'
 import type { Shelf } from '@/types/api/shelf_types'
 import type { Corpus, SearchAnswer } from '@/types/api/search_types'
 import type { KnowledgeBase, Work } from '@/types/api/source_types'
-import type { TablePreview, VerdictForm, VerdictGiven, VerdictRequest } from '@/types/api/verdict_types'
+import type { Proposal, ProposalRequest, TablePreview, VerdictForm, VerdictGiven, VerdictRequest } from '@/types/api/verdict_types'
 
 /** Same origin in the build; in development Vite forwards /api to the API process. */
 const http = axios.create({ baseURL: '/api' })
@@ -176,6 +176,12 @@ export async function giveVerdict(verdict: VerdictRequest): Promise<VerdictGiven
 /** A correction's text as the table it would be, before it is sent; writes nothing. */
 export async function previewTable(text: string): Promise<TablePreview> {
   const response = await http.post<TablePreview>('/verdict/preview', { text })
+  return response.data
+}
+
+/** ✦ propose (W2.a): a model's correction of one block; a 409 carries the core's reason where it sends nothing. */
+export async function proposeCorrection(asked: ProposalRequest): Promise<Proposal> {
+  const response = await http.post<Proposal>('/verdict/propose', asked)
   return response.data
 }
 

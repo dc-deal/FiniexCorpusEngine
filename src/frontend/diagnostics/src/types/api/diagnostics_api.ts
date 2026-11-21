@@ -535,6 +535,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/verdict/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Correction
+         * @description ✦ propose (W2.a): a model's correction of one block, asked of the core with the judge's findings on it, kept by
+         *     the core and answered again from its store for free; never recorded by itself. 409 with the core's reason where it
+         *     sends nothing; 403 unless the app was started with --allow-verdicts or where the request comes from elsewhere.
+         */
+        post: operations["propose_correction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/verdict/preview": {
         parameters: {
             query?: never;
@@ -997,14 +1019,7 @@ export interface components {
             /** Text */
             text: string;
             /** Parts */
-            parts?: components["schemas"]["DiffPart"][] | null;
-        };
-        /** DiffPart */
-        DiffPart: {
-            /** Text */
-            text: string;
-            /** Changed */
-            changed: boolean;
+            parts?: components["schemas"]["backend__diagnostics__prompts__DiffPart"][] | null;
         };
         /**
          * Edition
@@ -2226,6 +2241,31 @@ export interface components {
              */
             by_a_person: boolean;
         };
+        /**
+         * Prefill
+         * @description The verdict as a proposal fills it (the operator's F1.a, 21 Nov: "fill with AI" fills the whole form): the model gives
+         *     only what needs the image, the core's fixed rules the rest (`correction_proposal.prefill`); every field stays a person's
+         *     to change, and nothing is recorded until a person records it, which `said` says beneath the form.
+         */
+        Prefill: {
+            /** Verdict */
+            verdict: string;
+            /** Reason */
+            reason: string;
+            /** Block */
+            block: string;
+            /** Judge Assessment */
+            judge_assessment?: string | null;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /** Correction */
+            correction?: string | null;
+            /** Said */
+            said: string;
+        };
         /** PreviewRequest */
         PreviewRequest: {
             /** Text */
@@ -2290,6 +2330,75 @@ export interface components {
             previous: string | null;
             /** Files */
             files: components["schemas"]["PromptFile"][];
+        };
+        /**
+         * Proposal
+         * @description A model's proposed correction of one block (W2.a), as the core gives it and keeps it, or why it gave none, and the
+         *     whole verdict it fills (F1.a); never recorded by itself: a person changes what they will and records it. `diff` is the block's current text against it,
+         *     word by word; `cost_usd` what it cost when it was asked, nothing again when the core answers from its store.
+         */
+        Proposal: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "proposed" | "no proposal";
+            /** Agrees With Judge */
+            agrees_with_judge?: ("yes" | "partly" | "no") | null;
+            /** Agrees Said */
+            agrees_said?: string | null;
+            /** Image Shows */
+            image_shows?: string | null;
+            /** Correction */
+            correction?: string | null;
+            /**
+             * Flags
+             * @default []
+             */
+            flags: string[];
+            /**
+             * Diff
+             * @default []
+             */
+            diff: components["schemas"]["backend__diagnostics__verdicts__DiffPart"][];
+            /** Why */
+            why?: string | null;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Version */
+            version?: string | null;
+            /** Model */
+            model?: string | null;
+            prefill?: components["schemas"]["Prefill"] | null;
+        };
+        /**
+         * ProposalRequest
+         * @description A proposed correction of one block of the reading a page shows: the page by its work's id and PDF page, the block by
+         *     its id. The judge's findings on it are taken here from the page's own data, never from the browser.
+         */
+        ProposalRequest: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Work */
+            work: string;
+            /** Pdf Page */
+            pdf_page: number;
+            /** Block */
+            block: string;
+        };
+        /**
+         * ProposeState
+         * @description Whether a model's correction can be proposed here (W2.a): only where verdicts are taken and a version of the role is
+         *     active, which a person makes so after its gate; why not, in words, where it cannot.
+         */
+        ProposeState: {
+            /** Available */
+            available: boolean;
+            /** Why Not */
+            why_not?: string | null;
         };
         /** Quote */
         Quote: {
@@ -3166,8 +3275,8 @@ export interface components {
         };
         /**
          * VerdictForm
-         * @description What the page view's dialog offers: whether verdicts are given here at all, and if not why, the lists it chooses
-         *     from in the core's own words, and each served knowledge base's export.
+         * @description What the page view's verdict panel offers: whether verdicts are given here at all, and if not why, the lists it
+         *     chooses from in the core's own words, each served knowledge base's export, and whether a correction can be proposed.
          */
         VerdictForm: {
             /** Enabled */
@@ -3182,6 +3291,13 @@ export interface components {
             assessments: components["schemas"]["Option"][];
             /** Exports */
             exports: components["schemas"]["ExportStatus"][];
+            /**
+             * @default {
+             *       "available": false,
+             *       "why_not": "Verdicts are given here only when the app was started with --allow-verdicts; it is read-only now."
+             *     }
+             */
+            propose: components["schemas"]["ProposeState"];
         };
         /**
          * VerdictGiven
@@ -3337,6 +3453,23 @@ export interface components {
              * @default []
              */
             categories: components["schemas"]["Count"][];
+        };
+        /** DiffPart */
+        backend__diagnostics__prompts__DiffPart: {
+            /** Text */
+            text: string;
+            /** Changed */
+            changed: boolean;
+        };
+        /** DiffPart */
+        backend__diagnostics__verdicts__DiffPart: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "same" | "added" | "removed";
+            /** Text */
+            text: string;
         };
     };
     responses: never;
@@ -4127,6 +4260,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VerdictGiven"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    propose_correction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Proposal"];
                 };
             };
             /** @description Validation Error */
