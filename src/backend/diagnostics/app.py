@@ -422,7 +422,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
                                          store.pdf_of(work) if work and work.get('pdf') else None,
                                          key or (work or {}).get('work'), search.ready(), held,
                                          page_ladder.kept_of(store, source_id))  # a kept edition's page says so (E1.a)
-        return page.model_copy(update={'ladder': ladder})
+        # its verdicts recorded and not yet exported, shown at once as waiting (E1.a)
+        return page.model_copy(update={'ladder': ladder, 'waiting': judged.waiting_on(knowledge_base, source_id, pdf_page)})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/chunks')
     def page_chunk_lines(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> page_chunks.PageChunks:

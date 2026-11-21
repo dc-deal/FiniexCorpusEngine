@@ -187,3 +187,37 @@ def test_a_diff_keeps_what_both_hold_and_marks_what_is_taken_out_and_put_in():
     parts = verdicts.word_diff('The rate is 1.043 per year.', 'The rate is 1.034 per year.')
     assert [(part.kind, part.text) for part in parts] == [('same', 'The rate is '), ('removed', '1.043'), ('added', '1.034'),
                                                           ('same', ' per year.')]
+
+
+def test_a_verdict_the_export_does_not_hold_yet_waits_and_one_it_holds_does_not(monkeypatch):
+    # invented: two verdicts on one page in the pipeline database, the older one already in the export (E1.a)
+    from types import SimpleNamespace
+
+    new = {'given_at': '2026-11-21T16:02:00+00:00', 'verdict': 'accept', 'block': 'b05', 'given_by': 'maintainer'}
+    old = {**new, 'given_at': '2026-11-20T10:00:00+00:00', 'verdict': 'note'}
+    monkeypatch.setattr(verdicts.pipeline_db, 'human_verdicts', lambda name: {('a.pdf', 7): [old, new]})
+    store = SimpleNamespace(rows=lambda: [{'file': 'a.pdf', 'pdf_page': 7, 'source_id': 'a_work', 'human': [old]}])
+    waiting = verdicts.waiting_in('free', store)
+    assert [(one.source_id, one.pdf_page, one.block, one.verdict, one.given_at, one.by_a_person) for one in waiting] == [
+        ('a_work', 7, 'b05', 'accept', '2026-11-21T16:02:00+00:00', True)]
+    # once the export holds it too, nothing waits
+    store = SimpleNamespace(rows=lambda: [{'file': 'a.pdf', 'pdf_page': 7, 'source_id': 'a_work', 'human': [old, new]}])
+    assert verdicts.waiting_in('free', store) == []
+
+
+def test_an_export_says_since_when_it_runs_how_long_one_takes_and_what_waits_for_it(given, monkeypatch):
+    client, _ = given
+    status = client.get('/api/verdict').json()['exports'][0]
+    assert {'started_at', 'expected_seconds', 'waiting'} <= set(status)
+    assert (status['started_at'], status['expected_seconds']) == (None, None)  # idle: no start, no estimate asked
+
+
+@pytest.mark.readings
+def test_a_page_shows_its_verdicts_that_wait_for_the_export(monkeypatch):
+    store = readings.knowledge_bases(public_only=True)['free']
+    row = next(row for row in store.rows() if row.get('file') and row.get('source_id'))
+    waiting = {'given_at': '2099-01-01T00:00:00+00:00', 'verdict': 'accept', 'block': 'b01', 'given_by': 'maintainer'}
+    monkeypatch.setattr(verdicts.pipeline_db, 'human_verdicts', lambda name: {(row['file'], row['pdf_page']): [waiting]})
+    client = TestClient(create_app(public_only=True), base_url='http://127.0.0.1:8001')
+    page = client.get(f"/api/free/works/{row['source_id']}/pages/{row['pdf_page']}").json()
+    assert [(one['verdict'], one['block'], one['given_at']) for one in page['waiting']] == [('accept', 'b01', '2099-01-01T00:00:00+00:00')]

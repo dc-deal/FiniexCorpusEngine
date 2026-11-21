@@ -35,7 +35,9 @@ import ReasonList from '@/components/ReasonList.vue'
 import StateMark from '@/components/StateMark.vue'
 import { usePageStore } from '@/stores/page_store'
 import { useSettingsStore } from '@/stores/settings_store'
-import { useVerdictStore } from '@/stores/verdict_store'
+import { useToastStore } from '@/stores/toast_store'
+import { useVerdictStore, type RecordedVerdict } from '@/stores/verdict_store'
+import { durationWords } from '@/export_clock'
 import { useViewName } from '@/view_name'
 import { lookedSaid, verdictBy } from '@/person_words'
 import { readingCost, usd } from '@/cost_format'
@@ -117,10 +119,30 @@ const recallId = computed(() => (typeof address.query.judgement === 'string' && 
 const verdictStore = useVerdictStore()
 void verdictStore.loadForm()
 const verdictsTaken = computed(() => Boolean(verdictStore.form?.enabled) && !recallId.value)
-function verdictRecorded(): void {
+// a recorded verdict (the operator, 21 Nov): the panel closed at once; the page asked again at once, so the verdict stands in
+// its Check row as waiting for the export (E1.a); a toast says it, how long the export may take and where to follow it, and
+// follows it; the page loads its own data again once the export's `finished` moves, below
+const toasts = useToastStore()
+async function verdictRecorded(given: RecordedVerdict): Promise<void> {
   verdictTarget.value = null
-  void store.reloadPage(props.kb, props.work, props.page)
+  const { kb, work, page } = props
+  verdictStore.recordedNow(given.export)
+  void store.reloadPage(kb, work, page)
+  const text = `Verdict recorded · ${given.block || 'the page'} · ${given.verdict} — the index rebuild may take ${durationWords(given.export.expected_seconds)}`
+  const id = toasts.show({ text, detail: `the ${kb} export runs in the background: follow it at the hourglass in the header` })
+  const error = await verdictStore.followExport(kb, given.export.finished)
+  if (!error) toasts.update(id, { detail: 'served from now on' })
+  // a failed export is said even where the first toast has gone: the verdict stands recorded, its export not yet
+  else if (!toasts.update(id, { detail: `the export failed: ${error}`, failed: true })) {
+    toasts.show({ text: `Verdict recorded · ${given.block || 'the page'} · ${given.verdict}`, detail: `the export failed: ${error}`, failed: true })
+  }
 }
+// an export of this page's base has finished, this view's or any other: the page loads its own data again, so a verdict
+// that waited stands as a person's mark, and its route with it. Read from the base's own status, which is unknown until the
+// form is loaded, so loading it is no export that ended
+watch(() => verdictStore.form?.exports.find(status => status.knowledge_base === props.kb)?.finished, (now, before) => {
+  if (before !== undefined && now !== undefined && now > before) void store.reloadPage(props.kb, props.work, props.page)
+})
 const recalled = computed(() => (recallId.value ? store.recallOf(props.kb, props.work, props.page, recallId.value) : null))
 watch(() => [props.kb, props.work, props.page, recallId.value] as const, async ([kb, work, page, judgement]) => {
   if (!judgement) return
@@ -498,6 +520,12 @@ watch(box, async () => {
                 </span>
                 <!-- a person checked the page: no re-read without a reason (191.a) -->
                 <span v-if="shown.protected" class="protected" data-part="protected"><AppIcon name="protected" /> protected</span>
+                <!-- a verdict recorded and not yet in the export (E1.a): shown at once, marked as waiting, dashed as what is
+                     not yet the standing state is -->
+                <span v-for="(one, at) in shown.waiting ?? []" :key="at" class="waiting-verdict" data-part="waiting-verdict">
+                  <AppIcon name="hourglass" />
+                  <span>{{ `your verdict: ${one.verdict} · ${one.block || 'the page'} · recorded ` }}<HumanTime :at="one.given_at" />{{ ' · served once the export is done' }}</span>
+                </span>
               </span>
             </template>
             <DetailList v-if="shown.trace" class="check-stages">
@@ -1027,6 +1055,15 @@ watch(box, async () => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
+}
+
+/* a verdict that waits for the export: not yet the standing state, so in the annotation's role and dashed beneath (E1.a) */
+.waiting-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-annotation);
+  border-bottom: 1px dashed var(--color-annotation);
 }
 
 .check-stages,

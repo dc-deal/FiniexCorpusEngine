@@ -1937,3 +1937,20 @@ only: the tools listed in 2.5 s with the session opened, `works` in 0.1 s, `sear
 (hybrid)" in the view, the code names staying what a client calls: the Librarian's two tabs say so, and every tab's head names
 its tool as a client calls it ("tool: semantic_search"), as the address does (`tool=semantic_search`). 383 unit tests, 85 checks
 in the browser (3 skipped on today's data), 1,558 Python tests.
+
+**A call a person waits on, a verdict recorded and its export followed (the operator, 21 Nov; E1.a).** While "✦ fill with AI"
+asks the model (10 to 30 s with Opus), its button turns and counts, "asking the model … 12 s", held, and the panel says it is
+busy; for a reader who asked for less motion the mark stands still and the words count on. Where the person types while it runs,
+the proposal asks before it replaces what they typed ("Fill" or "Keep mine"). Closing the panel does not cancel the core's call,
+which is paid and kept: the panel opened again on the block waits on the same call, counting on, and asks nothing a second time.
+The Librarian's Run turns and counts the same, "calling the librarian … 2 s". A proposal's cost reads "0.03 USD". "Record the
+verdict" closes the panel at once, since nothing is lost, and a toast at the top right, beneath the header, says "Verdict
+recorded · b05 · accept — the index rebuild may take about 5 minutes", the time from the median of the base's last exports in
+words, and where to follow it; it stands about 4 s, held while pointed at or focused, its line following the export. A record
+that failed keeps the panel open with the core's words, and no toast. The verdict shows at once in the page's Check row, from
+the pipeline database where it is stored, marked as waiting ("your verdict: accept · b05 · recorded … · served once the export
+is done"); when an export of the base ends, the page loads its data again and the mark becomes a person's mark. The header, on
+every view, shows an export while it runs or waits: an hourglass that turns, still under less motion, and "licensed export · 3
+of about 5 min", or "· running 3 min" without an estimate; a click opens what it is, since when, whether one more waits, and the
+verdicts that wait for it; at its end "✓ served" for 4 s, a failure in the error role until clicked away. 397 unit tests, 87
+checks in the browser (3 skipped on today's data), 1,562 Python tests.

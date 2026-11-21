@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { giveVerdict, previewTable, proposeCorrection } from '@/api/api_client'
+import { giveVerdict, previewTable } from '@/api/api_client'
 import { ApiError } from '@/api/api_error'
 import AppButton from '@/components/base/AppButton.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
 import ReadingTable from '@/components/reading/ReadingTable.vue'
 import { usd } from '@/cost_format'
+import RunningMark from '@/components/base/RunningMark.vue'
+import { useElapsed } from '@/use_elapsed'
 import { useVerdictStore } from '@/stores/verdict_store'
 import { canSend, correctionOffered, needsNote, payloadOf, prefillOf, type VerdictDraft } from '@/verdict_rules'
 import type { Cell, PageDetail } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
-import type { Proposal, VerdictForm } from '@/types/api/verdict_types'
+import type { Proposal, ProposalRequest, VerdictForm } from '@/types/api/verdict_types'
+import { type Asking, type RecordedVerdict } from '@/stores/verdict_store'
 
 /**
  * A person's verdict on the reading a page shows (decision 213.b), in a panel beside the page (the operator's V1.a, 21 Nov:
@@ -39,7 +42,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  recorded: []
+  recorded: [given: RecordedVerdict]
   target: [block: string]
 }>()
 
@@ -48,10 +51,14 @@ const blocks = computed(() => props.page.reading?.blocks ?? [])
 const hasFindings = computed(() => Boolean(props.page.findings_at?.length || props.page.page_findings.length))
 const blockOf = (id: string) => blocks.value.find(block => block.id === id)
 
-// a proposal for the chosen block (W2.a), set apart when the block changes
+// a proposal for the chosen block (W2.a), set apart when the block changes; while it is asked, when it was asked, so the
+// button counts the seconds (the operator, 21 Nov), and a proposal that came while the person typed, waiting for their word
 const proposal = ref<Proposal | null>(null)
-const proposing = ref(false)
+const proposingSince = ref<number | null>(null)
+const proposing = computed(() => proposingSince.value !== null)
+const proposingFor = useElapsed(() => proposingSince.value)
 const proposeRefused = ref<string | null>(null)
+const arrived = ref<Proposal | null>(null)
 
 const draft = reactive<VerdictDraft>({ verdict: '', reason: '', block: props.target, note: '', judgeAssessment: '', correction: '' })
 const prefill = ref('')
@@ -61,7 +68,12 @@ watch(() => draft.block, id => {
   draft.correction = prefill.value
   proposal.value = null
   proposeRefused.value = null
+  proposingSince.value = null
+  arrived.value = null
   emit('target', id)
+  // a proposal still out for this block, asked before the panel was closed: waited on again, counting on
+  const out = id ? store.proposing(requestOf(id)) : null
+  if (out) void waitFor(out, id)
 }, { immediate: true })
 
 // the judge is assessed where what the verdict is about has a finding: the block's own, or for the whole page the page's
@@ -76,7 +88,7 @@ const asking = ref<{ kind: 'close' } | { kind: 'retarget', block: string } | nul
 
 /** Shuts the panel, asking first where a change would be lost. */
 function requestClose(): void {
-  if (dirty.value && !recorded.value) {
+  if (dirty.value) {
     asking.value = { kind: 'close' }
     return
   }
@@ -131,20 +143,41 @@ const proposeWhyNot = computed(() => proposeRefused.value
   ?? (proposal.value && !proposal.value.prefill ? `no proposal: ${proposal.value.why ?? 'none given'}` : null)
   ?? (props.form.propose.available ? null : props.form.propose.why_not))
 
+function requestOf(block: string): ProposalRequest {
+  return { knowledge_base: props.knowledgeBase, work: props.work, pdf_page: props.page.pdf_page, block }
+}
+
+// what the person has put in the form, to tell whether they typed while the proposal was out
+function typed(): string {
+  return JSON.stringify([draft.verdict, draft.reason, draft.note, draft.judgeAssessment, draft.correction])
+}
+
 async function propose(): Promise<void> {
   if (!draft.block || proposeWhyNot.value || proposing.value) return
-  proposing.value = true
-  const asked = draft.block
+  await waitFor(store.propose(requestOf(draft.block)), draft.block)
+}
+
+/** Waits on a proposal for a block and fills the form from it; where the person typed meanwhile, asks first. */
+async function waitFor(out: Asking, block: string): Promise<void> {
+  proposingSince.value = out.started
+  const before = typed()
   try {
-    const answer = await proposeCorrection({ knowledge_base: props.knowledgeBase, work: props.work, pdf_page: props.page.pdf_page, block: asked })
-    if (draft.block !== asked) return
+    const answer = await out.answer
+    if (left || draft.block !== block) return
     proposal.value = answer
-    fill(answer)
+    if (!answer.prefill) return
+    if (typed() === before) fill(answer)
+    else arrived.value = answer
   } catch (caught) {
-    if (draft.block === asked) proposeRefused.value = caught instanceof ApiError ? caught.detail : String(caught)
+    if (!left && draft.block === block) proposeRefused.value = caught instanceof ApiError ? caught.detail : String(caught)
   } finally {
-    proposing.value = false
+    if (proposingSince.value === out.started) proposingSince.value = null
   }
+}
+
+function fillArrived(): void {
+  if (arrived.value) fill(arrived.value)
+  arrived.value = null
 }
 
 /** Every field as the proposal fills it (F1.a), each still the person's to change; a block left as it was keeps its text. */
@@ -161,7 +194,6 @@ const WEIGH = 'the image shows no such error'
 const sending = ref(false)
 const said = ref('')
 const failed = ref(false)
-const recorded = ref(false)
 let left = false
 onBeforeUnmount(() => {
   left = true
@@ -176,16 +208,8 @@ async function send(): Promise<void> {
   said.value = ''
   try {
     const given = await giveVerdict(payloadOf(draft, prefill.value, props.knowledgeBase, props.work, props.page.pdf_page))
-    recorded.value = true
-    said.value = 'Recorded · the view updates after the export (about a minute)'
-    const error = await store.followExport(props.knowledgeBase, given.export.finished, () => left)
-    if (left) return
-    if (error) {
-      failed.value = true
-      said.value = `Recorded · the export failed: ${error}`
-      return
-    }
-    emit('recorded')
+    // recorded: the panel closes at once, since nothing is lost, and its page says it and follows the export (21 Nov)
+    emit('recorded', { block: draft.block, verdict: draft.verdict, export: given.export })
   } catch (caught) {
     failed.value = true
     said.value = caught instanceof Error ? caught.message : String(caught)
@@ -196,7 +220,7 @@ async function send(): Promise<void> {
 </script>
 
 <template>
-  <aside class="verdict-panel" role="dialog" aria-modal="false" aria-labelledby="verdict-title" data-part="verdict-panel">
+  <aside class="verdict-panel" role="dialog" aria-modal="false" aria-labelledby="verdict-title" :aria-busy="proposing" data-part="verdict-panel">
     <header class="panel-head">
       <p id="verdict-title" class="panel-title">A person's verdict on PDF page {{ page.pdf_page }}</p>
       <AppButton variant="quiet" size="compact" data-part="close" @click="requestClose">Close</AppButton>
@@ -257,11 +281,17 @@ async function send(): Promise<void> {
           <LabelledLine label="Proposal">
             <span class="propose-line">
               <AppButton size="compact" :disabled="Boolean(proposeWhyNot) || proposing" data-part="propose" @click="propose">
-                ✦ fill with AI
+                <RunningMark v-if="proposing" words="asking the model" :seconds="proposingFor" />
+                <template v-else>✦ fill with AI</template>
               </AppButton>
               <span v-if="proposeWhyNot" class="hint" data-part="propose-why-not">{{ proposeWhyNot }}</span>
-              <span v-else-if="proposing" class="hint">asked; a model reads the page</span>
             </span>
+            <!-- the proposal came while the person typed: their word before it replaces what they typed -->
+            <p v-if="arrived" class="panel-ask" role="alert" data-part="fill-ask">
+              <span>The proposal came: fill the fields and replace what you typed?</span>
+              <AppButton size="compact" data-part="fill-anyway" @click="fillArrived">Fill</AppButton>
+              <AppButton variant="quiet" size="compact" data-part="keep-mine" @click="arrived = null">Keep mine</AppButton>
+            </p>
             <div v-if="proposal && proposal.state === 'proposed'" class="proposal" data-part="proposal">
               <template v-if="proposal.prefill">
                 <p data-part="image-shows"><span class="part-label">the image shows:</span> {{ proposal.image_shows }}</p>
@@ -274,7 +304,7 @@ async function send(): Promise<void> {
                 >{{ part.text }}</span></p>
                 <p class="proposal-foot">
                   <span class="hint" data-part="filled-said">{{ proposal.prefill.said }}</span>
-                  <span v-if="proposal.cost_usd !== null && proposal.cost_usd !== undefined" class="cost" data-part="proposal-cost">{{ usd(proposal.cost_usd) }}</span>
+                  <span v-if="proposal.cost_usd !== null && proposal.cost_usd !== undefined" class="cost" data-part="proposal-cost">{{ `${usd(proposal.cost_usd)} USD` }}</span>
                 </p>
               </template>
             </div>

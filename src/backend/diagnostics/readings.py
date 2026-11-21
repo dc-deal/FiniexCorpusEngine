@@ -145,6 +145,19 @@ class Check(BaseModel):
     judge: Judge | None = None
 
 
+class WaitingVerdict(BaseModel):
+    """A verdict the pipeline database holds and the export does not hold yet (the operator's E1.a, 21 Nov: a verdict recorded
+    was taken for "nothing saved" while its export ran unseen): it waits for the export, and is served once that is done."""
+
+    knowledge_base: KnowledgeBase
+    source_id: str | None = None
+    pdf_page: int
+    block: str | None = None
+    verdict: str
+    given_at: str
+    by_a_person: bool = True
+
+
 class PersonVerdict(BaseModel):
     """A person's verdict on a page or one of its blocks (146.a): accept, reject or a note, with the reason given. One
     given on an earlier reading of the page does not apply to the one shown, and says so."""
@@ -594,6 +607,9 @@ class PageDetail(BaseModel):
     # that sentence in the Check line's words, after the state and its reasons (H1.a, 21 Nov): "served all the same: …"
     check_said: str | None = None
     person: PersonMark | None = None  # a person's standing verdict beside the state (166.a)
+    # the verdicts on this page recorded and not yet in the export, from the pipeline database (E1.a): the page shows them at
+    # once, marked as waiting for the export, which then serves them as a person's mark
+    waiting: list[WaitingVerdict] = []
     # what kind of page it is (decision 172.a): the reader's `page_kind`, and the export's category from it (content,
     # exercise, index, contents, front matter, back matter, cover, blank, advertisement); None where no reading named it
     category: str | None = None

@@ -3339,6 +3339,36 @@
               }
             ],
             "title": "Last Finished At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "expected_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Seconds"
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingVerdict"
+            },
+            "type": "array",
+            "title": "Waiting",
+            "default": []
           }
         },
         "type": "object",
@@ -5984,6 +6014,14 @@
                 "type": "null"
               }
             ]
+          },
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/WaitingVerdict"
+            },
+            "type": "array",
+            "title": "Waiting",
+            "default": []
           },
           "category": {
             "anyOf": [
@@ -9879,6 +9917,66 @@
         ],
         "title": "VerdictRequest",
         "description": "A verdict on the reading a page shows: the page by its work's id and PDF page, as the views address it."
+      },
+      "WaitingVerdict": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "pdf_page": {
+            "type": "integer",
+            "title": "Pdf Page"
+          },
+          "block": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block"
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "given_at": {
+            "type": "string",
+            "title": "Given At"
+          },
+          "by_a_person": {
+            "type": "boolean",
+            "title": "By A Person",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_base",
+          "pdf_page",
+          "verdict",
+          "given_at"
+        ],
+        "title": "WaitingVerdict",
+        "description": "A verdict the pipeline database holds and the export does not hold yet (the operator's E1.a, 21 Nov: a verdict recorded\nwas taken for \"nothing saved\" while its export ran unseen): it waits for the export, and is served once that is done."
       },
       "Work": {
         "properties": {

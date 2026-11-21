@@ -4,6 +4,9 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/base/AppButton.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
+import AppToasts from '@/components/base/AppToasts.vue'
+import ExportBadge from '@/components/ExportBadge.vue'
+import { useVerdictStore } from '@/stores/verdict_store'
 import { useFrameStore } from '@/stores/frame_store'
 
 /**
@@ -21,6 +24,8 @@ const MENU = [
 const route = useRoute()
 const router = useRouter()
 const frame = useFrameStore()
+// the exports a verdict waits for, on every view (E1.a): asked once here, followed while one runs
+void useVerdictStore().loadForm()
 const { info, error: infoError, named } = storeToRefs(frame)
 const open = ref(false)
 const menuRoot = ref<HTMLElement | null>(null)
@@ -63,20 +68,33 @@ function onPointer(event: PointerEvent): void {
   if (open.value && menuRoot.value && !menuRoot.value.contains(event.target as Node)) open.value = false
 }
 
+// the header's height, for what stands beneath it at the window's top: a toast, so it never covers the header's hourglass it
+// points a person to (found by the browser check, 21 Nov)
+const header = ref<HTMLElement | null>(null)
+let measured: ResizeObserver | undefined
+function measureHeader(): void {
+  const height = header.value?.getBoundingClientRect().height
+  if (height) document.documentElement.style.setProperty('--frame-header-height', `${Math.round(height)}px`)
+}
+
 onMounted(() => {
   document.addEventListener('keydown', onKey)
   document.addEventListener('pointerdown', onPointer)
+  measureHeader()
+  measured = new ResizeObserver(measureHeader)
+  if (header.value) measured.observe(header.value)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKey)
   document.removeEventListener('pointerdown', onPointer)
+  measured?.disconnect()
 })
 </script>
 
 <template>
   <!-- the bar's background spans the window; its row stands in the content's own container, so the two line up (160) -->
-  <header class="frame-header">
+  <header ref="header" class="frame-header">
     <div class="frame-row">
       <div ref="menuRoot" class="frame-menu-root">
         <AppButton
@@ -114,12 +132,16 @@ onBeforeUnmount(() => {
       <span v-if="route.name !== 'overview' && viewName" class="frame-view" :title="viewName">{{ viewName }}</span>
       <!-- which clock every time is said on, once for every view (line 1's D11.a, the viewer's tip 9): the reader's own zone,
            in which each time is said and its full stamp given -->
+      <!-- an export a verdict waits for, while it runs, and its end (E1.a) -->
+      <ExportBadge />
       <span class="frame-clock" data-part="clock">times in {{ zone }}</span>
     </div>
   </header>
   <main class="frame-main" :class="{ wide }">
     <RouterView />
   </main>
+  <!-- the app's one place for a word that something was done, over every view (21 Nov) -->
+  <AppToasts />
 </template>
 
 <style scoped>

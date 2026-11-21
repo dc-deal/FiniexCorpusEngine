@@ -999,3 +999,20 @@ The record of how the diagnostics frontend came about, mistakes included.
 - **The search tools' names in the view** (21 Nov, line 1 on the standing rule). `LibrarianTool.label`, from `librarian.LABELS`,
   gives a tab its words; the name stays the code name, which the tab's head shows and the address carries. The changed browser
   check was shown failing against the build before it (the tabs said `search` and `semantic_search`).
+- **The running mark, the toast, the export followed** (21 Nov, the operator on cloud patterns; E1.a). `RunningMark` (a ring
+  that turns, still under reduced motion, its words counting up) and `use_elapsed` (the seconds from a start, so a panel opened
+  again counts on): the library had a moving line for a view that loads, none for a control that runs. The proposal still out is
+  kept in the verdict store by its block (`propose`, `proposing`), not in the panel, so a close does not drop it and a panel
+  opened again waits on the same call. The toast: `toast_store` (each time held while pointed at or focused, run on from where
+  it stood) and `AppToasts`, the app's one place for a "done", a polite status. The export is followed by one poll in the
+  verdict store (`follow`, every 2 s while one runs or waits), which the header's `ExportBadge`, the page's reload and the
+  toast's line all read; `followExport` waits on it by a watch. A verdict waits where the pipeline database holds it and the
+  export does not (`verdicts.waiting_in`, by page, time, verdict and block, the core's `human_verdicts` read through its public
+  function); `ExportStatus` takes the core's `started_at` and `expected_seconds` and the waiting verdicts, `PageDetail.waiting`
+  a page's own. **Found by the browser checks:** the toast at the window's very top covered the header's hourglass it points a
+  person to, so it stands beneath the header (`--frame-header-height`, measured); the frame now asks for the verdict form once
+  on every view, so a check's mocks go in before the app first loads; and loading the form moved a base's `finished` from 0 to
+  its count, which read as an export ended, so the page watches the base's own status, unknown until loaded. **Shown failing:**
+  the mark turning beside still under reduced motion; a toast gone with the pointer away beside one held; both checks failed on
+  their first runs over the faults above. On the way, the check that the coverage's fold stays open over a reload waits for the
+  store before it reloads, as the details' check does: it reloaded once before `toggle` had stored the choice.

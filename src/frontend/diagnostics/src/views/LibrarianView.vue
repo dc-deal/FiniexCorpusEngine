@@ -22,7 +22,7 @@ import { useLibrarianStore } from '@/stores/librarian_store'
 const route = useRoute()
 const router = useRouter()
 const store = useLibrarianStore()
-const { info, infoError, calls, callErrors, running } = storeToRefs(store)
+const { info, infoError, calls, callErrors, running, runningSince } = storeToRefs(store)
 
 void store.loadInfo()
 
@@ -84,7 +84,8 @@ function run(): void {
         <FoldSection class="description" remember="librarian.description" title="What the server says" :count="tool.cost_said" data-part="description">
           <p class="description-text">{{ tool.description }}</p>
         </FoldSection>
-        <SchemaForm v-model:values="values" :fields="tool.fields" :folded-title="tool.folded_title" :running="running === tool.name" @submit="run" />
+        <SchemaForm v-model:values="values" :fields="tool.fields" :folded-title="tool.folded_title"
+                    :running-since="running === tool.name ? runningSince : null" @submit="run" />
         <LoadingLine v-if="running === tool.name" />
         <ApiFailure v-else-if="callErrors[tool.name]" :error="callErrors[tool.name]!" @retry="run" />
         <LibrarianAnswer v-else-if="calls[tool.name]" :call="calls[tool.name]!" />

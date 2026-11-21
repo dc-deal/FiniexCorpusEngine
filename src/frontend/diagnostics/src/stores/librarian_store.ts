@@ -20,6 +20,7 @@ export const useLibrarianStore = defineStore('librarian', () => {
   const callErrors = ref<Record<string, Error>>({})
   const forms = ref<Record<string, FormValues>>({})
   const running = ref<string | null>(null)
+  const runningSince = ref<number | null>(null)  // when the call out was made, so Run counts its seconds
   const asked: Record<string, string> = {}  // each tool's last call, as its arguments
 
   async function loadInfo(): Promise<void> {
@@ -36,6 +37,7 @@ export const useLibrarianStore = defineStore('librarian', () => {
     if (!again && asked[tool] === key) return
     asked[tool] = key
     running.value = tool
+    runningSince.value = Date.now()
     const errors = { ...callErrors.value }
     Reflect.deleteProperty(errors, tool)
     callErrors.value = errors
@@ -44,7 +46,10 @@ export const useLibrarianStore = defineStore('librarian', () => {
     } catch (caught) {
       callErrors.value = { ...callErrors.value, [tool]: asError(caught) }
     } finally {
-      if (running.value === tool) running.value = null
+      if (running.value === tool) {
+        running.value = null
+        runningSince.value = null
+      }
     }
   }
 
@@ -52,5 +57,5 @@ export const useLibrarianStore = defineStore('librarian', () => {
     forms.value = { ...forms.value, [tool]: values }
   }
 
-  return { info, infoError, calls, callErrors, forms, running, loadInfo, run, keepForm }
+  return { info, infoError, calls, callErrors, forms, running, runningSince, loadInfo, run, keepForm }
 })

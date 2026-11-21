@@ -189,6 +189,21 @@ describe('LibrarianView (L1.a)', () => {
     expect(vi.mocked(callLibrarian)).toHaveBeenCalledTimes(1)  // the address read back makes no second call
   })
 
+  it('turns and counts on Run while the call is out, and takes no second click (21 Nov)', async () => {
+    let answer: (call: LibrarianCall) => void = () => undefined
+    vi.mocked(callLibrarian).mockReturnValue(new Promise(resolve => { answer = resolve }))
+    await router.push({ name: 'librarian', query: { tool: 'search', query: 'kelly' } })
+    const view = mountView()
+    await flushPromises()
+    const run = view.find('[data-part="run"]')
+    expect(run.attributes('disabled')).toBeDefined()
+    expect(run.find('[data-part="running-words"]').text()).toBe('calling the librarian … 0 s')
+    answer(aCall())
+    await flushPromises()
+    expect(view.find('[data-part="run"]').text()).toBe('Run')
+    expect(view.find('[data-part="run"]').attributes('disabled')).toBeUndefined()
+  })
+
   it('makes the call a pasted address names, once, its arguments in its fields\' types', async () => {
     await router.push({ name: 'librarian', query: { tool: 'search', query: 'kelly fraction', hits: '3' } })
     const view = mountView()
