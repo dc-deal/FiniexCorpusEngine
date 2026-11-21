@@ -623,7 +623,7 @@ class SearchService:
         return {**answer, 'state': 'found', 'image': image.describe(), 'data': image.data, 'format': image.format}
 
     def semantic_search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None) -> dict:
+                        keywords: list[str] | None = None, route: bool = True) -> dict:
         """The chat's retrieval chain (decision 98.c): route, then search by meaning and by keywords; over the free index, and
         the private one fused by rank where this server gives the private base out and its index was built (#8)."""
         from backend.search import semantic_search
@@ -639,7 +639,9 @@ class SearchService:
             self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans, private=private,
                                                             kept=kept)
         given = {'search_query': search_query, 'concept_query': concept_query, 'keywords': keywords}  # the caller's own translation
-        found = self._semantic.search(question, hits, **{name: value for name, value in given.items() if value})
+        # the router kept out of this call only when asked (S1.a); the default call stays the one every client makes
+        found = self._semantic.search(question, hits, **{name: value for name, value in given.items() if value},
+                                      **({} if route else {'route': False}))
         for hit in found.get('hits') or []:
             hit['view_url'] = self.view_of(hit.get('work'), (hit.get('page') or {}).get('label'), (hit.get('page') or {}).get('pdf'))
             work = self.works.get(hit.get('work'))

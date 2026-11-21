@@ -90,12 +90,14 @@ class SemanticSearch:
             self._private_keywords = retrieval.licensed_keyword_index()
 
     def search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-               keywords: list[str] | None = None) -> dict:
+               keywords: list[str] | None = None, route: bool = True) -> dict:
         """Route the question and search for it; a decline searches nothing and says so.
 
         The caller may translate the question itself (decision 279.a): a calling session is a model already. With any of
         `search_query`, `concept_query` or `keywords` the router is not asked and nothing is declined. Without them the router
-        translates while the configuration has it on (`router.enabled`); with it off, the question searches as it stands."""
+        translates while the configuration has it on (`router.enabled`); with it off, the question searches as it stands.
+        `route=False` keeps the router out of this one call whatever the configuration says (the view's bare semantic search,
+        the operator's S1.a, 21 Nov): the question then searches as it stands, as a client without a translation of its own."""
         self._ready()
         limit = self._config['answer']['max_question_characters']
         if not question or not question.strip() or len(question) > limit:
@@ -109,9 +111,9 @@ class SemanticSearch:
             plan = query_routing.fallback_plan((search_query or question).strip())
             routed = {'plan': plan.model_copy(update={'concept_query': concept_query or None, 'keywords': list(keywords or [])}),
                       'fell_back': False, **nothing_spent, 'translated_by': 'the caller'}
-        elif self._router is None:
+        elif self._router is None or not route:
             routed = {'plan': query_routing.fallback_plan(question), 'fell_back': False, **nothing_spent,
-                      'translated_by': 'nobody: the router is off'}
+                      'translated_by': 'nobody: the router is off' if self._router is None else 'nobody: the caller asked for none'}
         else:
             routed = {**query_routing.plan_query(self._router, question), 'translated_by': 'the router'}
         plan = routed['plan']

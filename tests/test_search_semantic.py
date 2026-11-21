@@ -175,3 +175,15 @@ def test_the_server_searches_the_private_index_only_where_it_gives_the_private_b
     unbuilt = service()
     unbuilt.semantic_search('a question')
     assert built == [False, True, False]
+
+
+def test_a_call_may_keep_the_router_out_whatever_the_configuration_says(monkeypatch):
+    # S1.a (the operator, 21 Nov): the view's bare semantic search costs the question's embedding and no model call
+    from backend.search import query_routing
+
+    def no_router(chain, question):
+        raise AssertionError('the router was called')
+    monkeypatch.setattr(query_routing, 'plan_query', no_router)
+    answer = searching(plan()).search('what does the sharpe ratio measure?', route=False)
+    assert answer['plan']['translated_by'] == 'nobody: the caller asked for none'
+    assert answer['plan']['search_query'] == 'what does the sharpe ratio measure?' and answer['usage']['router']['model'] is None
