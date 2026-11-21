@@ -922,3 +922,17 @@ The record of how the diagnostics frontend came about, mistakes included.
   (`work_editions.served_named`), through one lookup of the row that `held_of` now shares (`shelf_row`); `keyword` takes it
   before every other case, so a kept page never reads "not built" or the search's reason for leaving it out. No model changed,
   so the schema and the built UI stand as they were.
+- **A page's coverage in one line, "as served", its chunks** (the operator, 21 Nov; W4). `PageRung.short` gives each level's
+  shortest words and `PageLadder.served_by` what serves the page in its reading's place, so the line and the fold are the API's
+  words; the fold is `PageLadderLines`' own, so a page's and a section's ladders fold alike in all four views. `Block.served` is
+  the core's `block_text` for a block `quotable_text` keeps. `page_chunks` reads each base's index read-only, as `html_works`
+  does: the page's chunks by `pdf_page` and `pdf_page_end`, each placed in its section's text by `html_works.placed`, the page
+  found in that section by its whole text or, where a heading starts a section mid page (free finance p. 470), by where the two
+  meet over at least sixteen characters, each case checked word for word. **Found:** a first anchor of sixty characters missed a
+  page's beginning that ended a section in fewer; the mode's head counted the chunk run on from the page before beside those
+  that begin on the page, so it said four where the ladder said three, and now says the ladder's count, the run-on chunk on its
+  own line. **Found by a browser check:** with the coverage folded the record is shorter, the original's pane (85 % of the
+  window) reached past the window's foot, and the frame of a block low on Kelly p. 7 stood there, out of the window and beyond
+  the pane's own scroll; the pane is now as tall as the window shows beneath its top, measured as the window scrolls. The quoted
+  tab's store and client went with it; its API route stays. The browser check of the mode was shown failing with the greying
+  undone.

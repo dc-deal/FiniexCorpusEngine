@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { pageImageUrl } from '@/api/api_client'
@@ -9,6 +9,8 @@ import AnalysisSection from '@/components/base/AnalysisSection.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
 import DetailList from '@/components/base/DetailList.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
+import HintPanel from '@/components/base/HintPanel.vue'
+import HintToggle from '@/components/base/HintToggle.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
@@ -39,6 +41,7 @@ import { useViewName } from '@/view_name'
 import { lookedSaid, verdictBy } from '@/person_words'
 import { readingCost, usd } from '@/cost_format'
 import { counted, noun } from '@/counted'
+import { overlapHint } from '@/overlap_hint'
 import type { Attempt, Judgement, PersonVerdict } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
@@ -56,10 +59,10 @@ const props = defineProps<{
   page: number
 }>()
 
-type Mode = 'readable' | 'raw' | 'quoted'
+type Mode = 'readable' | 'raw'
 
 const store = usePageStore()
-const { detailError, quotedError, recallError } = storeToRefs(store)
+const { detailError, chunksError, recallError } = storeToRefs(store)
 const settingsStore = useSettingsStore()
 const { settings } = storeToRefs(settingsStore)
 const mode = ref<Mode>('readable')
@@ -86,7 +89,20 @@ watch(() => [props.kb, props.work, props.page] as const, ([kb, work, page]) => {
 // answers, not by its fields, so a row that named another knowledge base than its address could not hang the view
 const shown = computed(() => store.pageOf(props.kb, props.work, props.page))
 useViewName(() => (shown.value ? `${shown.value.title} p. ${shown.value.pdf_page}` : null))
-const quotedText = computed(() => store.quotedOf(props.kb, props.work, props.page))
+// "as served" (the operator, 21 Nov: quoted is a subset of readable): the readable view with every block never quoted greyed and
+// every quoted one in the form the search and the chat quote, the page's chunks drawn across them (W4), asked for when it is
+// switched on. Where the page serves something else in its reading's place, nothing of the reading is served, and it says so
+const asServed = ref(false)
+const servedBy = computed(() => shown.value?.ladder?.served_by ?? null)
+const chunks = computed(() => store.chunksOf(props.kb, props.work, props.page))
+const servedMode = computed(() => asServed.value && mode.value === 'readable' && !recallId.value && !servedBy.value)
+watch(() => [servedMode.value, props.kb, props.work, props.page] as const, ([on, kb, work, page]) => {
+  if (on) void store.loadChunks(kb, work, page)
+}, { immediate: true })
+const chunkHintOpen = ref(false)
+const chunksShare = computed(() => chunks.value?.chunks.some(chunk => chunk.overlap > 0) ?? false)
+const firstChunk = computed(() => chunks.value?.chunks.find(chunk => chunk.start !== null) ?? null)
+const lastChunk = computed(() => [...(chunks.value?.chunks ?? [])].reverse().find(chunk => chunk.start !== null) ?? null)
 const imageUrl = computed(() => pageImageUrl(props.kb, props.work, props.page))
 
 // A judgement recalled on the page (181.a, the operator: "you see what the old judge looked like, applied to the page"): the
@@ -123,18 +139,16 @@ function recallLink(recall: string) {
   return { ...standing.value, query: { judgement: recall } }
 }
 
-// the quoted text is asked for only when it is to be shown: the first ask for a book may wait while the core cuts it
 function choose(chosen: Mode): void {
   mode.value = chosen
   rawLine.value = null
-  if (chosen === 'quoted') void store.loadQuoted(props.kb, props.work, props.page)
 }
 
 // every page opens on its reading, a page served from its text layer too (227.a, the operator: a control used again and again never
-// moves; the head says what is served, and the quoted text is one click away). Only a page without a reading opens on the
-// quoted text, its one choice. Set when the page has arrived, so a page on its way never asks for its quoted text in passing.
+// moves; the head says what is served). A page that serves something else in its reading's place shows that text in its
+// coverage's "text served" fold (21 Nov), the quoted tab gone into "as served"
 watch(shown, page => {
-  if (page) choose(page.reading ? 'readable' : 'quoted')
+  if (page) choose('readable')
 })
 // the route in its parts as the API parts it (184): "noted · vision reading · claude-sonnet-5-5 · page/1 · validator page/1.2"
 const routeSaid = computed(() => (shown.value
@@ -376,9 +390,39 @@ const box = computed(() => {
   }
 })
 
+// The original's pane as tall as the window shows beneath its top, and never more than 85 % of the window: where the record
+// above it is short, as with the coverage folded to one line (21 Nov), a pane of 85 % reached past the window's foot, and a
+// frame low on the page stood there, out of the window and out of the pane's own reach (found by the browser check of
+// Kelly p. 7). Measured again as the window scrolls or changes size; a pane low in the window keeps a room of its own.
+const PANE_LEAST = 240
+const paneRoom = ref<number | null>(null)
+function measurePane(): void {
+  const frame = pane.value
+  if (!frame) return
+  const top = Math.max(0, frame.getBoundingClientRect().top)
+  paneRoom.value = Math.max(PANE_LEAST, Math.min(window.innerHeight * 0.85, window.innerHeight - top - 8))
+}
+let measuring = 0
+function onWindowMoved(): void {
+  cancelAnimationFrame(measuring)
+  measuring = requestAnimationFrame(measurePane)
+}
+onMounted(() => {
+  window.addEventListener('scroll', onWindowMoved, { passive: true })
+  window.addEventListener('resize', onWindowMoved)
+})
+onBeforeUnmount(() => {
+  cancelAnimationFrame(measuring)
+  window.removeEventListener('scroll', onWindowMoved)
+  window.removeEventListener('resize', onWindowMoved)
+})
+watch(pane, () => nextTick(measurePane))
+
 // A frame outside the visible part of the original brings it into view: only the original's own pane scrolls, never the
 // window, so the reading under the pointer stays where it is.
 watch(box, async () => {
+  await nextTick()
+  measurePane()
   await nextTick()
   const frame = pane.value
   const element = boxElement.value
@@ -803,7 +847,7 @@ watch(box, async () => {
       <p v-else-if="recalled?.why_not" class="no-reading" data-part="recall-missing">{{ recalled.why_not }}</p>
       <div class="side-by-side">
         <figure class="original">
-          <div v-if="shown.image.available" ref="pane" class="original-pane">
+          <div v-if="shown.image.available" ref="pane" class="original-pane" :style="paneRoom ? { maxHeight: `${paneRoom}px` } : undefined">
             <div class="page-frame">
               <img
                 :src="imageUrl"
@@ -827,22 +871,18 @@ watch(box, async () => {
             <template v-if="analysisReading">
               <AppButton size="compact" :active="mode === 'readable'" @click="choose('readable')">readable</AppButton>
               <AppButton size="compact" :active="mode === 'raw'" @click="choose('raw')">raw</AppButton>
+              <!-- a mode of readable, the standing reading's alone: a recalled judgement serves nothing of its own -->
+              <template v-if="mode === 'readable' && !recallId">
+                <span v-if="servedBy" class="as-served-off" data-part="as-served-off">
+                  <AppIcon name="quoted" /> as served: {{ servedBy }} serves this page in its reading's place, so nothing of the reading is served
+                </span>
+                <AppButton v-else size="compact" :active="asServed" data-part="as-served" @click="asServed = !asServed">
+                  <AppIcon name="quoted" /> as served
+                </AppButton>
+              </template>
             </template>
-            <!-- the quoted text is the standing view's: a recalled judgement has none of its own -->
-            <AppButton v-if="!recallId" size="compact" :active="mode === 'quoted'" @click="choose('quoted')">quoted</AppButton>
           </div>
-          <!-- what the search and the chat quote: the served reading as quotable text, or the cleaned text layer -->
-          <template v-if="mode === 'quoted'">
-            <p class="quoted-from"><AppIcon name="quoted" /> What the search and the chat quote · {{ shown.route }}</p>
-            <ApiFailure v-if="quotedError" :error="quotedError" @retry="store.loadQuoted(kb, work, page)" />
-            <template v-else-if="!quotedText">
-              <LoadingLine />
-              <p class="quoted-wait">The first time on a machine, a book's quoted text is cut before it is shown: up to a minute for a large one.</p>
-            </template>
-            <p v-else-if="quotedText.text === null" class="no-quote">The core holds no quoted text for this page.</p>
-            <pre v-else class="quoted-text">{{ quotedText.text }}</pre>
-          </template>
-          <template v-else-if="analysisReading">
+          <template v-if="analysisReading">
             <!-- the validator's errors, each with the way to its block and to its line in the raw text (228.a); muted, and saying
                  so, where a person has looked, never hidden -->
             <ul v-if="analysisReading.error_places?.length" class="parse-errors ruled" role="alert" data-part="parse-errors">
@@ -856,16 +896,41 @@ watch(box, async () => {
             </ul>
             <!-- a recalled judgement's findings about the page as a whole, in the same voices as beside a block -->
             <FindingList v-if="recalled?.page_findings.length" class="page-findings" :findings="recalled.page_findings" names-blocks />
+            <!-- as served: the page's chunks of semantic search, where each begins and what it shares, said above the blocks;
+                 a chunk not placed in words, never drawn by guess (W4) -->
+            <div v-if="servedMode" class="chunks-head" data-part="chunks-head">
+              <ApiFailure v-if="chunksError" :error="chunksError" @retry="store.loadChunks(kb, work, page)" />
+              <LoadingLine v-else-if="!chunks" />
+              <template v-else>
+                <p class="chunks-said">
+                  <span>{{ chunks.count_said ?? chunks.said }}</span>
+                  <span v-if="chunks.held_back" class="held-back" data-part="held-back">kept: {{ chunks.held_back }}</span>
+                  <HintToggle v-if="chunksShare" id="overlap" v-model:open="chunkHintOpen" />
+                </p>
+                <HintPanel v-if="chunksShare && chunkHintOpen" id="overlap" @close="chunkHintOpen = false">
+                  <p class="legend" data-part="overlap-legend">{{ overlapHint(chunks.splitter) }}</p>
+                </HintPanel>
+                <p v-if="chunks.not_placed" class="not-placed" role="alert" data-part="not-placed"><AppIcon name="status-error" /> {{ chunks.not_placed }}</p>
+                <p v-if="firstChunk?.continues_from" class="continues" data-part="continues-from">
+                  chunk {{ firstChunk.number }} continues from p. {{ firstChunk.continues_from }}
+                </p>
+              </template>
+            </div>
             <ReadingBlocks
               v-if="mode === 'readable'"
               ref="readingBlocks"
               :blocks="analysisReading.blocks"
               :highlight="highlight"
               :errors="analysisReading.error_places ?? []"
+              :as-served="servedMode"
+              :chunks="servedMode ? chunks : null"
               @hover="hovered = $event"
               @jump="showBlock"
               @raw="showRaw"
             />
+            <p v-if="servedMode && lastChunk?.continues_on" class="continues" data-part="continues-on">
+              chunk {{ lastChunk.number }} continues on p. {{ lastChunk.continues_on }}
+            </p>
             <pre v-else ref="rawText" class="raw" data-part="raw" :style="{ '--gutter': `${String(rawLines.length).length}ch` }"><span v-for="(line, at) in rawLines" :key="at" class="raw-line" :class="[{ marked: at + 1 === rawLine }, errorLines.get(at + 1)]" :data-line="at + 1" :data-error-line="errorLines.get(at + 1)">{{ at < rawLines.length - 1 ? `${line}\n` : line }}</span></pre>
           </template>
         </div>
@@ -1302,35 +1367,46 @@ tr.recalled-source {
 }
 
 /* where the quoted text comes from: the route, in the words of the line above */
-.quoted-from {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
-  color: var(--color-text-secondary);
-}
-
-.raw,
-.quoted-text {
+.raw {
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .no-reading,
-.no-quote,
-.quoted-wait {
+.as-served-off,
+.chunks-said,
+.continues {
   color: var(--color-text-secondary);
 }
 
-/* said only when the wait is long enough to need a reason: a book's quoted text is being cut */
-.quoted-wait {
-  opacity: 0;
-  animation: appear 0s 1s forwards;
+/* as served, said where the page serves another text: no switch, the reason in its place */
+.as-served-off {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
 }
 
-@keyframes appear {
-  to {
-    opacity: 1;
-  }
+.chunks-head {
+  margin-bottom: var(--space-sm);
+}
+
+.chunks-said {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+}
+
+.not-placed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-error);
+}
+
+/* a chunk that runs over the page's edge, said at the page's top or foot (65.a), dashed as a chunk's border is */
+.continues {
+  padding: 2px 0;
+  border-top: 1px dashed var(--color-annotation);
 }
 </style>

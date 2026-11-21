@@ -26,8 +26,8 @@ from pydantic import BaseModel
 
 from backend.chat import app_config
 from backend.diagnostics import (calls, chat, coverage_ladder, epub_works, error_classes, html_works, overview, page_integrity,
-                                 page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, stamps, verdicts,
-                                 work_editions)
+                                 page_chunks, page_ladder, prompts, readings, runs, search_hits, shelf_rows, sources, stamps,
+                                 verdicts, work_editions)
 from backend.search.search_server import MAX_HITS
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
@@ -422,6 +422,23 @@ def create_app(public_only: bool = False, warm_search: bool = False, chat_agent:
                                          key or (work or {}).get('work'), search.ready(), held,
                                          page_ladder.kept_of(store, source_id))  # a kept edition's page says so (E1.a)
         return page.model_copy(update={'ladder': ladder})
+
+    @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/chunks')
+    def page_chunk_lines(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> page_chunks.PageChunks:
+        """A read page's chunks in semantic search's index, placed in its quoted blocks by their text (the operator's W4,
+        21 Nov): the page view's "as served" mode draws them, asked for only when that mode is on."""
+        store = store_of(knowledge_base)
+        page = store.page(source_id, pdf_page, title_of(knowledge_base, source_id))
+        if page is None or page.reading is None:
+            raise HTTPException(404, f'no reading of PDF page {pdf_page} of {source_id!r} here')
+        key, held = page_ladder.held_of(store, source_id)
+        work = store.work(source_id) or store.entry_work(source_id)
+        # the index's name of the work: a free work's source id, a licensed one's work key; a file held back is never embedded
+        index_source = None if held else source_id if knowledge_base == 'free' else key or (work or {}).get('work')
+        kept = page_ladder.kept_of(store, source_id)
+        return page_chunks.page_chunks(knowledge_base, source_id, pdf_page, page.reading.blocks, page_ladder.INDEX_DB[knowledge_base](),
+                                       index_source, coverage_ladder.not_embedded(knowledge_base, held),
+                                       coverage_ladder.KEPT_HELD_BACK if kept else None)
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/recall')
     def page_recall(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int, judgement: str) -> readings.Recalled:

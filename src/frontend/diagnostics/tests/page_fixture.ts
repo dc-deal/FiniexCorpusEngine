@@ -112,13 +112,15 @@ export function aBlock(overrides: Partial<ReadingBlock> = {}): ReadingBlock {
 export function aPageLadder(overrides: Partial<PageLadder> = {}): PageLadder {
   return {
     rungs: [
-      { level: 'text layer', reached: true, said: '4,074 characters' },
-      { level: 'text served', reached: true, said: "served from the PDF's text layer" },
-      { level: 'keyword search', reached: true, said: 'in search (BM25)' },
-      { level: 'semantic search', reached: null, said: 'not in the vector index on this machine' },
-      { level: 'reading and check', reached: false, said: 'no reading; planned' },
+      { level: 'text layer', reached: true, said: '4,074 characters', short: 'text layer' },
+      { level: 'text served', reached: true, said: "served from the PDF's text layer", short: 'text layer' },
+      { level: 'keyword search', reached: true, said: 'in search (BM25)', short: 'in BM25' },
+      { level: 'semantic search', reached: null, said: 'not in the vector index on this machine', short: 'not in the index' },
+      { level: 'reading and check', reached: false, said: 'no reading; planned', short: 'planned' },
     ],
     served_text: 'The Kelly criterion sizes a bet.',
+    // the text layer serves it in its reading's place: the served text stands apart, named (21 Nov)
+    served_by: "the PDF's text layer",
     served_why_not: null,
     held: null,
     ...overrides,

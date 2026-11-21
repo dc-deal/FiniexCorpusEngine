@@ -1860,3 +1860,17 @@ browser (3 skipped on today's data), 1,530 Python tests.
 its keyword level what its record says: "kept: not searched; the 2nd edition, 2001 is served", whether the search is built yet
 or not, its text shown all the same, since it is there and opens by its own key; its other levels say what they said. 1,532
 Python tests.
+
+**A page's coverage in one line, and its reading "as served" (the operator, 21 Nov).** A page's and a section's own ladder
+stands folded to one line by default, its five marks and each level's shortest words ("its reading · in BM25 · 2 chunks ·
+reading issue"), and opens to the ladder as before; open or closed is kept with the reader's other folds. Its "text served" fold
+stands only where something other than the reading serves the page, and says which; where the reading is served, the reading
+panel shows it. The quoted tab is gone into the readable view, of which it was a part: readable | raw, and readable has a switch
+"as served". Switched on, every block never quoted is greyed, still to be read, and every quoted block shows the form the search
+and the chat quote, the core's own (`served_readings.block_text`): a formula its LaTeX, a definition its term, a list item its
+marker; where the page serves another text in its reading's place, the switch says nothing of the reading is served. In that
+mode the page's chunks of semantic search are drawn across its quoted blocks as an HTML section's are: each beginning a dashed
+line with what it shares with the chunk before, a chunk begun on the page before said at the top and one running on said at the
+foot. A chunk is placed by its text in its section's text, and the page's quoted text in that section the same way, never by an
+offset; one that cannot be placed is said in words and never drawn. The page's image stays as it was. 409 unit tests, 86 checks
+in the browser (3 skipped on today's data), 1,539 Python tests.

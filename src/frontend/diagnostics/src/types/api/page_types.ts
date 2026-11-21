@@ -16,7 +16,7 @@ export type StatePages = Schemas['StatePages']
 /** One page with its reading, trace, check and original (`GET /api/{knowledge_base}/works/{source_id}/pages/{pdf_page}`). */
 export type PageDetail = Schemas['PageDetail']
 /** The text the search and the chat quote for a page (`GET .../pages/{pdf_page}/quoted`). */
-export type QuotedText = Schemas['QuotedText']
+export type PageChunks = Schemas['PageChunks']
 export type ReadingBlock = Schemas['Block']
 export type Finding = Schemas['Finding']
 /** A person's verdict on a page or a block of it (146.a). */

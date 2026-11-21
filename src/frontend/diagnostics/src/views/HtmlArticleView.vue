@@ -12,6 +12,7 @@ import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
 import PageLadderLines from '@/components/PageLadderLines.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
+import { overlapHint as hintOf } from '@/overlap_hint'
 import { useHtmlStore } from '@/stores/html_store'
 import { useViewName } from '@/view_name'
 import type { KnowledgeBase } from '@/types/api/source_types'
@@ -53,13 +54,7 @@ watch([shown, () => props.section], async ([article, label]) => {
 
 // What the dashed line means, a hint on demand and only where a chunk shares text with the one before (the operator, 10 Nov: "rather show it as a hint"); the same sentence in the hover of the dashed text and of "N shared". The figures are the API's.
 const shares = computed(() => shown.value?.entries.some(entry => entry.section?.chunks.some(chunk => chunk.overlap > 0)) ?? false)
-const overlapHint = computed(() => {
-  const splitter = shown.value?.splitter
-  if (!splitter) return ''
-  return `dashed: text shared with the chunk before. The splitter (${splitter.splitter}, ${splitter.chunk_size.toLocaleString('en')}`
-    + ` characters a chunk, ${splitter.chunk_overlap} shared) repeats up to ${splitter.chunk_overlap} characters across a border,`
-    + ' so a sentence cut there stays findable in both chunks. Formulas stand here as the LaTeX the index holds.'
-})
+const overlapHint = computed(() => hintOf(shown.value?.splitter))
 const hintOpen = ref(false)
 
 useViewName(() => (shown.value ? `${shown.value.title} ${props.section}` : null))
