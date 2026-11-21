@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from backend.conversion.checks import human_verdict
 from backend.conversion.judge import correction_proposal
 from backend.conversion.store import export_queue, pipeline_db, reading_export
-from backend.diagnostics.readings import Cell, KnowledgeBase, Readings, table_correction
+from backend.diagnostics.readings import Cell, KnowledgeBase, Readings, WaitingVerdict, table_correction
 
 SWITCHED_OFF = 'Verdicts are given here only when the app was started with --allow-verdicts; it is read-only now.'
 
@@ -53,6 +53,12 @@ class ExportStatus(BaseModel):
     finished: int
     last_error: str | None = None
     last_finished_at: str | None = None
+    # since when the running export runs, and how long one of this base usually takes, the median of the last finished
+    # (the core's `expected_seconds`); None while none runs or none finished yet (the operator's E1.a, 21 Nov)
+    started_at: str | None = None
+    expected_seconds: float | None = None
+    # the verdicts recorded and not yet in the export: what it serves once it is done
+    waiting: list[WaitingVerdict] = []
 
 
 class ProposeState(BaseModel):
@@ -175,6 +181,20 @@ class TablePreview(BaseModel):
     rows: list[list[Cell]] | None = None
 
 
+def waiting_in(name: str, store: Readings) -> list[WaitingVerdict]:
+    """The verdicts the pipeline database holds that the base's export does not hold yet, oldest first: a verdict is
+    exported with every page it is on (`reading_export.human_of`, archived ones too), so one the export lacks waits for the
+    next. Told apart by page, time, verdict and block, which the export copies as the database holds them."""
+    rows = store.rows()
+    exported = {(row.get('file'), row.get('pdf_page'), person.get('given_at'), person.get('verdict'), person.get('block'))
+                for row in rows for person in row.get('human') or []}
+    sources = {(row.get('file'), row.get('pdf_page')): row.get('source_id') for row in rows}
+    return [WaitingVerdict(knowledge_base=name, source_id=sources.get((file, pdf_page)), pdf_page=pdf_page, block=verdict['block'],
+                           verdict=verdict['verdict'], given_at=verdict['given_at'], by_a_person=pipeline_db.by_a_person(verdict['given_by']))
+            for (file, pdf_page), verdicts in pipeline_db.human_verdicts(name).items() for verdict in verdicts
+            if (file, pdf_page, verdict['given_at'], verdict['verdict'], verdict['block']) not in exported]
+
+
 class VerdictService:
     """The verdicts of one app: switched on or off at its start, one export queue per knowledge base it serves. `run`
     replaces the export a queue runs, for the tests, so no test writes the real export."""
@@ -190,7 +210,15 @@ class VerdictService:
             verdicts=[Option(value=verdict, label=verdict) for verdict in pipeline_db.HUMAN_VERDICTS],
             reasons=[Option(value=key, label=label) for key, label in pipeline_db.HUMAN_REASONS.items()],
             assessments=[Option(value=key, label=label) for key, label in pipeline_db.JUDGE_ASSESSMENTS.items()],
-            exports=[ExportStatus(**queue.status()) for queue in self.queues.values()], propose=self.propose_state())
+            exports=[ExportStatus(**queue.status(), waiting=waiting_in(name, self.bases[name])) for name, queue in self.queues.items()],
+            propose=self.propose_state())
+
+    def waiting_on(self, knowledge_base: str, source_id: str, pdf_page: int) -> list[WaitingVerdict]:
+        """A page's verdicts that wait for the export; none for a base not served here."""
+        store = self.bases.get(knowledge_base)
+        if store is None:
+            return []
+        return [one for one in waiting_in(knowledge_base, store) if one.source_id == source_id and one.pdf_page == pdf_page]
 
     def propose_state(self) -> ProposeState:
         if not self.enabled:

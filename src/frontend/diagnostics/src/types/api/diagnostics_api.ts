@@ -1251,6 +1251,15 @@ export interface components {
             last_error?: string | null;
             /** Last Finished At */
             last_finished_at?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Expected Seconds */
+            expected_seconds?: number | null;
+            /**
+             * Waiting
+             * @default []
+             */
+            waiting: components["schemas"]["WaitingVerdict"][];
         };
         /**
          * Figure
@@ -2071,6 +2080,11 @@ export interface components {
             /** Check Said */
             check_said?: string | null;
             person?: components["schemas"]["PersonMark"] | null;
+            /**
+             * Waiting
+             * @default []
+             */
+            waiting: components["schemas"]["WaitingVerdict"][];
             /** Category */
             category?: string | null;
             /** Page Kind */
@@ -3327,6 +3341,33 @@ export interface components {
             correction?: string | null;
             /** Judge Assessment */
             judge_assessment?: string | null;
+        };
+        /**
+         * WaitingVerdict
+         * @description A verdict the pipeline database holds and the export does not hold yet (the operator's E1.a, 21 Nov: a verdict recorded
+         *     was taken for "nothing saved" while its export ran unseen): it waits for the export, and is served once that is done.
+         */
+        WaitingVerdict: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Source Id */
+            source_id?: string | null;
+            /** Pdf Page */
+            pdf_page: number;
+            /** Block */
+            block?: string | null;
+            /** Verdict */
+            verdict: string;
+            /** Given At */
+            given_at: string;
+            /**
+             * By A Person
+             * @default true
+             */
+            by_a_person: boolean;
         };
         /**
          * Work

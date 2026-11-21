@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { NOT_MEASURABLE, usd } from '../src/cost_format'
 
 /**
@@ -1990,6 +1990,152 @@ test('a page offers no verdict where the app is read-only, and the panel opens o
   expect(sent).toBe(0)
 })
 
+// The operator on cloud patterns, 21 Nov ("when I ask AI I need an hourglass while it runs"; "Record the verdict should close the
+// panel at once and then show a short toast"). Invented answers over a free paper's page, from the browser: the app is
+// read-only and calls no model. The page's own blocks give the block's id, never its text
+type VerdictFixture = { form: Record<string, unknown>, block: string }
+async function verdictFixture(page: Page, request: APIRequestContext): Promise<VerdictFixture> {
+  const form = await (await request.get('/api/verdict')).json() as Record<string, unknown>
+  const detail = await (await request.get(`/api/free/works/${KELLY}/pages/4`)).json() as { reading: { blocks: { id: string }[] } | null }
+  const block = detail.reading?.blocks[0]?.id ?? 'b01'
+  await page.setViewportSize({ width: 1280, height: 900 })
+  return { form: { ...form, enabled: true, why_not: null, propose: { available: true, why_not: null } }, block }
+}
+
+// a verdict the page and the header say waits for the export (E1.a), invented
+const WAITS = (block: string) => ({ knowledge_base: 'free', source_id: KELLY, pdf_page: 4, block, verdict: 'note',
+  given_at: new Date().toISOString(), by_a_person: true })
+
+function aProposalFor(block: string) {
+  return { state: 'proposed', agrees_with_judge: null, agrees_said: null, image_shows: 'an invented reading of the image',
+    correction: null, flags: [], why: null, cost_usd: 0.0312, version: 'correction/2', model: 'an-invented-model', diff: [],
+    prefill: { verdict: 'note', reason: 'reading_wrong', block, judge_assessment: null, note: 'an invented note from the model',
+      correction: null, said: 'filled by an invented model; nothing is recorded until a person records it' } }
+}
+
+test('a call a person waits on turns and counts its seconds, still under reduced motion, on Run and on ✦ fill with AI (21 Nov)', async ({ page, request }) => {
+  // the verdict's form before the app first loads, which asks for it once on every view (E1.a)
+  const { form, block } = await verdictFixture(page, request)
+  await page.route('**/api/verdict', route => route.fulfill({ json: form }))
+  await page.route('**/api/verdict/preview', route => route.fulfill({ json: { rows: null } }))
+  // Run on the Librarian, its call held back for a while
+  await mockLibrarian(page)
+  await page.route('**/api/librarian/call', async route => {
+    await new Promise(resolve => setTimeout(resolve, 2500))
+    const body = route.request().postDataJSON() as { tool: string, arguments: Record<string, unknown> }
+    return route.fulfill({ json: librarianAnswer(body.tool, body.arguments) })
+  })
+  const animation = (selector: string) => page.locator(selector).first().evaluate(element => getComputedStyle(element).animationName)
+  for (const motion of ['no-preference', 'reduce'] as const) {
+    await page.emulateMedia({ reducedMotion: motion })
+    await page.goto('/#/librarian?tool=search')
+    await settled(page)
+    await page.locator('[data-field="query"] input').fill(`kelly ${motion}`)
+    await page.locator('[data-part="run"]').click()
+    const run = page.locator('[data-part="run"]')
+    await expect(run).toBeDisabled()
+    await expect(run.locator('[data-part="running-words"]')).toHaveText('calling the librarian … 0 s')
+    await expect(run.locator('[data-part="running-words"]')).toHaveText('calling the librarian … 1 s', { timeout: 3000 })
+    // the mark turns, and stands still for a reader who asked for less motion, the words counting on
+    if (motion === 'reduce') expect(await animation('[data-part="run"] .running-mark')).toBe('none')
+    else expect(await animation('[data-part="run"] .running-mark')).not.toBe('none')
+    await expect(run).toHaveText('Run', { timeout: 5000 })
+  }
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  // ✦ fill with AI, its proposal held back for a while: the panel busy, the button turning and counting, then the form filled
+  await page.route('**/api/verdict/propose', async route => {
+    await new Promise(resolve => setTimeout(resolve, 2500))
+    return route.fulfill({ json: aProposalFor(block) })
+  })
+  await page.goto(`/#/free/sources/${KELLY}/page/4`)
+  await settled(page)
+  await page.locator('[data-part="give-verdict"]').click()
+  const panel = page.locator('[data-part="verdict-panel"]')
+  await panel.locator('[data-part="block"]').selectOption(block)
+  await panel.locator('[data-part="propose"]').click()
+  await expect(panel).toHaveAttribute('aria-busy', 'true')
+  await expect(panel.locator('[data-part="propose"]')).toBeDisabled()
+  await expect(panel.locator('[data-part="propose"] [data-part="running-words"]')).toHaveText(/^asking the model … \d+ s$/)
+  await page.screenshot({ path: `${SHOTS}/verdict_proposing.png` })
+  await expect(panel.locator('[data-part="note"]')).toHaveValue('an invented note from the model', { timeout: 5000 })
+  await expect(panel).toHaveAttribute('aria-busy', 'false')
+  await expect(panel.locator('[data-part="proposal-cost"]')).toHaveText('0.031 USD')
+})
+
+test('a recorded verdict closes the panel, says so in a toast, waits on its page, and the header follows its export to its end (21 Nov, E1.a)', async ({ page, request }) => {
+  test.setTimeout(90_000)
+  const { form, block } = await verdictFixture(page, request)
+  const started = new Date().toISOString()
+  const status = (finished: number, running: boolean) => ({ knowledge_base: 'free', running, pending: false, finished, last_error: null,
+    last_finished_at: null, started_at: running ? started : null, expected_seconds: running ? 300 : null, waiting: running ? [WAITS(block)] : [] })
+  let recorded = false
+  let done = false
+  let polls = 0
+  await page.route('**/api/verdict', route => {
+    if (route.request().method() === 'POST') {
+      recorded = true
+      return route.fulfill({ json: { verdict_id: 41, reading_key: 'k', route_before: 'vision reading', export: status(3, true) } })
+    }
+    // the export runs for five polls after the record, then has finished
+    done = done || (recorded && ++polls > 5)
+    return route.fulfill({ json: { ...form, exports: [done ? status(4, false) : status(3, recorded)] } })
+  })
+  // the page as the API serves it, its recorded verdict waiting until the export has finished
+  let loaded = 0
+  await page.route(`**/api/free/works/${KELLY}/pages/4`, async route => {
+    loaded++
+    const response = await route.fetch()
+    return route.fulfill({ response, json: { ...await response.json(), waiting: recorded && !done ? [WAITS(block)] : [] } })
+  })
+  await page.goto(`/#/free/sources/${KELLY}/page/4`)
+  await settled(page)
+  await expect(page.locator('[data-part="export-badge"]')).toHaveCount(0)
+  await page.locator('[data-part="give-verdict"]').click()
+  const panel = page.locator('[data-part="verdict-panel"]')
+  await panel.locator('[data-part="block"]').selectOption(block)
+  await panel.locator('[data-verdict="note"]').click()
+  await panel.locator('[data-part="reason"]').selectOption('reading_wrong')
+  await panel.locator('[data-part="send"]').click()
+  // the panel gone at once, nothing asked; the toast near the top right, a polite status, how long and where to follow it
+  await expect(panel).toHaveCount(0)
+  const toast = page.locator('[data-toast]')
+  await expect(toast.locator('[data-part="toast-text"]')).toHaveText(`Verdict recorded · ${block} · note — the index rebuild may take about 5 minutes`)
+  await expect(toast.locator('[data-part="toast-detail"]')).toHaveText('the free export runs in the background: follow it at the hourglass in the header')
+  await expect(page.locator('[data-part="toasts"]')).toHaveAttribute('role', 'status')
+  // at the right, just beneath the header, so it never covers the hourglass it points to
+  const box = (await toast.boundingBox())!
+  const head = (await page.locator('.frame-header').boundingBox())!
+  expect([Math.round(1280 - box.x - box.width) <= 24, box.y >= head.y + head.height, box.y <= head.y + head.height + 24])
+    .toEqual([true, true, true])
+  await toast.hover()  // held while pointed at, past its 4 s
+  // the page shows the verdict at once, waiting for the export
+  await expect(page.locator('[data-label="Check"] [data-part="waiting-verdict"]')).toContainText(`your verdict: note · ${block} · recorded`)
+  // the header: the hourglass turning and its clock; a click opens what it serves
+  const badge = page.locator('[data-part="export-badge"]')
+  await expect(badge.locator('[data-part="export-clock"]')).toHaveText('free export · 1 of about 5 min')
+  const animation = () => badge.locator('.hourglass').evaluate(element => getComputedStyle(element).animationName)
+  expect(await animation()).not.toBe('none')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(await animation()).toBe('none')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.screenshot({ path: `${SHOTS}/verdict_toast.png` })
+  await badge.locator('[data-part="export-running"]').click()
+  await expect(badge.locator('[data-part="export-waiting"]')).toContainText(`${KELLY} · p. 4 · ${block} · note`)
+  await badge.locator('[data-part="export-running"]').click()
+  await toast.hover()
+  // its end: the toast's line, the header's served, the page loaded again and its verdict no longer waiting
+  const before = loaded
+  await expect(toast.locator('[data-part="toast-detail"]')).toHaveText('served from now on', { timeout: 20_000 })
+  await expect(badge.locator('[data-part="export-served"]')).toBeVisible()
+  await expect.poll(() => loaded).toBeGreaterThan(before)
+  await expect(page.locator('[data-part="waiting-verdict"]')).toHaveCount(0)
+  await expect(toast).toHaveCount(1)
+  // the header's served stands its 4 s and goes; and the check sees a toast go where none holds it, the pointer away
+  await expect(badge).toHaveCount(0, { timeout: 5000 })
+  await page.mouse.move(10, 890)
+  await expect(toast).toHaveCount(0, { timeout: 4500 })
+})
+
 // 202.a: a judge's rules for the reader stand in the Lab beneath the judgement that proposed them, read-only, never applied;
 // the page is found at run time among those listed
 test('a judge\'s rules for the reader stand beneath its judgement in the Lab, never applied', async ({ page, request }) => {
@@ -3147,6 +3293,8 @@ test('a page\'s coverage folds to one line kept over a reload, and "as served" s
   await expect(fold.locator('.line-words')).toContainText('its reading')
   await fold.locator('> summary').click()
   await expect(fold).toHaveAttribute('open', '')
+  // `toggle`, which stores the choice, fires as a task of its own: the reload waits for the store, as the details' check does
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('settings.v1') ?? '')).toContain('"page.coverage":true')
   await page.reload()
   await settled(page)
   await expect(page.locator('[data-part="page-ladder-fold"]')).toHaveAttribute('open', '')

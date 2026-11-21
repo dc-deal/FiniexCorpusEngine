@@ -166,6 +166,7 @@ export function aPageDetail(overrides: Partial<PageDetail> = {}): PageDetail {
     attempts: null,
     chosen: null,
     human: [],
+    waiting: [],
     ...overrides,
   }
 }

@@ -6,6 +6,7 @@ import { ApiError } from '@/api/api_error'
 import { router } from '@/router'
 import VerdictPanel from '@/components/VerdictPanel.vue'
 import PageView from '@/views/PageView.vue'
+import { useToastStore } from '@/stores/toast_store'
 import { canSend, correctionOffered, needsNote, payloadOf, prefillOf, type VerdictDraft } from '@/verdict_rules'
 import type { PersonVerdict } from '@/types/api/page_types'
 import type { Proposal, VerdictForm } from '@/types/api/verdict_types'
@@ -32,7 +33,7 @@ function aForm(overrides: Partial<VerdictForm> = {}): VerdictForm {
     reasons: [{ value: 'reading_wrong', label: 'the reading does not say what the page prints' },
       { value: 'other', label: 'another reason, said in the note' }],
     assessments: [{ value: 'right', label: 'the judge was right' }, { value: 'false_alarm', label: 'a false alarm' }],
-    exports: [{ knowledge_base: 'free', running: false, pending: false, finished: 3, last_error: null, last_finished_at: null }],
+    exports: [{ knowledge_base: 'free', running: false, pending: false, finished: 3, last_error: null, last_finished_at: null, waiting: [] }],
     propose: { available: true, why_not: null },
     ...overrides,
   }
@@ -42,6 +43,13 @@ const GRID = '<table><tr><th>p</th><td>0.6</td></tr></table>'
 const CELLS = [[{ segments: [{ kind: 'text' as const, content: 'p' }], header: true, rowspan: 1, colspan: 1 },
   { segments: [{ kind: 'text' as const, content: '0.6' }], header: false, rowspan: 1, colspan: 1 }]]
 const FINDING = { kind: 'wrong_value', block: 'b02', severity: 'major', evidence: '0.6 read as 0.9', void: false }
+// invented: a proposal that reads 0.65 where the reading wrote 0.6, and the verdict the core's rules fill from it (F1.a)
+const A_CORRECTION = '<table><tr><th>p</th><td>0.65</td></tr></table>'
+const A_PROPOSAL: Proposal = { state: 'proposed', agrees_with_judge: 'partly', agrees_said: 'partly agrees with the judge',
+  image_shows: 'the table prints 0.65', correction: A_CORRECTION, flags: [], why: null, cost_usd: 0.0312, version: 'correction/2',
+  model: 'an-invented-model', diff: [],
+  prefill: { verdict: 'reject', reason: 'reading_wrong', block: 'b02', judge_assessment: 'right', note: 'the table prints 0.65',
+    correction: A_CORRECTION, said: 'filled by an invented model; nothing is recorded until a person records it' } }
 
 function aPersonVerdict(overrides: Partial<PersonVerdict>): PersonVerdict {
   return { reading_key: 'r1', applies: true, block: 'b02', verdict: 'reject', reason: 'reading_wrong', reason_text: 'the reading does not say what the page prints',
@@ -193,12 +201,9 @@ describe('the verdict panel (213.b, V1.a)', () => {
     expect(send()).toBeUndefined()
   })
 
-  it('says the verdict is recorded, follows the export, and asks for the page again once it has finished', async () => {
-    vi.mocked(giveVerdict).mockResolvedValue({ verdict_id: 41, reading_key: 'k', route_before: 'vision reading',
-      export: { knowledge_base: 'free', running: true, pending: false, finished: 3, last_error: null, last_finished_at: null } })
-    vi.mocked(getVerdictForm)
-      .mockResolvedValueOnce(aForm({ exports: [{ knowledge_base: 'free', running: true, pending: false, finished: 3, last_error: null, last_finished_at: null }] }))
-      .mockResolvedValue(aForm({ exports: [{ knowledge_base: 'free', running: false, pending: false, finished: 4, last_error: null, last_finished_at: null }] }))
+  it('hands its page what was recorded at once, asking nothing, so the page can close it (21 Nov)', async () => {
+    const exported = { knowledge_base: 'free' as const, running: true, pending: false, finished: 3, last_error: null, last_finished_at: null, waiting: [] }
+    vi.mocked(giveVerdict).mockResolvedValue({ verdict_id: 41, reading_key: 'k', route_before: 'vision reading', export: exported })
     const panel = mountPanel()
     await panel.find('[data-verdict="reject"]').trigger('click')
     await panel.find('[data-part="reason"]').setValue('reading_wrong')
@@ -208,12 +213,11 @@ describe('the verdict panel (213.b, V1.a)', () => {
     await flushPromises()
     expect(giveVerdict).toHaveBeenCalledWith({ knowledge_base: 'free', work: KELLY, pdf_page: 4, verdict: 'reject', reason: 'reading_wrong',
       block: 'b02', note: null, correction: changed, judge_assessment: null })
-    expect(panel.find('[data-part="verdict-said"]').text()).toBe('Recorded · the view updates after the export (about a minute)')
-    await vi.advanceTimersByTimeAsync(2000)
-    expect(panel.emitted('recorded')).toBeUndefined()
-    await vi.advanceTimersByTimeAsync(2000)
-    await flushPromises()
-    expect(panel.emitted('recorded')).toHaveLength(1)
+    expect(panel.emitted('recorded')).toEqual([[{ block: 'b02', verdict: 'reject', export: exported }]])
+    // nothing lost, so nothing asked; the panel's own line says nothing, the page's toast does
+    expect(panel.find('[data-part="panel-ask"]').exists()).toBe(false)
+    expect(panel.find('[data-part="verdict-said"]').exists()).toBe(false)
+    expect(getVerdictForm).not.toHaveBeenCalled()
   })
 
   it('says what the core refused, in its words', async () => {
@@ -260,10 +264,66 @@ describe('the verdict panel (213.b, V1.a)', () => {
     expect(panel.find('[data-flag="large change"]').classes()).not.toContain('weigh')
     expect(panel.findAll('[data-part="proposal-diff"] [data-diff]').map(part => `${part.attributes('data-diff')}:${part.text()}`)).toEqual([
       'same:<table><tr><th>p</th><td>', 'removed:0.6', 'added:0.65', 'same:</td></tr></table>'])
-    expect(panel.find('[data-part="proposal-cost"]').exists()).toBe(true)
+    expect(panel.find('[data-part="proposal-cost"]').text()).toBe('0.012 USD')
     expect(panel.find('[data-part="filled-said"]').text()).toBe('filled by an invented model; nothing is recorded until a person records it')
     expect(panel.find('[data-part="use-proposal"]').exists()).toBe(false)
     expect(giveVerdict).not.toHaveBeenCalled()
+  })
+
+  it('turns and counts while the model is asked, the button held and the panel busy, and fills once it came (21 Nov)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
+    let answer: (proposal: Proposal) => void = () => undefined
+    vi.mocked(proposeCorrection).mockReturnValue(new Promise(resolve => { answer = resolve }))
+    const panel = mountPanel()
+    const button = () => panel.find('[data-part="propose"]')
+    await button().trigger('click')
+    expect(button().attributes('disabled')).toBeDefined()
+    expect(button().find('[data-part="running"] .running-mark').exists()).toBe(true)
+    expect(button().find('[data-part="running-words"]').text()).toBe('asking the model … 0 s')
+    expect(panel.find('[data-part="verdict-panel"]').attributes('aria-busy')).toBe('true')
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(button().find('[data-part="running-words"]').text()).toBe('asking the model … 12 s')
+    answer(A_PROPOSAL)
+    await flushPromises()
+    expect(button().text()).toBe('✦ fill with AI')
+    expect(panel.find('[data-part="verdict-panel"]').attributes('aria-busy')).toBe('false')
+    expect((panel.find('[data-part="note"]').element as HTMLTextAreaElement).value).toBe('the table prints 0.65')
+    expect(proposeCorrection).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks before the proposal replaces what the person typed while it was asked: Keep mine keeps it, Fill fills', async () => {
+    for (const choice of ['keep-mine', 'fill-anyway']) {
+      let answer: (proposal: Proposal) => void = () => undefined
+      vi.mocked(proposeCorrection).mockReturnValueOnce(new Promise(resolve => { answer = resolve }))
+      setActivePinia(createPinia())
+      const panel = mountPanel()
+      await panel.find('[data-part="propose"]').trigger('click')
+      await panel.find('[data-part="note"]').setValue('my own note')
+      answer(A_PROPOSAL)
+      await flushPromises()
+      expect(panel.find('[data-part="fill-ask"]').text()).toContain('The proposal came: fill the fields and replace what you typed?')
+      expect((panel.find('[data-part="note"]').element as HTMLTextAreaElement).value).toBe('my own note')
+      await panel.find(`[data-part="${choice}"]`).trigger('click')
+      expect(panel.find('[data-part="fill-ask"]').exists()).toBe(false)
+      expect((panel.find('[data-part="note"]').element as HTMLTextAreaElement).value).toBe(
+        choice === 'keep-mine' ? 'my own note' : 'the table prints 0.65')
+    }
+  })
+
+  it('keeps the model\'s call when the panel closes while it runs, and the panel opened again waits on it, asking nothing again', async () => {
+    let answer: (proposal: Proposal) => void = () => undefined
+    vi.mocked(proposeCorrection).mockReturnValue(new Promise(resolve => { answer = resolve }))
+    const first = mountPanel()
+    await first.find('[data-part="propose"]').trigger('click')
+    first.unmount()
+    const again = mountPanel()
+    await flushPromises()
+    expect(again.find('[data-part="propose"] [data-part="running"]').exists()).toBe(true)
+    await again.find('[data-part="propose"]').trigger('click')
+    answer(A_PROPOSAL)
+    await flushPromises()
+    expect(proposeCorrection).toHaveBeenCalledTimes(1)
+    expect((again.find('[data-part="note"]').element as HTMLTextAreaElement).value).toBe('the table prints 0.65')
   })
 
   it('keeps the form as it was and says why where the model gave no proposal', async () => {
@@ -339,5 +399,77 @@ describe('the page view opens the verdict panel only where the app takes one (21
     await flushPromises()
     expect(view.find('[data-part="give-verdict"]').exists()).toBe(false)
     expect(view.find('[data-part="verdict-panel"]').exists()).toBe(false)
+  })
+
+  it('closes the panel on a recorded verdict, says it in a toast that follows the export, and loads the page again after it', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const running = { knowledge_base: 'free' as const, running: true, pending: false, finished: 3, last_error: null, last_finished_at: null, waiting: [] }
+      vi.mocked(getVerdictForm)
+        .mockResolvedValueOnce(aForm())
+        .mockResolvedValueOnce(aForm({ exports: [running] }))
+        .mockResolvedValue(aForm({ exports: [{ ...running, running: false, finished: 4 }] }))
+      vi.mocked(giveVerdict).mockResolvedValue({ verdict_id: 41, reading_key: 'k', route_before: 'vision reading', export: running })
+      const view = mountView()
+      await flushPromises()
+      await view.find('[data-block="b02"] [data-part="verdict-mark"]').trigger('click')
+      const panel = view.find('[data-part="verdict-panel"]')
+      await panel.find('[data-verdict="accept"]').trigger('click')
+      await panel.find('[data-part="reason"]').setValue('reading_wrong')
+      await panel.find('[data-part="send"]').trigger('click')
+      await flushPromises()
+      // the panel gone at once, nothing asked; the toast says what was recorded and that its export runs
+      expect(view.find('[data-part="verdict-panel"]').exists()).toBe(false)
+      const toasts = useToastStore()
+      // how long the export may take, in words, and where to follow it (E1.a); no export of the fixture's base finished to tell
+      expect(toasts.toasts.map(toast => [toast.text, toast.detail])).toEqual([['Verdict recorded · b02 · accept — the index rebuild may take '
+        + 'a few minutes', 'the free export runs in the background: follow it at the hourglass in the header']])
+      toasts.hold(toasts.toasts[0].id)  // a person points at it: it stands while the export runs
+      // the page asked again at once, so the verdict stands in its Check row as waiting for the export
+      const asked = vi.mocked(getPage).mock.calls.length
+      expect(asked).toBe(2)
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(toasts.toasts[0].detail).toBe('the free export runs in the background: follow it at the hourglass in the header')
+      await vi.advanceTimersByTimeAsync(2000)
+      await flushPromises()
+      expect(toasts.toasts[0].detail).toBe('served from now on')
+      // the page's own data asked again, so its verdict, the person's mark and its route show without F5
+      expect(vi.mocked(getPage).mock.calls.length).toBe(asked + 1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows a verdict recorded and not yet exported in its Check row, waiting, and loads the page again when an export ends', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ waiting: [{ knowledge_base: 'free', source_id: KELLY, pdf_page: 4, block: 'b05',
+      verdict: 'accept', given_at: '2026-11-21T17:02:00+00:00', by_a_person: true }] }))
+    vi.mocked(getVerdictForm).mockResolvedValue(aForm())
+    const view = mountView()
+    await flushPromises()
+    const waiting = view.find('[data-label="Check"] [data-part="waiting-verdict"]')
+    expect(waiting.text()).toContain('your verdict: accept · b05 · recorded')
+    expect(waiting.text()).toContain('served once the export is done')
+    expect(waiting.find('[data-icon="hourglass"]').exists()).toBe(true)
+    // an export of the base ends, this view's or another's: the page's own data asked again
+    const asked = vi.mocked(getPage).mock.calls.length
+    const { useVerdictStore } = await import('@/stores/verdict_store')
+    const store = useVerdictStore()
+    store.form = aForm({ exports: [{ ...store.form!.exports[0], finished: 4 }] })
+    await flushPromises()
+    expect(vi.mocked(getPage).mock.calls.length).toBe(asked + 1)
+  })
+
+  it('keeps the panel open with the core\'s words where recording failed, and says nothing in a toast', async () => {
+    vi.mocked(getVerdictForm).mockResolvedValue(aForm())
+    vi.mocked(giveVerdict).mockRejectedValue(new Error('the reason other needs a note'))
+    const view = mountView()
+    await flushPromises()
+    await view.find('[data-block="b02"] [data-part="verdict-mark"]').trigger('click')
+    await view.find('[data-part="verdict-panel"] [data-verdict="note"]').trigger('click')
+    await view.find('[data-part="verdict-panel"] [data-part="reason"]').setValue('reading_wrong')
+    await view.find('[data-part="verdict-panel"] [data-part="send"]').trigger('click')
+    await flushPromises()
+    expect(view.find('[data-part="verdict-panel"] [data-part="verdict-said"]').text()).toBe('the reason other needs a note')
+    expect(useToastStore().toasts).toEqual([])
   })
 })

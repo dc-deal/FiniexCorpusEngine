@@ -14,6 +14,7 @@ import {
   IconFlag,
   IconGavel,
   IconHistory,
+  IconHourglass,
   IconInfoCircle,
   IconLock,
   IconMenu2,
@@ -73,6 +74,8 @@ export const ICONS = {
   'review': IconRobot,
   // the view shows a recalled judgement, not the standing state (181.a), always with the words "Recalled:"
   'recalled': IconHistory,
+  // an export a verdict waits for, running (E1.a): the header's mark, and a page's verdict that waits for it
+  'hourglass': IconHourglass,
   // a person checked the page and no re-read happens without a reason (191.a), always said in words too
   'protected': IconShieldCheck,
   // a facet bar's search folded into its button (Y1.a), named for a screen reader

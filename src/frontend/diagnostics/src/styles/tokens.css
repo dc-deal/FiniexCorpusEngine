@@ -107,4 +107,6 @@
      menu (10) and a hover card (20) below a facet's popover, a menu opened over a popover above it */
   --z-popover: 30;
   --z-menu: 40;
+  /* a toast over everything, the verdict panel (30) and an open menu among it: a word that something was done (21 Nov) */
+  --z-toast: 50;
 }
