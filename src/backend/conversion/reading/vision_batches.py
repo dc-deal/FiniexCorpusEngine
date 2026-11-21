@@ -323,8 +323,14 @@ def readings_of(cell_names, store: Store) -> list[dict]:
 
 def stage_one_errors(record: dict, store: Store) -> list[str]:
     """A stored reading's format errors under today's validator, as the hint of its retry names them."""
-    _, check = check_reading(record, store.reading_text(record['reading_key']) or '', record.get('stop_reason'))
-    return list((check or {}).get('errors') or [])
+    cache = getattr(store, 'class_cache', None)  # an export's snapshot keeps them between runs (issue #5)
+    if cache is not None and (kept := cache.errors(record)) is not None:
+        return kept
+    result_class, check = check_reading(record, store.reading_text(record['reading_key']) or '', record.get('stop_reason'))
+    errors = list((check or {}).get('errors') or [])
+    if cache is not None:
+        cache.put(record, result_class, errors)
+    return errors
 
 
 def current_class(record: dict, store: Store) -> str:
@@ -332,7 +338,13 @@ def current_class(record: dict, store: Store) -> str:
     text stays as it was; a corrected validator (page/1.1) changes the verdict, never the reading."""
     if record.get('kind', 'reading') != 'reading' or record.get('result_type') != 'succeeded':
         return record['result_class']
-    return check_reading(record, store.reading_text(record['reading_key']) or '', record.get('stop_reason'))[0]
+    cache = getattr(store, 'class_cache', None)  # an export's snapshot keeps the classes between runs (issue #5)
+    if cache is not None and (kept := cache.get(record)) is not None:
+        return kept
+    result_class, check = check_reading(record, store.reading_text(record['reading_key']) or '', record.get('stop_reason'))
+    if cache is not None:
+        cache.put(record, result_class, list((check or {}).get('errors') or []))
+    return result_class
 
 
 def plan_entries(cell: reading_cells.Cell, documents: Documents, mode: str = 'batch',

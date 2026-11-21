@@ -33,6 +33,7 @@ def licensed(tmp_path, monkeypatch):
     store.save_reading(KEY_BLOCKED, blocked, None)
     monkeypatch.setattr(vision_batches, 'readings_of', lambda cells, store: [read, blocked])
     monkeypatch.setattr(vision_batches, 'current_class', lambda record, store: record['result_class'])
+    monkeypatch.setattr(reading_export, 'legacy_fallback_pages', lambda: {})  # never this machine's own cache (#5's review)
     base = reading_export.KnowledgeBase('licensed', tmp_path / 'readings', tmp_path / 'pdfs', lambda: ('LIC-R01',), tracked=False)
     return base, store
 

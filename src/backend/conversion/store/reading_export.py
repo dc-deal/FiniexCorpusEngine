@@ -18,6 +18,7 @@ or why the page was not judged.
 """
 
 import argparse
+import functools
 import hashlib
 import json
 import os
@@ -253,12 +254,45 @@ def cells_beside(base: KnowledgeBase) -> tuple[str, ...]:
     return tuple(sorted(name for name in beside if name.startswith((f'{prefix}-2ND-', f'REPLAY-{prefix}', f'{prefix}-DIRECT-'))))
 
 
+LEGACY_CACHE = 'legacy_fallback.json'  # in the licensed working folder's cache: the pages below, by what they depend on
+
+
 def legacy_fallback_pages() -> dict[str, set[int]]:
     """The licensed PDF pages whose legacy Markdown the librarian serves where their reading is not (H2.a), from the
-    librarian's own rule, so the export and the server never disagree on what stands in a reading's place."""
+    librarian's own rule, so the export and the server never disagree on what stands in a reading's place. Kept between runs
+    by everything the rule reads (issue #5: it loaded all 54 legacy works on every export, 18 of its 196 seconds)."""
     from backend.search import search_server
 
-    return search_server.legacy_fallback_pages()
+    key = legacy_inputs_key()
+    cache = data_paths.LICENSED_WORKING / 'cache' / LEGACY_CACHE
+    saved = reading_store.read_cache(cache)
+    if saved.get('key') == key and isinstance(saved.get('pages'), dict):
+        return {file: set(pages) for file, pages in saved['pages'].items()}
+    found = search_server.legacy_fallback_pages()
+    reading_store.write_cache(cache, {'key': key, 'pages': {file: sorted(pages) for file, pages in found.items()}})
+    return found
+
+
+def legacy_inputs_key() -> str:
+    """Everything `search_server.legacy_fallback_pages` reads: the legacy keys and copy, the measured offsets, the
+    provenance list (its marks and holds), the stand-ins' list, the archive's files, and the rule's own code as loaded. The
+    legacy copy counts by its manifest: it is a byte copy never edited (55.a), and a look at each of its 5,908 files on every
+    export would cost what the cache saves in the view's container."""
+    from backend.conversion.reading import reading_cells
+    from backend.search import page_index, search_server
+
+    digest = hashlib.sha256()
+    for file in (search_server.LEGACY / 'keys.json', search_server.LEGACY / '_manifest.json', search_server.LEGACY_OFFSETS,
+                 search_server.STAND_INS, data_paths.LICENSED_WORKING / 'provenance.json'):
+        digest.update(file.name.encode('utf-8') + (file.read_bytes() if file.exists() else b'-'))
+    archive = search_server.LICENSED_ARCHIVE
+    digest.update(json.dumps(sorted(path.name for path in archive.glob('*') if path.suffix.lower() in ('.pdf', '.epub'))
+                             if archive.exists() else []).encode('utf-8'))
+    digest.update(reading_store.loaded_code_hash(
+        search_server.legacy_fallback_pages, search_server.legacy_by_work, search_server.numbered, search_server.strip_stamps,
+        search_server.stamps, search_server.licensed_epubs, search_server.stand_ins, search_server.stand_in_rule,
+        search_server.legacy_keys, search_server.legacy_offsets, reading_cells.may_send, page_index).encode('utf-8'))
+    return digest.hexdigest()
 
 
 def too_few_to_export(base: KnowledgeBase, readings: int) -> str | None:
@@ -406,11 +440,111 @@ def human_of(verdicts: list[dict], reading_key: str, resets: list[dict] | None =
 def with_block_classes(state: dict | None, parsed) -> dict | None:
     """A reading's check with the class of each finding's block, so the serving rule can tell a finding on a quoted block from
     one on a block never quoted (decision 133.b). A finding on the page as a whole, or on a block the reading lacks, gets none."""
-    if not state or not state.get('verdict') or parsed is None:
+    return with_block_classes_from(state, None if parsed is None else {block.id: block.cls for block in parsed.blocks})
+
+
+def with_block_classes_from(state: dict | None, classes: dict[str, str] | None) -> dict | None:
+    """`with_block_classes` from the reading's blocks as a map of id to class, as the row cache keeps them."""
+    if not state or not state.get('verdict') or classes is None:
         return state
-    classes = {block.id: block.cls for block in parsed.blocks}
     findings = [{**finding, 'block_class': classes.get(finding.get('block'))} for finding in state['verdict']['findings']]
     return {**state, 'verdict': {**state['verdict'], 'findings': findings}}
+
+
+EMPTY_SHA256 = hashlib.sha256(b'').hexdigest()
+
+
+def facts_of(text: str | None, form: str) -> dict:
+    """What a row takes from a reading's text: its page kind and printed label, and its blocks' classes. Kept by the text's
+    hash (issue #5), so an unchanged reading is neither read nor parsed again."""
+    from backend.conversion.contract.page_contract import parse
+    from backend.conversion.store.served_readings import printed_of
+
+    if not text:
+        return {'empty': True}
+    read = parse(text, form)  # a malformed reading still names its page's kind
+    try:
+        printed = printed_of(read)
+    except Exception:  # a label a malformed reading cannot give; never used for one anyway
+        printed = None
+    return {'empty': False, 'page_kind': read.front.get('page_kind'), 'printed_label': printed,
+            'classes': {block.id: block.cls for block in read.blocks}}
+
+
+@functools.cache
+def facts_code_hash() -> str:
+    """The code that reads a row's facts as this process runs it, `printed_of`'s words for no number included."""
+    from backend.conversion.contract import page_contract
+    from backend.conversion.store import served_readings
+
+    return reading_store.loaded_code_hash(page_contract, json.dumps(page_contract.VOCAB, sort_keys=True), facts_of,
+                                          served_readings.printed_of, sorted(served_readings.NO_NUMBER))
+
+
+class FactsCache:
+    """`facts_of` per reading between runs, by the reading's form, key and text hash and by the code that reads them; and the
+    size and time of each text file the export wrote or found right, so a file changed since (by hand, say) is written
+    again (the review of #5: an unchanged page's file was trusted without a look)."""
+
+    NAME = 'row_facts.json'
+
+    def __init__(self, store):
+        self._path = store.path('cache', self.NAME)
+        self._has_text = store.has_text
+        saved = reading_store.read_cache(self._path)
+        fresh = saved.get('code') == facts_code_hash()
+        self._facts = saved.get('facts', {}) if fresh else {}
+        self.files: dict[str, list[int]] = saved.get('files', {}) if fresh else {}
+        self._changed = False
+
+    def key(self, record: dict) -> str | None:
+        if not record.get('text_sha256') or not self._has_text(record['reading_key']):
+            return None  # a text the store no longer holds is never answered for from its hash
+        return f"{record['form']}|{record['reading_key']}|{record['text_sha256']}"
+
+    def file_seen(self, relative: str, stat: list[int]) -> None:
+        if self.files.get(relative) != stat:
+            self.files[relative] = stat
+            self._changed = True
+
+    def get(self, record: dict) -> dict | None:
+        key = self.key(record)
+        return self._facts.get(key) if key else None
+
+    def put(self, record: dict, facts: dict) -> None:
+        key = self.key(record)
+        if key and self._facts.get(key) != facts:
+            self._facts[key] = facts
+            self._changed = True
+
+    def save(self) -> None:
+        if self._changed:
+            reading_store.write_cache(self._path, {'code': facts_code_hash(), 'facts': self._facts, 'files': self.files})
+            self._changed = False
+
+
+def export_files(folder: Path) -> dict[Path, list[int]]:
+    """Every page text file of an export with its size and modification time, from one walk of its folders."""
+    found = {}
+    if not folder.exists():
+        return found
+    with os.scandir(folder) as works:
+        for work in works:
+            if not work.is_dir():
+                continue
+            with os.scandir(work.path) as files:
+                for entry in files:
+                    if entry.name.startswith('p') and entry.name.endswith('.md') and entry.is_file():
+                        stat = entry.stat()
+                        found[Path(entry.path)] = [stat.st_size, stat.st_mtime_ns]
+    return found
+
+
+def previous_texts(base: KnowledgeBase) -> dict[tuple[str, int], tuple[str, str]]:
+    """The text file and its hash of each page in the export this one replaces: a page whose reading has the same hash keeps
+    its file, neither read nor written again (issue #5)."""
+    rows = reading_store.read_cache(base.export / 'index.json').get('pages') or []  # an index that cannot be read: none
+    return {(row['file'], row['pdf_page']): (row['text_file'], row['text_sha256']) for row in rows if row.get('text_file')}
 
 
 def with_people(base: KnowledgeBase, store, records: list[dict]) -> list[dict]:
@@ -472,14 +606,15 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
     Raises:
         reading_store.UnsafeRootError: When an untracked knowledge base's export would lie where git tracks it.
     """
-    from backend.conversion.contract.page_contract import parse
-    from backend.conversion.store.served_readings import LEGACY_ROUTE, TEXT_LAYER, printed_of, route_level, route_of, text_layer_why
+    from backend.conversion.store.served_readings import LEGACY_ROUTE, TEXT_LAYER, route_level, route_of, text_layer_why
 
     if not base.tracked:
         reason = reading_store.refusal(base.export.resolve())
         if reason:
             raise reading_store.UnsafeRootError(f'the {base.name} readings are never exported there: {reason}')
     store = store or open_store(base.name)
+    if isinstance(store, reading_store.Store):  # issue #5: every record read once, the validator's classes kept between runs
+        store = reading_store.Snapshot(store)
     cells = base.cells()
     valid = lambda record: vision_batches.current_class(record, store) == 'ok'  # noqa: E731
     standing = check_run.latest_per_page(vision_batches.readings_of(cells, store), valid=valid)  # a failed re-read displaces no valid reading (174.a)
@@ -504,16 +639,26 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
     works = works_of(base, sorted({(record['work'], record['file']) for record in records}))
     source_ids = {work['file']: work['source_id'] for work in works}
     legacy_pages = legacy_fallback_pages() if base.name == 'licensed' else {}
+    facts_cache = FactsCache(store) if isinstance(store, reading_store.Snapshot) else None
+    previous = previous_texts(base)
+    base.export.mkdir(parents=True, exist_ok=True)
+    on_disk = export_files(base.export)  # one walk of the folders, not a look per page (issue #5)
     rows, written = [], set()
     for record in records:
-        text = store.reading_text(record['reading_key']) if record.get('result_type') == 'succeeded' else None
+        succeeded = record.get('result_type') == 'succeeded'
         class_now = vision_batches.current_class(record, store)
-        read = parse(text, record['form']) if text else None  # a malformed reading still names its page's kind
-        parsed = read if class_now == 'ok' else None
+        text, facts = None, (facts_cache.get(record) if facts_cache is not None and succeeded else None)
+        if succeeded and facts is None:
+            text = store.reading_text(record['reading_key'])
+            facts = facts_of(text, record['form'])
+            if facts_cache is not None:
+                facts_cache.put(record, facts)
+        facts = facts or {'empty': True}
+        served_facts = facts if class_now == 'ok' and not facts['empty'] else None  # what only a valid reading gives
         row = {'knowledge_base': base.name, 'work': record['work'], 'file': record['file'], 'pdf_page': record['pdf_page'],
-               'printed_label': printed_of(parsed) if parsed is not None else None,
+               'printed_label': served_facts['printed_label'] if served_facts else None,
                'unit': None, 'units': None,  # from the work's outline below
-               'page_kind': read.front.get('page_kind') if read is not None else None, 'category': None,  # below (172.a)
+               'page_kind': facts.get('page_kind'), 'category': None,  # below (172.a)
                'reading_key': record['reading_key'], 'model': record['model'], 'form': record['form'], 'contract': FROZEN['contract'],
                'validator': FROZEN['validator'], 'attempt': record.get('attempt', 0), 'cost_usd': cost_of(record),
                'stored_at': record.get('stored_at'), 'image_sha256': record.get('image_sha256'), 'image_size': record.get('image_size'),
@@ -523,7 +668,7 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                'attempts': [{**attempt, 'check': attempt_check(states.get(attempt['reading_key']), judgements.get(attempt['reading_key'])),
                              'judgements': judgements.get(attempt['reading_key'], [])}
                             for attempt in attempts.get((record['file'], record['pdf_page']), [])],
-               'check': with_block_classes(states.get(record['reading_key']), parsed),
+               'check': with_block_classes_from(states.get(record['reading_key']), served_facts and served_facts['classes']),
                'human': human_of(people.get((record['file'], record['pdf_page']), []), record['reading_key'],
                                  resets.get((record['file'], record['pdf_page']), [])),
                # decision 191.a: a page a person checked is protected from being read again; a reset lifts it and discards.
@@ -532,14 +677,24 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                                 pipeline_db.since_last_reset(people.get((record['file'], record['pdf_page']), []),
                                                              resets.get((record['file'], record['pdf_page']), []))),
                'reset': record.get('reset'), 'pinned_by_a_person': record.get('pinned_by_a_person')}
-        if text:
+        if succeeded and not facts['empty']:
             relative = f"{record['work']}/p{record['pdf_page']:04d}.md"
             target = base.export / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            data = text.encode('utf-8')
-            if not target.exists() or target.read_bytes() != data:
-                replace_file(target, data)
-            row.update(text_file=relative, text_sha256=hashlib.sha256(data).hexdigest())
+            if (text is None and facts_cache is not None and target in on_disk
+                    and facts_cache.files.get(relative) == on_disk[target]
+                    and previous.get((record['file'], record['pdf_page'])) == (relative, record.get('text_sha256'))):
+                sha = record['text_sha256']  # the export it replaces wrote this very file, untouched since: nothing read
+            else:
+                text = text if text is not None else (store.reading_text(record['reading_key']) or '')
+                data = text.encode('utf-8')
+                sha = hashlib.sha256(data).hexdigest()
+                if target not in on_disk or target.read_bytes() != data:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    replace_file(target, data)
+                if facts_cache is not None:
+                    stat = target.stat()
+                    facts_cache.file_seen(relative, [stat.st_size, stat.st_mtime_ns])
+            row.update(text_file=relative, text_sha256=sha)
             written.add(target)
         # what stands where the reading is not served: a licensed work's legacy Markdown where it has the page, else the text
         # layer (H2.a, 19 Nov); None where the reading is served
@@ -548,10 +703,8 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
         row.update(source_id=source_ids[record['file']], route=route_of(row),  # the id the views link by; the route the server serves
                    route_level=route_level(row))  # checked, noted or fallback (the operator, 10 Nov)
         rows.append(row)
-    base.export.mkdir(parents=True, exist_ok=True)
-    for stale in base.export.glob('*/p*.md'):
-        if stale not in written:
-            stale.unlink()
+    for stale in set(on_disk) - written:
+        stale.unlink()
     outlines = outlines_of(base, store, works, rows)
     for work in works:
         work['outline'] = outlines[work['file']] and outlines[work['file']]['units']
@@ -570,6 +723,9 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
     replace_file(base.export / 'index.json', (json.dumps(index, indent=1, ensure_ascii=False) + '\n').encode('utf-8'))
     if base.tracked:
         replace_file(base.export / 'README.md', readme(sorted({row['file'] for row in rows})).encode('utf-8'))
+    if isinstance(store, reading_store.Snapshot):
+        store.class_cache.save()
+        facts_cache.save()
     print(f'{base.name}: {len(rows)} pages, {len(written)} reading texts written to {_named(base.export)}')
     return index
 

@@ -5,8 +5,10 @@ Pages read from the licensed archive go to `_work/licensed/vision`, pages of the
 git-ignored). A store refuses a root inside the repository that git would track: one wrong ignore
 rule has to stop the runner, not publish book text. The check follows links to where the data really
 lies, and every work tree of this repository counts as its own (a linked worktree reaches the main
-tree's `_work` through a junction); any other repository is refused. Every path is resolved
-through the store and must lie under its root.
+tree's `_work` through a junction); any other repository is refused. A path inside the store must lie
+under its root: one of plain name parts (a key, a hash, a file name) is joined as it stands, since no
+such part can leave the root, and any other is resolved and checked (issue #5: resolving every path cost
+an export 154,000 system calls, the most of its 32 minutes in the view's container).
 
 Layout under a root:
 
@@ -23,7 +25,10 @@ import functools
 import hashlib
 import json
 import os
+import re
 import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -37,6 +42,10 @@ ROOTS = {'licensed': data_paths.LICENSED_WORKING / 'vision',
 
 class UnsafeRootError(RuntimeError):
     """A store root, or a path inside it, that could reach git or lies outside the root."""
+
+
+# a part of a path that cannot leave its folder: no separator, no drive, not '.' or '..', starting with a letter or digit
+PLAIN_PART = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]*')
 
 
 def git_ignores(path: Path, tree: Path) -> bool:
@@ -83,9 +92,15 @@ class Store:
         if 'OneDrive' in root.parts:
             raise UnsafeRootError(f'{root} lies under OneDrive, which would upload it')
         root.mkdir(parents=True, exist_ok=True)
+        # a plain path is joined, never resolved (issue #5), so no folder of the store may be a link out of it
+        for child in root.iterdir():
+            if child.is_symlink() or child.is_junction():
+                raise UnsafeRootError(f'{child} is a link: a store holds its own folders')
         self.root = root
 
     def path(self, *parts: str) -> Path:
+        if parts and all(PLAIN_PART.fullmatch(part) for part in parts):
+            return self.root.joinpath(*parts)
         path = self.root.joinpath(*parts).resolve()
         if self.root not in path.parents:
             raise UnsafeRootError(f'{path} lies outside {self.root}')
@@ -189,3 +204,177 @@ class Store:
         if not folder.exists():
             return []
         return [json.loads(path.read_text(encoding='utf-8')) for path in sorted(folder.glob('*.json'))]
+
+
+class Snapshot:
+    """One store as one export reads it (issue #5): every record read once, each text at most once, and the classes the
+    validator gave kept across runs by everything they depend on (`ClassCache`). Everything else is the store's own; nothing is
+    written through it that the store would not write. An export ran over all records five times and over every text twice."""
+
+    def __init__(self, store: 'Store'):
+        self._store = store
+        self._records: list[dict] | None = None
+        self._by_key: dict[str, dict] | None = None
+        self._texts: dict[str, str | None] = {}
+        self._text_keys: set[str] | None = None
+        self.class_cache = ClassCache(store, self.has_text)
+
+    def __getattr__(self, name):
+        return getattr(self._store, name)
+
+    def readings(self) -> list[dict]:
+        if self._records is None:
+            self._records = self._store.readings()
+        return list(self._records)
+
+    def reading(self, key: str) -> dict | None:
+        if self._by_key is None:
+            self._by_key = {record['reading_key']: record for record in self.readings() if record.get('reading_key')}
+        return self._by_key.get(key) or self._store.reading(key)
+
+    def reading_text(self, key: str) -> str | None:
+        if key not in self._texts:
+            self._texts[key] = self._store.reading_text(key)
+        return self._texts[key]
+
+    def has_text(self, key: str) -> bool:
+        """Whether the store holds this reading's text, from one walk of its folder: a cache keyed by the text's hash the
+        record holds must not answer for a text that is gone (the review of #5: a missing text was masked, or crashed it)."""
+        if self._text_keys is None:
+            folder = self._store.path('readings', 'x').parent
+            self._text_keys = {path.stem for path in folder.glob('*/*.md')} if folder.exists() else set()
+        return key in self._text_keys
+
+
+class ClassCache:
+    """A stored reading's class under today's validator and the format check's errors, kept between runs (issue #5: the
+    validator ran over every reading on every export, twice, 71 and 52 of its seconds). Kept by everything the class depends on: the reading's own fields the check
+    reads, its text's sha256 as its record holds it (a stored reading is never rewritten) and a hash of the validator's code;
+    another validator starts the cache anew."""
+
+    NAME = 'classes.json'
+
+    def __init__(self, store: 'Store', has_text=lambda key: True):
+        self._path = store.path('cache', self.NAME)
+        self._code = validator_code_hash() + ':class-and-errors'
+        self._has_text = has_text
+        saved = read_cache(self._path)
+        self._classes: dict[str, list] = saved.get('classes', {}) if saved.get('code') == self._code else {}
+        self._changed = False
+
+    def key(self, record: dict) -> str | None:
+        if not record.get('text_sha256') or not self._has_text(record.get('reading_key')):
+            return None
+        return '|'.join(str(part) for part in (record.get('form'), record.get('work'), record.get('pdf_page'),
+                                                tuple(record.get('image_size') or ()), record.get('stop_reason'),
+                                                record['text_sha256']))
+
+    def get(self, record: dict) -> str | None:
+        """The class, or None where the cache does not hold this reading."""
+        key = self.key(record)
+        return self._classes[key][0] if key and key in self._classes else None
+
+    def errors(self, record: dict) -> list[str] | None:
+        """The format check's errors, or None where the cache does not hold this reading."""
+        key = self.key(record)
+        return list(self._classes[key][1]) if key and key in self._classes else None
+
+    def put(self, record: dict, result_class: str, errors: list[str]) -> None:
+        key = self.key(record)
+        if key and self._classes.get(key) != [result_class, list(errors)]:
+            self._classes[key] = [result_class, list(errors)]
+            self._changed = True
+
+    def save(self) -> None:
+        if self._changed:
+            write_cache(self._path, {'code': self._code, 'classes': self._classes})
+            self._changed = False
+
+
+def read_cache(path: Path) -> dict:
+    """A cache file's content, or an empty cache where it is missing or cannot be read (the review of #5: a half-written
+    file must cost speed, never block every later export)."""
+    try:
+        found = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def write_cache(path: Path, content: dict) -> bool:
+    """Write a cache whole, under a name of its own writer, so two writers (the view's export and one from the command
+    line) never share a temporary file. A cache that cannot be written is said and skipped: it only costs speed."""
+    part = path.with_name(f'.{path.name}.{os.getpid()}.{threading.get_ident()}.part')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        part.write_text(json.dumps(content), encoding='utf-8')
+        for wait in (*REPLACE_WAITS, None):
+            try:
+                os.replace(part, path)
+                return True
+            except PermissionError:
+                if wait is None:
+                    raise
+                time.sleep(wait)
+    except OSError as error:
+        print(f'the cache {path.name} was not written ({type(error).__name__}); the next run computes it again', file=sys.stderr)
+        part.unlink(missing_ok=True)
+    return False
+
+
+def loaded_code_hash(*items) -> str:
+    """A hash of code as this process loaded it, not as its file reads now (the review of #5: a running view whose code was
+    edited on disk would keep old answers under the new code's name). A module counts its own functions and classes, a class
+    its methods, a function its bytecode, names and constants; any other value its repr. File names and line numbers are left
+    out, so the view's container and this machine share their caches."""
+    import types
+
+    digest = hashlib.sha256()
+
+    def stable(const) -> str:
+        # a set's order changes with every start of Python (string hashing is salted), so its members are sorted
+        if isinstance(const, (set, frozenset)):
+            return 'set(' + ','.join(sorted(stable(member) for member in const)) + ')'
+        if isinstance(const, tuple):
+            return 'tuple(' + ','.join(stable(member) for member in const) + ')'
+        return repr(const)
+
+    def code(value) -> None:
+        digest.update(value.co_code)
+        digest.update(repr((value.co_names, value.co_varnames)).encode('utf-8'))
+        for const in value.co_consts:
+            code(const) if isinstance(const, types.CodeType) else digest.update(stable(const).encode('utf-8'))
+
+    def visit(item) -> None:
+        if isinstance(item, types.ModuleType):
+            for name in sorted(vars(item)):
+                value = vars(item)[name]
+                if getattr(value, '__module__', None) == item.__name__ and isinstance(value, (type, types.FunctionType)):
+                    visit(value)
+        elif isinstance(item, type):
+            digest.update(item.__qualname__.encode('utf-8'))
+            for name in sorted(vars(item)):
+                value = vars(item)[name]
+                function = getattr(value, '__func__', None) or getattr(value, 'fget', None) or value
+                if isinstance(function, types.FunctionType):
+                    visit(function)
+        elif isinstance(item, types.FunctionType):
+            digest.update(item.__qualname__.encode('utf-8'))
+            code(item.__code__)
+        else:
+            digest.update(stable(item).encode('utf-8'))
+
+    for item in items:
+        visit(item)
+    return digest.hexdigest()
+
+
+@functools.cache
+def validator_code_hash() -> str:
+    """The validator as this process runs it: the contract's parser and checks, its vocabulary, and the reading check that
+    classifies; a change to any of them is another validator."""
+    from backend.conversion.contract import page_contract
+    from backend.conversion.reading import vision_batches
+
+    return loaded_code_hash(page_contract, json.dumps(page_contract.VOCAB, sort_keys=True), vision_batches._check_reading,
+                            vision_batches.check_reading, vision_batches.DECLINED.pattern)

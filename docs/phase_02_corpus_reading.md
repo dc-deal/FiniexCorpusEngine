@@ -248,3 +248,42 @@ not print, and dropped an unclear mark the person kept. correction/2's one miss 
 gate the proposal agreed with the judge at least in part each time, so a proposal never replaces a person's look at the
 image. `python -m backend.conversion.judge.correction_proposal calibrate [--version V] [--dry-run]` runs it again; the
 report lies beside the private working data and holds the proposals' keys, never their text.
+
+### The licensed export keeps what did not change (issue #5, 21 Nov)
+
+A person's verdict from the page view sets the knowledge base's export going, and the licensed export rewrote everything:
+196 s on this machine, about 32 minutes in the view's container, whose folder is mounted from Windows. Measured with
+cProfile: every reading parsed twice and checked by the validator again on every run, the store's 23,000 records read five
+times, every path resolved (154,000 system calls, each slow through the mount), and all 54 legacy works loaded for the
+fallback pages. Now:
+
+- a store path of plain name parts is joined as it stands, never resolved; any other part is resolved and must lie under
+  the store's root, as before;
+- one export reads the records once (`reading_store.Snapshot`);
+- a reading's class under today's validator and the format check's errors are kept between runs by the fields the check
+  reads, the text's sha256 the record holds, and a hash of the validator's code (`ClassCache`); another validator starts
+  anew;
+- what a row takes from a reading's text (page kind, printed label, the blocks' classes) is kept by the reading's text hash
+  and the code that reads it (`reading_export.FactsCache`);
+- a page whose reading has the same hash as in the export it replaces keeps its text file, neither read nor written;
+- the legacy fallback pages are kept by everything their rule reads (`legacy_inputs_key`).
+
+The guard that refuses an export over a store holding fewer than half the pages stays as it was. Measured on the licensed
+base: 196 s → 69 s with the first two steps, 15 s warm with all of them; the index came out byte for byte the same after
+each step. Tests: an unchanged page is neither read nor written again and the index stays the same; a changed reading is
+written; the validator runs once per reading across runs and again for another validator; a plain path is joined and any
+other still refused.
+
+**A reviewer agent read the change before it was committed** (the operator's offer) and found eight things, three proven
+by probe tests of its own; all are fixed and tested: a text file edited by hand after an export was never written again
+(each file's size and time are now kept and compared); a reading whose text the store no longer held was answered from its
+hash, or crashed the export (a cache now answers only for a text one walk of the store finds); the code hashes were read
+from the files, not from the code the process runs (they now hash the loaded bytecode, without file names, so the view's
+container and this machine share their caches); two inputs were missing from the keys; a half-written cache file blocked
+every export (it is now an empty cache; a broken index.json still stops the export, since its guard needs it); two writers
+shared a temporary file name (each writes its own, and a cache that cannot be written only costs speed); a link as a folder
+of the store would have been followed (the store refuses one); and a test fixture used this machine's own cache. Found
+while measuring after the fixes: the first loaded-code hash changed with every start of Python, since a set's order does,
+so no cache held between runs; set constants are now sorted, and a test runs two processes with different hash seeds.
+The legacy copy counts by its manifest, a byte copy never edited (55.a); a look at each of its files on every export would
+cost in the container what the cache saves.
