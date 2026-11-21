@@ -9,9 +9,6 @@ import AnalysisSection from '@/components/base/AnalysisSection.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
 import DetailList from '@/components/base/DetailList.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
-import HintPanel from '@/components/base/HintPanel.vue'
-import HintToggle from '@/components/base/HintToggle.vue'
-import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
@@ -26,11 +23,13 @@ import PageJump from '@/components/PageJump.vue'
 import PageLadderLines from '@/components/PageLadderLines.vue'
 import UnreadPage from '@/components/UnreadPage.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
+import RecordRows from '@/components/base/RecordRows.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import PersonVerdictList from '@/components/PersonVerdictList.vue'
 import ReaderRuleList from '@/components/ReaderRuleList.vue'
 import VerdictPanel from '@/components/VerdictPanel.vue'
+import ChunkGroups from '@/components/reading/ChunkGroups.vue'
 import ReadingBlocks from '@/components/reading/ReadingBlocks.vue'
 import ReasonList from '@/components/ReasonList.vue'
 import StateMark from '@/components/StateMark.vue'
@@ -41,7 +40,6 @@ import { useViewName } from '@/view_name'
 import { lookedSaid, verdictBy } from '@/person_words'
 import { readingCost, usd } from '@/cost_format'
 import { counted, noun } from '@/counted'
-import { overlapHint } from '@/overlap_hint'
 import type { Attempt, Judgement, PersonVerdict } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
@@ -96,9 +94,10 @@ watch(() => [props.kb, props.work, props.page] as const, ([kb, work, page]) => {
 // answers, not by its fields, so a row that named another knowledge base than its address could not hang the view
 const shown = computed(() => store.pageOf(props.kb, props.work, props.page))
 useViewName(() => (shown.value ? `${shown.value.title} p. ${shown.value.pdf_page}` : null))
-// "as served" (the operator, 21 Nov: quoted is a subset of readable): the readable view with every block never quoted greyed and
-// every quoted one in the form the search and the chat quote, the page's chunks drawn across them (W4), asked for when it is
-// switched on. Where the page serves something else in its reading's place, nothing of the reading is served, and it says so
+// "as served" (the operator, 21 Nov: quoted is a subset of readable), chunk first: the page as the chunks semantic search holds
+// of it, each a group of the quoted blocks it holds in the form the search and the chat quote, a block never quoted hidden;
+// asked for when it is switched on. Where the page serves something else in its reading's place, nothing of the reading is
+// served, and it says so
 const asServed = ref(false)
 const servedBy = computed(() => shown.value?.ladder?.served_by ?? null)
 const chunks = computed(() => store.chunksOf(props.kb, props.work, props.page))
@@ -106,10 +105,6 @@ const servedMode = computed(() => asServed.value && mode.value === 'readable' &&
 watch(() => [servedMode.value, props.kb, props.work, props.page] as const, ([on, kb, work, page]) => {
   if (on) void store.loadChunks(kb, work, page)
 }, { immediate: true })
-const chunkHintOpen = ref(false)
-const chunksShare = computed(() => chunks.value?.chunks.some(chunk => chunk.overlap > 0) ?? false)
-const firstChunk = computed(() => chunks.value?.chunks.find(chunk => chunk.start !== null) ?? null)
-const lastChunk = computed(() => [...(chunks.value?.chunks ?? [])].reverse().find(chunk => chunk.start !== null) ?? null)
 const imageUrl = computed(() => pageImageUrl(props.kb, props.work, props.page))
 
 // A judgement recalled on the page (181.a, the operator: "you see what the old judge looked like, applied to the page"): the
@@ -194,7 +189,8 @@ const readingChanged = computed(() => !!shown.value && shown.value.integrity in 
 // state recedes, kept and named as the check's; a note on a page the check passed changes nothing, so the state keeps its place
 const personDecides = computed(() => isDecided(shown.value?.listed_state)
   || shown.value?.person?.standing === 'accepted' || shown.value?.person?.standing === 'rejected')
-const headOrder = computed(() => (personDecides.value ? ['person', 'state'] : ['state', 'person']))
+// in the Check line (H1.a): a person's verdict that decides before the check's state, any other after it
+const personFirst = computed(() => personDecides.value && !!shown.value?.person)
 // What the pipeline did stands in the Reading History; what was tried beside it stands in the Lab below, labelled, never
 // served, nothing deleted (decision 150.a, the operator: "save everything, but keep it apart"): a prototype's judgement, and a judge asked
 // again. Read from the export's own fields, `counts`, `again` and `version_state`; a judgement that counts is never the Lab's.
@@ -268,14 +264,9 @@ function holdsRecall(judgements: Judgement[]): boolean {
   return judgements.some(judgement => judgement.recall === recallId.value && !inLab(judgement))
 }
 
-// a page's readings over time stand where there is more than one, a choice was recorded, a reading was judged more than
-// once by the pipeline, or the Lab names a reading: how a page healed, and how its judges differed (147.a)
-const history = computed(() => {
-  const attempts = attemptsInOrder.value
-  const judgedAgain = attempts.some(attempt => pipelineJudgements(attempt.judgements).length > 1)
-  if (!(attempts.length > 1 || shown.value?.chosen || judgedAgain || lab.value.length || unjudgedPrototypes.value.length)) return null
-  return attempts
-})
+// a page's readings over time, how a page healed and how its judges differed (147.a): a row of the record on every page
+// (H1.a), so a page with one reading names it too, and a page no reader has read says none
+const history = computed(() => attemptsInOrder.value)
 
 // a person's verdicts on one reading, beneath its judgements
 function peopleOf(readingKey: string): PersonVerdict[] {
@@ -362,6 +353,7 @@ async function showRaw(line: number): Promise<void> {
 // every click brings the block into view, also from the raw text and also a second time: the scroll is the click's own
 async function showBlock(id: string): Promise<void> {
   mode.value = 'readable'
+  asServed.value = false
   highlight.value = id
   await nextTick()
   readingBlocks.value?.scrollToBlock(id)
@@ -480,108 +472,175 @@ watch(box, async () => {
           </AppButton>
         </header>
 
-        <!-- a page that is not plainly ok says so in one plain sentence first, the API's (the operator on accounting p. 524: the head
-             "reads as code"); its chips follow -->
-        <p v-if="shown.said" class="said" data-part="said">{{ shown.said }}</p>
-        <!-- a page no reader has read (V2.a): its state, what serves it, its own ladder, the text served and its image; nothing
-             of a reading, which it has not -->
-        <UnreadPage v-if="!shown.read" :page="shown" :image-url="imageUrl" />
-        <template v-else>
-        <!-- the page's record as labelled lines (decision 184, the operator: "I would rather have this line with labels"), the labels in
-             one column and the values in another (the operator, 11 Nov): its state and a person's verdict, its category where it is not
-             content, its route and why, its reading, and its findings, each block a jump to it. Every word is the API's, and
-             each is said once: the person's reason and note stand in their card and beneath the block they judged -->
-        <!-- the label column as wide as the longest label the record has ("A person:", "Category:", "Findings:"), plus one
-             for the bold, so the values stand in one place from page to page -->
-        <LabelledLines class="summary page-facts" data-part="page-facts" :label-chars="10">
-          <!-- the verdict that decides first: a person's before the check's state, which then recedes, its glyph and word kept
-               (the operator, 11 Nov: red "issue" beside green "accepted"). The line is named the check's, so a page a person settled
-               (211.a) still says what the check found, never hidden, and never read as the person's -->
-          <template v-for="line in headOrder" :key="line">
-            <LabelledLine v-if="line === 'state'" label="Check" :class="{ overruled: personDecides }">
-              <StateMark :state="shown.check.state" :quiet="personDecides" />
-              <ReasonList v-if="shown.check.reasons.length" :reasons="shown.check.reasons" />
-              <span v-if="readingChanged" class="reading-changed">
-                <IntegrityMark :state="shown.integrity" />: {{ INTEGRITY_SAYS[shown.integrity] }}
+        <!-- the page's record (the operator's H1.a, 21 Nov): always the same rows in one order, Check, Route, Reading, Findings,
+             Coverage, Reading History, Lab, Details, each one line that folds open for more; a row that has nothing says so in
+             one word, on a page no reader has read too, so the layout never moves from page to page. Every word is the API's,
+             each said once; the labels in one column (`RecordRows`) -->
+        <RecordRows class="summary page-facts" data-part="page-facts">
+          <!-- the check: a person's verdict first where it decides, the check's state then receding, its glyph and word kept (the
+               operator, 11 Nov: red "issue" beside green "accepted"), named the check's, so a page a person settled (211.a) still
+               says what the check found; its reasons, then the page's one sentence in the line's words, the sentence that stood
+               above the record (H1.a). Folded beneath: the check's three stages and a person -->
+          <FoldSection label="Check" remember="page.check" :plain="!shown.read" :class="{ overruled: personDecides }">
+            <template #title>
+              <span class="row-line" data-part="check-line">
+                <span v-if="personFirst" class="person-verdict" data-part="person-verdict" :data-by="verdictBy(shown.person)">
+                  <span class="person-by">{{ verdictBy(shown.person) }}</span><PersonStanding :mark="shown.person" />
+                </span>
+                <StateMark :state="shown.check.state" :quiet="personDecides" />
+                <ReasonList v-if="shown.check.reasons.length" :reasons="shown.check.reasons" />
+                <span v-if="shown.check_said" class="check-said" data-part="check-said">{{ `· ${shown.check_said}` }}</span>
+                <span v-if="readingChanged" class="reading-changed">
+                  <IntegrityMark :state="shown.integrity" />: {{ INTEGRITY_SAYS[shown.integrity] }}
+                </span>
+                <span v-if="!personFirst && shown.person" class="person-verdict" data-part="person-verdict" :data-by="verdictBy(shown.person)">
+                  <span class="person-by">{{ verdictBy(shown.person) }}</span><PersonStanding :mark="shown.person" />
+                </span>
+                <!-- a person checked the page: no re-read without a reason (191.a) -->
+                <span v-if="shown.protected" class="protected" data-part="protected"><AppIcon name="protected" /> protected</span>
               </span>
-            </LabelledLine>
-            <LabelledLine v-else-if="shown.person || shown.protected" :label="verdictBy(shown.person)">
-              <PersonStanding :mark="shown.person" />
-              <!-- a person checked the page: no re-read without a reason (191.a) -->
-              <span v-if="shown.protected" class="protected" data-part="protected"><AppIcon name="protected" /> protected</span>
-            </LabelledLine>
-          </template>
-          <!-- a person's reset (191.a): the reading discarded, the text layer served until a new reading is due -->
-          <LabelledLine v-if="shown.reset" label="Reset" data-part="reset">
-            <span>{{ `a person reset the page${shown.reset.reason ? `: ${shown.reset.reason}` : ''}` }}</span>
-            <HumanTime v-if="shown.reset.given_at" :at="shown.reset.given_at" />
-          </LabelledLine>
-          <LabelledLine v-if="shown.category && shown.category !== 'content'" label="Category">
-            <CategoryMark :category="shown.category" :said="shown.category_said" :kind="shown.page_kind" />
-          </LabelledLine>
-          <LabelledLine label="Route">
-            <HoverCard
-              title="Route"
-              :rows="[{ label: 'level', value: shown.route_level }, { label: 'source', value: shown.route_source },
-                      { label: 'reader', value: shown.route_reader?.join(', ') }, { label: 'why', value: shown.route_why }]"
-            >
-              <span class="route">{{ routeSaid }}</span>
-            </HoverCard>
-          </LabelledLine>
-          <!-- the provider's own words where a call failed, else the route's why where nothing else here says it (`why_line`) -->
-          <LabelledLine v-if="shown.why_line || shown.trace!.error_message" label="Why">
-            <span v-if="shown.trace!.error_message" class="error-message">{{ shown.trace!.error_message }}</span>
-            <span v-else class="route-why">{{ shown.why_line }}</span>
-          </LabelledLine>
-          <LabelledLine label="Reading">
-            <span v-if="readingOf" class="reading-part">{{ readingOf }}</span>
-            <span v-if="classMoved" class="class-move reading-part">{{ shown.trace!.class_when_collected }} → {{ shown.trace!.class_now }}</span>
-            <span v-if="shown.trace!.attempt > 0" class="retry reading-part">retry {{ shown.trace!.attempt }}</span>
-            <span class="cost reading-part" data-part="reading-cost">{{ readingCost(shown.trace!.cost_usd) }}</span>
-            <span v-if="!shown.image.available" class="image-mark missing reading-part">
-              <AppIcon name="status-unknown" /> original not available
-            </span>
-            <span v-else-if="shown.image.same_as_read" class="image-mark same reading-part">
-              <AppIcon name="status-ok" /> image as read
-            </span>
-            <span v-else class="image-mark differs reading-part">
-              <AppIcon name="status-error" /> image differs from the one read
-            </span>
-          </LabelledLine>
+            </template>
+            <DetailList v-if="shown.trace" class="check-stages">
+              <!-- the three stages of the check, each its own row, then a person (the operator: "in the details, all three stages one by one") -->
+              <dt>Stage 1 · format</dt>
+              <dd data-stage="1">
+                at collect {{ shown.trace.class_when_collected }} · under today's validator {{ shown.trace.class_now }}
+                <span class="secondary">· validator {{ shown.trace.validator }}</span>
+              </dd>
+              <dt>Stage 2 · text layer</dt>
+              <dd data-stage="2">
+                <template v-if="shown.check.stage2">
+                  <span v-if="shown.check.stage2.has_layer === false">the PDF has no text layer here</span>
+                  <span v-else>recall {{ share(shown.check.stage2.recall) }} · precision {{ share(shown.check.stage2.precision) }}</span>
+                  <span class="secondary"> · {{ shown.check.stage2.suspicious ? 'suspicious' : 'not suspicious' }}</span>
+                  <ul v-if="shown.check.stage2.findings.length" class="stage-list ruled">
+                    <li v-for="(finding, at) in shown.check.stage2.findings" :key="at" data-part="stage2-finding">
+                      {{ [finding.kind, finding.block, finding.detail, finding.severity].filter(Boolean).join(' · ') }}
+                    </li>
+                  </ul>
+                  <ul v-if="shown.check.stage2.unverifiable.length" class="stage-list ruled">
+                    <li v-for="(block, at) in shown.check.stage2.unverifiable" :key="at" class="secondary" data-part="unverifiable">
+                      {{ ['cannot check', block.block, block.cls ? `(${block.cls})` : null].filter(Boolean).join(' ') }}: {{ block.why }}
+                    </li>
+                  </ul>
+                </template>
+                <span v-else class="secondary">no stage 2 report holds this reading</span>
+              </dd>
+              <dt>Stage 3 · judge</dt>
+              <!-- one fact a line, each named, in the page head's look (the operator, 16 Nov: "purely visual finalizing only"; 221.a) -->
+              <dd data-stage="3">
+                <LabelledLines :label-chars="8">
+                  <LabelledLine label="Why" data-part="stage3-why">{{ shown.check.why_judged }}</LabelledLine>
+                  <LabelledLine v-if="shown.check.verdict" label="Verdict" data-part="stage3-verdict">
+                    {{ shown.check.verdict.verdict }}, counts as {{ shown.check.verdict.outcome }}
+                    <span v-if="shown.check.verdict.judge_outcome && shown.check.verdict.judge_outcome !== shown.check.verdict.outcome" class="secondary">
+                      (the judge's own outcome: {{ shown.check.verdict.judge_outcome }})
+                    </span>
+                    <span v-if="shown.check.verdict.void" class="secondary"> · {{ shown.check.verdict.void }} void</span>
+                  </LabelledLine>
+                  <LabelledLine v-if="shown.check.judge" label="Judge" data-part="stage3-judge">
+                    <RouterLink v-if="shown.check.judge.version" :to="{ name: 'prompts', query: { version: shown.check.judge.version } }" data-part="judge-version">
+                      {{ shown.check.judge.version }}
+                    </RouterLink>
+                    <span class="secondary">{{ shown.check.judge.version ? `· ${shown.check.judge.model}` : shown.check.judge.model }}</span>
+                  </LabelledLine>
+                </LabelledLines>
+              </dd>
+              <dt>{{ shown.human.length && shown.human.every(person => person.by_a_person === false) ? verdictBy(shown.human[0]) : 'A person' }}</dt>
+              <dd data-stage="person">
+                <PersonVerdictList v-if="shown.human.length" :people="shown.human" names-blocks />
+                <span v-else class="secondary">no person has judged this page</span>
+              </dd>
+            </DetailList>
+          </FoldSection>
+          <!-- the route in its parts as the API parts it (184), then the provider's own words where a call failed, else the
+               route's why where nothing else here says it (`why_line`); folded beneath, each part named and the route's whole why.
+               A page no reader has read says what serves it -->
+          <FoldSection label="Route" remember="page.route" :plain="!shown.read">
+            <template #title>
+              <span class="row-line" data-part="route-line">
+                <span class="route">{{ shown.read ? routeSaid : shown.route_why }}</span>
+                <span v-if="shown.trace?.error_message" class="error-message">{{ shown.trace.error_message }}</span>
+                <span v-else-if="shown.read && shown.why_line" class="route-why">{{ shown.why_line }}</span>
+              </span>
+            </template>
+            <LabelledLines class="route-parts" data-part="route-parts" :label-chars="7">
+              <LabelledLine v-if="shown.route_level" label="Level">{{ shown.route_level }}</LabelledLine>
+              <LabelledLine v-if="shown.route_source" label="Source">{{ shown.route_source }}</LabelledLine>
+              <LabelledLine v-if="shown.route_reader?.length" label="Reader">{{ shown.route_reader.join(', ') }}</LabelledLine>
+              <LabelledLine v-if="shown.route_why" label="Why">{{ shown.route_why }}</LabelledLine>
+            </LabelledLines>
+          </FoldSection>
+          <!-- the reading shown among the page's readings, what the reader said the page is where it is not content, a class that
+               moved, a retry, its cost, whether the image is the one it read, and a person's reset (191.a: the reading discarded,
+               the text layer served until a new reading is due) -->
+          <FoldSection label="Reading" plain>
+            <template #title>
+              <span v-if="shown.read" class="row-line" data-part="reading-line">
+                <span v-if="readingOf" class="reading-part">{{ readingOf }}</span>
+                <span v-if="shown.category && shown.category !== 'content'" class="reading-part" data-part="category">
+                  <CategoryMark :category="shown.category" :said="shown.category_said" :kind="shown.page_kind" />
+                </span>
+                <span v-if="classMoved" class="class-move reading-part">{{ shown.trace!.class_when_collected }} → {{ shown.trace!.class_now }}</span>
+                <span v-if="shown.trace!.attempt > 0" class="retry reading-part">retry {{ shown.trace!.attempt }}</span>
+                <span class="cost reading-part" data-part="reading-cost">{{ readingCost(shown.trace!.cost_usd) }}</span>
+                <span v-if="!shown.image.available" class="image-mark missing reading-part">
+                  <AppIcon name="status-unknown" /> original not available
+                </span>
+                <span v-else-if="shown.image.same_as_read" class="image-mark same reading-part">
+                  <AppIcon name="status-ok" /> image as read
+                </span>
+                <span v-else class="image-mark differs reading-part">
+                  <AppIcon name="status-error" /> image differs from the one read
+                </span>
+                <span v-if="shown.reset" class="reading-part reset" data-part="reset">
+                  {{ `a person reset the page${shown.reset.reason ? `: ${shown.reset.reason}` : ''}` }}
+                  <HumanTime v-if="shown.reset.given_at" :at="shown.reset.given_at" />
+                </span>
+              </span>
+              <span v-else class="none">none</span>
+            </template>
+          </FoldSection>
           <!-- what the findings come to (184): each block a jump, with a finding's own look (the operator, 12 Nov, on accounting p. 524:
                "the red flag or red text ... so that they catch the eye at once by their colour"): the flag and the gravest
                severity of its findings that stand, in that severity's role, as beneath the block; where code voided them all,
-               the flag and the ruling recede. Then what that means for the page, as the API says it -->
-          <LabelledLine v-if="shown.findings_at?.length" class="found-at" label="Findings">
-            <span v-for="one in shown.findings_at" :key="one.block" class="finding-at" :class="one.severity ?? 'void'" :data-finding-at="one.block">
-              <AppIcon name="finding" class="finding-mark" />
-              <AppButton variant="link" :data-jump="one.block" @click="showBlock(one.block)">{{ one.block }}</AppButton>
-              <span v-if="one.severity" class="finding-severity" :data-severity="one.severity">{{ one.severity }}</span>
-              <span v-else class="finding-said" :data-said="one.said">{{ one.said }}</span>
-            </span>
-            <span v-if="shown.findings_outcome" class="findings-outcome" data-part="findings-outcome">{{ `· ${shown.findings_outcome}` }}</span>
-          </LabelledLine>
+               the flag and the ruling recede. Then what that means for the page, as the API says it, and how many findings are
+               about the page as a whole, which stand folded beneath, a person's verdict on the whole page the last voice (178.a) -->
+          <FoldSection class="found-at" label="Findings" remember="page.findings" :plain="!shown.page_findings.length">
+            <template #title>
+              <span v-if="shown.findings_at?.length || shown.page_findings.length" class="row-line" data-part="findings-line">
+                <span v-for="one in shown.findings_at ?? []" :key="one.block" class="finding-at" :class="one.severity ?? 'void'" :data-finding-at="one.block">
+                  <AppIcon name="finding" class="finding-mark" />
+                  <AppButton variant="link" :data-jump="one.block" @click="showBlock(one.block)">{{ one.block }}</AppButton>
+                  <span v-if="one.severity" class="finding-severity" :data-severity="one.severity">{{ one.severity }}</span>
+                  <span v-else class="finding-said" :data-said="one.said">{{ one.said }}</span>
+                </span>
+                <span v-if="shown.findings_outcome" class="findings-outcome" data-part="findings-outcome">{{ `· ${shown.findings_outcome}` }}</span>
+                <span v-if="shown.page_findings.length" class="page-findings-said" data-part="page-findings-said">
+                  {{ `· ${counted(shown.page_findings.length, 'finding')} on the page as a whole` }}
+                </span>
+              </span>
+              <span v-else class="none">none</span>
+            </template>
+            <FindingList
+              class="page-findings"
+              :findings="shown.page_findings"
+              :people="shown.human.filter(person => person.applies && !person.block)"
+              names-blocks
+            />
+          </FoldSection>
           <!-- the page's own ladder (V2.a): its text layer, the text served, keyword search, its chunks, its reading; the text
                served folded until asked for -->
-          <LabelledLine v-if="shown.ladder" label="Coverage" data-part="page-coverage"><PageLadderLines :ladder="shown.ladder" /></LabelledLine>
-        </LabelledLines>
-
-        <!-- the findings about the page as a whole, a person's verdict on the whole page that applies to this reading the last
-             voice (178.a) -->
-        <FindingList
-          v-if="shown.page_findings.length"
-          class="page-findings"
-          :findings="shown.page_findings"
-          :people="shown.human.filter(person => person.applies && !person.block)"
-          names-blocks
-        />
+          <PageLadderLines v-if="shown.ladder" :ladder="shown.ladder" label="Coverage" />
+          <FoldSection v-else label="Coverage" plain><template #title><span class="none">none</span></template></FoldSection>
 
         <!-- every reading bought for the page (the operator, 2026-11-10: "retries should fold open"): the one shown here first and
              open, the earlier ones below it, newest first, folded to one line each. Opened, a reading's pipeline judgements
              stand in one table, the one that counts first, and a person's verdicts beneath; what was tried beside the
              pipeline stands in the Lab below (150.a). The others' text stays in the private store, so they stand by their record -->
         <!-- a fold, folded by default and kept as the reader leaves it (decision 183), its title saying what it holds -->
-        <FoldSection v-if="history" class="history" remember="page.history" :open="historyHoldsRecall" title="Reading History" :count="historySaid">
+        <FoldSection v-if="shown.read && history.length" class="history" remember="page.history" :open="historyHoldsRecall" label="Reading History"
+                     :title="historySaid">
           <!-- the readings' lines keep their columns and scroll in their own box on a narrow screen (159.a) -->
           <div class="readings ruled scroll-x">
             <!-- each reading a fold (179), its line a grid in the fold's title, so its columns align from one reading to the next -->
@@ -695,12 +754,13 @@ watch(box, async () => {
             Chosen <HumanTime :at="shown.chosen.chosen_at" /> by run {{ shown.chosen.run_id }}: {{ shown.chosen.why }}
           </p>
         </FoldSection>
+        <FoldSection v-else label="Reading History" plain><template #title><span class="none">none</span></template></FoldSection>
 
         <!-- the Lab (150.a): what was tried beside the pipeline on this page, kept and labelled, never served: a prototype's
              judgement, a judge asked again, and a reader prototype's reading with its judgements (210.a). Folded, since the
              history above is what the page went through -->
         <!-- the count set apart from the name, so "Lab 3" never reads as a numbering (179) -->
-        <FoldSection v-if="lab.length || unjudgedPrototypes.length" class="lab" remember="page.lab" :open="recallInLab" title="Lab" :count="labSaid">
+        <FoldSection v-if="lab.length || unjudgedPrototypes.length" class="lab" remember="page.lab" :open="recallInLab" label="Lab" :title="labSaid">
           <DataTable table-class="judgements ruled">
             <template #head>
               <tr>
@@ -754,59 +814,16 @@ watch(box, async () => {
             </tbody>
           </DataTable>
         </FoldSection>
+        <FoldSection v-else label="Lab" plain><template #title><span class="none">none</span></template></FoldSection>
 
-        <FoldSection class="details" :open="settings.pageDetailsOpen" title="Details" @toggle="settingsStore.setPageDetailsOpen">
+        <!-- the reading's trace: its line the model, the contract and when it was stored -->
+        <FoldSection v-if="shown.trace" class="details" :open="settings.pageDetailsOpen" label="Details" @toggle="settingsStore.setPageDetailsOpen">
+          <template #title>
+            <span class="row-line secondary" data-part="details-line">
+              {{ `${shown.trace.model} · ${shown.trace.contract} · stored` }} <HumanTime :at="shown.trace.stored_at" />
+            </span>
+          </template>
           <DetailList>
-            <!-- the three stages of the check, each its own row, then a person (the operator: "in the details, all three stages one by one") -->
-            <dt>Stage 1 · format</dt>
-            <dd data-stage="1">
-              at collect {{ shown.trace!.class_when_collected }} · under today's validator {{ shown.trace!.class_now }}
-              <span class="secondary">· validator {{ shown.trace!.validator }}</span>
-            </dd>
-            <dt>Stage 2 · text layer</dt>
-            <dd data-stage="2">
-              <template v-if="shown.check.stage2">
-                <span v-if="shown.check.stage2.has_layer === false">the PDF has no text layer here</span>
-                <span v-else>recall {{ share(shown.check.stage2.recall) }} · precision {{ share(shown.check.stage2.precision) }}</span>
-                <span class="secondary"> · {{ shown.check.stage2.suspicious ? 'suspicious' : 'not suspicious' }}</span>
-                <ul v-if="shown.check.stage2.findings.length" class="stage-list ruled">
-                  <li v-for="(finding, at) in shown.check.stage2.findings" :key="at" data-part="stage2-finding">
-                    {{ [finding.kind, finding.block, finding.detail, finding.severity].filter(Boolean).join(' · ') }}
-                  </li>
-                </ul>
-                <ul v-if="shown.check.stage2.unverifiable.length" class="stage-list ruled">
-                  <li v-for="(block, at) in shown.check.stage2.unverifiable" :key="at" class="secondary" data-part="unverifiable">
-                    {{ ['cannot check', block.block, block.cls ? `(${block.cls})` : null].filter(Boolean).join(' ') }}: {{ block.why }}
-                  </li>
-                </ul>
-              </template>
-              <span v-else class="secondary">no stage 2 report holds this reading</span>
-            </dd>
-            <dt>Stage 3 · judge</dt>
-            <!-- one fact a line, each named, in the page head's look (the operator, 16 Nov: "purely visual finalizing only"; 221.a) -->
-            <dd data-stage="3">
-              <LabelledLines :label-chars="8">
-                <LabelledLine label="Why" data-part="stage3-why">{{ shown.check.why_judged }}</LabelledLine>
-                <LabelledLine v-if="shown.check.verdict" label="Verdict" data-part="stage3-verdict">
-                  {{ shown.check.verdict.verdict }}, counts as {{ shown.check.verdict.outcome }}
-                  <span v-if="shown.check.verdict.judge_outcome && shown.check.verdict.judge_outcome !== shown.check.verdict.outcome" class="secondary">
-                    (the judge's own outcome: {{ shown.check.verdict.judge_outcome }})
-                  </span>
-                  <span v-if="shown.check.verdict.void" class="secondary"> · {{ shown.check.verdict.void }} void</span>
-                </LabelledLine>
-                <LabelledLine v-if="shown.check.judge" label="Judge" data-part="stage3-judge">
-                  <RouterLink v-if="shown.check.judge.version" :to="{ name: 'prompts', query: { version: shown.check.judge.version } }" data-part="judge-version">
-                    {{ shown.check.judge.version }}
-                  </RouterLink>
-                  <span class="secondary">{{ shown.check.judge.version ? `· ${shown.check.judge.model}` : shown.check.judge.model }}</span>
-                </LabelledLine>
-              </LabelledLines>
-            </dd>
-            <dt>{{ shown.human.length && shown.human.every(person => person.by_a_person === false) ? verdictBy(shown.human[0]) : 'A person' }}</dt>
-            <dd data-stage="person">
-              <PersonVerdictList v-if="shown.human.length" :people="shown.human" names-blocks />
-              <span v-else class="secondary">no person has judged this page</span>
-            </dd>
             <dt>Reading key</dt>
             <dd class="hash">{{ shown.trace!.reading_key }}</dd>
             <dt>Model</dt>
@@ -834,7 +851,10 @@ watch(box, async () => {
             </dd>
           </DetailList>
         </FoldSection>
-        </template>
+        <FoldSection v-else label="Details" plain><template #title><span class="none">none</span></template></FoldSection>
+        </RecordRows>
+        <!-- a page no reader has read (V2.a): its own image beneath its rows; nothing of a reading, which it has not -->
+        <UnreadPage v-if="!shown.read" :page="shown" :image-url="imageUrl" />
       </template>
     </RecordZone>
 
@@ -901,34 +921,17 @@ watch(box, async () => {
             </ul>
             <!-- a recalled judgement's findings about the page as a whole, in the same voices as beside a block -->
             <FindingList v-if="recalled?.page_findings.length" class="page-findings" :findings="recalled.page_findings" names-blocks />
-            <!-- as served: the page's chunks of semantic search, where each begins and what it shares, said above the blocks;
-                 a chunk not placed in words, never drawn by guess (W4) -->
-            <div v-if="servedMode" class="chunks-head" data-part="chunks-head">
-              <ApiFailure v-if="chunksError" :error="chunksError" @retry="store.loadChunks(kb, work, page)" />
-              <LoadingLine v-else-if="!chunks" />
-              <template v-else>
-                <p class="chunks-said">
-                  <span>{{ chunks.count_said ?? chunks.said }}</span>
-                  <span v-if="chunks.held_back" class="held-back" data-part="held-back">kept: {{ chunks.held_back }}</span>
-                  <HintToggle v-if="chunksShare" id="overlap" v-model:open="chunkHintOpen" />
-                </p>
-                <HintPanel v-if="chunksShare && chunkHintOpen" id="overlap" @close="chunkHintOpen = false">
-                  <p class="legend" data-part="overlap-legend">{{ overlapHint(chunks.splitter) }}</p>
-                </HintPanel>
-                <p v-if="chunks.not_placed" class="not-placed" role="alert" data-part="not-placed"><AppIcon name="status-error" /> {{ chunks.not_placed }}</p>
-                <p v-if="firstChunk?.continues_from" class="continues" data-part="continues-from">
-                  chunk {{ firstChunk.number }} continues from p. {{ firstChunk.continues_from }}
-                </p>
-              </template>
-            </div>
+            <!-- as served, chunk first (21 Nov): the page as the chunks semantic search holds of it, each a group of the quoted
+                 blocks it holds; a block never quoted lies in none and is not shown -->
+            <ApiFailure v-if="servedMode && chunksError" :error="chunksError" @retry="store.loadChunks(kb, work, page)" />
+            <LoadingLine v-else-if="servedMode && !chunks" />
+            <ChunkGroups v-else-if="servedMode && chunks" :chunks="chunks" @hover="hovered = $event" />
             <ReadingBlocks
-              v-if="mode === 'readable'"
+              v-else-if="mode === 'readable'"
               ref="readingBlocks"
               :blocks="analysisReading.blocks"
               :highlight="highlight"
               :errors="analysisReading.error_places ?? []"
-              :as-served="servedMode"
-              :chunks="servedMode ? chunks : null"
               :verdicts="verdictsTaken"
               :verdict-block="verdictTarget || null"
               @verdict="openVerdict"
@@ -936,9 +939,6 @@ watch(box, async () => {
               @jump="showBlock"
               @raw="showRaw"
             />
-            <p v-if="servedMode && lastChunk?.continues_on" class="continues" data-part="continues-on">
-              chunk {{ lastChunk.number }} continues on p. {{ lastChunk.continues_on }}
-            </p>
             <pre v-else ref="rawText" class="raw" data-part="raw" :style="{ '--gutter': `${String(rawLines.length).length}ch` }"><span v-for="(line, at) in rawLines" :key="at" class="raw-line" :class="[{ marked: at + 1 === rawLine }, errorLines.get(at + 1)]" :data-line="at + 1" :data-error-line="errorLines.get(at + 1)">{{ at < rawLines.length - 1 ? `${line}\n` : line }}</span></pre>
           </template>
         </div>
@@ -995,19 +995,43 @@ watch(box, async () => {
   color: var(--color-text-secondary);
 }
 
-/* a sentence, held to a line a person reads at once, as the record's values are (`LabelledLines`) */
-.said {
-  margin-top: var(--space-sm);
-  max-width: 100ch;
-}
-
-.said + .summary {
-  margin-top: var(--space-xs);
-}
-
-/* the page's record (184): one labelled line beneath the other, labels and values each in a column (`LabelledLines`) */
+/* the page's record (184, H1.a): its rows one beneath the other, labels and lines each in a column (`RecordRows`) */
 .page-facts {
   margin: var(--space-sm) 0 var(--space-sm);
+}
+
+/* the route's line parted as the reading's is, by a quiet dot drawn, so the provider's words copied are its words alone */
+.route + .error-message::before,
+.route + .route-why::before {
+  content: '· ';
+  color: var(--color-text-secondary);
+}
+
+/* a row's one line: its parts side by side, wrapping in the line's column */
+.row-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.none,
+.check-said,
+.route-why,
+.page-findings-said,
+.person-by {
+  color: var(--color-text-secondary);
+}
+
+.person-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.check-stages,
+.route-parts {
+  margin: 2px 0 var(--space-xs);
 }
 
 /* the reading's facts parted as the route's are, by a quiet dot */
@@ -1081,9 +1105,6 @@ watch(box, async () => {
   margin-bottom: var(--space-xs);
 }
 
-.history {
-  margin-bottom: var(--space-sm);
-}
 
 /* a reading folded to one line, the fold's mark before it: its fields in columns that align from one reading to the
    next; what it was, in the core's words, wraps in its column rather than widening the line */
@@ -1123,9 +1144,6 @@ watch(box, async () => {
 }
 
 /* the Lab: below the history and apart from it, folded to one line that says what it holds */
-.lab {
-  margin-bottom: var(--space-sm);
-}
 
 /* the pipeline's state where a person's accept or reject decides: the whole line recedes, the check's reasons with the
    mark; a changed reading file keeps its error role below, since that is not history */
@@ -1172,9 +1190,6 @@ tr.judgement.uncounted .judgement-findings {
   margin-top: 2px;
 }
 
-.details {
-  margin-bottom: var(--space-sm);
-}
 
 .hash {
   word-break: break-all;
@@ -1394,9 +1409,7 @@ tr.recalled-source {
 }
 
 .no-reading,
-.as-served-off,
-.chunks-said,
-.continues {
+.as-served-off {
   color: var(--color-text-secondary);
 }
 
@@ -1407,27 +1420,4 @@ tr.recalled-source {
   gap: var(--space-xs);
 }
 
-.chunks-head {
-  margin-bottom: var(--space-sm);
-}
-
-.chunks-said {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xs) var(--space-md);
-}
-
-.not-placed {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  color: var(--color-error);
-}
-
-/* a chunk that runs over the page's edge, said at the page's top or foot (65.a), dashed as a chunk's border is */
-.continues {
-  padding: 2px 0;
-  border-top: 1px dashed var(--color-annotation);
-}
 </style>

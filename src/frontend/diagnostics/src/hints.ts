@@ -31,6 +31,11 @@ export const HINTS = {
     label: 'What the dashed line means',
     lead: 'Text a chunk shares with the chunk before it, repeated so a sentence cut at the border stays findable in both.',
   },
+  chunks: {
+    label: 'What a chunk is',
+    lead: 'The semantic index\'s cut of the served text: semantic search finds and quotes a page by its chunks, and a chunk '
+      + 'usually holds several blocks.',
+  },
 } satisfies Record<string, Hint>
 
 export type HintId = keyof typeof HINTS

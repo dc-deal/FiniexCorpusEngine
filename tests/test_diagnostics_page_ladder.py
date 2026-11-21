@@ -44,9 +44,10 @@ def a_service(*pages: Page) -> SimpleNamespace:
 
 def test_whether_the_search_holds_a_page_and_why_not_and_the_text_it_serves():
     served = page_ladder.PageRung(level='text served', reached=True, said='its reading')
-    # not built: never waited for, said
+    # not built: never waited for, said as the search being built after a start, the served text's why its own
     rung, text, why = page_ladder.keyword(None, served, built=False)
-    assert (rung.reached, rung.said, text) == (None, page_ladder.NOT_BUILT, None)
+    assert (rung.reached, rung.said, rung.short, text) == (None, 'BM25 being built after a start', page_ladder.NOT_BUILT, None)
+    assert why == page_ladder.SERVED_WAITS
     rung, text, why = page_ladder.keyword(a_page('prose ' * 60), served, built=True)
     assert (rung.reached, rung.said, text) == (True, 'in search (BM25)', 'prose ' * 60)
     rung, _, _ = page_ladder.keyword(a_page('1 2 3 4 5 6 7 8 9 10 ' * 30 + 'index', searchable=False), served, built=True)

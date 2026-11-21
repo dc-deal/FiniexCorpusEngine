@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppIcon from '@/components/base/AppIcon.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
-import HoverCard from '@/components/base/HoverCard.vue'
 import HumanTime from '@/components/base/HumanTime.vue'
 import FindingList from '@/components/FindingList.vue'
 import PersonVerdictList from '@/components/PersonVerdictList.vue'
@@ -11,7 +10,7 @@ import InlineSegments from '@/components/reading/InlineSegments.vue'
 import ReadingTable from '@/components/reading/ReadingTable.vue'
 import MathTex from '@/components/reading/MathTex.vue'
 import { correctionLabel, lookedSaid } from '@/person_words'
-import type { PageChunks, ReadingBlock, ReadingError, StandingCorrection } from '@/types/api/page_types'
+import type { ReadingBlock, ReadingError, StandingCorrection } from '@/types/api/page_types'
 import { counted } from '@/counted'
 
 /**
@@ -31,22 +30,11 @@ const props = withDefaults(defineProps<{
   highlight?: string | null
   // the validator's errors on the reading, parted by the API; each stands on the block it names
   errors?: ReadingError[]
-  // "as served" (the operator, 21 Nov: quoted is a subset of readable): a block never quoted greyed, still readable, every
-  // quoted one in the form the search and the chat quote; with the page's chunks, where each begins and what it shares (W4)
-  asServed?: boolean
-  chunks?: PageChunks | null
   // a person's verdict is taken here (V1.a): a ⚖ at each block opens the verdict panel on it, always shown on a block with a
   // finding and on the pointer or the keyboard's focus otherwise; the block the open panel is about is outlined
   verdicts?: boolean
   verdictBlock?: string | null
-}>(), { highlight: null, errors: () => [], asServed: false, chunks: null, verdicts: false, verdictBlock: null })
-
-// each quoted block's served form in the runs the API cut it into by the chunks; without them, the form whole
-const servedParts = computed(() => new Map((props.chunks?.blocks ?? []).map(block => [block.block, block.parts])))
-function partsOf(block: ReadingBlock): PageChunks['blocks'][number]['parts'] {
-  return servedParts.value.get(block.id) ?? [{ text: block.served ?? '', chunk: null, shared: false, starts: null }]
-}
-const overlapOf = (number: number): number => props.chunks?.chunks.find(chunk => chunk.number === number)?.overlap ?? 0
+}>(), { highlight: null, errors: () => [], verdicts: false, verdictBlock: null })
 
 function errorsOn(block: ReadingBlock): ReadingError[] {
   return props.errors.filter(error => error.block === block.id)
@@ -192,7 +180,7 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
       :key="block.id"
       class="block"
       :class="[block.group, { highlighted: block.id === highlight, 'has-findings': block.findings.length > 0,
-                              'not-served': asServed && !block.served, 'verdict-about': block.id === verdictBlock }]"
+                              'verdict-about': block.id === verdictBlock }]"
       :data-block="block.id"
       @mouseenter="emit('hover', block.id)"
       @mouseleave="emit('hover', null)"
@@ -224,17 +212,7 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
       <!-- the reading's own text, muted beneath a correction, as it stands in the reading -->
       <div class="block-content" :class="{ 'as-read': block.correction }" :data-part="block.correction ? 'as-read' : undefined">
       <!-- the printed words an attribute carries stand with the body, no space of the template's own between them (190.a) -->
-      <!-- as served: the block in the form the search and the chat quote, each chunk's beginning a dashed line (W4) -->
-      <div v-if="asServed && block.served" class="block-body served-form" data-part="served-form"><template
-        v-for="(part, at) in partsOf(block)" :key="at"
-      ><span v-if="part.starts" class="chunk-start" :data-chunk-start="part.starts">chunk {{ part.starts }} of {{ chunks?.chunks.length }}<HoverCard
-        v-if="overlapOf(part.starts)"
-        title="Shared with the chunk before"
-        :rows="[{ label: 'characters', value: overlapOf(part.starts).toLocaleString('en') }, { label: 'with', value: `chunk ${part.starts - 1}` }]"
-      ><span class="shared-count">{{ overlapOf(part.starts) }} shared</span></HoverCard></span><span
-        :class="{ overlap: part.shared }" :data-chunk="part.chunk ?? undefined"
-      >{{ part.text }}</span></template></div>
-      <p v-else-if="block.segments" class="block-body"><strong v-if="termOf(block)" class="entry-term" data-part="entry-term">{{ termOf(block) }}</strong>{{ termOf(block) ? ': ' : '' }}<span v-if="keyOf(block)" class="entry-key" data-part="entry-key">{{ `${keyOf(block)} ` }}</span><InlineSegments :segments="block.segments" @jump="emit('jump', $event)" /><span v-if="targetOf(block)" class="entry-target" data-part="entry-target">{{ ` ${targetOf(block)}` }}</span></p>
+      <p v-if="block.segments" class="block-body"><strong v-if="termOf(block)" class="entry-term" data-part="entry-term">{{ termOf(block) }}</strong>{{ termOf(block) ? ': ' : '' }}<span v-if="keyOf(block)" class="entry-key" data-part="entry-key">{{ `${keyOf(block)} ` }}</span><InlineSegments :segments="block.segments" @jump="emit('jump', $event)" /><span v-if="targetOf(block)" class="entry-target" data-part="entry-target">{{ ` ${targetOf(block)}` }}</span></p>
       <div v-else-if="block.latex !== null" class="block-body formula">
         <MathTex :latex="block.latex" display />
         <span v-if="block.attrs.label" class="formula-label">({{ block.attrs.label }})</span>
@@ -311,11 +289,6 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
   border: 1px solid var(--color-row-rule);
 }
 
-/* as served: a block never quoted recedes, still to be read; a quoted one in its served form, as the search holds it */
-.block.not-served {
-  opacity: 0.45;
-}
-
 /* the block the open verdict panel is about, outlined as its frame on the image is */
 .block.verdict-about {
   outline: 2px solid var(--color-accent);
@@ -332,29 +305,6 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
 .block:focus-within .verdict-mark,
 .verdict-mark.always {
   visibility: visible;
-}
-
-.served-form {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/* where a chunk of semantic search begins: a dashed line across the block, the annotation's role, as an HTML section's
-   chunks are marked; the text it shares with the chunk before dashed beneath, as there */
-.chunk-start {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-sm);
-  margin: var(--space-xs) 0 2px;
-  padding-top: 2px;
-  border-top: 1px dashed var(--color-annotation);
-  color: var(--color-text-secondary);
-  white-space: normal;
-}
-
-.overlap {
-  text-decoration: underline dashed var(--color-annotation);
-  text-underline-offset: 3px;
 }
 
 /* a block the judge found fault with keeps a neutral edge inside its box: its findings beneath carry the severity, each

@@ -29,6 +29,12 @@ const SERVED_BLOCKS = [
 
 const WRONG_VALUE = { kind: 'wrong_value', block: 'b02', severity: 'major', evidence: '1.034 read as 1.043', void: false }
 
+// the record's rows, always these in this order (H1.a)
+const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', 'Reading History:', 'Lab:', 'Details:']
+const ONE_READING = { reading_key: '2b2d48e77b246c95', number: 1, purpose: 'first reading', cell: 'FREE-SM', model: 'claude-sonnet-5-5',
+  mode: 'batch', attempt: 0, class_now: 'ok', stored_at: '2026-11-02T14:48:03+00:00', deviation: null, judgements: [], format_errors: [],
+  cost_usd: 0.0157879, shown: true }
+
 describe('PageView', () => {
   beforeEach(() => {
     vi.mocked(getPage).mockReset()
@@ -36,7 +42,7 @@ describe('PageView', () => {
     localStorage.clear()
   })
 
-  it('opens a page no reader has read: its state, what serves it, its own ladder, the text served and its own image (V2.a)', async () => {
+  it('stands the record\'s rows on a page no reader has read, each that has nothing saying none, then its own image (V2.a, H1.a)', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
       read: false, trace: null, reading: null, raw: null, integrity: 'no reading', attempts: null, printed_label: null,
       route_why: "served from the PDF's text layer", said: "Not read: served from the PDF's text layer.",
@@ -47,23 +53,57 @@ describe('PageView', () => {
     }))
     const view = mountView()
     await flushPromises()
-    const unread = view.find('[data-part="unread-page"]')
-    expect(unread.find('.state-mark').attributes('data-state')).toBe('not_read')
-    expect(unread.find('.route').text()).toBe("served from the PDF's text layer")
-    expect(unread.findAll('.rung-level').map(level => level.text())).toEqual(['text layer', 'text served', 'keyword search',
+    const rows = view.find('[data-part="page-facts"]')
+    expect(rows.findAll('.fold-label').map(label => label.text())).toEqual(RECORD_ROWS)
+    expect(rows.find('[data-label="Check"] .state-mark').attributes('data-state')).toBe('not_read')
+    expect(rows.find('[data-label="Route"] .route').text()).toBe("served from the PDF's text layer")
+    // a row that has nothing says so in one word and folds nothing open, so the layout never moves from page to page
+    for (const label of ['Reading', 'Findings', 'Reading History', 'Lab', 'Details']) {
+      const row = rows.find(`[data-label="${label}"]`)
+      expect([label, row.find('.fold-title').text(), row.element.tagName]).toEqual([label, 'none', 'DIV'])
+    }
+    // no sentence of its own above the rows: the state and the route say it
+    expect(view.find('[data-part="said"]').exists()).toBe(false)
+    const coverage = rows.find('[data-label="Coverage"]')
+    expect(coverage.findAll('.rung-level').map(level => level.text())).toEqual(['text layer', 'text served', 'keyword search',
       'semantic search', 'reading and check'])
-    expect(unread.find('[data-said="reading and check"]').text()).toBe('no reading; planned')
+    expect(coverage.find('[data-said="reading and check"]').text()).toBe('no reading; planned')
     // reached, not reached and not known here as three forms, never colour alone
-    expect(unread.findAll('.rung-mark').map(mark => mark.attributes('data-reached'))).toEqual(['true', 'true', 'true', 'unknown', 'false'])
+    expect(coverage.findAll('.rung-mark').map(mark => mark.attributes('data-reached'))).toEqual(['true', 'true', 'true', 'unknown', 'false'])
     // the image is the PDF's own, said what it is; nothing of a reading stands, which it has not
-    expect(unread.find('.own-image img').attributes('src')).toBe(`/api/free/works/${KELLY}/pages/4/image.png`)
-    expect(unread.find('.own-image figcaption').text()).toBe('a render at 150 dpi: the page holds no image of its own')
+    expect(view.find('.own-image img').attributes('src')).toBe(`/api/free/works/${KELLY}/pages/4/image.png`)
+    expect(view.find('.own-image figcaption').text()).toBe('a render at 150 dpi: the page holds no image of its own')
     expect(view.find('.side-by-side').exists()).toBe(false)
     expect(view.find('[data-part="reading-cost"]').exists()).toBe(false)
     // the text served, folded until asked for
-    const served = unread.find('[data-part="served-text"]')
+    const served = view.find('[data-part="served-text"]')
     expect((served.element as HTMLDetailsElement).open).toBe(false)
     expect(served.find('.served-body').text()).toBe('The Kelly criterion sizes a bet.')
+  })
+
+  it('stands the same rows on a read page in the same order, the page\'s sentence in the Check line\'s words (H1.a)', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ ladder: aPageLadder(), attempts: [ONE_READING],
+      check: aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }, { value: 'other', count: 1 }] }),
+      said: "Served despite the judge's findings: the judge's findings lie on blocks never quoted.",
+      check_said: "served all the same: the judge's findings lie on blocks never quoted" }))
+    const view = mountView()
+    await flushPromises()
+    const rows = view.find('[data-part="page-facts"]')
+    expect(rows.findAll('.fold-label').map(label => label.text())).toEqual(RECORD_ROWS)
+    const check = rows.find('[data-label="Check"]')
+    expect(check.find('[data-part="check-said"]').text()).toBe("· served all the same: the judge's findings lie on blocks never quoted")
+    expect(check.find('.state-mark').attributes('data-state')).toBe('issue')
+    expect(view.find('[data-part="said"]').exists()).toBe(false)
+    // each row one line that folds open for more: the check its three stages, the route its parts; the reading folds nothing
+    expect([check.element.tagName, (check.element as HTMLDetailsElement).open]).toEqual(['DETAILS', false])
+    expect(check.find('[data-stage="3"]').exists()).toBe(true)
+    expect(rows.find('[data-label="Route"] [data-part="route-parts"]').exists()).toBe(true)
+    expect(rows.find('[data-label="Reading"]').element.tagName).toBe('DIV')
+    // a page with one reading names it in its history; nothing found and nothing tried beside the pipeline say none
+    expect(rows.find('[data-label="Reading History"] > summary .fold-title').text()).toBe('1 reading · shown: reading 1')
+    expect(rows.find('[data-label="Findings"] .fold-title').text()).toBe('none')
+    expect(rows.find('[data-label="Lab"] .fold-title').text()).toBe('none')
+    expect(rows.find('[data-label="Details"]').element.tagName).toBe('DETAILS')
   })
 
   it('stands a read page\'s own ladder in its record, and says a file held back from providers is shown here alone (V2.a)', async () => {
@@ -71,7 +111,7 @@ describe('PageView', () => {
       served_text: null, served_why_not: 'not known yet: the search is built when the app starts and on a first search' }) }))
     const view = mountView()
     await flushPromises()
-    const coverage = view.find('[data-part="page-coverage"]')
+    const coverage = view.find('[data-label="Coverage"]')
     expect(coverage.findAll('.rung-level')).toHaveLength(5)
     expect(coverage.find('[data-part="held"]').text()).toBe('held back by the provenance list (send: false); shown here, on this machine only')
     expect(coverage.find('.served-none').text()).toBe('not known yet: the search is built when the app starts and on a first search')
@@ -210,16 +250,19 @@ describe('PageView', () => {
     }
   })
 
-  it('keeps a finding about the page as a whole above the original, naming a block the reading lacks', async () => {
+  it('keeps a finding about the page as a whole in the Findings row\'s fold, counted in its line, naming a block the reading lacks', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail({
       page_findings: [{ kind: 'omission', block: 'b17', severity: 'minor', evidence: 'a footnote is missing', void: false }],
     }))
     const view = mountView()
     await flushPromises()
-    const finding = view.find('.page-findings [data-finding="0"]')
+    const row = view.find('[data-label="Findings"]')
+    expect(row.find('[data-part="page-findings-said"]').text()).toBe('· 1 finding on the page as a whole')
+    const finding = row.find('.page-findings [data-finding="0"]')
     expect(finding.text()).toContain('omission')
     expect(finding.text()).toContain('b17, not in the reading')
-    expect(view.find('.found-at').exists()).toBe(false)
+    // no block of the reading has a finding: no block to jump to
+    expect(row.find('[data-finding-at]').exists()).toBe(false)
   })
 
   it('frames the block under the pointer where the reader placed it, in percent of the image', async () => {
@@ -338,44 +381,50 @@ describe('PageView', () => {
     expect(reading.find('[data-part="served-text"]').exists()).toBe(false)
   })
 
-  it('shows a page as served: never-quoted blocks greyed, quoted ones in their served form, the chunks drawn across (21 Nov)', async () => {
+  it('shows a page as served chunk first: each chunk a group of its quoted blocks, a split one in both, none never quoted (21 Nov)', async () => {
     vi.mocked(getPage).mockResolvedValue(aPageDetail({ ladder: aPageLadder({ served_by: null }),
       reading: { front: { printed_label: '4' }, blocks: SERVED_BLOCKS, errors: [], warnings: [], error_places: [] } }))
+    const formula = { block: 'b01', block_class: 'formula', part: false, runs: [{ text: '\\[ f^* = p - q/b \\]', shared: false }] }
     vi.mocked(getPageChunks).mockResolvedValue({ knowledge_base: 'free', source_id: KELLY, pdf_page: 4, said: null, held_back: null,
-      count_said: '2 chunks of semantic search begin on this page',
-      not_placed: '1 chunk of this page could not be placed in its quoted text',
+      head_said: 'this page lies in 2 chunks: A runs in from p. 3; B begins here',
+      not_placed: '1 chunk of this page could not be placed in its quoted text', outside: [],
       splitter: { splitter: 'recursive character', chunk_size: 1000, chunk_overlap: 150 },
-      chunks: [{ number: 1, id: 'c1', start: 0, end: 30, overlap: 0, tokens: 9, continues_from: 3, continues_on: null },
-        { number: 2, id: 'c2', start: 20, end: 70, overlap: 10, tokens: 12, continues_from: null, continues_on: 5 },
-        { number: 3, id: 'c3', start: null, end: null, overlap: 0, tokens: null, continues_from: null, continues_on: null }],
-      blocks: [{ block: 'b01', parts: [{ text: '\\[ f^* = p - q/b \\]', chunk: 1, shared: false, starts: 1 }] },
-        { block: 'b03', parts: [{ text: 'Kelly fraction: ', chunk: 1, shared: false, starts: null },
-          { text: 'the share', chunk: 2, shared: true, starts: 2 }, { text: ' of the bankroll bet.', chunk: 2, shared: false, starts: null }] }] })
+      groups: [
+        { letter: 'A', id: 'c1', characters: 912, pages: 'pp. 3–4', shares: 0, runs_in_from: 3,
+          head: ['runs in from p. 3', '912 characters', 'pp. 3–4'],
+          blocks: [formula, { block: 'b03', block_class: 'glossary_entry', part: true,
+            runs: [{ text: 'Kelly fraction: ', shared: false }, { text: 'the share', shared: true }] }] },
+        { letter: 'B', id: 'c2', characters: 522, pages: 'pp. 4–5', shares: 9, shares_with: 'A', runs_on_to: 5,
+          head: ['522 characters', 'pp. 4–5', 'shares 9 characters with A', 'runs on to p. 5'],
+          blocks: [{ block: 'b03', block_class: 'glossary_entry', part: true,
+            runs: [{ text: 'the share', shared: true }, { text: ' of the bankroll bet.', shared: false }] }] }] })
     const view = mountView()
     await flushPromises()
-    // off by default: as today, the chunks not asked for
-    expect(view.find('[data-part="served-form"]').exists()).toBe(false)
+    // off by default: the readable view as it was, the chunks not asked for
+    expect(view.find('[data-part="chunk-groups"]').exists()).toBe(false)
     expect(vi.mocked(getPageChunks)).not.toHaveBeenCalled()
     await view.find('[data-part="as-served"]').trigger('click')
     await flushPromises()
     expect(vi.mocked(getPageChunks)).toHaveBeenCalledWith('free', KELLY, 4)
-    // the description greyed, still there; the formula its LaTeX, the definition its term, as the search quotes them
-    expect(view.find('[data-block="b02"]').classes()).toContain('not-served')
-    expect(view.find('[data-block="b02"]').text()).toContain("A formula giving the bet's size.")
-    expect(view.find('[data-block="b01"] [data-part="served-form"]').text()).toContain('\\[ f^* = p - q/b \\]')
-    expect(view.findAll('[data-block="b03"] [data-part="served-form"] [data-chunk]').map(part => part.element.textContent).join('')).toBe(
-      'Kelly fraction: the share of the bankroll bet.')
-    // each chunk's beginning a dashed line, what it shares marked and counted; one running over each edge; one not placed, said
-    expect(view.findAll('.chunk-start').map(start => start.attributes('data-chunk-start'))).toEqual(['1', '2'])
-    expect(view.find('[data-chunk-start="2"] .shared-count').text()).toBe('10 shared')
-    expect(view.find('[data-block="b03"] .overlap').text()).toBe('the share')
-    expect(view.find('[data-part="continues-from"]').text()).toBe('chunk 1 continues from p. 3')
-    expect(view.find('[data-part="continues-on"]').text()).toBe('chunk 2 continues on p. 5')
+    // the page as its chunks: each a group with its one-line head, the API's words in order; the reading's own blocks gone
+    expect(view.find('[data-part="chunks-said"]').text()).toBe('this page lies in 2 chunks: A runs in from p. 3; B begins here')
+    expect(view.findAll('[data-part="chunk-head"]').map(head => head.text())).toEqual([
+      'chunk A · runs in from p. 3 · 912 characters · pp. 3–4', 'chunk B · 522 characters · pp. 4–5 · shares 9 characters with A · runs on to p. 5'])
+    expect(view.find('ol.blocks').exists()).toBe(false)
+    // the block the border cuts stands in both chunks with its part, marked; the text they share dashed in both
+    const split = view.findAll('[data-block="b03"]')
+    expect(split.map(block => [block.find('[data-part="block-part"]').text(), block.find('[data-part="served-form"]').text()])).toEqual([
+      ['(part)', 'Kelly fraction: the share'], ['(part)', 'the share of the bankroll bet.']])
+    expect(view.findAll('[data-part="chunk-groups"] .overlap').map(run => run.text())).toEqual(['the share', 'the share'])
+    expect(view.find('[data-chunk="A"] [data-block="b01"] [data-part="served-form"]').text()).toBe('\\[ f^* = p - q/b \\]')
+    // the description never quoted is in no chunk and stands nowhere in the mode; one chunk not placed, said
+    expect(view.find('[data-block="b02"]').exists()).toBe(false)
     expect(view.find('[data-part="not-placed"]').text()).toBe('1 chunk of this page could not be placed in its quoted text')
-    expect(view.find('.chunks-said').text()).toBe('2 chunks of semantic search begin on this page')
-    // off again: as it was, and asked no second time
+    // off again: as it was, the never-quoted block back, and asked no second time
     await view.find('[data-part="as-served"]').trigger('click')
-    expect(view.find('[data-part="served-form"]').exists()).toBe(false)
+    expect(view.find('[data-part="chunk-groups"]').exists()).toBe(false)
+    expect(view.find('[data-block="b02"]').text()).toContain("A formula giving the bet's size.")
+    expect(view.find('pre.raw').exists()).toBe(false)
     await view.find('[data-part="as-served"]').trigger('click')
     await flushPromises()
     expect(vi.mocked(getPageChunks)).toHaveBeenCalledTimes(1)
@@ -420,26 +469,27 @@ describe('PageView', () => {
     expect(healed.find('.history .chosen').text())
       .toBe(`Chosen ${sayTime('2026-11-04T09:13:00+00:00').text} by run 7: re-read after the format retry`)
     expect(healed.find('.history .chosen time').attributes('datetime')).toBe('2026-11-04T09:13:00+00:00')
-    // one reading and no choice: nothing to tell, so nothing is printed
+    // one reading and no choice: still a row of the record, naming its one reading (H1.a)
     const single = mountView()
     await flushPromises()
-    expect(single.find('.history').exists()).toBe(false)
+    expect(single.find('.history > summary .fold-title').text()).toBe('1 reading · shown: reading 2')
   })
 
-  it('says a page that is not plainly ok in the API\'s one sentence first, its chips after it, and nothing for an ok page', async () => {
+  it('says a page that is not plainly ok in the Check line\'s words, no sentence above the record, and nothing for an ok page', async () => {
     const said = 'Not served: 4 readings failed the format check, the one shown here with 2 blocks left empty (b12, b15); '
       + "the PDF's text layer is served instead."
+    const words = 'not served: 4 readings failed the format check, the one shown here with 2 blocks left empty (b12, b15); '
+      + "the PDF's text layer is served instead"
     vi.mocked(getPage)
-      .mockResolvedValueOnce(aPageDetail({ said }))
+      .mockResolvedValueOnce(aPageDetail({ said, check_said: words }))
       .mockResolvedValueOnce(aPageDetail())
     const notServed = mountView()
     await flushPromises()
-    const sentence = notServed.find('[data-part="said"]')
-    expect(sentence.text()).toBe(said)
-    expect(sentence.element.nextElementSibling?.classList.contains('summary')).toBe(true)
+    expect(notServed.find('[data-label="Check"] [data-part="check-said"]').text()).toBe(`· ${words}`)
+    expect(notServed.find('[data-part="said"]').exists()).toBe(false)
     const ok = mountView()
     await flushPromises()
-    expect(ok.find('[data-part="said"]').exists()).toBe(false)
+    expect(ok.find('[data-part="check-said"]').exists()).toBe(false)
   })
 
   it('says each block of the head\'s findings in a finding\'s own look: the flag and its gravest severity, a void one receding', async () => {
@@ -474,7 +524,7 @@ describe('PageView', () => {
     expect(view.find('[data-block="b09"]').classes()).toContain('highlighted')
   })
 
-  it('puts a person who settled the page before the check, which recedes, and says the why only where the API gives it', async () => {
+  it('puts a person who settled the page before the check in its line, which recedes, and says the why only where the API gives it', async () => {
     const person = { standing: 'accepted' as const, by_a_person: true, reason: 'every value checked', note: 'every value checked by hand',
       given_by: 'maintainer', given_at: '2026-11-10T20:00:00+00:00' }
     const issue = aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }] })
@@ -484,29 +534,32 @@ describe('PageView', () => {
       .mockResolvedValueOnce(aPageDetail({ check: issue, person: { ...person, standing: 'noted' }, listed_state: 'decided_by_a_person' }))
       .mockResolvedValueOnce(aPageDetail({ check: aCheck({ state: 'ok' }), person: { ...person, standing: 'noted' }, listed_state: 'ok' }))
       .mockResolvedValueOnce(aPageDetail({ check: issue, listed_state: 'issue', why_line: 'anthropic blocked the page (content filter)' }))
-    const labelsOf = (view: ReturnType<typeof mountView>) => view.findAll('[data-part="page-facts"] .line-label').map(label => label.text())
+    // within the Check line (H1.a): whether the person's verdict stands before the check's state
+    const personFirst = (view: ReturnType<typeof mountView>) => Boolean(view.find('[data-part="person-verdict"]').element
+      .compareDocumentPosition(view.find('[data-label="Check"] .state-mark').element) & Node.DOCUMENT_POSITION_FOLLOWING)
     const accepted = mountView()
     await flushPromises()
-    expect(labelsOf(accepted).slice(0, 2)).toEqual(['A person:', 'Check:'])
+    expect(personFirst(accepted)).toBe(true)
+    expect(accepted.find('[data-part="person-verdict"] .person-by').text()).toBe('A person')
     expect(accepted.find('[data-label="Check"] .state-mark').classes()).toContain('quiet')
-    // the person's reason and note are in their card, not in the line; the route's whole why in the route's card
-    expect(accepted.find('[data-label="A person"]').text()).not.toContain('every value checked')
-    expect(labelsOf(accepted)).not.toContain('Why:')
+    // the person's reason and note are in their card, not in the line; no why of the route's where the API gives none
+    expect(accepted.find('[data-part="check-line"]').text()).not.toContain('every value checked')
+    expect(accepted.find('[data-label="Route"] .route-why').exists()).toBe(false)
     // a note settles a page the check listed to look at (211.a): the person first, the check's state kept, receding
     const settled = mountView()
     await flushPromises()
-    expect(labelsOf(settled).slice(0, 2)).toEqual(['A person:', 'Check:'])
+    expect(personFirst(settled)).toBe(true)
     expect(settled.find('[data-label="Check"] .state-mark').attributes('data-state')).toBe('issue')
     // a note on a page the check passed changes nothing: the check keeps its place
     const passed = mountView()
     await flushPromises()
-    expect(labelsOf(passed).slice(0, 2)).toEqual(['Check:', 'A person:'])
-    // a page no person settled: the check first, in its role, and the why the API gives a line for
+    expect(personFirst(passed)).toBe(false)
+    // a page no person settled: the check in its role, and the why the API gives in the route's line
     const open = mountView()
     await flushPromises()
-    expect(labelsOf(open)[0]).toBe('Check:')
+    expect(open.find('[data-part="person-verdict"]').exists()).toBe(false)
     expect(open.find('[data-label="Check"] .state-mark').classes()).toContain('error')
-    expect(open.find('[data-label="Why"] .route-why').text()).toBe('anthropic blocked the page (content filter)')
+    expect(open.find('[data-label="Route"] .route-why').text()).toBe('anthropic blocked the page (content filter)')
   })
 
   it('says beside each reading what its check made of it, the verdict only where the state does not say it', async () => {
@@ -567,10 +620,9 @@ describe('PageView', () => {
       listed_state: 'decided_by_an_automated_review' }))
     const view = mountView()
     await flushPromises()
-    const labels = view.findAll('[data-part="page-facts"] .line-label').map(label => label.text())
-    expect(labels).toContain('Automated review:')
-    expect(labels).not.toContain('A person:')
-    expect(view.find('[data-label="Automated review"] [data-icon="review"]').exists()).toBe(true)
+    const verdict = view.find('[data-label="Check"] [data-part="person-verdict"]')
+    expect([verdict.attributes('data-by'), verdict.find('.person-by').text()]).toEqual(['Automated review', 'Automated review'])
+    expect(verdict.find('[data-icon="review"]').exists()).toBe(true)
     expect(view.find('[data-part="protected"]').exists()).toBe(false)
   })
 

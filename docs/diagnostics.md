@@ -1889,3 +1889,22 @@ with the judge, its flags ("the image shows no such error" in the warning role),
 word and what the proposal cost. Nothing is recorded until a person records it; where the core sends nothing (no active version,
 a file held back, the spend guard), the button says why. 414 unit tests, 86 checks in the browser (3 skipped on today's data),
 1,553 Python tests.
+
+**The record in fixed rows, and "as served" chunk first (the operator's H1.a, 21 Nov).** A page's record moved as a person
+stepped from page to page: a page no reader had read showed three lines, a read one up to nine, a sentence stood above them only
+where the page was not plainly ok, and the Reading History only where a page had more than one reading. The record is now always
+the same rows in one order, Check, Route, Reading, Findings, Coverage, Reading History, Lab and Details, each one line that
+folds open for more; a row that has nothing says so in one word ("Reading: none"), on a page no reader has read and on an EPUB's
+or an HTML work's section too, so the layout never moves. The sentence that stood above the record is the Check line's words now
+("issue · judge: bad · served all the same: the judge's findings lie on blocks never quoted"); a person's verdict that decides
+stands first in that line, the check's state receding, as before. The check's three stages fold open beneath its line, the
+route's parts beneath the route's, the findings about the page as a whole beneath the findings' line; a provider's own words
+where a call failed stand in the route's line. A work's head takes the same rows, so nothing moves from a work to its pages
+(219.a). "As served" shows the page chunk first: a chunk is the semantic index's cut of the served text and usually holds
+several blocks, so each chunk is a group, a one-line head (its letter in page order, its characters, its pages, what it shares
+with the one before, where it runs in from or on to, and for a kept edition that it is held back from the search), then the
+quoted blocks inside it in their served form. A block two chunks share in part, or one a border cuts, stands in each with its
+part, marked "(part)", the text the two share dashed in both; a block never quoted is not shown; quoted text no chunk placed
+here holds is listed apart. The mode's head says how many chunks the page lies in: finance p. 469 "lies in 4 chunks: A runs in
+from p. 468; B, C, D begin here", the route answering in 27 ms. While the keyword index is built after a start, its level says
+"BM25 being built after a start". 417 unit tests, 87 checks in the browser (3 skipped on today's data), 1,555 Python tests.

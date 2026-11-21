@@ -70,7 +70,7 @@ describe('PageView, the check in stages and its judges (146.a, 147.a)', () => {
     await flushPromises()
     // a fold, folded on first load (decision 183), its title saying what it holds, the count set apart from the name
     expect(view.find('details.history').attributes('open')).toBeUndefined()
-    expect(view.find('details.history > summary').text()).toBe('Reading History · 2 readings · shown: reading 2 · 2 judgements count')
+    expect(view.find('details.history > summary').text()).toBe('Reading History:2 readings · shown: reading 2 · 2 judgements count')
     // the reading shown first, then the earlier one; a judge asked again and the prototypes are not the history's
     const lines = view.findAll('.history tr.judgement')
     expect(lines.map(line => line.attributes('data-judgement'))).toEqual(['2/0', '1/0'])
@@ -95,7 +95,7 @@ describe('PageView, the check in stages and its judges (146.a, 147.a)', () => {
     await flushPromises()
     const lab = view.find('details.lab')
     expect(lab.attributes('open')).toBeUndefined()
-    expect(lab.find('summary').text()).toBe('Lab · 3 judgements tried beside the pipeline, never served')
+    expect(lab.find('summary').text()).toBe('Lab:3 judgements tried beside the pipeline, never served')
     const line = (name: string) => lab.find(`tr.judgement[data-judgement="${name}"]`)
     expect(lab.findAll('tr.judgement').map(row => row.attributes('data-judgement'))).toEqual(['2/1', '2/2', '2/3'])
     expect(line('2/1').find('[data-part="again"]').text()).toBe('asked again')
@@ -137,11 +137,11 @@ describe('PageView, the check in stages and its judges (146.a, 147.a)', () => {
     const view = mountView()
     await flushPromises()
     // the history holds the pipeline's two readings alone
-    expect(view.find('details.history > summary').text()).toBe('Reading History · 2 readings · shown: reading 2 · 2 judgements count')
+    expect(view.find('details.history > summary').text()).toBe('Reading History:2 readings · shown: reading 2 · 2 judgements count')
     expect(view.find('[data-reading="p2"]').exists()).toBe(false)
     // the Lab: the prototype's reading by its reader, its judge/4 judgement, and the reading no judge has judged
     const lab = view.find('details.lab')
-    expect(lab.find('summary').text()).toBe('Lab · 2 readings and 4 judgements tried beside the pipeline, never served')
+    expect(lab.find('summary').text()).toBe('Lab:2 readings and 4 judgements tried beside the pipeline, never served')
     const row = lab.find('tr.judgement[data-judgement="3/0"]')
     expect(row.find('[data-reader="page/2"]').text()).toBe('reading 3, page/2 (prototype), never served')
     expect(row.text()).toContain('judge/4')

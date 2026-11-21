@@ -10,8 +10,8 @@ import LoadingLine from '@/components/base/LoadingLine.vue'
 import HtmlSectionBody from '@/components/HtmlSectionBody.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
-import PageLadderLines from '@/components/PageLadderLines.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
+import SectionRecord from '@/components/SectionRecord.vue'
 import { overlapHint as hintOf } from '@/overlap_hint'
 import { useHtmlStore } from '@/stores/html_store'
 import { useViewName } from '@/view_name'
@@ -58,6 +58,8 @@ const overlapHint = computed(() => hintOf(shown.value?.splitter))
 const hintOpen = ref(false)
 
 useViewName(() => (shown.value ? `${shown.value.title} ${props.section}` : null))
+// the section in the address, whose record stands above the article (H1.a)
+const chosen = computed(() => shown.value?.entries.find(entry => entry.label === props.section)?.section ?? null)
 </script>
 
 <template>
@@ -84,6 +86,9 @@ useViewName(() => (shown.value ? `${shown.value.title} ${props.section}` : null)
           />
           <h1 class="view-title">{{ shown.title }}</h1>
         </header>
+        <!-- the section's record in the rows every page has (H1.a): its own ladder (V2.a), born digital, its text served,
+             keyword search, its chunks; every other row says it has nothing -->
+        <SectionRecord :ladder="chosen?.ladder" />
         <!-- the work's licence and attribution stand above every original it shows -->
         <p class="attribution" data-part="attribution">
           <span v-if="shown.authors">{{ shown.authors }}</span>
@@ -134,8 +139,6 @@ useViewName(() => (shown.value ? `${shown.value.title} ${props.section}` : null)
         </p>
         <!-- a heading with no text of its own has no original: its title stands as the heading it is -->
         <h2 v-else class="entry-heading">{{ entry.title }}</h2>
-        <!-- the chosen section's own ladder (V2.a): born digital, its text served, keyword search, its chunks -->
-        <PageLadderLines v-if="entry.section?.ladder && entry.label === section" class="section-ladder" :ladder="entry.section.ladder" />
         <HtmlSectionBody v-if="entry.section" :section="entry.section" />
       </article>
     </AnalysisSection>

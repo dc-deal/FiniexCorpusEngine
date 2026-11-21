@@ -9,8 +9,10 @@ const SCHEMA_VERSION = 1
 export type WorkPagesView = 'chapters' | 'table'
 
 /** The folds a reader's choice is kept for (decision 183): a page's Reading History and its Lab. */
-export type FoldName = 'page.history' | 'page.lab' | 'ladder.details' | 'page.served' | 'page.coverage'
-const FOLD_NAMES: readonly string[] = ['page.history', 'page.lab', 'ladder.details', 'page.served', 'page.coverage'] satisfies FoldName[]
+export type FoldName = 'page.history' | 'page.lab' | 'ladder.details' | 'page.served' | 'page.coverage' | 'page.check' | 'page.route'
+  | 'page.findings'
+const FOLD_NAMES: readonly string[] = ['page.history', 'page.lab', 'ladder.details', 'page.served', 'page.coverage', 'page.check',
+  'page.route', 'page.findings'] satisfies FoldName[]
 
 /**
  * What a facet bar keeps across a reload (Y1.a, F5): its picks, its search and its sort, as the FiniexViewer keeps them.

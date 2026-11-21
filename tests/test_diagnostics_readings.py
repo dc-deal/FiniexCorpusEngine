@@ -362,6 +362,13 @@ def test_a_page_not_plainly_ok_says_in_one_sentence_whether_its_reading_is_serve
                   "judge's findings lie on blocks never quoted", 'noted', ['ok'])
     assert readings.said_of(noted, []) == "Served despite the judge's findings: the judge's findings lie on blocks never quoted."
     assert readings.said_of(a_row('ok', [], 'vision reading (claude-sonnet-5-5, page/1, validator page/1.2)', 'checked'), []) is None
+    # the sentence in the Check line's words, after the state and its reasons (H1.a): no sentence of its own above the record
+    assert readings.check_words(readings.said_of(noted, [])) == "served all the same: the judge's findings lie on blocks never quoted"
+    assert readings.check_words(readings.said_of(blocked, [])) == (
+        "not served: the provider blocked the reading; the PDF's text layer is served instead")
+    assert readings.check_words(None) is None
+    # a page a person settled: the verdict's mark in the same line says it, so the words say nothing again
+    assert readings.check_words('Served: a person accepted the reading.') is None
 
 
 def test_a_page_not_served_names_the_fallback_the_export_names_and_an_older_export_the_text_layer():
@@ -403,6 +410,7 @@ def test_every_page_of_the_free_export_not_plainly_ok_says_so_in_a_sentence_and_
                            'page that stayed malformed')
     page = store.page(malformed['source_id'], malformed['pdf_page'], 'a work')
     assert page.said == readings.said_of(malformed, page.reading.errors) and 'the one shown here with' in page.said
+    assert page.check_said == readings.check_words(page.said) and page.check_said.startswith('not served: ')
 
 
 @pytest.mark.readings

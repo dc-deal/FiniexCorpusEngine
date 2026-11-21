@@ -5,6 +5,7 @@ import { getEpubSection, getEpubWork } from '@/api/api_client'
 import { router } from '@/router'
 import EpubSectionView from '@/views/EpubSectionView.vue'
 import { aLadder } from './work_fixture'
+import { aPageLadder as aPageLadderOf } from './page_fixture'
 import EpubWorkView from '@/views/EpubWorkView.vue'
 import type { EpubSection, EpubWork } from '@/types/api/epub_types'
 import type { Editions } from '@/types/api/source_types'
@@ -112,5 +113,16 @@ describe('a licensed EPUB work (123.a)', () => {
     // the neighbours: none before the first section, the next one after it
     expect(view.find('[data-part="previous"]').exists()).toBe(false)
     expect(view.find('[data-part="next"]').attributes('href')).toBe(`#/licensed/epub/${KEY}/s2`)
+  })
+
+  it('stands a section\'s record in the rows every page has, each but its coverage saying none (H1.a)', async () => {
+    vi.mocked(getEpubSection).mockResolvedValue(aSection({ ladder: aPageLadderOf() }))
+    const view = mount(EpubSectionView, { props: { kb: 'licensed', work: KEY, section: 's1' }, global: { plugins: [createPinia(), router] } })
+    await flushPromises()
+    const rows = view.find('[data-part="section-record"]')
+    expect(rows.findAll('.fold-label').map(label => label.text())).toEqual(
+      ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', 'Reading History:', 'Lab:', 'Details:'])
+    expect(rows.findAll('.fold.plain .fold-title').map(title => title.text())).toEqual(Array(7).fill('none'))
+    expect(rows.find('[data-label="Coverage"] [data-part="ladder-line"]').exists()).toBe(true)
   })
 })
