@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
-import { getPage, getQuoted } from '@/api/api_client'
+import { getPage, getPageChunks } from '@/api/api_client'
 import { ApiError } from '@/api/api_error'
 import { router } from '@/router'
 import PageView from '@/views/PageView.vue'
@@ -12,28 +12,27 @@ import { sayTime } from '@/human_time'
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
   getPage: vi.fn(),
-  getQuoted: vi.fn(),
+  getPageChunks: vi.fn(),
 }))
 
 function mountView(page = 4, kb: KnowledgeBase = 'free', work = KELLY) {
   return mount(PageView, { props: { kb, work, page }, global: { plugins: [createPinia(), router] } })
 }
 
-// invented text, in the form the core quotes it: a formula as LaTeX, a table as rows
-const QUOTED = 'The Kelly criterion sizes a bet: \\( f^* = p - q/b \\).\n| p | b | f* |\n| 0.6 | 1 | 0.2 |'
-
-function modeButton(view: ReturnType<typeof mountView>, label: string) {
-  return view.findAll('.mode button').find(button => button.text() === label)
-}
+// an invented page of the three kinds the operator looked at (21 Nov, finance p. 469): a formula, its description, a definition;
+// each quoted block with the form the search and the chat quote, the description never quoted
+const SERVED_BLOCKS = [
+  aBlock({ id: 'b01', block_class: 'formula', segments: null, latex: 'f^* = p - q/b', served: '\\[ f^* = p - q/b \\]' }),
+  aBlock({ id: 'b02', block_class: 'description', content: 'D', segments: null, text: 'A formula giving the bet\'s size.', served: null }),
+  aBlock({ id: 'b03', block_class: 'glossary_entry', attrs: { term: 'Kelly fraction' }, served: 'Kelly fraction: the share of the bankroll bet.' }),
+]
 
 const WRONG_VALUE = { kind: 'wrong_value', block: 'b02', severity: 'major', evidence: '1.034 read as 1.043', void: false }
 
 describe('PageView', () => {
   beforeEach(() => {
     vi.mocked(getPage).mockReset()
-    vi.mocked(getQuoted).mockReset()
-    vi.mocked(getQuoted).mockImplementation(async (knowledgeBase, sourceId, pdfPage) => ({
-      knowledge_base: knowledgeBase, source_id: sourceId, pdf_page: pdfPage, text: QUOTED }))
+    vi.mocked(getPageChunks).mockReset()
     localStorage.clear()
   })
 
@@ -293,7 +292,7 @@ describe('PageView', () => {
     expect(view.find('.block-box-label').text()).toBe('b03')
   })
 
-  it('says why a blocked page has no reading, in the provider\'s own words, and still shows its original', async () => {
+  it('says why a blocked page has no reading, and holds the text served in its place in its coverage, named (21 Nov)', async () => {
     const detail = aPageDetail()
     vi.mocked(getPage).mockResolvedValue({
       ...detail,
@@ -303,6 +302,7 @@ describe('PageView', () => {
       trace: { ...detail.trace!, error_type: 'invalid_request_error', error_message: CONTENT_FILTER },
       reading: null,
       raw: null,
+      ladder: aPageLadder(),
     })
     const view = mountView(2)
     await flushPromises()
@@ -310,58 +310,86 @@ describe('PageView', () => {
     expect(view.find('.route').text()).toBe('text layer: the provider blocked the reading')
     expect(view.find('.summary .error-message').text()).toBe(CONTENT_FILTER)
     expect(view.find('.original img').exists()).toBe(true)
-    // with no reading, the text the search and the chat quote is all there is to show, and the one switch
-    expect(view.findAll('.mode button').map(button => button.text())).toEqual(['quoted'])
-    expect(view.find('.quoted-text').text()).toBe(QUOTED)
+    // no tab to choose: the quoted tab is gone (21 Nov); what serves the page in its reading's place stands in its coverage
+    expect(view.findAll('.mode button')).toHaveLength(0)
+    const served = view.find('[data-part="served-text"]')
+    expect(served.find('.fold-title').text()).toBe("text served: the PDF's text layer")
+    expect(served.find('.served-body').text()).toBe('The Kelly criterion sizes a bet.')
   })
 
-  it('opens a page quoted from its text layer on its reading, as every page, the quoted text one click away (227.a)', async () => {
-    vi.mocked(getPage).mockResolvedValue(aPageDetail({
-      route: JUDGED_BAD_ROUTE,
-      from_fallback: true,
-      check: aCheck({ state: 'issue', reasons: [{ value: 'judge: bad', count: 1 }], verdict: { verdict: 'bad', outcome: 'issue', findings: [], void: 0 } }),
-    }))
+  it('folds a page\'s coverage to one line of marks and words, open or closed as the reader last left it (21 Nov)', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ ladder: aPageLadder() }))
     const view = mountView()
     await flushPromises()
-    // the switch stands as on every page, on the reading, and the quoted text is not asked for until chosen
-    expect(view.findAll('.mode button').map(button => button.text())).toEqual(['readable', 'raw', 'quoted'])
-    expect(modeButton(view, 'readable')?.attributes('aria-pressed')).toBe('true')
-    expect(view.find('[data-block="b01"]').exists()).toBe(true)
-    expect(vi.mocked(getQuoted)).not.toHaveBeenCalled()
-    await modeButton(view, 'quoted')!.trigger('click')
+    const fold = view.find('[data-part="page-ladder-fold"]')
+    expect((fold.element as HTMLDetailsElement).open).toBe(false)
+    expect(fold.findAll('.line-mark').map(mark => mark.attributes('data-reached'))).toEqual(['true', 'true', 'true', 'unknown', 'false'])
+    expect(fold.find('.line-words').text()).toBe('text layer · text layer · in BM25 · not in the index · planned')
+    // opened, it is kept with the reader's other folds: the next page opens it as left
+    ;(fold.element as HTMLDetailsElement).open = true
+    await fold.trigger('toggle')
+    const next = mountView(5)
     await flushPromises()
-    expect(vi.mocked(getQuoted)).toHaveBeenCalledWith('free', KELLY, 4)
-    expect(view.find('.quoted-from').text()).toContain(JUDGED_BAD_ROUTE)
-    // shown exactly as quoted: the formula's LaTeX and the table's rows, never rendered
-    expect(view.find('.quoted-text').text()).toBe(QUOTED)
-    expect(view.find('[data-block]').exists()).toBe(false)
+    expect((next.find('[data-part="page-ladder-fold"]').element as HTMLDetailsElement).open).toBe(true)
+    // a page whose reading is served has no "text served" fold: its reading panel shows what is served
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ ladder: aPageLadder({ served_by: null }) }))
+    const reading = mountView(6)
+    await flushPromises()
+    expect(reading.find('[data-part="served-text"]').exists()).toBe(false)
   })
 
-  it('opens a page quoted from its reading on the reading, and asks for the quoted text only when it is chosen', async () => {
-    vi.mocked(getPage).mockResolvedValue(aPageDetail())
+  it('shows a page as served: never-quoted blocks greyed, quoted ones in their served form, the chunks drawn across (21 Nov)', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ ladder: aPageLadder({ served_by: null }),
+      reading: { front: { printed_label: '4' }, blocks: SERVED_BLOCKS, errors: [], warnings: [], error_places: [] } }))
+    vi.mocked(getPageChunks).mockResolvedValue({ knowledge_base: 'free', source_id: KELLY, pdf_page: 4, said: null, held_back: null,
+      count_said: '2 chunks of semantic search begin on this page',
+      not_placed: '1 chunk of this page could not be placed in its quoted text',
+      splitter: { splitter: 'recursive character', chunk_size: 1000, chunk_overlap: 150 },
+      chunks: [{ number: 1, id: 'c1', start: 0, end: 30, overlap: 0, tokens: 9, continues_from: 3, continues_on: null },
+        { number: 2, id: 'c2', start: 20, end: 70, overlap: 10, tokens: 12, continues_from: null, continues_on: 5 },
+        { number: 3, id: 'c3', start: null, end: null, overlap: 0, tokens: null, continues_from: null, continues_on: null }],
+      blocks: [{ block: 'b01', parts: [{ text: '\\[ f^* = p - q/b \\]', chunk: 1, shared: false, starts: 1 }] },
+        { block: 'b03', parts: [{ text: 'Kelly fraction: ', chunk: 1, shared: false, starts: null },
+          { text: 'the share', chunk: 2, shared: true, starts: 2 }, { text: ' of the bankroll bet.', chunk: 2, shared: false, starts: null }] }] })
     const view = mountView()
     await flushPromises()
-    expect(modeButton(view, 'readable')?.attributes('aria-pressed')).toBe('true')
-    expect(vi.mocked(getQuoted)).not.toHaveBeenCalled()
-    await modeButton(view, 'quoted')!.trigger('click')
+    // off by default: as today, the chunks not asked for
+    expect(view.find('[data-part="served-form"]').exists()).toBe(false)
+    expect(vi.mocked(getPageChunks)).not.toHaveBeenCalled()
+    await view.find('[data-part="as-served"]').trigger('click')
     await flushPromises()
-    expect(vi.mocked(getQuoted)).toHaveBeenCalledTimes(1)
-    expect(view.find('.quoted-text').text()).toBe(QUOTED)
-    // back and forth asks no second time
-    await modeButton(view, 'raw')!.trigger('click')
-    await modeButton(view, 'quoted')!.trigger('click')
+    expect(vi.mocked(getPageChunks)).toHaveBeenCalledWith('free', KELLY, 4)
+    // the description greyed, still there; the formula its LaTeX, the definition its term, as the search quotes them
+    expect(view.find('[data-block="b02"]').classes()).toContain('not-served')
+    expect(view.find('[data-block="b02"]').text()).toContain("A formula giving the bet's size.")
+    expect(view.find('[data-block="b01"] [data-part="served-form"]').text()).toContain('\\[ f^* = p - q/b \\]')
+    expect(view.findAll('[data-block="b03"] [data-part="served-form"] [data-chunk]').map(part => part.element.textContent).join('')).toBe(
+      'Kelly fraction: the share of the bankroll bet.')
+    // each chunk's beginning a dashed line, what it shares marked and counted; one running over each edge; one not placed, said
+    expect(view.findAll('.chunk-start').map(start => start.attributes('data-chunk-start'))).toEqual(['1', '2'])
+    expect(view.find('[data-chunk-start="2"] .shared-count').text()).toBe('10 shared')
+    expect(view.find('[data-block="b03"] .overlap').text()).toBe('the share')
+    expect(view.find('[data-part="continues-from"]').text()).toBe('chunk 1 continues from p. 3')
+    expect(view.find('[data-part="continues-on"]').text()).toBe('chunk 2 continues on p. 5')
+    expect(view.find('[data-part="not-placed"]').text()).toBe('1 chunk of this page could not be placed in its quoted text')
+    expect(view.find('.chunks-said').text()).toBe('2 chunks of semantic search begin on this page')
+    // off again: as it was, and asked no second time
+    await view.find('[data-part="as-served"]').trigger('click')
+    expect(view.find('[data-part="served-form"]').exists()).toBe(false)
+    await view.find('[data-part="as-served"]').trigger('click')
     await flushPromises()
-    expect(vi.mocked(getQuoted)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(getPageChunks)).toHaveBeenCalledTimes(1)
   })
 
-  it('says so where the core holds no quoted text for a page', async () => {
-    vi.mocked(getPage).mockResolvedValue(aPageDetail({ route: JUDGED_BAD_ROUTE, from_fallback: true }))
-    vi.mocked(getQuoted).mockResolvedValue({ knowledge_base: 'free', source_id: KELLY, pdf_page: 4, text: null })
+  it('says a page serving another text in its reading\'s place serves nothing of its reading, and offers no "as served"', async () => {
+    vi.mocked(getPage).mockResolvedValue(aPageDetail({ route: JUDGED_BAD_ROUTE, from_fallback: true, ladder: aPageLadder() }))
     const view = mountView()
     await flushPromises()
-    await modeButton(view, 'quoted')!.trigger('click')
-    await flushPromises()
-    expect(view.find('.no-quote').text()).toBe('The core holds no quoted text for this page.')
+    expect(view.findAll('.mode button').map(button => button.text())).toEqual(['readable', 'raw'])
+    expect(view.find('[data-part="as-served"]').exists()).toBe(false)
+    expect(view.find('[data-part="as-served-off"]').text()).toBe(
+      "as served: the PDF's text layer serves this page in its reading's place, so nothing of the reading is served")
+    expect(vi.mocked(getPageChunks)).not.toHaveBeenCalled()
   })
 
   it('lists a page\'s readings over time where it has more than one, the one shown here marked and why it was chosen', async () => {

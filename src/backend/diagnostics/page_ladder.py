@@ -35,6 +35,8 @@ from backend.search import page_index, shelf
 NOT_BUILT = 'not known yet: the search is built when the app starts and on a first search'
 BORN_DIGITAL = 'not needed: born digital'
 SERVER = {served_readings.LEGACY_ROUTE: "the IDE's Markdown", served_readings.TEXT_LAYER: "the PDF's text layer"}
+# a fallback in its shortest words, for the ladder folded to one line
+SHORT_SERVER = {served_readings.LEGACY_ROUTE: 'IDE Markdown', served_readings.TEXT_LAYER: 'text layer', 'nothing': 'nothing served'}
 
 
 # the PDF the page view read last, opened from its bytes so no file handle stays open on it (Windows would lock the file
@@ -65,23 +67,34 @@ def text_layer(pdf: Path | None, pdf_page: int) -> PageRung:
     """What the PDF's own text layer holds on the page, in characters."""
     found = stamps.stamp(pdf) if pdf is not None else None
     if found is None:
-        return PageRung(level='text layer', reached=None, said='not known: the PDF is not on this machine')
+        return PageRung(level='text layer', reached=None, said='not known: the PDF is not on this machine', short='PDF not here')
     pages, characters = characters_of(str(pdf), found, pdf_page)
     if characters is None:
-        return PageRung(level='text layer', reached=None, said=f'the PDF has {pages:,} pages')
+        return PageRung(level='text layer', reached=None, said=f'the PDF has {pages:,} pages', short='not in the PDF')
     return PageRung(level='text layer', reached=characters > 0,
-                    said=f'{characters:,} characters' if characters else 'none: a scan, or a page without text')
+                    said=f'{characters:,} characters' if characters else 'none: a scan, or a page without text',
+                    short='text layer' if characters else 'no text layer')
 
 
 def served(row: dict) -> PageRung:
     """What the librarian serves for the page: its reading, or what stands in its place, and why."""
     if 'unread' in row:
-        return PageRung(level='text served', reached=row['unread']['served_by'] != 'nothing', said=row['unread']['said'])
+        return PageRung(level='text served', reached=row['unread']['served_by'] != 'nothing', said=row['unread']['said'],
+                        short=SHORT_SERVER.get(row['unread']['served_by'], 'served'))
     source, reader, why = route_parts(row['route'])
     if row['route'] not in NOT_SERVED_ROUTES:
         return PageRung(level='text served', reached=True,
-                        said=f"its reading, {source}{f' ({reader})' if reader else ''}" + (f': {why}' if why else ''))
-    return PageRung(level='text served', reached=True, said=f"{SERVER.get(fallback_of(row), source)} in its reading's place: {why}")
+                        said=f"its reading, {source}{f' ({reader})' if reader else ''}" + (f': {why}' if why else ''),
+                        short='its reading')
+    return PageRung(level='text served', reached=True, said=f"{SERVER.get(fallback_of(row), source)} in its reading's place: {why}",
+                    short=SHORT_SERVER.get(fallback_of(row), source))
+
+
+def served_by(row: dict) -> str | None:
+    """What serves the page in its reading's place, where something does; None where its reading is served or nothing is."""
+    if 'unread' in row:
+        return SERVER.get(row['unread']['served_by'])
+    return SERVER.get(fallback_of(row), route_parts(row['route'])[0]) if row['route'] in NOT_SERVED_ROUTES else None
 
 
 _SEARCH_PAGES: dict[int, dict[tuple[str, str], object]] = {}
@@ -113,20 +126,21 @@ def keyword(page, served_rung: PageRung, built: bool, kept: str | None = None) -
     edition's page (`kept`, the served edition in a sentence's words) is never searched, built or not, and says so, its text
     shown all the same: it is there and opens by its own key (line 1, 20 Nov, E1.a)."""
     if kept is not None:
-        return (PageRung(level='keyword search', reached=False, said=kept_said(kept)), page.text if page is not None else None,
+        return (PageRung(level='keyword search', reached=False, said=kept_said(kept), short='kept'),
+                page.text if page is not None else None,
                 None if page is not None else (NOT_BUILT if not built else 'the search holds no page of it by this number'))
     if not built:
-        return PageRung(level='keyword search', reached=None, said=NOT_BUILT), None, NOT_BUILT
+        return PageRung(level='keyword search', reached=None, said=NOT_BUILT, short='BM25 not built'), None, NOT_BUILT
     if page is None:
         why = ('nothing is served for it' if not served_rung.reached
                else 'the search holds no page of it by this number: its text stands whole, named by no page')
-        return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}'), None, why
+        return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}', short='not in BM25'), None, why
     if page.searchable:
-        return PageRung(level='keyword search', reached=True, said='in search (BM25)'), page.text, None
+        return PageRung(level='keyword search', reached=True, said='in search (BM25)', short='in BM25'), page.text, None
     # the core's rule, which the ranking follows (`is_structural`); a page it would rank that the search leaves out all the
     # same was left out for another reason, which the page does not carry
     why = page_index.structural_why(page.words) or 'left out of the ranking'
-    return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}'), page.text, None
+    return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}', short='not in BM25'), page.text, None
 
 
 _SEMANTIC: dict[str, tuple[tuple, dict]] = {}
@@ -147,8 +161,15 @@ def semantic_detail(knowledge_base: str) -> dict:
 
 
 def chunks_said(chunks: int, of_what: str) -> PageRung:
-    return PageRung(level='semantic search', reached=chunks > 0,
-                    said=f"{chunks:,} {'chunk' if chunks == 1 else 'chunks'}" if chunks else f'no chunk of this {of_what}')
+    counted = f"{chunks:,} {'chunk' if chunks == 1 else 'chunks'}"
+    return PageRung(level='semantic search', reached=chunks > 0, said=counted if chunks else f'no chunk of this {of_what}',
+                    short=counted if chunks else 'no chunk')
+
+
+def unknown_semantic(said: str) -> PageRung:
+    """A page's or a section's semantic level where its base's index cannot say: not built here, never embedded."""
+    short = 'never embedded' if 'never embedded' in said else 'not vectorised' if 'not vectorised' in said else 'not in the index'
+    return PageRung(level='semantic search', reached=None, said=said, short=short)
 
 
 def semantic(knowledge_base: str, source: str | None, key: int | str, by: str, held: str | None = None) -> PageRung:
@@ -156,7 +177,7 @@ def semantic(knowledge_base: str, source: str | None, key: int | str, by: str, h
     source id, a licensed one's work key), `by` 'pages' or 'sections'."""
     detail = semantic_detail(knowledge_base).get(source) if source else None
     if detail is None:
-        return PageRung(level='semantic search', reached=None, said=not_embedded(knowledge_base, held))
+        return unknown_semantic(not_embedded(knowledge_base, held))
     return chunks_said(detail[by].get(key) or detail[by].get(str(key)) or 0, by[:-1])
 
 
@@ -164,9 +185,11 @@ def reading(row: dict) -> PageRung:
     """The page's reading and the state the lists count it by, or that it has none."""
     if 'unread' in row:
         return PageRung(level='reading and check', reached=False,
-                        said='no reading' + ('; planned' if row['unread']['planned'] else ''))
+                        said='no reading' + ('; planned' if row['unread']['planned'] else ''),
+                        short='planned' if row['unread']['planned'] else 'no reading')
     state = listed_state(row)
-    return PageRung(level='reading and check', reached=state in CHECKED, said=f"reading {state.replace('_', ' ')}")
+    said = f"reading {state.replace('_', ' ')}"
+    return PageRung(level='reading and check', reached=state in CHECKED, said=said, short=said)
 
 
 def page_ladder(knowledge_base: str, source_id: str, pdf_page: int, row: dict, pdf: Path | None, work_key: str | None,
@@ -180,7 +203,7 @@ def page_ladder(knowledge_base: str, source_id: str, pdf_page: int, row: dict, p
     return PageLadder(rungs=[text_layer(pdf, pdf_page), served_rung, keyword_rung,
                              semantic(knowledge_base, work_key if knowledge_base == 'licensed' else source_id, pdf_page, 'pages',
                                       held), reading(row)],
-                      served_text=text, served_why_not=why_not, held=held)
+                      served_text=text, served_why_not=why_not, held=held, served_by=served_by(row))
 
 
 def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key: str, service, held: str | None = None,
@@ -190,16 +213,17 @@ def section_ladder(knowledge_base: str, label: str, chunks: int | None, work_key
     (`chunks`); a licensed EPUB section's in the private index (#8), named `<work key>:<ordinal>`, its ordinal its position
     from 0 in four figures (`s1` is `0000`, line 1, 20 Nov)."""
     page = search_pages(service).get((work_key, label)) if service is not None else None
-    served_rung = PageRung(level='text served', reached=True, said='its own text, parsed by section')
+    served_rung = PageRung(level='text served', reached=True, said='its own text, parsed by section', short='its own text')
     keyword_rung, text, why_not = keyword(page, served_rung, service is not None, kept)
     if knowledge_base == 'licensed':
         semantic_rung = semantic('licensed', work_key, f'{work_key}:{int(label[1:]) - 1:04d}', 'sections', held)
     elif chunks is None:
-        semantic_rung = PageRung(level='semantic search', reached=None, said=NOT_IN_INDEX)
+        semantic_rung = unknown_semantic(NOT_IN_INDEX)
     else:
         semantic_rung = chunks_said(chunks, 'section')
-    return PageLadder(rungs=[PageRung(level='text layer', reached=None, said=BORN_DIGITAL), served_rung, keyword_rung, semantic_rung,
-                             PageRung(level='reading and check', reached=None, said=BORN_DIGITAL)],
+    return PageLadder(rungs=[PageRung(level='text layer', reached=None, said=BORN_DIGITAL, short='born digital'), served_rung,
+                             keyword_rung, semantic_rung,
+                             PageRung(level='reading and check', reached=None, said=BORN_DIGITAL, short='born digital')],
                       served_text=text, served_why_not=why_not)
 
 

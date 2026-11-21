@@ -435,10 +435,11 @@ test('every page opens, read or not: its own ladder, the text served and, unread
   await settled(page)
   // a read page: its own ladder in its record, beside everything a reading has
   const coverage = page.locator('[data-part="page-coverage"]')
+  await coverage.locator('[data-part="page-ladder-fold"] > summary').click()
   await expect(coverage.locator('.rung-level')).toHaveCount(5)
   await expect(coverage.locator('[data-said="text layer"]')).toHaveText(real.ladder!.rungs[0]!.said)
-  await coverage.locator('[data-part="served-text"] summary').click()
-  await expect(coverage.locator('[data-part="served-text"] .served-body, [data-part="served-text"] .served-none')).toBeVisible()
+  // its reading is served: the reading panel shows it, and the coverage holds no "text served" fold (21 Nov)
+  await expect(coverage.locator('[data-part="served-text"]')).toHaveCount(0)
   // a page no reader has read, as the API gives one (no free page lacks a reading today): its record and the PDF's own image
   const own = await request.get(`/api/free/works/${KELLY}/pages/5/image.png`)
   expect(own.status()).toBe(200)
@@ -2348,40 +2349,42 @@ test('a validator\'s error nobody looked at stands red, on its block and in the 
   await page.locator('pre.raw').screenshot({ path: `${SHOTS}/raw_error_block.png` })
 })
 
-test('a page without a reading opens on the text the search and the chat quote, its one choice', async ({ page, request }) => {
-  // the Kelly paper's page 3: the provider blocked its reading, so its text layer is quoted
-  const quoted = await (await request.get(`/api/free/works/${KELLY}/pages/3/quoted`)).json() as { text: string | null }
-  test.skip(!quoted.text, 'the core holds no quoted text for this page')
+test('a page without a reading shows what serves it in its place in its coverage, named, and offers no tab', async ({ page, request }) => {
+  // the Kelly paper's page 3: the provider blocked its reading, so its text layer serves it (21 Nov: the quoted tab is gone)
+  type Detail = { reading: unknown | null, ladder: { served_by: string | null } | null }
+  const detail = await (await request.get(`/api/free/works/${KELLY}/pages/3`)).json() as Detail
+  test.skip(detail.reading !== null || !detail.ladder?.served_by, 'Kelly p. 3 is no longer a page without a reading served by its text layer')
   await page.goto(`/#/free/sources/${KELLY}/page/3`)
   await settled(page)
-  await expect(page.locator('.mode button')).toHaveText(['quoted'])
-  await expect(page.locator('.mode button', { hasText: 'quoted' })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('.quoted-from')).toContainText('text layer')
-  await expect(page.locator('.quoted-text')).toHaveText(quoted.text!)
-  await page.screenshot({ path: `${SHOTS}/page_quoted.png` })
+  await expect(page.locator('.mode button')).toHaveCount(0)
+  const coverage = page.locator('[data-part="page-coverage"]')
+  await coverage.locator('[data-part="page-ladder-fold"] > summary').click()
+  const served = coverage.locator('[data-part="served-text"]')
+  await expect(served.locator('.fold-title').first()).toHaveText(`text served: ${detail.ladder!.served_by}`)
+  await served.locator('summary').click()
+  await expect(served.locator('.served-body, .served-none')).toBeVisible()
+  await page.screenshot({ path: `${SHOTS}/page_served_by_text_layer.png` })
 })
 
 // 227.a (the operator, 12 Nov): every page with a reading opens on it, one served from its text layer too, so the switch a person
 // uses page after page never moves; the head says what is served, and the quoted text is one click away. Accounting
 // p. 398 is served from its text layer (its reading stayed malformed), Kelly p. 4 from its reading
-test('a page served from its text layer opens on its reading as a served page does, the quoted text a click away', async ({ page, request }) => {
+test('a page served from its text layer opens on its reading as a served page does, and says nothing of it is served', async ({ page, request }) => {
   const ACCOUNTING = 'openstax_principles_of_accounting_v1'
   type Detail = { from_fallback: boolean, reading: unknown | null }
   const textLayer = await (await request.get(`/api/free/works/${ACCOUNTING}/pages/398`)).json() as Detail
   test.skip(!textLayer.from_fallback || !textLayer.reading, 'accounting p. 398 is no longer a text-layer page with a reading')
-  for (const [work, number] of [[ACCOUNTING, 398], [KELLY, 4]] as const) {
+  for (const [work, number, buttons] of [[ACCOUNTING, 398, ['readable', 'raw']], [KELLY, 4, ['readable', 'raw', 'as served']]] as const) {
     await page.goto(`/#/free/sources/${work}/page/${number}`)
     await settled(page)
-    await expect(page.locator('.mode button')).toHaveText(['readable', 'raw', 'quoted'])
+    await expect(page.locator('.mode button')).toHaveText([...buttons])
     await expect(page.locator('.mode button', { hasText: 'readable' })).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.locator('.quoted-text')).toHaveCount(0)
   }
-  // on the text-layer page the head says what is served, and the quoted text is one click away
+  // on the text-layer page the head says what is served, and "as served" says the reading is not (21 Nov)
   await page.goto(`/#/free/sources/${ACCOUNTING}/page/398`)
   await settled(page)
   await expect(page.locator('[data-part="page-facts"]')).toContainText('text layer')
-  await page.locator('.mode button', { hasText: 'quoted' }).click()
-  await expect(page.locator('.quoted-from')).toContainText('text layer')
+  await expect(page.locator('[data-part="as-served-off"]')).toContainText('nothing of the reading is served')
   await page.screenshot({ path: `${SHOTS}/page_text_layer_readable.png` })
 })
 
@@ -2964,4 +2967,44 @@ test('a work stands once over its editions, its kept edition opens in neutral wo
   await expect(coverage.locator('.ladder-bar[data-look="warning"]')).toHaveCount(0)
   await page.screenshot({ path: `${SHOTS}/kept_edition.png` })
   await expect(bar.locator('a.edition')).toHaveAttribute('href', '#/licensed/sources/an_invented_second')
+})
+
+test('a page\'s coverage folds to one line kept over a reload, and "as served" greys what is never quoted and draws its chunks (21 Nov)', async ({ page, request }) => {
+  // the operator's example: free finance p. 469, a formula and its description
+  const FINANCE_PAGE = `/api/free/works/${FINANCE}/pages/469`
+  type Block = { id: string, block_class: string, served: string | null }
+  const detail = await (await request.get(FINANCE_PAGE)).json() as { reading: { blocks: Block[] } | null, ladder: { served_by: string | null } | null }
+  test.skip(!detail.reading || Boolean(detail.ladder?.served_by), 'finance p. 469 no longer serves its reading')
+  const formula = detail.reading!.blocks.find(block => block.block_class === 'formula' && block.served)
+  const description = detail.reading!.blocks.find(block => block.block_class === 'description')
+  test.skip(!formula || !description, 'finance p. 469 no longer holds a formula and its description')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/469`)
+  await settled(page)
+  // folded to one line by default: five marks and the levels' words; opened, a reload keeps it open
+  const fold = page.locator('[data-part="page-ladder-fold"]')
+  await expect(fold).not.toHaveAttribute('open', '')
+  await expect(fold.locator('.line-mark')).toHaveCount(5)
+  await expect(fold.locator('.line-words')).toContainText('its reading')
+  await fold.locator('> summary').click()
+  await expect(fold).toHaveAttribute('open', '')
+  await page.reload()
+  await settled(page)
+  await expect(page.locator('[data-part="page-ladder-fold"]')).toHaveAttribute('open', '')
+  // as served: the description greyed, still to be read; the formula in the LaTeX the search quotes
+  await page.locator('[data-part="as-served"]').click()
+  const greyed = page.locator(`[data-block="${description!.id}"]`)
+  await expect(greyed).toHaveClass(/not-served/)
+  expect(Number(await greyed.evaluate(element => getComputedStyle(element).opacity)), 'the description is not greyed').toBeLessThan(0.6)
+  await expect(page.locator(`[data-block="${formula!.id}"] [data-part="served-form"]`)).toContainText('\\[')
+  // its chunks, where the free index holds them: each beginning a dashed line; one running over an edge said there
+  const chunks = await (await request.get(`${FINANCE_PAGE}/chunks`)).json() as { chunks: { start: number | null, continues_from: number | null }[] }
+  if (chunks.chunks.length) {
+    await expect(page.locator('.chunk-start')).toHaveCount(chunks.chunks.filter(chunk => chunk.start !== null).length)
+    expect(await page.locator('.chunk-start').first().evaluate(element => getComputedStyle(element).borderTopStyle)).toBe('dashed')
+    if (chunks.chunks[0]!.continues_from) await expect(page.locator('[data-part="continues-from"]')).toBeVisible()
+  }
+  await page.screenshot({ path: `${SHOTS}/page_as_served.png` })
+  // the page's image untouched: no veil and no box beyond the hover outline
+  await expect(page.locator('.original .block-box.served, .original .veil')).toHaveCount(0)
 })

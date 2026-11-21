@@ -513,6 +513,68 @@
         }
       }
     },
+    "/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/chunks": {
+      "get": {
+        "summary": "Page Chunk Lines",
+        "description": "A read page's chunks in semantic search's index, placed in its quoted blocks by their text (the operator's W4,\n21 Nov): the page view's \"as served\" mode draws them, asked for only when that mode is on.",
+        "operationId": "page_chunk_lines",
+        "parameters": [
+          {
+            "name": "knowledge_base",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "free",
+                "licensed"
+              ],
+              "type": "string",
+              "title": "Knowledge Base"
+            }
+          },
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "pdf_page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pdf Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageChunks"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/recall": {
       "get": {
         "summary": "Page Recall",
@@ -1910,6 +1972,17 @@
                 "type": "null"
               }
             ]
+          },
+          "served": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served"
           }
         },
         "type": "object",
@@ -5268,6 +5341,182 @@
         ],
         "title": "Overview"
       },
+      "PageChunk": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "overlap": {
+            "type": "integer",
+            "title": "Overlap",
+            "default": 0
+          },
+          "tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens"
+          },
+          "continues_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continues From"
+          },
+          "continues_on": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Continues On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "id",
+          "start",
+          "end"
+        ],
+        "title": "PageChunk",
+        "description": "A chunk of the page as the index embedded it, numbered on the page in reading order: where it stands in the page's\nquoted text (None where it cannot be placed), what it shares with the chunk before, and where it runs from or on to."
+      },
+      "PageChunks": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "pdf_page": {
+            "type": "integer",
+            "title": "Pdf Page"
+          },
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/PageChunk"
+            },
+            "type": "array",
+            "title": "Chunks",
+            "default": []
+          },
+          "count_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count Said"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/ServedBlock"
+            },
+            "type": "array",
+            "title": "Blocks",
+            "default": []
+          },
+          "not_placed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Placed"
+          },
+          "said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said"
+          },
+          "held_back": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Back"
+          },
+          "splitter": {
+            "$ref": "#/components/schemas/Splitter",
+            "default": {
+              "splitter": "RecursiveCharacterTextSplitter",
+              "chunk_size": 1000,
+              "chunk_overlap": 200
+            }
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_base",
+          "source_id",
+          "pdf_page"
+        ],
+        "title": "PageChunks"
+      },
       "PageDetail": {
         "properties": {
           "knowledge_base": {
@@ -5732,6 +5981,17 @@
             ],
             "title": "Served Text"
           },
+          "served_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served By"
+          },
           "served_why_not": {
             "anyOf": [
               {
@@ -6085,6 +6345,11 @@
           "said": {
             "type": "string",
             "title": "Said"
+          },
+          "short": {
+            "type": "string",
+            "title": "Short",
+            "default": ""
           }
         },
         "type": "object",
@@ -7911,6 +8176,68 @@
         },
         "type": "object",
         "title": "Served"
+      },
+      "ServedBlock": {
+        "properties": {
+          "block": {
+            "type": "string",
+            "title": "Block"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/ServedPart"
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block",
+          "parts"
+        ],
+        "title": "ServedBlock"
+      },
+      "ServedPart": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "chunk": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk"
+          },
+          "shared": {
+            "type": "boolean",
+            "title": "Shared",
+            "default": false
+          },
+          "starts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ServedPart",
+        "description": "A run of a quoted block's served form: the chunk it belongs to (the later one where two share it), whether it is shared\nwith the chunk before, and the chunk that begins where it begins."
       },
       "ServerAnswer": {
         "properties": {

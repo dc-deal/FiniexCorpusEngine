@@ -236,8 +236,9 @@ def test_the_model_text_reaches_the_view_only_as_segments_cells_latex_code_or_pl
         # `body` is the block's text as written, a table's HTML too: the verdict dialog's correction starts from it, and the
         # view shows it only as a text field's value, never as markup (213.b; the dialog's unit test holds that)
         # `correction`: a person's correction that stands for the block (229.a), drawn as text or as cells, never as markup
+        # `served`: the block as the search quotes it (21 Nov), drawn as text in the page view's "as served" mode, never as markup
         assert set(block.model_dump()) == {'id', 'block_class', 'group', 'content', 'attrs', 'bbox', 'segments', 'latex',
-                                           'rows', 'code', 'text', 'findings', 'people', 'decorative', 'body', 'correction'}
+                                           'rows', 'code', 'text', 'findings', 'people', 'decorative', 'body', 'correction', 'served'}
         for segment in block.segments or []:
             assert segment.kind in ('text', 'math', 'code')
 

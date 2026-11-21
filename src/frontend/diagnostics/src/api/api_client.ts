@@ -8,7 +8,7 @@ import type { EpubSection, EpubWork } from '@/types/api/epub_types'
 import type { HtmlArticle, HtmlWork } from '@/types/api/html_types'
 import type { Overview, PageList } from '@/types/api/overview_types'
 import type { PromptList } from '@/types/api/prompts_types'
-import type { IssueList, PageDetail, QuotedText, Recalled, WorkPages } from '@/types/api/page_types'
+import type { IssueList, PageChunks, PageDetail, Recalled, WorkPages } from '@/types/api/page_types'
 import type { RunDetail, RunList } from '@/types/api/runs_types'
 import type { Shelf } from '@/types/api/shelf_types'
 import type { Corpus, SearchAnswer } from '@/types/api/search_types'
@@ -55,9 +55,9 @@ export async function getPage(knowledgeBase: KnowledgeBase, sourceId: string, pd
   return response.data
 }
 
-/** The text the search and the chat quote for a page; the first call for a book the export has not cut may take a minute. */
-export async function getQuoted(knowledgeBase: KnowledgeBase, sourceId: string, pdfPage: number): Promise<QuotedText> {
-  const response = await http.get<QuotedText>(`${workPath(knowledgeBase, sourceId)}/pages/${pdfPage}/quoted`)
+/** A read page's chunks in semantic search's index, placed in its quoted blocks (W4): asked when "as served" is switched on. */
+export async function getPageChunks(knowledgeBase: KnowledgeBase, sourceId: string, pdfPage: number): Promise<PageChunks> {
+  const response = await http.get<PageChunks>(`${workPath(knowledgeBase, sourceId)}/pages/${pdfPage}/chunks`)
   return response.data
 }
 

@@ -203,6 +203,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/chunks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page Chunk Lines
+         * @description A read page's chunks in semantic search's index, placed in its quoted blocks by their text (the operator's W4,
+         *     21 Nov): the page view's "as served" mode draws them, asked for only when that mode is on.
+         */
+        get: operations["page_chunk_lines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}/recall": {
         parameters: {
             query?: never;
@@ -704,6 +725,8 @@ export interface components {
             /** Body */
             body?: string | null;
             correction?: components["schemas"]["StandingCorrection"] | null;
+            /** Served */
+            served?: string | null;
         };
         /** Call */
         Call: {
@@ -1825,6 +1848,70 @@ export interface components {
             /** Runs Why Not */
             runs_why_not?: string | null;
         };
+        /**
+         * PageChunk
+         * @description A chunk of the page as the index embedded it, numbered on the page in reading order: where it stands in the page's
+         *     quoted text (None where it cannot be placed), what it shares with the chunk before, and where it runs from or on to.
+         */
+        PageChunk: {
+            /** Number */
+            number: number;
+            /** Id */
+            id: string;
+            /** Start */
+            start: number | null;
+            /** End */
+            end: number | null;
+            /**
+             * Overlap
+             * @default 0
+             */
+            overlap: number;
+            /** Tokens */
+            tokens?: number | null;
+            /** Continues From */
+            continues_from?: number | null;
+            /** Continues On */
+            continues_on?: number | null;
+        };
+        /** PageChunks */
+        PageChunks: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Source Id */
+            source_id: string;
+            /** Pdf Page */
+            pdf_page: number;
+            /**
+             * Chunks
+             * @default []
+             */
+            chunks: components["schemas"]["PageChunk"][];
+            /** Count Said */
+            count_said?: string | null;
+            /**
+             * Blocks
+             * @default []
+             */
+            blocks: components["schemas"]["ServedBlock"][];
+            /** Not Placed */
+            not_placed?: string | null;
+            /** Said */
+            said?: string | null;
+            /** Held Back */
+            held_back?: string | null;
+            /**
+             * @default {
+             *       "splitter": "RecursiveCharacterTextSplitter",
+             *       "chunk_size": 1000,
+             *       "chunk_overlap": 200
+             *     }
+             */
+            splitter: components["schemas"]["Splitter"];
+        };
         /** PageDetail */
         PageDetail: {
             /**
@@ -1937,6 +2024,8 @@ export interface components {
             rungs: components["schemas"]["PageRung"][];
             /** Served Text */
             served_text?: string | null;
+            /** Served By */
+            served_by?: string | null;
             /** Served Why Not */
             served_why_not?: string | null;
             /** Held */
@@ -2055,6 +2144,11 @@ export interface components {
             reached: boolean | null;
             /** Said */
             said: string;
+            /**
+             * Short
+             * @default
+             */
+            short: string;
         };
         /**
          * PersonMark
@@ -2653,6 +2747,31 @@ export interface components {
             by_route: {
                 [key: string]: number;
             };
+        };
+        /** ServedBlock */
+        ServedBlock: {
+            /** Block */
+            block: string;
+            /** Parts */
+            parts: components["schemas"]["ServedPart"][];
+        };
+        /**
+         * ServedPart
+         * @description A run of a quoted block's served form: the chunk it belongs to (the later one where two share it), whether it is shared
+         *     with the chunk before, and the chunk that begins where it begins.
+         */
+        ServedPart: {
+            /** Text */
+            text: string;
+            /** Chunk */
+            chunk?: number | null;
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
+            /** Starts */
+            starts?: number | null;
         };
         /** ServerAnswer */
         ServerAnswer: {
@@ -3519,6 +3638,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    page_chunk_lines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                knowledge_base: "free" | "licensed";
+                source_id: string;
+                pdf_page: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageChunks"];
                 };
             };
             /** @description Validation Error */

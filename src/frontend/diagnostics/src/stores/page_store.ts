@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getPage, getQuoted, getRecall, getWorkPages } from '@/api/api_client'
-import type { PageDetail, QuotedText, Recalled, WorkPages } from '@/types/api/page_types'
+import { getPage, getPageChunks, getRecall, getWorkPages } from '@/api/api_client'
+import type { PageChunks, PageDetail, Recalled, WorkPages } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
 function asError(caught: unknown): Error {
@@ -26,16 +26,16 @@ export const usePageStore = defineStore('page', () => {
   const detail = ref<PageDetail | null>(null)
   const detailError = ref<Error | null>(null)
   const detailFor = ref('')
-  const quoted = ref<QuotedText | null>(null)
-  const quotedError = ref<Error | null>(null)
-  const quotedFor = ref('')
+  const chunks = ref<PageChunks | null>(null)
+  const chunksError = ref<Error | null>(null)
+  const chunksFor = ref('')
   const recalled = ref<Recalled | null>(null)
   const recallError = ref<Error | null>(null)
   const recallFor = ref('')
   let recallAsked = ''
   let pagesAsked = ''
   let detailAsked = ''
-  let quotedAsked = ''
+  let chunksAsked = ''
 
   async function loadWorkPages(knowledgeBase: KnowledgeBase, sourceId: string): Promise<void> {
     const asked = key(knowledgeBase, sourceId)
@@ -91,22 +91,22 @@ export const usePageStore = defineStore('page', () => {
     }
   }
 
-  /** The text the search and the chat quote for a page, asked only when it is to be shown; asked once per page. */
-  async function loadQuoted(knowledgeBase: KnowledgeBase, sourceId: string, pdfPage: number): Promise<void> {
+  /** A read page's chunks placed in its quoted blocks, asked only when they are to be shown (W4); asked once per page. */
+  async function loadChunks(knowledgeBase: KnowledgeBase, sourceId: string, pdfPage: number): Promise<void> {
     const asked = key(knowledgeBase, sourceId, pdfPage)
-    if (quotedAsked === asked && !quotedError.value) return
-    quotedAsked = asked
-    quotedError.value = null
-    quoted.value = null
-    quotedFor.value = ''
+    if (chunksAsked === asked && !chunksError.value) return
+    chunksAsked = asked
+    chunksError.value = null
+    chunks.value = null
+    chunksFor.value = ''
     try {
-      const answer = await getQuoted(knowledgeBase, sourceId, pdfPage)
-      if (quotedAsked === asked) {
-        quoted.value = answer
-        quotedFor.value = asked
+      const answer = await getPageChunks(knowledgeBase, sourceId, pdfPage)
+      if (chunksAsked === asked) {
+        chunks.value = answer
+        chunksFor.value = asked
       }
     } catch (caught) {
-      if (quotedAsked === asked) quotedError.value = asError(caught)
+      if (chunksAsked === asked) chunksError.value = asError(caught)
     }
   }
 
@@ -135,9 +135,9 @@ export const usePageStore = defineStore('page', () => {
     return recallFor.value === key(knowledgeBase, sourceId, pdfPage, judgement) ? recalled.value : null
   }
 
-  /** The page's quoted text, when the answer on hand is the one asked for this page; null while it is on its way. */
-  function quotedOf(knowledgeBase: KnowledgeBase, sourceId: string, pdfPage: number): QuotedText | null {
-    return quotedFor.value === key(knowledgeBase, sourceId, pdfPage) ? quoted.value : null
+  /** The page's chunks, when the answer on hand is the one asked for this page; null while it is on its way. */
+  function chunksOf(knowledgeBase: KnowledgeBase, sourceId: string, pdfPage: number): PageChunks | null {
+    return chunksFor.value === key(knowledgeBase, sourceId, pdfPage) ? chunks.value : null
   }
 
   /** The work's pages, when the answer on hand is the one asked for this work; null while it is on its way. */
@@ -150,6 +150,6 @@ export const usePageStore = defineStore('page', () => {
     return detailFor.value === key(knowledgeBase, sourceId, pdfPage) ? detail.value : null
   }
 
-  return { workPages, pagesError, detail, detailError, quoted, quotedError, recallError, loadWorkPages, loadPage, reloadPage,
-    loadQuoted, loadRecall, pagesOf, pageOf, quotedOf, recallOf }
+  return { workPages, pagesError, detail, detailError, chunks, chunksError, recallError, loadWorkPages, loadPage, reloadPage,
+    loadChunks, loadRecall, pagesOf, pageOf, chunksOf, recallOf }
 })

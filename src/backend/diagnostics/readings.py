@@ -414,6 +414,10 @@ class Block(BaseModel):
     body: str | None = None
     # a person's correction that stands for this block on the reading shown (229.a), None where there is none
     correction: StandingCorrection | None = None
+    # the block as the search and the chat quote it (the operator, 21 Nov: "quoted is a subset of readable"), the core's own
+    # form (`served_readings.block_text`): a formula its LaTeX, a definition its term, a list item its marker; None for a
+    # block never quoted (page furniture, a description, an index entry), as `served_readings.quotable_text` leaves it out
+    served: str | None = None
 
 
 class ReadingError(BaseModel):
@@ -1156,7 +1160,9 @@ def block_of(block: page_contract.Block, findings: list[Finding], people: list[P
         fields['segments'] = segments_of(block.inline, block.body)
     elif block.body:
         fields['text'] = block.body
-    return Block(id=block.id, block_class=block.cls, group=vocab.get('group', 'unknown'), content=vocab.get('content', '?'),
+    quoted = block.cls not in served_readings.NOT_QUOTED and block.body.strip()
+    served = served_readings.block_text(block) if quoted else ''
+    return Block(served=served if served.strip() else None, id=block.id, block_class=block.cls, group=vocab.get('group', 'unknown'), content=vocab.get('content', '?'),
                  attrs={name: str(value) for name, value in block.attrs.items()},
                  bbox=list(block.bbox) if block.bbox else None,
                  findings=[finding for finding in findings if finding.block == block.id],

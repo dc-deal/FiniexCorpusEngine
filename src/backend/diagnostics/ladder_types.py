@@ -94,6 +94,9 @@ class PageRung(BaseModel):
     level: PageLevel
     reached: bool | None  # None where it is not known here, which `said` says
     said: str
+    # the level in its shortest words, for the ladder folded to one line (the operator, 21 Nov: "again: overview"): "its reading",
+    # "in BM25", "2 chunks", "reading issue"
+    short: str = ''
 
 
 class PageLadder(BaseModel):
@@ -101,5 +104,9 @@ class PageLadder(BaseModel):
 
     rungs: list[PageRung]
     served_text: str | None = None  # the librarian's own text of the page, from the search's pages; None where none is shown
+    # what serves the page in its reading's place, where something does: "the PDF's text layer", "the IDE's Markdown"; None where
+    # its reading is served, or nothing is, or a section serves its own text (the operator, 21 Nov: the served text is shown
+    # apart only where it differs from the reading)
+    served_by: str | None = None
     served_why_not: str | None = None  # why no served text is shown: nothing is served, or the search is not built yet
     held: str | None = None  # why the file is never sent to a provider; shown here all the same, on this machine only
