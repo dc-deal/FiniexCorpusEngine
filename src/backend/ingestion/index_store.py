@@ -122,6 +122,26 @@ def stored_fingerprint(connection: sqlite3.Connection, source_id: str) -> str | 
     return row[0] if row else None
 
 
+# The embedding API refuses a request over 300,000 tokens (found 23 Nov: 500 chunks of a dense OCR scan went over it);
+# a call stays well below, by the tokens each chunk records
+REQUEST_TOKENS = 250_000
+
+
+def request_batches(chunks: list[Document], batch_size: int, max_tokens: int = REQUEST_TOKENS) -> list[list[Document]]:
+    """The chunks in order, cut into calls of at most `batch_size` chunks and `max_tokens` tokens each."""
+    batches, current, tokens = [], [], 0
+    for chunk in chunks:
+        cost = chunk.metadata.get('tokens') or len(chunk.page_content)
+        if current and (len(current) >= batch_size or tokens + cost > max_tokens):
+            batches.append(current)
+            current, tokens = [], 0
+        current.append(chunk)
+        tokens += cost
+    if current:
+        batches.append(current)
+    return batches
+
+
 def replace_source(connection: sqlite3.Connection, store: Chroma, source: dict, fingerprint: str,
                    sections: list[Section], chunks: list[Document], batch_size: int = 500) -> None:
     """Replace everything indexed for one source with its new sections and chunks.
@@ -142,8 +162,7 @@ def replace_source(connection: sqlite3.Connection, store: Chroma, source: dict, 
     old = store.get(where={'source_id': source['id']}, include=[])['ids']
     if old:
         store.delete(ids=old)
-    for start in range(0, len(chunks), batch_size):
-        batch = chunks[start:start + batch_size]
+    for batch in request_batches(chunks, batch_size):
         store.add_documents(batch, ids=[chunk.metadata['chunk_id'] for chunk in batch])
 
     connection.execute('DELETE FROM chunks WHERE source_id = ?', (source['id'],))

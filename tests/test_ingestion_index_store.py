@@ -97,3 +97,17 @@ def test_a_similarity_search_runs_offline_on_the_stored_chunks(tmp_path):
                                [chunk(0), chunk(1)])
     hits = store.similarity_search('chunk text 1', k=1)
     assert hits[0].metadata['source_id'] == 'book'
+
+
+def test_a_call_never_carries_more_tokens_than_the_api_takes():
+    # found 23 Nov: 500 chunks of a dense OCR scan went over the API's 300,000 tokens in one request
+    chunks = [Document(page_content='x', metadata={'chunk_id': f'c{n}', 'tokens': 700}) for n in range(1000)]
+    batches = index_store.request_batches(chunks, batch_size=500, max_tokens=250_000)
+    assert all(sum(chunk.metadata['tokens'] for chunk in batch) <= 250_000 for batch in batches)
+    assert [chunk.metadata['chunk_id'] for batch in batches for chunk in batch] == [f'c{n}' for n in range(1000)]
+    assert max(len(batch) for batch in batches) == 357
+
+
+def test_light_chunks_are_still_cut_by_their_number():
+    chunks = [Document(page_content='x', metadata={'chunk_id': f'c{n}', 'tokens': 10}) for n in range(1200)]
+    assert [len(batch) for batch in index_store.request_batches(chunks, batch_size=500)] == [500, 500, 200]
