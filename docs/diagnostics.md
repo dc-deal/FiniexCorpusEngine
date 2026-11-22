@@ -6,6 +6,11 @@ pipeline stage: it reads what the stages wrote. **It is read-only unless started
 write route, local only, Origin-checked, append-only:** a person's verdict on a page's reading, recorded by the core (see
 *A person's verdict from the page view* below). The Streamlit chat demo stays as it is (→ now: removed on 17 Nov 2026, decision 286.a; the chat lives in this view).
 
+**Local data it keeps (1.d, 22 Nov).** Started by its own command, the view keeps one file per knowledge base saying which
+pages of its PDFs have a text layer, so a restart opens only a new or changed PDF: `_work/free/diagnostics/text_layers.json`
+and `_work/licensed/diagnostics/text_layers.json`, git-ignored and on this machine only, the licensed one never touched under
+`--public-only`. Both are derived and safe to delete; the next start builds them again, slowly once.
+
 ```bash
 python -m backend.diagnostics            # serves the UI and its API on http://127.0.0.1:8001 (loopback only)
 python -m backend.diagnostics --public-only   # the free knowledge base alone: the licensed one is never read
@@ -1987,3 +1992,11 @@ said "every one of them is planned". The free store now asks the core's free pla
 whole, and a session's pages to read) as the licensed store asks its own: a FIX volume's line ends with what serves its pages,
 and a work read whole keeps a page without a reading planned. 397 unit tests, 88 checks in the browser (3 skipped on today's
 data), 1,649 Python tests.
+
+**A restart opens only a new or changed PDF (line 1's 1.d, 22 Nov).** With the search read from the database, the warm-up's
+longest step was each work's pages without a reading, which asked every such page of every PDF whether it has a text layer, at
+every start. The start command's app now keeps the answers on disk, one file per knowledge base (named at the top of this
+chapter), by file and for as long as the PDF's size and modification time hold; a test's app keeps them in memory. The licensed
+base's step, measured in the container one run after the other: 187.8 s before, 209.1 s on the first run, which builds the file,
+and 0.9 s after it; the free base's 30.8 s and 1.2 s; the whole warm-up from 265 s to 61 s. 397 unit tests, 88 checks in the
+browser (3 skipped on today's data), 1,652 Python tests.

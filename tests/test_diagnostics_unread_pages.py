@@ -260,11 +260,67 @@ def test_no_page_of_a_fix_volume_is_planned_and_every_page_of_a_work_read_whole_
     assert not any(file.startswith('fix_') for file, _ in planned)
 
 
+def test_which_pages_have_a_text_layer_is_kept_on_disk_by_the_pdf_s_stamp_and_asked_again_only_where_unknown(tmp_path,
+                                                                                                               monkeypatch):
+    # line 1's 1.d (22 Nov): a restart opens only a new or changed PDF
+    pdf, kept = tmp_path / 'a_work.pdf', tmp_path / 'layers' / 'text_layers.json'
+    a_pdf(pdf, 4, blank=(4,))
+    assert unread_pages.TextLayers(kept).pages(pdf, 'a_work.pdf', {1}, needs_text=True) == (4, {2, 3})
+    assert set(json.loads(kept.read_text(encoding='utf-8'))['pdfs']) == {'a_work.pdf'}
+    real = unread_pages.pymupdf.open
+
+    def refused(*args, **kwargs):
+        raise AssertionError('a PDF whose pages are known was opened')
+
+    monkeypatch.setattr(unread_pages.pymupdf, 'open', refused)
+    again = unread_pages.TextLayers(kept)  # as after a restart
+    assert again.pages(pdf, 'a_work.pdf', {1}, needs_text=True) == (4, {2, 3})
+    assert again.pages(pdf, 'a_work.pdf', {1, 2}, needs_text=True) == (4, {3})
+    assert again.pages(pdf, 'a_work.pdf', set(), needs_text=False) == (4, set())  # the count alone
+    # a page no question asked before is asked of the PDF, and what was known stays
+    monkeypatch.setattr(unread_pages.pymupdf, 'open', real)
+    assert again.pages(pdf, 'a_work.pdf', set(), needs_text=True) == (4, {1, 2, 3})
+    # a changed PDF is asked anew, its old answers dropped
+    a_pdf(pdf, 5, blank=(1,))
+    assert unread_pages.TextLayers(kept).pages(pdf, 'a_work.pdf', set(), needs_text=True) == (5, {2, 3, 4, 5})
+    # a damaged file is built anew
+    kept.write_text('{"pdfs": [', encoding='utf-8')
+    assert unread_pages.TextLayers(kept).pages(pdf, 'a_work.pdf', set(), needs_text=True) == (5, {2, 3, 4, 5})
+
+
+def test_a_work_s_pages_without_a_reading_are_the_same_from_kept_text_layers_as_from_the_pdf(tmp_path, monkeypatch):
+    corpus = a_work(tmp_path)
+    work, rows = corpus.work(KELLY), corpus.rows_of(KELLY)
+    pdf = corpus.pdf_of(work)
+    asked = unread_pages.unread_rows(work, rows, pdf, None, None)
+    kept = tmp_path / 'text_layers.json'
+    assert unread_pages.unread_rows(work, rows, pdf, None, None, layers=unread_pages.TextLayers(kept)) == asked
+
+    def refused(*args, **kwargs):
+        raise AssertionError('a PDF whose pages are known was opened')
+
+    monkeypatch.setattr(unread_pages.pymupdf, 'open', refused)
+    assert unread_pages.unread_rows(work, rows, pdf, None, None, layers=unread_pages.TextLayers(kept)) == asked
+
+
+def test_only_the_start_command_s_app_keeps_the_text_layers_on_disk(monkeypatch):
+    from backend.configuration import data_paths
+
+    def refused():
+        raise AssertionError('the licensed knowledge base was read')
+
+    monkeypatch.setattr(readings, 'licensed_readings', refused)
+    assert readings.knowledge_bases(public_only=True)['free'].text_layers is None
+    kept = readings.knowledge_bases(public_only=True, keep_text_layers=True)['free'].text_layers
+    assert kept.path == unread_pages.text_layers_file('free') and kept.path.is_relative_to(data_paths.FREE_WORKING)
+    assert unread_pages.text_layers_file('licensed').is_relative_to(data_paths.LICENSED_WORKING)
+
+
 def test_the_sources_list_opens_a_free_catalog_pdf_without_readings_and_its_pages(tmp_path, monkeypatch):
     from backend.diagnostics import sources
 
     store = a_free_catalog(tmp_path)
-    monkeypatch.setattr(readings, 'knowledge_bases', lambda public_only=False: {'free': store})
+    monkeypatch.setattr(readings, 'knowledge_bases', lambda public_only=False, keep_text_layers=False: {'free': store})
     real = sources.works
     monkeypatch.setattr(sources, 'works', lambda catalog=None: real(catalog or store.free_catalog))
     client = TestClient(create_app(public_only=True), base_url=LOCAL)

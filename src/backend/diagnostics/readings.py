@@ -1452,15 +1452,20 @@ def catalog_entries(path: Path) -> list[CatalogEntry]:
     return entries
 
 
-def knowledge_bases(public_only: bool = False) -> dict[str, 'Readings']:
+def knowledge_bases(public_only: bool = False, keep_text_layers: bool = False) -> dict[str, 'Readings']:
     """The knowledge bases the views give out, by name. With `public_only` the licensed one is never read, so no licensed
-    title, page or count can appear: a recorded review is safe by construction, not by care (decision 81.a)."""
+    title, page or count can appear: a recorded review is safe by construction, not by care (decision 81.a). With
+    `keep_text_layers`, the start command's app alone, each base keeps which pages of its PDFs have a text layer on disk
+    (`unread_pages.TextLayers`, line 1's 1.d); a test's app never reads or writes them."""
     bases = {'free': Readings(shelf=lambda: shelf_of('free'), free_catalog=FREE_CATALOG,
                               planned=unread_pages.free_planned_pages)}
     if not public_only:
         licensed = licensed_readings()
         if licensed is not None:
             bases['licensed'] = licensed
+    if keep_text_layers:
+        for name, store in bases.items():
+            store.text_layers = unread_pages.TextLayers(unread_pages.text_layers_file(name))
     return bases
 
 
@@ -1568,6 +1573,9 @@ class Readings:
         self.planned = planned
         # and the files the librarian serves not at all, by source id, with the shelf's why (U1.a); None: every file is served
         self.not_served = not_served
+        # which pages of its PDFs have a text layer, kept on disk for the start command's app (`knowledge_bases`, 1.d); None:
+        # asked of each PDF, as for an export a test invents
+        self.text_layers: unread_pages.TextLayers | None = None
         # the base's shelf, which the coverage ladders come from (U1.a); handed in by the app's bases alone, None for an
         # export a test invents
         self.shelf = shelf
@@ -1702,7 +1710,7 @@ class Readings:
         kept = self._unread_pages.get(work['source_id'])
         if kept is None or kept[0][:3] != state[:3] or any(old is not new for old, new in zip(kept[0][3:], state[3:], strict=True)):
             kept = (state, unread_pages.unread_rows(work, rows, pdf, legacy, planned,
-                                                    (not_served or {}).get(work['source_id'])))
+                                                    (not_served or {}).get(work['source_id']), self.text_layers))
             self._unread_pages[work['source_id']] = kept
         return kept[1]
 
