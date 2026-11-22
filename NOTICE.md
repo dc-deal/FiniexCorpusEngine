@@ -122,6 +122,62 @@ This file is written from `corpus/catalog.json` by `python -m backend.ingestion.
 - **Licence:** Public domain (U.S. Government work, 17 U.S.C. §105), stated at <https://www.govinfo.gov/about/policies>, checked 2026-11-09
 - **Source:** <https://www.govinfo.gov/content/pkg/CFR-2025-title17-vol5/pdf/CFR-2025-title17-vol5-sec242-606.pdf>
 
+### FIX Latest as of EP284: Introduction
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2023
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-latest-specification-introduction/>
+
+### FIX Latest as of EP284: Infrastructure
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2023
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-latest-specification-infrastructure/>
+
+### FIX Latest as of EP284: Pre-Trade
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2023
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-latest-specification-pre-trade/>
+
+### FIX Latest as of EP284: Trade
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2023
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-latest-specification-trade/>
+
+### FIX Latest as of EP284: Order State Changes
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2023
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-latest-specification-order-state-changes/>
+
+### FIX Latest as of EP284: Post-Trade
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2023
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-latest-specification-post-trade/>
+
+### FIX Session Layer: Technical Standard (Errata, November 2020)
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2020
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-session-layer-technical-standard/>
+
+### FIX Session Layer: Test Cases (version 1.0, June 2020)
+
+- **Authors:** FIX Global Technical Committee
+- **Publisher:** FIX Protocol Limited (FIX Trading Community), 2020
+- **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://fixtrading.org/packages/fix-session-layer-test-cases/>
+
 ## Non-commercial works
 
 The code may be used commercially under its MIT licence; these works may not. Their licences forbid commercial use, so

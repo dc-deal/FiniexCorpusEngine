@@ -539,6 +539,230 @@
       "shelf": "trading_finance",
       "language": "en",
       "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its first page is Rule 605's last). Customary credit goes to the Commission, which issued the rule."
+    },
+    {
+      "id": "fix_latest_ep284_introduction",
+      "title": "FIX Latest as of EP284: Introduction",
+      "subject": "The introduction to FIX Latest: its business areas, the message structure, and the global components and common fields every message is built from.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2023,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-latest-specification-introduction/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-latest-specification-introduction/?wpdmdl=2710",
+          "path": "corpus/raw/fix_latest_ep284_introduction.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_latest_ep284",
+        "title": "FIX Latest specification, as of Extension Pack 284",
+        "part": 1,
+        "of": 6
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Application Layer Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_latest_ep284_infrastructure",
+      "title": "FIX Latest as of EP284: Infrastructure",
+      "subject": "The FIX infrastructure messages: business message rejects, network and user status, application sequencing and the other messages a session needs beside trading.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2023,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-latest-specification-infrastructure/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-latest-specification-infrastructure/?wpdmdl=2714",
+          "path": "corpus/raw/fix_latest_ep284_infrastructure.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_latest_ep284",
+        "title": "FIX Latest specification, as of Extension Pack 284",
+        "part": 2,
+        "of": 6
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Application Layer Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_latest_ep284_pre_trade",
+      "title": "FIX Latest as of EP284: Pre-Trade",
+      "subject": "The FIX pre-trade messages: indications of interest, quotes and quote requests, market data requests and snapshots, security definitions and trading session status.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2023,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-latest-specification-pre-trade/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-latest-specification-pre-trade/?wpdmdl=2711",
+          "path": "corpus/raw/fix_latest_ep284_pre_trade.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_latest_ep284",
+        "title": "FIX Latest specification, as of Extension Pack 284",
+        "part": 3,
+        "of": 6
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Application Layer Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_latest_ep284_trade",
+      "title": "FIX Latest as of EP284: Trade",
+      "subject": "The FIX trade messages: new orders, cancels and replaces, order status requests and the execution report, with order types, time in force and the fields an order and its fills carry.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2023,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-latest-specification-trade/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-latest-specification-trade/?wpdmdl=2712",
+          "path": "corpus/raw/fix_latest_ep284_trade.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_latest_ep284",
+        "title": "FIX Latest specification, as of Extension Pack 284",
+        "part": 4,
+        "of": 6
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Application Layer Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_latest_ep284_order_state_changes",
+      "title": "FIX Latest as of EP284: Order State Changes",
+      "subject": "The FIX order state change matrices: how an order moves through New, Partially Filled, Filled, Canceled, Replaced, Rejected and the pending states, message by message, as execution reports report them.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2023,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-latest-specification-order-state-changes/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-latest-specification-order-state-changes/?wpdmdl=2715",
+          "path": "corpus/raw/fix_latest_ep284_order_state_changes.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_latest_ep284",
+        "title": "FIX Latest specification, as of Extension Pack 284",
+        "part": 5,
+        "of": 6
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Application Layer Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_latest_ep284_post_trade",
+      "title": "FIX Latest as of EP284: Post-Trade",
+      "subject": "The FIX post-trade messages: allocations and confirmations, trade capture reports, settlement instructions, position maintenance and collateral.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2023,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-latest-specification-post-trade/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-latest-specification-post-trade/?wpdmdl=2713",
+          "path": "corpus/raw/fix_latest_ep284_post_trade.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_latest_ep284",
+        "title": "FIX Latest specification, as of Extension Pack 284",
+        "part": 6,
+        "of": 6
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Application Layer Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_session_layer_technical_standard",
+      "title": "FIX Session Layer: Technical Standard (Errata, November 2020)",
+      "subject": "The classic FIX session layer: logon and logout, heartbeats and test requests, message sequence numbers, resend requests and gap fills, resynchronisation after a lost connection, and the FIX4 and FIXT session profiles.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2020,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-session-layer-technical-standard/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-session-layer-technical-standard/?wpdmdl=2735",
+          "path": "corpus/raw/fix_session_layer_technical_standard.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_session_layer",
+        "title": "FIX Session Layer technical standard (classic, ISO 3531 part 2)",
+        "part": 1,
+        "of": 2
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Technical Standard Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "fix_session_layer_test_cases",
+      "title": "FIX Session Layer: Test Cases (version 1.0, June 2020)",
+      "subject": "The official test cases of the classic FIX session layer: the scenarios a session implementation must pass, from logon and sequence number handling to resend, gap fill and disconnection.",
+      "authors": "FIX Global Technical Committee",
+      "publisher": "FIX Protocol Limited (FIX Trading Community)",
+      "year": 2020,
+      "licence": "CC BY-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://fixtrading.org/packages/fix-session-layer-test-cases/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://fixtrading.org/packages/fix-session-layer-test-cases/?wpdmdl=2736",
+          "path": "corpus/raw/fix_session_layer_test_cases.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "fix_session_layer",
+        "title": "FIX Session Layer technical standard (classic, ISO 3531 part 2)",
+        "part": 2,
+        "of": 2
+      },
+      "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Technical Standard Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
     }
   ]
 }
