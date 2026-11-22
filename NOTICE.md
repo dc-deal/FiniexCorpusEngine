@@ -178,6 +178,62 @@ This file is written from `corpus/catalog.json` by `python -m backend.ingestion.
 - **Licence:** CC BY-ND 4.0, stated at <https://creativecommons.org/licenses/by-nd/4.0/>, checked 2026-11-22
 - **Source:** <https://fixtrading.org/packages/fix-session-layer-test-cases/>
 
+### Commission Delegated Regulation (EU) 2017/589: organisational requirements of investment firms engaged in algorithmic trading (RTS 6)
+
+- **Authors:** European Commission
+- **Publisher:** Publications Office of the European Union (Official Journal of the European Union, L 87, 31.3.2017), 2017
+- **Licence:** Reuse authorised, source acknowledged (Commission Decision 2011/833/EU), stated at <http://publications.europa.eu/resource/celex/32011D0833>, checked 2026-11-22
+- **Source:** <http://data.europa.eu/eli/reg_del/2017/589/oj>
+
+### ESMA Decision (EU) 2018/796: temporary restriction of contracts for differences for retail clients
+
+- **Authors:** European Securities and Markets Authority
+- **Publisher:** Publications Office of the European Union (Official Journal of the European Union, L 136, 1.6.2018), 2018
+- **Licence:** Reuse authorised, source acknowledged (Commission Decision 2011/833/EU), stated at <http://publications.europa.eu/resource/celex/32011D0833>, checked 2026-11-22
+- **Source:** <http://data.europa.eu/eli/dec/2018/796/oj>
+
+### Trading and Arbitrage in Cryptocurrency Markets (accepted manuscript)
+
+- **Authors:** Igor Makarov, Antoinette Schoar
+- **Publisher:** LSE Research Online (accepted version of Journal of Financial Economics 135(2), 2020, 293-319), 2020
+- **Licence:** [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/), stated at <https://creativecommons.org/licenses/by-nc-nd/4.0/>, checked 2026-11-22
+- **Source:** <https://researchonline.lse.ac.uk/id/eprint/100409/>
+
+### Commission Delegated Directive (EU) 2017/593: safeguarding of client financial instruments and funds (MiFID II)
+
+- **Authors:** European Commission
+- **Publisher:** Publications Office of the European Union (Official Journal of the European Union, L 87, 31.3.2017), 2017
+- **Licence:** Reuse authorised, source acknowledged (Commission Decision 2011/833/EU), stated at <http://publications.europa.eu/resource/celex/32011D0833>, checked 2026-11-22
+- **Source:** <http://data.europa.eu/eli/dir_del/2017/593/oj>
+
+### Regulation (EU) 2023/1114 on markets in crypto-assets (MiCA)
+
+- **Authors:** European Parliament and Council of the European Union
+- **Publisher:** Publications Office of the European Union (Official Journal of the European Union, L 150, 9.6.2023), 2023
+- **Licence:** Reuse authorised, source acknowledged (Commission Decision 2011/833/EU), stated at <http://publications.europa.eu/resource/celex/32011D0833>, checked 2026-11-22
+- **Source:** <http://data.europa.eu/eli/reg/2023/1114/oj>
+
+### Directive 97/9/EC on investor-compensation schemes
+
+- **Authors:** European Parliament and Council of the European Union
+- **Publisher:** Office for Official Publications of the European Communities (Official Journal of the European Communities, L 84, 26.3.1997), 1997
+- **Licence:** Reuse authorised, source acknowledged (Commission Decision 2011/833/EU), stated at <http://publications.europa.eu/resource/celex/32011D0833>, checked 2026-11-22
+- **Source:** <http://data.europa.eu/eli/dir/1997/9/oj>
+
+### Triennial Central Bank Survey: OTC foreign exchange turnover in April 2022
+
+- **Authors:** Bank for International Settlements, Monetary and Economic Department
+- **Publisher:** Bank for International Settlements, 2022
+- **Licence:** BIS terms: download and redistribution for non-commercial purposes, the BIS cited as the source, stated at <https://www.bis.org/terms_conditions.htm>, checked 2026-11-22
+- **Source:** <https://www.bis.org/statistics/rpfx22.htm>
+
+### The global foreign exchange market in a higher-volatility environment (BIS Quarterly Review, December 2022)
+
+- **Authors:** Mathias Drehmann, Vladyslav Sushko
+- **Publisher:** Bank for International Settlements (BIS Quarterly Review, December 2022, pp. 33-48), 2022
+- **Licence:** BIS terms: download and redistribution for non-commercial purposes, the BIS cited as the source, stated at <https://www.bis.org/terms_conditions.htm>, checked 2026-11-22
+- **Source:** <https://www.bis.org/publ/qtrpdf/r_qt2212.htm>
+
 ## Non-commercial works
 
 The code may be used commercially under its MIT licence; these works may not. Their licences forbid commercial use, so
@@ -186,6 +242,7 @@ a commercial use of this project leaves them out:
 - Principles of Finance 2e
 - Principles of Accounting, Volume 1: Financial Accounting
 - Site Reliability Engineering
+- Trading and Arbitrage in Cryptocurrency Markets (accepted manuscript)
 
 ## For rights holders
 

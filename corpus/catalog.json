@@ -781,6 +781,194 @@
         "of": 2
       },
       "notes": "Licensed under CC BY-ND 4.0 by its own notice (\"FIX Technical Standard Specifications by FIX Protocol Ltd. are licensed under a Creative Commons Attribution-NoDerivatives 4.0 International License\"), read at the source on 2026-11-22; the publisher's own PDF with a text layer and bookmarks. NoDerivatives: served from its text layer as published and never read (72.a). The direct download needs no session token."
+    },
+    {
+      "id": "eu_delegated_regulation_2017_589",
+      "title": "Commission Delegated Regulation (EU) 2017/589: organisational requirements of investment firms engaged in algorithmic trading (RTS 6)",
+      "subject": "The EU rule on how a firm that trades algorithmically must control it: testing and deployment of algorithms, conformance testing with venues, kill functionality that cancels every unexecuted order at once (Article 12), pre-trade controls on order entry such as price collars, maximum order values and volumes and message limits (Article 15), real-time monitoring and post-trade controls, annual self-assessment and stress tests. It binds investment firms in the EU, not a trader's own backtest; the final text that replaced ESMA's 2015 draft; as published in 2017, without later amendments.",
+      "authors": "European Commission",
+      "publisher": "Publications Office of the European Union (Official Journal of the European Union, L 87, 31.3.2017)",
+      "year": 2017,
+      "licence": "Reuse authorised, source acknowledged (Commission Decision 2011/833/EU)",
+      "licence_url": "http://publications.europa.eu/resource/celex/32011D0833",
+      "licence_checked": "2026-11-22",
+      "source_url": "http://data.europa.eu/eli/reg_del/2017/589/oj",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "http://publications.europa.eu/resource/cellar/df076b02-15d2-11e7-808e-01aa75ed71a1.0006.01/DOC_1",
+          "path": "corpus/raw/eu_delegated_regulation_2017_589.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The English PDF of the Official Journal, from the Publications Office's own repository (EUR-Lex refuses automated requests); found by its ELI in the Office's SPARQL endpoint. Decision 2011/833/EU, Articles 4 and 6, and EUR-Lex's legal notice (\"Unless otherwise specified, you can re-use the legal documents published in EUR-Lex for commercial or non-commercial purposes\"), read on 2026-11-22: the source is acknowledged and the original meaning not distorted. Only the Official Journal's text is authentic."
+    },
+    {
+      "id": "esma_decision_2018_796_cfd_restriction",
+      "title": "ESMA Decision (EU) 2018/796: temporary restriction of contracts for differences for retail clients",
+      "subject": "The EU measure that restricted CFDs sold to retail clients: leverage limits by underlying (initial margin from 3.33 % of the notional value for major currency pairs to 50 % for cryptocurrencies), the close-out of open CFDs once the account's funds and unrealised net profits fall to less than half of the total initial margin protection (the margin close-out rule, per account), negative balance protection per account, no incentives, and a standard risk warning. It applied to CFD providers in the EU from 1 August 2018 for three months and was renewed by later decisions; how a retail broker's margin stop-out works, not a trader's own backtest.",
+      "authors": "European Securities and Markets Authority",
+      "publisher": "Publications Office of the European Union (Official Journal of the European Union, L 136, 1.6.2018)",
+      "year": 2018,
+      "licence": "Reuse authorised, source acknowledged (Commission Decision 2011/833/EU)",
+      "licence_url": "http://publications.europa.eu/resource/celex/32011D0833",
+      "licence_checked": "2026-11-22",
+      "source_url": "http://data.europa.eu/eli/dec/2018/796/oj",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "http://publications.europa.eu/resource/cellar/150d2b94-6525-11e8-ab9c-01aa75ed71a1.0006.01/DOC_1",
+          "path": "corpus/raw/esma_decision_2018_796_cfd_restriction.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The English PDF of the Official Journal, from the Publications Office's own repository (EUR-Lex refuses automated requests); found by its ELI in the Office's SPARQL endpoint. Decision 2011/833/EU, Articles 4 and 6, and EUR-Lex's legal notice (\"Unless otherwise specified, you can re-use the legal documents published in EUR-Lex for commercial or non-commercial purposes\"), read on 2026-11-22: the source is acknowledged and the original meaning not distorted. Only the Official Journal's text is authentic. The renewals (Decisions (EU) 2018/1636, 2019/155, 2019/679) repeat its measures and are not taken in."
+    },
+    {
+      "id": "makarov_schoar_crypto_arbitrage_2020",
+      "title": "Trading and Arbitrage in Cryptocurrency Markets (accepted manuscript)",
+      "subject": "How far and how long bitcoin prices differ between exchanges and countries, and why: large, recurring arbitrage spreads across regions, much smaller within them, opening when capital controls and slow settlement keep arbitrage capital out; a common price component and each venue's deviation from it, measured across exchanges. Crypto venues, 2017-2018; why one venue's trades do not stand in for another's.",
+      "authors": "Igor Makarov, Antoinette Schoar",
+      "publisher": "LSE Research Online (accepted version of Journal of Financial Economics 135(2), 2020, 293-319)",
+      "year": 2020,
+      "licence": "CC BY-NC-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://researchonline.lse.ac.uk/id/eprint/100409/",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://researchonline.lse.ac.uk/id/eprint/100409/1/Cryptocurrency_Markets_JFE_final_v4.pdf",
+          "path": "corpus/raw/makarov_schoar_crypto_arbitrage_2020.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The authors' accepted version as deposited at LSE Research Online, licensed by its cover sheet (\"Version: Accepted Version Licence: Creative Commons: Attribution-Noncommercial-No Derivative Works 4.0\"), read at the source on 2026-11-22; the journal's own version is Elsevier's and is not this file. The cover sheet is its first page. NoDerivatives: served from its text layer as published and never read (72.a). Cite it as the journal article (doi 10.1016/j.jfineco.2019.07.001) with the note that the text is the accepted manuscript."
+    },
+    {
+      "id": "eu_delegated_directive_2017_593",
+      "title": "Commission Delegated Directive (EU) 2017/593: safeguarding of client financial instruments and funds (MiFID II)",
+      "subject": "The EU rule on how an investment firm keeps its clients' assets apart from its own: client financial instruments and funds held in segregated, separately identifiable accounts and reconciled regularly (Article 2), client funds deposited with central banks, credit institutions or qualifying money market funds (Article 4), the use of client instruments only with express consent (Article 5), limits on title transfer collateral arrangements with retail clients (Article 6), and an officer responsible for safeguarding (Article 7), so that the assets are protected if the firm fails. It binds investment firms in the EU; the text as published in 2017, without later amendments.",
+      "authors": "European Commission",
+      "publisher": "Publications Office of the European Union (Official Journal of the European Union, L 87, 31.3.2017)",
+      "year": 2017,
+      "licence": "Reuse authorised, source acknowledged (Commission Decision 2011/833/EU)",
+      "licence_url": "http://publications.europa.eu/resource/celex/32011D0833",
+      "licence_checked": "2026-11-22",
+      "source_url": "http://data.europa.eu/eli/dir_del/2017/593/oj",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "http://publications.europa.eu/resource/cellar/0d53df66-15d4-11e7-808e-01aa75ed71a1.0006.01/DOC_1",
+          "path": "corpus/raw/eu_delegated_directive_2017_593.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The English PDF of the Official Journal, from the Publications Office's own repository (EUR-Lex refuses automated requests); found by its ELI in the Office's SPARQL endpoint. Decision 2011/833/EU, Articles 4 and 6, and EUR-Lex's legal notice (\"Unless otherwise specified, you can re-use the legal documents published in EUR-Lex for commercial or non-commercial purposes\"), read on 2026-11-22: the source is acknowledged and the original meaning not distorted. Only the Official Journal's text is authentic."
+    },
+    {
+      "id": "eu_regulation_2023_1114_mica",
+      "title": "Regulation (EU) 2023/1114 on markets in crypto-assets (MiCA)",
+      "subject": "The EU regulation of crypto-assets and the firms that serve them: authorisation of crypto-asset service providers, the safekeeping of clients' crypto-assets and funds apart from the provider's own (Article 70), custody and administration of crypto-assets on behalf of clients, with a register of positions and the provider's liability for their loss (Article 75), the operation of a trading platform for crypto-assets (Article 76), market abuse rules, and the issuers of asset-referenced and e-money tokens. It binds issuers and providers in the EU; the text as published in 2023, without later amendments.",
+      "authors": "European Parliament and Council of the European Union",
+      "publisher": "Publications Office of the European Union (Official Journal of the European Union, L 150, 9.6.2023)",
+      "year": 2023,
+      "licence": "Reuse authorised, source acknowledged (Commission Decision 2011/833/EU)",
+      "licence_url": "http://publications.europa.eu/resource/celex/32011D0833",
+      "licence_checked": "2026-11-22",
+      "source_url": "http://data.europa.eu/eli/reg/2023/1114/oj",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "http://publications.europa.eu/resource/cellar/01d55833-0660-11ee-b12e-01aa75ed71a1.0006.01/DOC_1",
+          "path": "corpus/raw/eu_regulation_2023_1114_mica.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The English PDF of the Official Journal, from the Publications Office's own repository (EUR-Lex refuses automated requests); found by its ELI in the Office's SPARQL endpoint. Decision 2011/833/EU, Articles 4 and 6, and EUR-Lex's legal notice (\"Unless otherwise specified, you can re-use the legal documents published in EUR-Lex for commercial or non-commercial purposes\"), read on 2026-11-22: the source is acknowledged and the original meaning not distorted. Only the Official Journal's text is authentic."
+    },
+    {
+      "id": "eu_directive_1997_9_investor_compensation",
+      "title": "Directive 97/9/EC on investor-compensation schemes",
+      "subject": "The EU rule that every investment firm belongs to an investor-compensation scheme that pays its clients when the firm cannot return their money or instruments: a harmonised minimum of ECU 20,000 per investor, with cover of at least 90 % of the loss where a Member State limits it, the cases that trigger payment, and what the scheme must tell investors. It binds the Member States and their investment firms; the text as published in 1997, a scanned Official Journal with a text layer, without later amendments.",
+      "authors": "European Parliament and Council of the European Union",
+      "publisher": "Office for Official Publications of the European Communities (Official Journal of the European Communities, L 84, 26.3.1997)",
+      "year": 1997,
+      "licence": "Reuse authorised, source acknowledged (Commission Decision 2011/833/EU)",
+      "licence_url": "http://publications.europa.eu/resource/celex/32011D0833",
+      "licence_checked": "2026-11-22",
+      "source_url": "http://data.europa.eu/eli/dir/1997/9/oj",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "http://publications.europa.eu/resource/cellar/dc2790d5-96b0-4bc1-b1fb-15e776928929.0008.02/DOC_1",
+          "path": "corpus/raw/eu_directive_1997_9_investor_compensation.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The English PDF of the Official Journal, from the Publications Office's own repository (EUR-Lex refuses automated requests); found by its ELI in the Office's SPARQL endpoint. Decision 2011/833/EU, Articles 4 and 6, and EUR-Lex's legal notice (\"Unless otherwise specified, you can re-use the legal documents published in EUR-Lex for commercial or non-commercial purposes\"), read on 2026-11-22: the source is acknowledged and the original meaning not distorted. Only the Official Journal's text is authentic. The 1997 Official Journal is a scan with an OCR text layer; a few characters are garbled."
+    },
+    {
+      "id": "bis_triennial_survey_2022_fx_turnover",
+      "title": "Triennial Central Bank Survey: OTC foreign exchange turnover in April 2022",
+      "subject": "The global statistics of the foreign exchange market from the central banks' survey of April 2022: turnover of 7.5 trillion US dollars a day, the US dollar on one side of 88 % of all trades, FX swaps 51 % and spot 28 % of turnover, by currency, instrument, counterparty (reporting dealers, other financial institutions, non-financial customers) and trading location. The structure of the global FX market as a whole, not one broker's prices.",
+      "authors": "Bank for International Settlements, Monetary and Economic Department",
+      "publisher": "Bank for International Settlements",
+      "year": 2022,
+      "licence": "BIS terms: download and redistribution for non-commercial purposes, the BIS cited as the source",
+      "licence_url": "https://www.bis.org/terms_conditions.htm",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://www.bis.org/statistics/rpfx22.htm",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.bis.org/publications/202210-commentary-otc-derivatives.pdf",
+          "path": "corpus/raw/bis_triennial_survey_2022_fx_turnover.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "bis_triennial_survey_2022_fx",
+        "title": "BIS Triennial Central Bank Survey 2022: the foreign exchange market",
+        "part": 1,
+        "of": 2
+      },
+      "notes": "Licensed by the BIS terms of use, read at the source on 2026-11-22: \"Users may download, display, print out, photocopy or redistribute any BIS Material for non-commercial purposes\", and a limited extract may be reproduced elsewhere with the BIS cited; the document's own line reads \"(c) Bank for International Settlements 2022. All rights reserved. Limited extracts may be reproduced or translated provided the source is stated.\" The BIS's own PDF with a text layer. Served from its text layer as published and never read, so nothing is altered; a quote names the BIS. Non-commercial use only."
+    },
+    {
+      "id": "bis_quarterly_review_2022_12_fx_market",
+      "title": "The global foreign exchange market in a higher-volatility environment (BIS Quarterly Review, December 2022)",
+      "subject": "An analysis of the 2022 survey: how FX trading is organised between dealers and their customers, inter-dealer trading on electronic brokers and central limit order books against single-dealer platforms, dealers matching customer flows on their own books (internalisation), prime brokerage and principal trading firms, and the trading hubs, and how volatility in 2022 shifted turnover among them. The global FX market's structure, not one broker's execution.",
+      "authors": "Mathias Drehmann, Vladyslav Sushko",
+      "publisher": "Bank for International Settlements (BIS Quarterly Review, December 2022, pp. 33-48)",
+      "year": 2022,
+      "licence": "BIS terms: download and redistribution for non-commercial purposes, the BIS cited as the source",
+      "licence_url": "https://www.bis.org/terms_conditions.htm",
+      "licence_checked": "2026-11-22",
+      "source_url": "https://www.bis.org/publ/qtrpdf/r_qt2212.htm",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.bis.org/publications/global-foreign-exchange-market-higher-volatility-environment_1.pdf",
+          "path": "corpus/raw/bis_quarterly_review_2022_12_fx_market.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "series": {
+        "id": "bis_triennial_survey_2022_fx",
+        "title": "BIS Triennial Central Bank Survey 2022: the foreign exchange market",
+        "part": 2,
+        "of": 2
+      },
+      "notes": "Licensed by the BIS terms of use, read at the source on 2026-11-22: \"Users may download, display, print out, photocopy or redistribute any BIS Material for non-commercial purposes\", and a limited extract may be reproduced elsewhere with the BIS cited; the document's own line reads \"(c) Bank for International Settlements 2022. All rights reserved. Limited extracts may be reproduced or translated provided the source is stated.\" The BIS's own PDF with a text layer. Served from its text layer as published and never read, so nothing is altered; a quote names the BIS. Non-commercial use only."
     }
   ]
 }
