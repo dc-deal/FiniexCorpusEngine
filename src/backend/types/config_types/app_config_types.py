@@ -53,12 +53,23 @@ class CorrectionConfig(StrictConfigModel):
     max_tokens: int = 4000  # a whole table written again, its thinking included
 
 
+class DatabaseConfig(StrictConfigModel):
+    """Where the index database listens for a process on this machine (issue #10, 3.a): the Compose service `postgres`
+    publishes it on the loopback only. Its password is never here but in .env; a container is given a whole URL instead."""
+
+    host: str = '127.0.0.1'
+    port: int = 5434  # 5433 is the RAG engine's
+    name: str = 'corpusengine'
+    user: str = 'corpusengine'
+
+
 class AppConfig(StrictConfigModel):
     """The whole file; an unknown section is refused like an unknown key."""
 
     paths: PathsConfig = PathsConfig()
     embeddings: EmbeddingsConfig = EmbeddingsConfig()
     correction: CorrectionConfig = CorrectionConfig()
+    database: DatabaseConfig = DatabaseConfig()
     router: dict[str, Any]
     agent: dict[str, Any]
     generator: dict[str, Any]

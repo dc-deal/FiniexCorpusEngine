@@ -43,3 +43,46 @@ services:
     depends_on:
       - librarian
     restart: unless-stopped
+
+  # The index database (issue #10): PostgreSQL with pgvector, the image the app park's RAG engine runs. It holds derived
+  # data only (pages, postings, chunk vectors), rebuilt from the readings; its schema is written by
+  # `python -m backend.database.migrate`. The password is CORPUS_DB_PASSWORD in .env (.env.example names it), taken by
+  # interpolation alone: a foreign image never gets the whole .env and its keys. Without it this service alone does not
+  # start, and the others still do.
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: finiex-corpus-postgres
+    command: postgres -c maintenance_work_mem=1GB -c shared_buffers=512MB
+    shm_size: 1g
+    environment:
+      - POSTGRES_USER=corpusengine
+      - POSTGRES_PASSWORD=${CORPUS_DB_PASSWORD:-}
+      - POSTGRES_DB=corpusengine
+    volumes:
+      - corpus_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
+    restart: unless-stopped
+
+  # A browser view of the database for development (http://127.0.0.1:5051), as the RAG engine has; the server is
+  # registered from docker/pgadmin_servers.json, its password asked on the first connect.
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: finiex-corpus-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@local.dev
+      - PGADMIN_DEFAULT_PASSWORD=${CORPUS_PGADMIN_PASSWORD:-admin}
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+      - PGADMIN_SERVER_JSON_FILE=/pgadmin4/servers.json
+    volumes:
+      - corpus_pgadmin:/var/lib/pgadmin
+      - ./docker/pgadmin_servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - "127.0.0.1:5051:80"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  corpus_pgdata:
+  corpus_pgadmin:

@@ -59,3 +59,27 @@ def _skip_without_data(request):
     for marker, (needed, hint) in NEEDS.items():
         if request.node.get_closest_marker(marker) and not needed.exists():
             pytest.skip(f'{needed.relative_to(data_paths.ROOT).as_posix()} is missing - {hint}')
+
+
+_DATABASE = {}
+
+
+def database_reachable() -> bool:
+    """Whether the index database answers (issue #10), asked once per run; a clone without Docker or .env says no."""
+    if 'up' not in _DATABASE:
+        import psycopg
+
+        from backend.database.database_url import DatabaseNotConfigured, database_url
+        try:
+            with psycopg.connect(database_url(), connect_timeout=2):
+                _DATABASE['up'] = True
+        except (DatabaseNotConfigured, psycopg.Error):
+            _DATABASE['up'] = False
+    return _DATABASE['up']
+
+
+@pytest.fixture(autouse=True)
+def _skip_without_database(request):
+    """A test marked `database` skips where the index database is not running, as the data markers skip without data."""
+    if request.node.get_closest_marker('database') and not database_reachable():
+        pytest.skip('the index database is not running - docker compose up -d postgres, with CORPUS_DB_PASSWORD in .env')

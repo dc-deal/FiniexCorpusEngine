@@ -236,3 +236,18 @@ chat model, a stage of its own.
 - **The view calls the librarian as a client does** (L1.a, 21 Nov): `mcp_client.http_server()` reaches the running server
   over streamable HTTP with the bearer token from .env, at LIBRARIAN_URL (the compose service `librarian:8765` from the
   view's container, which the server's host guard now names) or this machine's 127.0.0.1:8765.
+- **The index moves into PostgreSQL (issue #10, the operator's 1.a, 22 Nov).** The librarian builds its keyword index in
+  memory from files at every start (about 190 s of page assembly), and a verdict rewrites its knowledge base's export and
+  needs a restart before the librarian sees it. A prototype on a scratch database measured the way out first: the IDE's
+  BM25 port computed in plain SQL over a postings table, with the same tokenizer, constants and idf, gave the same top six
+  with the same scores on every coverage-gate probe (47 ms in the median against the port's 10 ms, a query of common
+  words 0.3 s); one page's update took 12 ms and the next query saw it; the stored vectors copied into pgvector in seconds,
+  with an HNSW index found 0.999 of an exact search's top ten. No BM25 extension is used: an extension's own tokenizer and
+  constants would move the calibrated ranking. **Part A, built:** the Compose services `postgres` (the image
+  `pgvector/pgvector:pg16` the app park's RAG engine runs, a named volume, 127.0.0.1:5434) and `pgadmin` (127.0.0.1:5051,
+  development only); the place in `configs/app_config.json` (`database`), the password in .env (`CORPUS_DB_PASSWORD`), a
+  container handed the whole URL; the schema written only by `python -m backend.database.migrate`, numbered SQL files
+  applied once each, in a transaction of their own, under an advisory lock, an edited applied file refused as drift (the
+  RAG engine's runner, ported; its docstring names the maintained runners checked, Alembic and yoyo, and why they lost).
+  A foreign image never gets the whole .env, and without the password only the database does not start. The database
+  holds derived data only, so the librarian serves exactly as before until the switch (part C).

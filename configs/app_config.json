@@ -26,6 +26,13 @@
     "model": "claude-opus-5-5",
     "max_tokens": 4000
   },
+  "database": {
+    "_comment": "Where the index database listens for a process on this machine (issue #10, 3.a): PostgreSQL with pgvector, the Compose service postgres, published on the loopback only; 5433 is the RAG engine's. The password is never here: it is CORPUS_DB_PASSWORD in .env. A container reaches the database as postgres:5432 and is given the whole URL as CORPUS_DATABASE_URL by Compose, which also wins on this machine where it is set.",
+    "host": "127.0.0.1",
+    "port": 5434,
+    "name": "corpusengine",
+    "user": "corpusengine"
+  },
   "router": {
     "provider": "openrouter",
     "enabled": true,

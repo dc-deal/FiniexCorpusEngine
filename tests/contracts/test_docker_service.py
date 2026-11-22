@@ -21,10 +21,20 @@ def test_every_service_comes_back_with_docker_until_it_is_stopped_by_hand():
         {name: 'unless-stopped' for name in SERVICES}
 
 
+OWN_IMAGE = 'finiex-corpus-engine'
+
+
 def test_the_keys_come_from_the_mounted_env_never_from_the_image_and_a_clone_without_one_still_starts():
+    own = {name: service for name, service in SERVICES.items() if service.get('image') == OWN_IMAGE}
+    assert set(own) >= {'librarian', 'diagnostics'}
     for name, service in SERVICES.items():
-        assert service['env_file'] == [{'path': '.env', 'required': False}], name
+        if name in own:
+            assert service['env_file'] == [{'path': '.env', 'required': False}], name
+        else:  # a foreign image (the database, its admin page) never gets the whole .env and its keys (issue #10)
+            assert 'env_file' not in service, name
         assert not any('KEY' in str(item) or 'TOKEN' in str(item) for item in service.get('environment', [])), name
+    # a variable missing from .env is interpolated empty, never a stop: `:?` would halt every service of a clone
+    assert ':?' not in (ROOT / 'docker-compose.yml').read_text(encoding='utf-8')
 
 
 def test_the_image_is_built_from_the_requirements_alone():

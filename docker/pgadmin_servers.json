@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "FiniexCorpusEngine index",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "corpusengine",
+      "Username": "corpusengine",
+      "SSLMode": "prefer"
+    }
+  }
+}

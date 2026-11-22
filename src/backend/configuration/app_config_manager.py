@@ -3,7 +3,8 @@
 from pathlib import Path
 
 from backend.configuration.config_file_loader import ConfigFileLoader
-from backend.types.config_types.app_config_types import AppConfig, CorrectionConfig, EmbeddingsConfig, PathsConfig
+from backend.types.config_types.app_config_types import (AppConfig, CorrectionConfig, DatabaseConfig, EmbeddingsConfig,
+                                                         PathsConfig)
 
 
 class AppConfigManager:
@@ -23,6 +24,10 @@ class AppConfigManager:
     def get_correction(self) -> CorrectionConfig:
         """Which model proposes a block's correction (W2.a)."""
         return self._app_config.correction
+
+    def get_database(self) -> DatabaseConfig:
+        """Where the index database listens for a process on this machine (issue #10)."""
+        return self._app_config.database
 
     def resolve(self, configured: str) -> Path:
         """A configured path as a place on disk: relative to the repository, or absolute as it stands."""
