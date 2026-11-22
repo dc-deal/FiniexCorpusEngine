@@ -197,6 +197,23 @@ def test_a_download_stamp_never_reaches_the_index():
     assert search_server.strip_stamps('Real prose.\nDownloaded from SomeSite.example\nMore prose.', ['somesite.example']) == 'Real prose.\nMore prose.'
 
 
+def test_a_nul_in_a_text_layer_never_reaches_the_index_with_or_without_marks():
+    # the database cannot store NUL, so the files must not serve it either (22 Nov: 315 licensed pages differed by it)
+    assert search_server.strip_stamps('Brownian\x00 motion', []) == 'Brownian motion'
+    assert search_server.strip_stamps('Brownian\x00 motion\nDownloaded from SomeSite.example', ['somesite.example']) == 'Brownian motion'
+
+
+def test_a_legacy_page_names_its_file_as_every_route_does_never_by_this_machines_path(monkeypatch, tmp_path):
+    folder = data_paths.WORKING / 'legacy_markdown'
+    monkeypatch.setattr(search_server, 'LEGACY', folder)
+    monkeypatch.setattr(search_server.page_index, 'load_works', lambda root, keys, stems: [
+        page_index.Page('work-a', '3', 1, 'Some prose on page three.', (folder / 'work_a.md').as_posix())])
+    monkeypatch.setattr(search_server, 'legacy_offsets', lambda: {})
+    pages = search_server.legacy_by_work({'work-a': 'work_a'}, [])['work-a']
+    assert [page.path for page in pages] == ['_work/legacy_markdown/work_a.md']
+    assert data_paths.locate(pages[0].path) == folder / 'work_a.md'  # and it still finds the file
+
+
 def test_the_free_pdfs_are_served_without_the_private_store(monkeypatch, tmp_path):
     monkeypatch.setattr(search_server, 'EXPORT', tmp_path / 'no_export')  # as on a fresh clone without readings
     pages, works = search_server.free_pdf_pages()

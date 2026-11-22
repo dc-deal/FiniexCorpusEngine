@@ -233,6 +233,9 @@ def stamps() -> list[str]:
 
 
 def strip_stamps(text: str, marks: list[str]) -> str:
+    """The text without a line that holds a provenance mark, and without NUL: a text layer can carry it (a 1997 TeX build,
+    found 22 Nov on 315 licensed pages), the index database cannot store it, and the files and the database serve one text."""
+    text = text.replace('\x00', '')
     if not marks:
         return text
     return '\n'.join(line for line in text.split('\n') if not any(mark in line.lower() for mark in marks))
@@ -424,7 +427,10 @@ def legacy_by_work(keys: dict[str, str], marks: list[str], only: set[str] | None
         text = strip_stamps(page.text, marks)
         if text != page.text and page_index.is_structural(text):
             continue
-        legacy.setdefault(page.work, []).append(dataclasses.replace(page, text=text, knowledge_base='licensed', route=LEGACY_ROUTE))
+        # its path spelled as every other route's (`_work/…`), never this machine's absolute one, so the database names a file
+        # wherever it is read (found 22 Nov: 5,507 pages named `C:/Users/…` in the container)
+        legacy.setdefault(page.work, []).append(dataclasses.replace(page, text=text, knowledge_base='licensed', route=LEGACY_ROUTE,
+                                                                    path=data_paths.stored(Path(page.path))))
     for key, offset in legacy_offsets().items():
         if key in legacy:
             legacy[key] = numbered(legacy[key], offset)
@@ -862,7 +868,7 @@ class SearchService:
             bookmarks = []
         legacy = next((Path(page.path) for page in own if page.route == 'legacy markdown'), None)
         if legacy is not None and not legacy.is_absolute():
-            legacy = REPO / legacy
+            legacy = data_paths.locate(legacy)
         if legacy is not None and legacy.exists():
             headings = legacy_headings(legacy, legacy_offsets().get(work, 0))
             if len(headings) > len(bookmarks):

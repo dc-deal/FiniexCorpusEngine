@@ -197,6 +197,13 @@ def import_works(url: str, keys: set[str], stores: dict[str, Path]) -> tuple[int
     return work_count, page_count, chunks
 
 
+def served_keys(keys: set[str]) -> set[str]:
+    """Those of the keys the librarian serves a work by now."""
+    from backend.search import search_server
+
+    return set(served_pages({'free': search_server.free_pages(keys), 'licensed': search_server.licensed_pages(keys)})[1]) & keys
+
+
 def main(argv: list[str] | None = None) -> int:
     from backend.search import search_server
     from backend.search.database import index_gate
@@ -215,6 +222,11 @@ def main(argv: list[str] | None = None) -> int:
         works, pages, chunks = import_works(url, set(args.works), chroma_stores())
         print(f'{works} of {len(args.works)} works written again in {time.perf_counter() - started:.1f} s: {pages} pages, '
               f'chunks {chunks}')
+        if works < len(set(args.works)):
+            # a key the librarian serves no work by: removed, or not its key at all (22 Nov: a catalog id given for a legacy
+            # work's key, so the work was never written again and its kept edition stayed ranked)
+            print('not written, since the librarian serves no work by that key now: '
+                  f'{sorted(set(args.works) - served_keys(set(args.works)))}; a catalog id is not always the index key')
         return 0
     started = time.perf_counter()
     bases = search_server.knowledge_bases()
