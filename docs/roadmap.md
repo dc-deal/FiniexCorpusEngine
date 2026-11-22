@@ -42,3 +42,7 @@ capstone.
 person's verdicts; a reader prompt built from those findings was measured as a prototype ([phase 2's chapter](phase_02_corpus_reading.md));
 the conversion code was put into folders by concern. **Phase 8 is under way** (12 Nov): the demo rehearsed, the README and
 the presentation brought up to date.
+**Since 22 Nov (issue #10):** the index can live in PostgreSQL with pgvector, in Docker: the keyword ranking in SQL, the
+semantic search's vectors in pgvector, a changed page served without a restart; each half gated against the files
+before it was switched on ([phase 3](phase_03_search_server.md)). Still open: the view reading the database (E) and a
+backup of the vectors before Chroma is retired.

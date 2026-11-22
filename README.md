@@ -148,7 +148,9 @@ full plans, gates, reports and protocols, mistakes included, are in [docs/](docs
 
 ## Quick start
 
-Python 3.13. No database server: the vector store and all state are files; Docker is optional (below).
+Python 3.13. Without Docker everything runs from files: the librarian assembles its index from them at every start, and
+the vectors are read from a Chroma store on disk. With Docker, the index lives in PostgreSQL with pgvector, loads in
+seconds and serves a changed page without a restart (below).
 
 ```bash
 python -m venv .venv
@@ -164,21 +166,35 @@ python -m backend.diagnostics --allow-verdicts              # the same, taking a
 pytest                                                      # the offline suite: no test calls a paid API
 ```
 
-### As a service (optional: Docker)
+### As a service, with the index database (Docker)
 
-The native start above needs nothing but Python. To keep the librarian and the diagnostics view running, started again
-whenever Docker starts:
+The native start above needs nothing but Python. With Docker, the librarian and the diagnostics view keep running and
+start again whenever Docker starts, and the index can live in a database:
 
 ```bash
-docker compose up -d --build     # the image holds Python and the packages; the repository is mounted at /app
-docker compose logs -f librarian # the server's banner: bases, routes, tools
-docker compose down              # stop both
+docker compose up -d --build     # librarian, view, postgres (pgvector) and pgAdmin; the repository is mounted at /app
+docker compose logs -f librarian # the server's banner: bases, routes, tools, where the index and the vectors come from
+docker compose down              # stop them
+
+python -m backend.database.migrate            # the schema, numbered SQL files applied once each; --status shows them
+python -m backend.search.database.index_import   # fills the database from today's index and vectors, then a gate
+python -m backend.search.database.index_import --works KEY ...   # one work written again, in seconds
 ```
 
-Both listen on 127.0.0.1 alone: the librarian on port 8765 (`/mcp`, behind the bearer token in `.env`), the view on
-8021. Another container on the same machine reaches the librarian as `host.docker.internal:8765/mcp`. The data folders
-and `.env` stay on the host and are read through the mount; the first start takes a few minutes while the search
-index is built.
+Every service listens on 127.0.0.1 alone: the librarian on port 8765 (`/mcp`, behind the bearer token in `.env`), the
+view on 8021, PostgreSQL on 5434 (its password `CORPUS_DB_PASSWORD` in `.env`), pgAdmin on 5051 for development. Another
+container on the same machine reaches the librarian as `host.docker.internal:8765/mcp`. The data folders and `.env` stay
+on the host and are read through the mount.
+
+**The switch.** `database.librarian_reads` in `configs/app_config.json` is `memory` by default: the index is assembled
+from files at every start (one to two minutes). Set to `database`, in the tracked file or in a git-ignored
+`configs/app_config.local.json` laid over it, the librarian loads works and pages from the database in about two
+seconds, ranks with the same BM25 in SQL, reads the semantic search's vectors from pgvector, and serves a page an import
+or a person's verdict wrote on its next call. A database that is down, unconfigured or empty never stops it: it says why
+and assembles from files. `--public-only` always reads files. Chroma still writes the vectors; the import copies them.
+Each half was gated before it was switched on: every coverage probe ranked the same and every tool answered the same; on
+104 questions the vector search found at least as much of the exact top ten as Chroma did
+([phase 3](docs/phase_03_search_server.md)).
 
 ### The data
 
@@ -215,14 +231,15 @@ python -m venv .venv-eval
 | path | what |
 |---|---|
 | `src/backend/conversion/` | one folder per concern: `contract/` (the page file the reader writes), `reading/` (rendering, the batch runner, the rollout, the replay of one page), `checks/` (stages 1 and 2, the check flow, a person's verdict), `judge/`, `measurement/` (the mini pilot, publisher gold, a reader prototype), `store/` (readings, the pipeline database, the export); the prompts and their versions beside them |
-| `src/backend/search/` | the page BM25, the librarian (MCP server) and its retrieval chain, the shelf |
+| `src/backend/search/` | the page BM25, the librarian (MCP server) and its retrieval chain, the shelf; `database/`, the index in PostgreSQL: import, gate, BM25 in SQL, the pgvector store |
+| `src/backend/database/` | the schema's migrations and their runner |
 | `src/backend/ingestion/`, `chat/`, `evaluation/` | loading, chunking, embedding; the agent, a client of the server; the evaluations and the RAGAS report |
 | `src/backend/diagnostics/`, `src/frontend/diagnostics/` | the diagnostics view: a read-only API (the chat route aside, which spends and writes the turn log; and, only when started with `--allow-verdicts`, a person's verdict on a page, appended and exported in the background) and its Vue interface, built and committed |
 | `src/backend/configuration/`, `configs/` | the configuration, read once and checked against its typed model; `data_paths`, where the data lives (`_data/`, see *The data*) |
 | `corpus/catalog.json` | every free source: its licence, where it is fetched from, its files |
 | `evaluation/` | the 61 development questions (60 measured; q31 added after the runs), the held-out set and its reading ledger |
 | `docs/` | the roadmap and one chapter per phase: plan, gates, report; the protocols |
-| `tests/` | about 1,370 offline tests; `tests/contracts/` holds the rules about the repository itself |
+| `tests/` | about 1,660 offline tests; `tests/contracts/` holds the rules about the repository itself; tests marked `database` use a scratch database of their own and skip without one |
 
 ## Ethical considerations
 
@@ -245,8 +262,9 @@ python -m venv .venv-eval
 - **Measured trust, not assumed trust.** A model judges another model's readings, so its own noise is measured on planted
   errors and clean pages. Reader and judge are the same model family, a shared blind spot the planted errors cannot measure;
   the human stays the final judge of the issues. RAGAS is judged by a model too, and its numbers carry that judge's noise.
-- **Privacy, keys and the server.** API keys live in a git-ignored `.env` and never reach a client. The librarian binds to
-  127.0.0.1, refuses every request without its token, offers read-only tools, bounds every search (1 to 50 hits) and refuses
+- **Privacy, keys and the server.** API keys and the database password live in a git-ignored `.env` and never reach a
+  client; a foreign image (PostgreSQL, pgAdmin) is handed only the variables it needs, never the whole file. The librarian
+  and the database bind to 127.0.0.1; the librarian refuses every request without its token, offers read-only tools, bounds every search (1 to 50 hits) and refuses
   an unknown corpus or work before any work. Its call log keeps the queries, which client asked, and the pages that answered,
   never a page's text, and stays out of the repository. The course's MCP security points, each with its evidence and what is
   left open (no rate limit, prompt injection mitigated but not measured), are in [docs/mcp_security.md](docs/mcp_security.md).
