@@ -4,7 +4,7 @@ import pytest
 
 from backend.conversion.reading import rollout
 from backend.search import search_server, shelf
-from test_search_server import a_licensed_shelf
+from test_search_server import a_licensed_rule, a_licensed_shelf
 
 
 def licensed_shelf(tmp_path, monkeypatch) -> dict:
@@ -160,3 +160,19 @@ def test_a_stand_in_epub_the_list_names_serves_its_work_in_place_of_the_legacy_t
     (row,) = [row for row in shelf.licensed_rows(pages, works) if row['work'] == 'key-b']
     assert row['file'] == 'book_b__alt.epub' and row['format'] == 'epub' and not row.get('stand_in_of')
     assert search_server.legacy_fallback_pages().get('book_b.pdf') is None
+
+
+def test_a_licensed_html_source_is_on_the_shelf_as_its_file(tmp_path, monkeypatch):
+    a_licensed_shelf(tmp_path, monkeypatch)
+    a_licensed_rule(tmp_path)
+    plan = tmp_path / 'rollout'
+    plan.mkdir()
+    (plan / 'plan.json').write_text(json.dumps({'order': []}), encoding='utf-8')
+    monkeypatch.setattr(rollout, 'FOLDER', plan)
+    pages, works = search_server.licensed_pages()
+    rows = shelf.licensed_rows(pages, works)
+    (row,) = [row for row in rows if row['work'] == 'invented_rule']
+    assert row['file'] == 'invented_rule.html' and row['format'] == 'html' and row['pages'] is None
+    assert row['served']['pages'] == 11 and row['planned'] is None and row['read'] == 0
+    (bare,) = [row for row in rows if row['file'] == 'bare.html']  # no layout in the catalog: on the shelf, not served
+    assert bare['work'] is None and bare['not_served'] == shelf.NO_ROUTE

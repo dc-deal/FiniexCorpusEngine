@@ -31,7 +31,7 @@ KNOWLEDGE_BASE = 'licensed'
 
 def held_works(keys: dict[str, str]) -> set[str]:
     """The private works whose file the provenance list holds back from providers, by work key: a legacy work's PDF or EPUB,
-    an EPUB work, a stand-in. Their text never reaches the embedding provider."""
+    an EPUB work, a stand-in, an HTML source. Their text never reaches the embedding provider."""
     from backend.conversion.reading import reading_cells
     from backend.search import search_server
 
@@ -40,7 +40,8 @@ def held_works(keys: dict[str, str]) -> set[str]:
         for suffix in ('.pdf', '.epub'):
             if (search_server.LICENSED_ARCHIVE / f'{slug}{suffix}').exists() and not reading_cells.may_send(f'{slug}{suffix}'):
                 held.add(key)
-    for key, path in {**search_server.licensed_epubs(keys), **search_server.stand_ins(keys)}.items():
+    html = {key: path for key, (path, _) in search_server.licensed_html().items()}
+    for key, path in {**search_server.licensed_epubs(keys), **search_server.stand_ins(keys), **html}.items():
         if not reading_cells.may_send(path.name):
             held.add(key)
     return held

@@ -432,8 +432,22 @@ def a_licensed_shelf(tmp_path, monkeypatch):
     monkeypatch.setattr(search_server, 'LEGACY_OFFSETS', tmp_path / 'offsets.json')
     (tmp_path / 'stand_ins.json').write_text(json.dumps({'suffix': '__alt', 'works': []}), encoding='utf-8')
     monkeypatch.setattr(search_server, 'STAND_INS', tmp_path / 'stand_ins.json')
+    monkeypatch.setattr(search_server, 'LICENSED_CATALOG', tmp_path / 'catalog.json')
     monkeypatch.setattr(reading_cells, 'may_send', lambda name: name != 'held.pdf')
     monkeypatch.setattr(reading_export, 'quoted_pages', lambda base, file: {n: f'quoted {file} p{n} {PROSE * 3}' for n in range(1, 4)})
+
+
+def a_licensed_rule(tmp_path) -> None:
+    """Beside `a_licensed_shelf`: an invented rule page in the archive, which the local catalog describes by its layout, and an
+    HTML file it names without one."""
+    from test_ingestion_html_labelled_sections import BASE, RULE, TITLE
+
+    (tmp_path / 'archive' / 'invented_rule.html').write_text(RULE, encoding='utf-8')
+    (tmp_path / 'archive' / 'bare.html').write_text(RULE, encoding='utf-8')
+    entries = [{'id': 'invented_rule', 'file': 'invented_rule.html', 'title': TITLE, 'format': 'html', 'url': BASE,
+                'labelled_sections': {'content': '#body-text'}},
+               {'id': 'bare', 'file': 'bare.html', 'title': 'Bare', 'format': 'html', 'url': BASE}]
+    (tmp_path / 'catalog.json').write_text(json.dumps({'sources': entries}), encoding='utf-8')
 
 
 def test_a_checked_licensed_reading_takes_the_place_of_its_legacy_page_and_the_rest_stays(tmp_path, monkeypatch):
@@ -483,6 +497,21 @@ def test_a_stand_in_serves_a_work_whose_first_file_is_not_held(tmp_path, monkeyp
     assert [(page.page, page.reading_key) for page in book_b] == [('1', 'kb1')] and 'legacy bee' not in book_b[0].text
     assert works['key-b'].title == 'book_b__alt' and 'book_b__alt' not in works
     assert search_server.image_sources()['key-b'] == {'pdf': tmp_path / 'archive' / 'book_b__alt.pdf'}
+
+
+def test_a_licensed_html_source_the_catalog_describes_is_served_by_its_labelled_sections(tmp_path, monkeypatch):
+    from test_ingestion_html_labelled_sections import BASE, TITLE
+
+    a_licensed_shelf(tmp_path, monkeypatch)
+    a_licensed_rule(tmp_path)
+    pages, works = search_server.licensed_pages()
+    rule = [page for page in pages if page.work == 'invented_rule']
+    assert [page.page for page in rule] == [f's{number}' for number in range(1, 12)]
+    assert {page.route for page in rule} == {search_server.HTML_ROUTE} and {page.knowledge_base for page in rule} == {'licensed'}
+    assert rule[1].section == f'{TITLE} > (a) Words' and rule[1].path.startswith(f'{BASE}#:~:text=')
+    assert works['invented_rule'].route == search_server.HTML_ROUTE and works['invented_rule'].view_id is None
+    assert 'bare' not in works  # an HTML file the catalog names without a layout has no route yet
+    assert search_server.image_sources()['invented_rule'] == {'refused': 'no PDF page: an HTML source has sections, not pages'}
 
 
 @pytest.mark.corpus

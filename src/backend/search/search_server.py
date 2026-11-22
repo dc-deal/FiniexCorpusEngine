@@ -370,6 +370,43 @@ def epub_pages(key: str, path: Path, marks: list[str]) -> list[page_index.Page]:
     return pages
 
 
+LICENSED_CATALOG = data_paths.LICENSED_CATALOG
+HTML_ROUTE = 'html, parsed by section'  # the free HTML sources' route, in the same words for a licensed one
+
+
+def licensed_html() -> dict[str, tuple[Path, dict]]:
+    """Work key -> (file, catalog entry) of each licensed HTML source the local catalog describes with its layout
+    (`labelled_sections`, 22 Nov: a rule text whose structure is its paragraph labels), keyed by its file's stem as a new PDF
+    is (125.a); empty on a machine without the catalog. The provenance list does not matter here, as for an EPUB: the
+    search is local, and the private vector index holds a held file back itself."""
+    if not LICENSED_CATALOG.exists():
+        return {}
+    found = {}
+    for entry in json.loads(LICENSED_CATALOG.read_text(encoding='utf-8')).get('sources', []):
+        if entry.get('format') != 'html' or not entry.get('labelled_sections') or not entry.get('file'):
+            continue
+        path = LICENSED_ARCHIVE / entry['file']
+        if path.exists():
+            found[path.stem] = (path, entry)
+    return found
+
+
+def html_pages(key: str, path: Path, entry: dict, marks: list[str]) -> list[page_index.Page]:
+    """A licensed HTML source's sections as pages `s1`, `s2`, …, as the free HTML sources' are, cut at its paragraph labels;
+    each links to its place on the source's page."""
+    from backend.ingestion.clean_sections.html_labelled_sections import load_labelled_sections
+
+    pages = []
+    for section in load_labelled_sections(entry, path.parent):
+        text = strip_stamps(section.text, marks)
+        if not text.strip():
+            continue
+        pages.append(page_index.Page(key, f's{section.ordinal + 1}', 1, text, section.url or path.name,
+                                     section=' > '.join(section.heading_path) or None, knowledge_base='licensed',
+                                     route=HTML_ROUTE, searchable=not page_index.is_structural(text)))
+    return pages
+
+
 def legacy_by_work(keys: dict[str, str], marks: list[str]) -> dict[str, list[page_index.Page]]:
     """Each legacy work's pages by citation key, the provenance list's marks stripped (a page left as structure by the strip is
     dropped) and numbered through the work's measured offset (127.a)."""
@@ -407,8 +444,9 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
     """The licensed works by citation key; empty on a machine without them. Per page the checked reading where one may be served
     (the free corpus's rule, `text_layer_why`), else the legacy Markdown; a work without legacy Markdown (a new work, decision
     125.a) from its readings and its text layer, as a free PDF, and so does a stand-in file of a work (126.a). A legacy work
-    whose markers carry no number is named by its PDF pages through its measured offset (127.a). The marks the provenance
-    list records are stripped from every text."""
+    whose markers carry no number is named by its PDF pages through its measured offset (127.a). An HTML source the local
+    catalog describes, by its sections cut at its paragraph labels (`licensed_html`). The marks the provenance list records are
+    stripped from every text."""
     from backend.conversion.store import reading_export
 
     keys = legacy_keys()
@@ -446,6 +484,10 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
                              'licensed', marks)
         works[key] = Work(key, pdf.stem, 'licensed', LICENSED_LICENCE, 'per page', sum(page.searchable for page in own),
                           view_id=pdf.stem)
+        pages += own
+    for key, (path, entry) in licensed_html().items():  # an HTML source by its labelled sections; the view shows none of it yet
+        own = html_pages(key, path, entry, marks)
+        works[key] = Work(key, path.stem, 'licensed', LICENSED_LICENCE, HTML_ROUTE, sum(page.searchable for page in own))
         pages += own
     for key, subject in licensed_subjects().items():
         if key in works:
@@ -513,6 +555,7 @@ def image_sources() -> dict[str, dict]:
                 sources[key] = {'pdf': pdf}
     sources.update({key: {'pdf': pdf} for key, pdf in new_licensed_pdfs(legacy_keys()).items()})  # sendable by construction
     sources.update({key: {'pdf': pdf} for key, pdf in stand_ins(legacy_keys()).items()})
+    sources.update({key: {'refused': 'no PDF page: an HTML source has sections, not pages'} for key in licensed_html()})
     return sources
 
 

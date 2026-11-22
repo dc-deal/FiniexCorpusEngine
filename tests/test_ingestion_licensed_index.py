@@ -53,3 +53,15 @@ def test_a_chunk_carries_the_catalog_s_shelf_and_authors_which_the_shelf_filter_
     assert (metadata['shelf'], metadata['authors'], metadata['source_title']) == ('trading_finance', 'A. Author', 'Book, the catalog title')
     bare, _ = licensed_index.plans([page('book', '7')], {'book': work('book')}, held=set())
     assert bare[0]['chunks'][0].metadata['source_title'] == 'Book'
+
+
+def test_a_licensed_html_source_the_provenance_list_holds_back_stays_out(tmp_path, monkeypatch):
+    from backend.conversion.reading import reading_cells
+    from backend.search import search_server
+    from test_search_server import a_licensed_rule, a_licensed_shelf
+
+    a_licensed_shelf(tmp_path, monkeypatch)
+    a_licensed_rule(tmp_path)
+    assert licensed_index.held_works(search_server.legacy_keys()) == set()
+    monkeypatch.setattr(reading_cells, 'may_send', lambda name: name != 'invented_rule.html')
+    assert licensed_index.held_works(search_server.legacy_keys()) == {'invented_rule'}

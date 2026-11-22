@@ -163,7 +163,8 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
     pages_planned: dict[str, set[int]] = defaultdict(set)
     for page in json.loads(plan_path.read_text(encoding='utf-8'))['order'] if plan_path.exists() else []:
         pages_planned[page['file']].add(page['pdf_page'])
-    archive = {path.name: path for path in sorted(search_server.LICENSED_ARCHIVE.glob('*')) if path.suffix.lower() in ('.pdf', '.epub')}
+    archive = {path.name: path for path in sorted(search_server.LICENSED_ARCHIVE.glob('*'))
+               if path.suffix.lower() in ('.pdf', '.epub', '.html')}
     # a work the session takes whole plans the pages its list names (280.a): a scan every page, a work with a text layer its
     # structure pages (N5.a, 20 Nov); found 19 Nov, such a work's pages counted as read against nothing planned
     whole = reading_cells.DIRECT_PAGES['licensed']
@@ -197,7 +198,7 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
             out.append(file_row(key, (new.get(key) or standing_in[key]).name, served))
             continue
         slug = keys.get(key, key)
-        own = [name for name in (f'{slug}.pdf', f'{slug}.epub') if name in archive]
+        own = [name for name in (f'{slug}.pdf', f'{slug}.epub', f'{slug}.html') if name in archive]
         suffix = search_server.stand_in_rule()[0]
         alternates = [name for name in ((f'{slug}{suffix}.pdf', f'{slug}{suffix}.epub') if suffix else ()) if name in archive]
         numbered = any(page.pdf for page in served if not page.reading_key)
