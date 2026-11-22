@@ -58,32 +58,35 @@ def served_pages(bases: dict) -> tuple[list[page_index.Page], dict]:
 
 
 def write_pages(connection: psycopg.Connection, pages: list[page_index.Page], works: dict) -> tuple[int, int, int]:
-    """Works, pages and postings, replacing what was there. The ranked pages come first, in the librarian's order, so a
-    page's ordinal is its number in the in-memory ranking; a page outside the ranking follows, without postings."""
-    ranked = [page for page in pages if page.searchable]
-    order = ranked + [page for page in pages if not page.searchable]
+    """Works, pages and postings, replacing what was there. A page's id is its place in the librarian's own order, so a
+    work's pages come back in that order (its contents are built from them); its ordinal is its number in the in-memory
+    ranking, so a tie breaks as there, and -1 for a page outside the ranking, which has no postings."""
+    order = pages
     connection.execute('TRUNCATE works, pages, postings')
     with connection.cursor() as cursor:
-        with cursor.copy('COPY works (key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for) '
-                         'FROM STDIN') as copy:
+        with cursor.copy('COPY works (key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for, '
+                         'pages) FROM STDIN') as copy:
             for work in works.values():
                 copy.write_row((work.key, work.knowledge_base, work.title, work.licence, work.route, work.subject,
-                                work.view_id, work.edition, work.year, work.kept_for))
+                                work.view_id, work.edition, work.year, work.kept_for, work.pages))
         postings = 0
         with cursor.copy('COPY pages (id, work, knowledge_base, label, line, line_end, path, pdf, printed, section, route, '
                          'reading_key, searchable, text, index_text, length, ordinal) FROM STDIN') as copy:
-            tokens = {}
-            for ordinal, page in enumerate(order):
+            tokens, ranked = {}, 0
+            for position, page in enumerate(order):
                 words = page_index.tokenize(page.words) if page.searchable else []
-                tokens[ordinal] = words
-                copy.write_row((ordinal + 1, page.work, page.knowledge_base, page.page, page.line, page.line_end, page.path,
+                ordinal = ranked if page.searchable else -1
+                ranked += page.searchable
+                tokens[position + 1] = words
+                copy.write_row((position + 1, page.work, page.knowledge_base, page.page, page.line, page.line_end, page.path,
                                 page.pdf, page.printed, page.section, page.route or '', page.reading_key, page.searchable,
                                 page.text, page.index_text, len(words), ordinal))
         with cursor.copy('COPY postings (term, page_id, tf) FROM STDIN') as copy:
-            for ordinal, words in tokens.items():
+            for page_id, words in tokens.items():
                 for term, frequency in collections.Counter(words).items():
-                    copy.write_row((term, ordinal + 1, frequency))
+                    copy.write_row((term, page_id, frequency))
                     postings += 1
+        cursor.execute('UPDATE index_state SET generation = generation + 1, changed_at = now()')  # a running librarian reloads
     return len(works), len(order), postings
 
 

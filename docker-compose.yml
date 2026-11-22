@@ -23,6 +23,11 @@ services:
         required: false
     environment:
       - DIAGNOSTICS_VIEW_URL=http://127.0.0.1:8021
+      # the index database inside the Compose network (issue #10); read where database.librarian_reads says so
+      - CORPUS_DB_HOST=postgres
+      - CORPUS_DB_PORT=5432
+    depends_on:
+      - postgres
     restart: unless-stopped
 
   diagnostics:
@@ -40,6 +45,8 @@ services:
       - DIAGNOSTICS_VIEW_URL=http://127.0.0.1:8021
       # the view's Librarian page calls the running librarian over MCP, as a client does (L1.a)
       - LIBRARIAN_URL=http://librarian:8765/mcp
+      - CORPUS_DB_HOST=postgres
+      - CORPUS_DB_PORT=5432
     depends_on:
       - librarian
     restart: unless-stopped

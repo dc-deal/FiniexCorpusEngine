@@ -53,14 +53,23 @@ class CorrectionConfig(StrictConfigModel):
     max_tokens: int = 4000  # a whole table written again, its thinking included
 
 
+class IndexSource(str, Enum):
+    """Where the librarian reads its index from (issue #10, part C)."""
+
+    MEMORY = 'memory'  # assembled from files at every start, as before
+    DATABASE = 'database'  # loaded from the index database, a written change served without a restart
+
+
 class DatabaseConfig(StrictConfigModel):
     """Where the index database listens for a process on this machine (issue #10, 3.a): the Compose service `postgres`
-    publishes it on the loopback only. Its password is never here but in .env; a container is given a whole URL instead."""
+    publishes it on the loopback only. Its password is never here but in .env; a container names its own host and port
+    (`postgres:5432`) through the environment. `librarian_reads` switches the librarian between files and the database."""
 
     host: str = '127.0.0.1'
     port: int = 5434  # 5433 is the RAG engine's
     name: str = 'corpusengine'
     user: str = 'corpusengine'
+    librarian_reads: IndexSource = IndexSource.MEMORY
 
 
 class AppConfig(StrictConfigModel):

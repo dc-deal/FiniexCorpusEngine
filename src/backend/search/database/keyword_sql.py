@@ -25,10 +25,10 @@ LIMIT %(hits)s
 """
 
 
-def ranked(connection: psycopg.Connection, query: str, hits: int = 6, knowledge_base: str | None = None,
+def ranked(connection: psycopg.Connection, query: str, hits: int | None = 6, knowledge_base: str | None = None,
            work: str | None = None) -> list[tuple[int, float]]:
-    """The best pages for a query as (page id, score), best first. A filter by knowledge base or work ranks on the
-    statistics of the whole index, as the port's filtered search does (decision 71.a)."""
+    """The best pages for a query as (page id, score), best first; `hits` None gives every page holding a term. A filter by
+    knowledge base or work ranks on the statistics of the whole index, as the port's filtered search does (decision 71.a)."""
     terms = page_index.tokenize(query)
     if not terms:
         return []

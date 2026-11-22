@@ -41,6 +41,7 @@ from backend.conversion.store.reading_store import REPO
 from backend.conversion.store.served_readings import (LEGACY_ROUTE, READING_ROUTE, TEXT_LAYER_WHY, printed_of,  # noqa: F401
                                                 route_of, text_layer_why)
 from backend.search import page_index
+from backend.types.config_types.app_config_types import IndexSource
 
 CATALOG = REPO / 'corpus' / 'catalog.json'
 MANIFEST = data_paths.FREE_RAW / '_manifest.json'
@@ -583,6 +584,56 @@ class SearchService:
         self.pdf_labelled = {page.work for page in pages if page.pdf}  # works whose page labels are their PDF's pages
         self.bases = sorted({page.knowledge_base for page in pages})
         self.start_seconds = time.perf_counter() - started
+        self.database_url: str | None = None  # set where the index is read from the database (issue #10, part C)
+        self.generation: int | None = None
+        self._reload = threading.Lock()
+
+    @classmethod
+    def from_database(cls, url: str, **options) -> 'SearchService':
+        """The service over the index database (issue #10, part C): works and pages loaded in seconds, the keyword ranking
+        in SQL, and the index loaded again whenever its generation moves, so a written change is served without a
+        restart. Built empty first, so every other setting stays the constructor's."""
+        service = cls({}, **options)
+        service.database_url = url
+        service._load_from_database()
+        return service
+
+    def _load_from_database(self) -> None:
+        import psycopg
+
+        from backend.search.database import database_index
+
+        started = time.perf_counter()
+        with psycopg.connect(self.database_url, connect_timeout=database_index.CONNECT_TIMEOUT_SECONDS) as connection:
+            pages, works, generation = database_index.load(connection, Work)
+        previous = self.index
+        self.works = works
+        self.index = database_index.DatabaseIndex(self.database_url, pages)
+        self.by_page = {(page.work, page.page): page for page in pages.values()}
+        self.pdf_labelled = {page.work for page in pages.values() if page.pdf}
+        self.bases = sorted({page.knowledge_base for page in pages.values()})
+        self.generation = generation
+        self.start_seconds = time.perf_counter() - started
+        if isinstance(previous, database_index.DatabaseIndex):
+            previous.close()
+
+    def refresh(self) -> bool:
+        """A service read from the database loads the index again where its generation moved; True when it did. One cheap
+        query per call; a service built from files never changes."""
+        if self.database_url is None:
+            return False
+        from backend.search.database import database_index
+
+        with self._reload:
+            if self.index._ask(database_index.generation) == self.generation:
+                return False
+            self._load_from_database()
+            return True
+
+    def ranked_pages(self) -> list:
+        """The pages the keyword ranking holds, whichever index serves: for the banner and the start's checks."""
+        pages = self.index.pages
+        return [page for page in (pages.values() if isinstance(pages, dict) else pages) if page.searchable]
 
     def _where(self, page: page_index.Page) -> str:
         if page.line_end:
@@ -996,6 +1047,7 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
             if new:
                 print(client_line(**caller), file=sys.stderr)
         started = time.perf_counter()
+        service.refresh()  # read from the database: a written change is served on the next call (issue #10)
         result = call()
         log_call(tool, result, time.perf_counter() - started, log_path, caller, **asked)
         return result
@@ -1136,16 +1188,41 @@ def banner(service: SearchService, tools: list[str], http: int | None, public_on
                f"code {code['code_sha256'][:8]}")
     where = (f'http://127.0.0.1:{http}/mcp, from containers host.docker.internal:{http}; bearer token {TOKEN_ENV} from .env'
              if http else 'stdio')
-    pages = Counter(page.knowledge_base for page in service.index.pages)
+    ranked = service.ranked_pages()
+    pages = Counter(page.knowledge_base for page in ranked)
     works = Counter(work.knowledge_base for work in service.works.values())
-    routes = Counter(route_kind(page.route) for page in service.index.pages)
+    routes = Counter(route_kind(page.route) for page in ranked)
     bases = ' · '.join(f'{base} {pages[base]:,} pages in {works[base]} works' for base in sorted(pages))
+    source = (f'the index database, generation {service.generation}, loaded' if service.database_url
+              else 'files, assembled and indexed')
     return [f'corpus-search, {version}',
             f'  listening  {where}',
             f"  bases      {bases}{'; --public-only: the licensed base is not read' if public_only else ''}",
             '  routes     ' + ' · '.join(f'{kind} {count:,}' for kind, count in routes.most_common()),
             '  tools      ' + ' · '.join(tools),
-            f'  indexed in {service.start_seconds:.1f} s']
+            f'  index      {source} in {service.start_seconds:.1f} s']
+
+
+def build_service(public_only: bool, index: str | None = None, **options) -> SearchService:
+    """The service a start asks for (issue #10, part C): read from the index database where the configuration or `--index`
+    says so, else from files, as always. `--public-only` reads files alone, so the licensed base is never touched. A
+    database that cannot be read, or holds no work, never stops the librarian: it serves from files and says why."""
+    from backend.configuration.app_config_manager import AppConfigManager
+
+    source = IndexSource(index) if index else AppConfigManager().get_database().librarian_reads
+    if source == IndexSource.DATABASE and not public_only:
+        try:
+            from backend.database.database_url import database_url
+
+            service = SearchService.from_database(database_url(), **options)
+            if service.works:
+                return service
+            reason = 'it holds no work yet: python -m backend.search.database.index_import'
+        except Exception as error:  # the database down, not configured, or its schema behind: files serve instead
+            reason = f'{type(error).__name__}: {str(error).splitlines()[0] if str(error) else ""}'
+        print(f'corpus-search: the index database cannot serve ({reason}); the index is assembled from files',
+              file=sys.stderr)
+    return SearchService(knowledge_bases(public_only), **options)
 
 
 def main() -> None:
@@ -1164,14 +1241,17 @@ def main() -> None:
                         help=f'the diagnostics view a hit links into (default {DEFAULT_VIEW_URL}; "" for none)')
     parser.add_argument('--frozen-plans', type=Path, metavar='JSON',
                         help='evaluation only: route semantic_search by these plans, {question: plan}, instead of the router')
+    parser.add_argument('--index', choices=[source.value for source in IndexSource],
+                        help='where the index is read from (default: database.librarian_reads in configs/app_config.json); '
+                             '--public-only always reads files, so the licensed base is never touched')
     args = parser.parse_args()
     utf8_stderr()
     frozen = json.loads(args.frozen_plans.read_text(encoding='utf-8')) if args.frozen_plans else None
-    service = SearchService(knowledge_bases(args.public_only), frozen_plans=frozen, view_url=args.view_url or None)
+    service = build_service(args.public_only, args.index, frozen_plans=frozen, view_url=args.view_url or None)
     server = build_server(service)
     tools = [tool.name for tool in asyncio.run(server.list_tools())]
     print('\n'.join(banner(service, tools, args.http, args.public_only)), file=sys.stderr)  # stdout is the protocol's under stdio
-    if not any(page.knowledge_base == 'free' for page in service.index.pages):
+    if not any(page.knowledge_base == 'free' for page in service.ranked_pages()):
         print('corpus-search: WARNING, the free knowledge base is empty: is _data/corpus/raw downloaded?', file=sys.stderr)
     if args.http is None:
         server.run()

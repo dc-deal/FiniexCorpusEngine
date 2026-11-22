@@ -258,4 +258,12 @@ chat model, a stage of its own.
   knowledge bases. Its gate (`index_gate`) then asks every work's coverage probe of both rankings: on 22 Nov all 82 gave
   the same six pages with the same scores, the coverage gate's result was the same, the database answered in 36 ms against
   the port's 11 ms in the median, and the HNSW search found the exact top ten of sample vectors in both bases (recall 1.0;
-  3 and 7 ms). The per-base index removed the prototype's slow filtered query (73 ms).
+  3 and 7 ms). The per-base index removed the prototype's slow filtered query (73 ms). **Part C, built:** where
+  `database.librarian_reads` says `database` (or `--index database`), the librarian loads its works and pages from the
+  database in about a second instead of assembling them from files (82 s on 22 Nov), ranks in SQL, and asks the index's
+  generation on every call, so a change an import writes is served on the next call without a restart. A page's id is its
+  place in the librarian's own order, so a work's contents come back as from files. Before the switch, every tool was
+  asked on the real data of both services and the answers compared whole: every probe's `search` and `search_works`, ten
+  more questions, 400 random pages opened, 20 contents and the works list. A database that is down, unconfigured or empty
+  never stops the librarian: it says why and assembles from files, after a 5-second connection timeout. `--public-only`
+  always reads files, so the licensed base is never touched. The semantic search still reads Chroma.
