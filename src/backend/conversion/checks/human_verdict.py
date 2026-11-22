@@ -72,7 +72,7 @@ def from_view(base: reading_export.KnowledgeBase, queue, work: str, pdf_page: in
     with pipeline_db.run([base.name], command) as recorded:
         made = record(base, work, pdf_page, verdict, reason, 'maintainer', block=block, note=note, run_id=recorded.run_id,
                       correction=correction, judge_assessment=judge_assessment)
-    return {**made, 'export': queue.request()}
+    return {**made, 'export': queue.request({work})}
 
 
 def give(base: reading_export.KnowledgeBase, work: str, pdf_page: int, verdict: str, reason: str, by: str, block: str | None = None,

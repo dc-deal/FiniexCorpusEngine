@@ -165,8 +165,9 @@ def pdf_work_pages(key: str, pdf: Path, rows: dict[int, dict], quoted: dict[int,
     return pages
 
 
-def free_pdf_pages() -> tuple[list[page_index.Page], dict]:
-    """Every page of the free PDFs, each with its served reading or its text layer (`pdf_work_pages`)."""
+def free_pdf_pages(only: set[str] | None = None) -> tuple[list[page_index.Page], dict]:
+    """Every page of the free PDFs, each with its served reading or its text layer (`pdf_work_pages`); with `only`, the works
+    whose key or source id it names alone (issue #10, part D: one work written again)."""
     from backend.conversion.store import reading_export
 
     catalog = json.loads(CATALOG.read_text(encoding='utf-8'))['sources']
@@ -180,6 +181,8 @@ def free_pdf_pages() -> tuple[list[page_index.Page], dict]:
         if not path.exists():
             continue
         key = keys.get(path.name, source['id'])
+        if only is not None and key not in only and source['id'] not in only:
+            continue
         work = works[key] = Work(key, source['title'], 'free', source['licence'], 'per page', subject=source.get('subject'),
                                  view_id=source['id'], year=source.get('year'))
         own = pdf_work_pages(key, path, rows.get(path.name, {}), reading_export.quoted_pages('free', path.name), EXPORT, 'free')
@@ -188,8 +191,9 @@ def free_pdf_pages() -> tuple[list[page_index.Page], dict]:
     return pages, works
 
 
-def free_html_pages() -> tuple[list[page_index.Page], dict]:
-    """The free HTML sources by section: their markup already carries the structure, so no reader was needed."""
+def free_html_pages(only: set[str] | None = None) -> tuple[list[page_index.Page], dict]:
+    """The free HTML sources by section: their markup already carries the structure, so no reader was needed; with `only`,
+    the sources it names alone."""
     from backend.ingestion.clean_sections.html_sections import load_html_sections
 
     catalog = json.loads(CATALOG.read_text(encoding='utf-8'))['sources']
@@ -197,6 +201,8 @@ def free_html_pages() -> tuple[list[page_index.Page], dict]:
     pages, works = [], {}
     for source in catalog:
         if source.get('format') != 'html' or not all(data_paths.locate(entry['path']).exists() for entry in source['files']):
+            continue
+        if only is not None and source['id'] not in only:
             continue
         work = works[source['id']] = Work(source['id'], source['title'], 'free', source['licence'], 'html, parsed by section',
                                           subject=source.get('subject'), view_id=source['id'], year=source.get('year'))
@@ -211,9 +217,9 @@ def free_html_pages() -> tuple[list[page_index.Page], dict]:
     return pages, works
 
 
-def free_pages() -> tuple[list[page_index.Page], dict]:
-    pdf_pages, pdf_works = free_pdf_pages()
-    html_pages, html_works = free_html_pages()
+def free_pages(only: set[str] | None = None) -> tuple[list[page_index.Page], dict]:
+    pdf_pages, pdf_works = free_pdf_pages(only)
+    html_pages, html_works = free_html_pages(only)
     return pdf_pages + html_pages, {**pdf_works, **html_works}
 
 
@@ -408,11 +414,12 @@ def html_pages(key: str, path: Path, entry: dict, marks: list[str]) -> list[page
     return pages
 
 
-def legacy_by_work(keys: dict[str, str], marks: list[str]) -> dict[str, list[page_index.Page]]:
+def legacy_by_work(keys: dict[str, str], marks: list[str], only: set[str] | None = None) -> dict[str, list[page_index.Page]]:
     """Each legacy work's pages by citation key, the provenance list's marks stripped (a page left as structure by the strip is
-    dropped) and numbered through the work's measured offset (127.a)."""
+    dropped) and numbered through the work's measured offset (127.a); with `only`, the works it names alone."""
     legacy: dict[str, list[page_index.Page]] = {}
-    for page in page_index.load_works(LEGACY, keys) if keys else []:
+    stems = None if only is None else {keys.get(key, key) for key in only}
+    for page in page_index.load_works(LEGACY, keys, stems) if keys else []:
         text = strip_stamps(page.text, marks)
         if text != page.text and page_index.is_structural(text):
             continue
@@ -441,28 +448,33 @@ def legacy_fallback_pages() -> dict[str, set[int]]:
     return out
 
 
-def licensed_pages() -> tuple[list[page_index.Page], dict]:
+def licensed_pages(only: set[str] | None = None) -> tuple[list[page_index.Page], dict]:
     """The licensed works by citation key; empty on a machine without them. Per page the checked reading where one may be served
     (the free corpus's rule, `text_layer_why`), else the legacy Markdown; a work without legacy Markdown (a new work, decision
     125.a) from its readings and its text layer, as a free PDF, and so does a stand-in file of a work (126.a). A legacy work
     whose markers carry no number is named by its PDF pages through its measured offset (127.a). An HTML source the local
     catalog describes, by its sections cut at its paragraph labels (`licensed_html`). The marks the provenance list records are
-    stripped from every text."""
+    stripped from every text. With `only`, the works it names alone, by the key the librarian gives them (issue #10, D)."""
     from backend.conversion.store import reading_export
 
     keys = legacy_keys()
     marks = stamps()
     rows = export_rows_by_file(LICENSED_EXPORT)
-    legacy = legacy_by_work(keys, marks)
+    legacy = legacy_by_work(keys, marks, only)
     standing_in = stand_ins(keys)
     pages, works = [], {}
+    wanted = (lambda key: True) if only is None else (lambda key: key in only)
     for key, epub in licensed_epubs(keys).items():  # decision 123.a: the EPUB in place of the legacy text made from it
+        if not wanted(key):
+            continue
         legacy.pop(key, None)
         own = epub_pages(key, epub, marks)
         works[key] = Work(key, epub.stem, 'licensed', LICENSED_LICENCE, EPUB_ROUTE, sum(page.searchable for page in own),
                           view_id=key)
         pages += own
     for key, pdf in standing_in.items():
+        if not wanted(key):
+            continue
         legacy.pop(key, None)
         own = pdf_work_pages(key, pdf, rows.get(pdf.name, {}), reading_export.quoted_pages('licensed', pdf.name), LICENSED_EXPORT,
                              'licensed', marks)
@@ -481,12 +493,16 @@ def licensed_pages() -> tuple[list[page_index.Page], dict]:
                           sum(page.searchable for page in own), view_id=pdf.stem if readings else None)
         pages += own
     for key, pdf in new_licensed_pdfs(keys).items():
+        if not wanted(key):
+            continue
         own = pdf_work_pages(key, pdf, rows.get(pdf.name, {}), reading_export.quoted_pages('licensed', pdf.name), LICENSED_EXPORT,
                              'licensed', marks)
         works[key] = Work(key, pdf.stem, 'licensed', LICENSED_LICENCE, 'per page', sum(page.searchable for page in own),
                           view_id=pdf.stem)
         pages += own
     for key, (path, entry) in licensed_html().items():  # an HTML source by its labelled sections; the view shows none of it yet
+        if not wanted(key):
+            continue
         own = html_pages(key, path, entry, marks)
         works[key] = Work(key, path.stem, 'licensed', LICENSED_LICENCE, HTML_ROUTE, sum(page.searchable for page in own))
         pages += own

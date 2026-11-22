@@ -4,6 +4,7 @@ so nothing is embedded again. A whole import, inside transactions: a reader sees
 
     python -m backend.search.database.index_import          # import both knowledge bases, then run the gate
     python -m backend.search.database.index_import --no-gate
+    python -m backend.search.database.index_import --works KEY …   # those works alone, in seconds
 
 The gate (`index_gate`) compares the database with the in-memory ranking built from the same pages before anything reads
 from it. Prints counts and timings only, never page text.
@@ -57,12 +58,12 @@ def served_pages(bases: dict) -> tuple[list[page_index.Page], dict]:
     return pages, works
 
 
-def write_pages(connection: psycopg.Connection, pages: list[page_index.Page], works: dict) -> tuple[int, int, int]:
-    """Works, pages and postings, replacing what was there. A page's id is its place in the librarian's own order, so a
-    work's pages come back in that order (its contents are built from them); its ordinal is its number in the in-memory
-    ranking, so a tie breaks as there, and -1 for a page outside the ranking, which has no postings."""
-    order = pages
-    connection.execute('TRUNCATE works, pages, postings')
+def copy_rows(connection: psycopg.Connection, pages: list[page_index.Page], works: dict, first_id: int,
+              first_ordinal: int) -> int:
+    """Works, pages and their postings copied in: page ids from `first_id` in the librarian's own order, so a work's pages
+    come back in that order (its contents are built from them); ordinals from `first_ordinal` for the ranked pages, so a
+    tie breaks as the in-memory ranking breaks it, and -1 for a page outside the ranking, which has no postings. The
+    index's generation is raised, so a running librarian loads it again. Returns the count of postings."""
     with connection.cursor() as cursor:
         with cursor.copy('COPY works (key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for, '
                          'pages) FROM STDIN') as copy:
@@ -72,13 +73,13 @@ def write_pages(connection: psycopg.Connection, pages: list[page_index.Page], wo
         postings = 0
         with cursor.copy('COPY pages (id, work, knowledge_base, label, line, line_end, path, pdf, printed, section, route, '
                          'reading_key, searchable, text, index_text, length, ordinal) FROM STDIN') as copy:
-            tokens, ranked = {}, 0
-            for position, page in enumerate(order):
+            tokens, ranked = {}, first_ordinal
+            for position, page in enumerate(pages, start=first_id):
                 words = page_index.tokenize(page.words) if page.searchable else []
                 ordinal = ranked if page.searchable else -1
                 ranked += page.searchable
-                tokens[position + 1] = words
-                copy.write_row((position + 1, page.work, page.knowledge_base, page.page, page.line, page.line_end, page.path,
+                tokens[position] = words
+                copy.write_row((position, page.work, page.knowledge_base, page.page, page.line, page.line_end, page.path,
                                 page.pdf, page.printed, page.section, page.route or '', page.reading_key, page.searchable,
                                 page.text, page.index_text, len(words), ordinal))
         with cursor.copy('COPY postings (term, page_id, tf) FROM STDIN') as copy:
@@ -87,13 +88,38 @@ def write_pages(connection: psycopg.Connection, pages: list[page_index.Page], wo
                     copy.write_row((term, page_id, frequency))
                     postings += 1
         cursor.execute('UPDATE index_state SET generation = generation + 1, changed_at = now()')  # a running librarian reloads
-    return len(works), len(order), postings
+    return postings
 
 
-def write_chunks(connection: psycopg.Connection, stores: dict[str, Path]) -> dict[str, int]:
-    """Every chunk of each Chroma store with its stored vector and the model the store records, replacing what was there."""
+def write_pages(connection: psycopg.Connection, pages: list[page_index.Page], works: dict) -> tuple[int, int, int]:
+    """Every work, page and posting, replacing what was there: a whole import."""
+    connection.execute('TRUNCATE works, pages, postings')
+    return len(works), len(pages), copy_rows(connection, pages, works, 1, 0)
+
+
+def write_works(connection: psycopg.Connection, keys: set[str], pages: list[page_index.Page], works: dict) -> tuple[int, int]:
+    """The rows of the named works replaced, the rest untouched (issue #10, part D: a verdict writes its own work). Every
+    key named loses its rows; those `works` holds come back with `pages`, after the highest id and ordinal, so their ties
+    may break otherwise than in a whole import, which restores the order. Returns the works written and their pages."""
+    keys = set(keys)
+    connection.execute('DELETE FROM works WHERE key = ANY(%s)', (sorted(keys),))  # pages and postings go with them
+    first_id, first_ordinal = connection.execute('SELECT coalesce(max(id), 0) + 1, coalesce(max(ordinal), -1) + 1 FROM pages'
+                                                 ).fetchone()
+    kept = {key: work for key, work in works.items() if key in keys}
+    own = [page for page in pages if page.work in kept]
+    copy_rows(connection, own, kept, first_id, first_ordinal)
+    return len(kept), len(own)
+
+
+def write_chunks(connection: psycopg.Connection, stores: dict[str, Path], keys: set[str] | None = None) -> dict[str, int]:
+    """Every chunk of each Chroma store with its stored vector and the model the store records, replacing what was there;
+    with `keys`, the chunks of those works alone (issue #10, part D)."""
     register_vector(connection)
-    connection.execute('TRUNCATE chunks')
+    if keys is None:
+        connection.execute('TRUNCATE chunks')
+    else:
+        connection.execute('DELETE FROM chunks WHERE work = ANY(%s)', (sorted(keys),))
+    where = None if keys is None else {'source_id': {'$in': sorted(keys)}}
     counts = {}
     with connection.cursor() as cursor:
         with cursor.copy('COPY chunks (id, knowledge_base, work, text, metadata, model, embedding) FROM STDIN '
@@ -106,7 +132,10 @@ def write_chunks(connection: psycopg.Connection, stores: dict[str, Path]) -> dic
                 model = (collection.metadata or {}).get(index_store.EMBEDDING_MODEL_KEY) or ''
                 counts[base] = 0
                 for offset in range(0, collection.count(), BATCH):
-                    batch = collection.get(include=['embeddings', 'metadatas', 'documents'], limit=BATCH, offset=offset)
+                    batch = collection.get(include=['embeddings', 'metadatas', 'documents'], limit=BATCH, offset=offset,
+                                           where=where)
+                    if not batch['ids']:
+                        break
                     for chunk_id, vector, metadata, text in zip(batch['ids'], batch['embeddings'], batch['metadatas'],
                                                                  batch['documents']):
                         metadata = dict(metadata or {})
@@ -137,6 +166,21 @@ def import_index(url: str, bases: dict, stores: dict[str, Path]) -> Imported:
     return Imported(work_count, page_count, sum(page.searchable for page in pages), postings, chunks)
 
 
+def import_works(url: str, keys: set[str], stores: dict[str, Path]) -> tuple[int, int, dict]:
+    """The named works written again from what the librarian would serve of them now, pages and chunks, the rest of the
+    index untouched (issue #10, part D); only those works are assembled, so it takes seconds, not a whole import's minutes.
+    Returns the works written, their pages and their chunks by knowledge base."""
+    from backend.search import search_server
+
+    pages, works = served_pages({'free': search_server.free_pages(keys), 'licensed': search_server.licensed_pages(keys)})
+    with psycopg.connect(url) as connection:
+        work_count, page_count = write_works(connection, keys, pages, works)
+        connection.commit()
+        chunks = write_chunks(connection, stores, keys)
+        connection.commit()
+    return work_count, page_count, chunks
+
+
 def main(argv: list[str] | None = None) -> int:
     from backend.search import search_server
     from backend.search.database import index_gate
@@ -146,8 +190,16 @@ def main(argv: list[str] | None = None) -> int:
     run = parser.add_mutually_exclusive_group()
     run.add_argument('--no-gate', action='store_true', help='import only; skip the comparison with the in-memory ranking')
     run.add_argument('--gate-only', action='store_true', help='compare what the database holds now; import nothing')
+    run.add_argument('--works', nargs='+', metavar='KEY',
+                     help='write these works again, pages and chunks, and leave the rest of the index as it is')
     args = parser.parse_args(argv)
     url = database_url()
+    if args.works:
+        started = time.perf_counter()
+        works, pages, chunks = import_works(url, set(args.works), chroma_stores())
+        print(f'{works} of {len(args.works)} works written again in {time.perf_counter() - started:.1f} s: {pages} pages, '
+              f'chunks {chunks}')
+        return 0
     started = time.perf_counter()
     bases = search_server.knowledge_bases()
     print(f'pages assembled as the librarian does in {time.perf_counter() - started:.0f} s', flush=True)

@@ -63,13 +63,17 @@ def a_base(tmp_path, monkeypatch):
 
 def test_a_verdict_from_the_view_is_recorded_as_its_own_run_and_asks_for_an_export(a_base):
     class Queue:
-        def request(self):
+        def request(self, works=None):
+            self.works = works
             return {'running': True, 'pending': False}
 
-    made = human_verdict.from_view(a_base, Queue(), 'w', 7, 'note', 'reading_wrong', block='b03',
+    queue = Queue()
+
+    made = human_verdict.from_view(a_base, queue, 'w', 7, 'note', 'reading_wrong', block='b03',
                                    correction='<table><tbody><tr><td>Cash</td><td>150</td></tr></tbody></table>',
                                    judge_assessment='right')
     assert made['export'] == {'running': True, 'pending': False} and made['reading_key'] == 'k' * 64
+    assert queue.works == {'w'}  # the work the verdict touched, for the index database (issue #10, D)
     stored = pipeline_db.human_verdicts('free')[('w.pdf', 7)][0]
     assert stored['given_by'] == 'maintainer' and stored['correction'].startswith('<table>') and stored['run_id']
 
@@ -109,3 +113,44 @@ def test_the_status_says_since_when_an_export_runs_and_how_long_one_usually_take
     assert queue.wait(5)
     idle = queue.status()
     assert idle['started_at'] is None and idle['expected_seconds'] is None
+
+
+def test_the_works_a_verdict_touched_are_written_after_the_export_that_carries_them():
+    import threading
+
+    written, release = [], threading.Event()
+    queue = export_queue.ExportQueue(reading_export.BASES['free'], run=lambda: release.wait(5), after=written.append)
+    queue.request({'alpha'})
+    queue.request({'beta'})  # during the running export: it goes with the next one
+    release.set()
+    assert queue.wait(10)
+    assert written == [{'alpha'}, {'beta'}]
+
+
+def test_a_failure_writing_the_database_is_reported_and_never_raised():
+    def after(works):
+        raise RuntimeError('database down')
+
+    queue = export_queue.ExportQueue(reading_export.BASES['free'], run=lambda: None, after=after)
+    queue.request({'alpha'})
+    assert queue.wait(10) and 'database down' in queue.status()['last_error']
+
+
+def test_the_database_is_not_written_where_the_librarian_reads_files(monkeypatch):
+    from backend.configuration.app_config_manager import AppConfigManager
+    from backend.types.config_types.app_config_types import DatabaseConfig, IndexSource
+
+    monkeypatch.setattr(AppConfigManager, 'get_database', lambda self: DatabaseConfig(librarian_reads=IndexSource.MEMORY))
+    monkeypatch.setattr('backend.search.database.index_import.import_works',
+                        lambda *args: (_ for _ in ()).throw(AssertionError('no write expected')))
+    export_queue.write_to_database({'alpha'})
+
+
+def test_a_verdict_s_work_is_named_as_the_librarian_names_it(monkeypatch):
+    from backend.search import search_server
+
+    monkeypatch.setattr(search_server, 'legacy_keys', lambda: {'invented_key': 'invented_stem'})
+    monkeypatch.setattr(search_server, 'stand_in_rule', lambda: ('__replacement', {'invented_key'}))
+    assert export_queue.librarian_keys({'invented_stem'}) == {'invented_stem', 'invented_key'}
+    assert export_queue.librarian_keys({'invented_stem__replacement'}) >= {'invented_key'}
+    assert export_queue.librarian_keys({'new_book'}) == {'new_book'}

@@ -148,3 +148,28 @@ def test_a_database_that_cannot_serve_never_stops_the_librarian(monkeypatch, cap
     service = search_server.build_service(False, 'database', view_url=None)
     assert service.database_url is None and list(service.works) == ['alpha']
     assert 'cannot serve' in capsys.readouterr().err
+
+
+@pytest.mark.database
+def test_one_work_written_again_leaves_the_others_untouched_and_is_served_at_once(index, scratch_database):
+    from backend.search.search_server import SearchService
+
+    service = SearchService.from_database(scratch_database, view_url=None)
+    before = index.execute("SELECT id, text FROM pages WHERE work <> 'alpha' ORDER BY id").fetchall()
+    changed = [page('alpha', '1', 'a zzfresh word'), page('alpha', '2', 'momentum momentum trend following')]
+    assert index_import.write_works(index, {'alpha'}, changed, WORKS) == (1, 2)
+    index.commit()
+    assert index.execute("SELECT id, text FROM pages WHERE work <> 'alpha' ORDER BY id").fetchall() == before
+    assert service.refresh() is True
+    assert [hit['work'] for hit in service.search('zzfresh')['hits']] == ['alpha']
+    assert service.search('overbought')['hits'][0]['work'] == 'gamma'  # alpha 1 no longer holds it
+
+
+@pytest.mark.database
+def test_a_work_named_but_no_longer_served_loses_its_rows(index):
+    assert index_import.write_works(index, {'beta'}, [], {}) == (0, 0)
+    index.commit()
+    assert index.execute("SELECT count(*) FROM pages WHERE work = 'beta'").fetchone() == (0,)
+    assert index.execute("SELECT count(*) FROM works WHERE key = 'beta'").fetchone() == (0,)
+    assert index.execute('SELECT count(*) FROM postings p LEFT JOIN pages g ON g.id = p.page_id WHERE g.id IS NULL'
+                         ).fetchone() == (0,)

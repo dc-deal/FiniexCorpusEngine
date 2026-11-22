@@ -266,4 +266,11 @@ chat model, a stage of its own.
   asked on the real data of both services and the answers compared whole: every probe's `search` and `search_works`, ten
   more questions, 400 random pages opened, 20 contents and the works list. A database that is down, unconfigured or empty
   never stops the librarian: it says why and assembles from files, after a 5-second connection timeout. `--public-only`
-  always reads files, so the licensed base is never touched. The semantic search still reads Chroma.
+  always reads files, so the licensed base is never touched. The semantic search still reads Chroma. **Part D, built:** a
+  verdict names its work to the view's export queue; once the export that carries it has run, that work alone is written
+  again into the database (`index_import.import_works`, or `--works KEY …` by hand): the page builders take a filter, so
+  only its pages are assembled, its rows are replaced inside one transaction, its chunks copied again from the Chroma
+  store, and the generation raised, so the librarian serves the verdict on its next call, with no import and no restart.
+  A verdict's work is named as the librarian names it (a stem, its citation key, the work a stand-in serves). Rewritten
+  pages take ids and ordinals after the highest, so a tie among them may break otherwise than after a whole import, which
+  restores the order; the export itself still runs whole (15 s warm natively, about 3.5 minutes in the container).

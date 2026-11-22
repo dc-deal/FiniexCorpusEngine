@@ -41,13 +41,46 @@ def expected_seconds(knowledge_base: str, path=None) -> float | None:
     return round(statistics.median(seconds)) if seconds else None
 
 
+def librarian_keys(works: set[str]) -> set[str]:
+    """The keys the librarian gives the works a verdict names: a file's stem, the citation key a legacy work is served
+    under, and the work a stand-in file serves; a name that matches nothing writes nothing."""
+    from backend.search import search_server
+
+    by_stem = {stem: key for key, stem in search_server.legacy_keys().items()}
+    suffix = search_server.stand_in_rule()[0]
+    keys = set()
+    for work in works:
+        keys |= {work, by_stem.get(work, work)}
+        if suffix and work.endswith(suffix):
+            keys.add(by_stem.get(work.removesuffix(suffix), work.removesuffix(suffix)))
+    return keys
+
+
+def write_to_database(works: set[str]) -> None:
+    """After an export, the works its verdicts touched are written again into the index database, where the librarian
+    reads it (issue #10, part D), so the next call serves them without an import or a restart; nothing where it reads
+    files."""
+    from backend.configuration.app_config_manager import AppConfigManager
+    from backend.types.config_types.app_config_types import IndexSource
+
+    if not works or AppConfigManager().get_database().librarian_reads != IndexSource.DATABASE:
+        return
+    from backend.database.database_url import database_url
+    from backend.search.database import index_import
+
+    index_import.import_works(database_url(), librarian_keys(works), index_import.chroma_stores())
+
+
 class ExportQueue:
     """One knowledge base's export, run in the background on request. `finished` grows with every export that ends, so a
     view reloads its data when it sees the number move."""
 
-    def __init__(self, base: reading_export.KnowledgeBase, run: Callable[[], None] | None = None):
+    def __init__(self, base: reading_export.KnowledgeBase, run: Callable[[], None] | None = None,
+                 after: Callable[[set[str]], None] | None = write_to_database):
         self.base = base
         self._run = run or (lambda: _export(base))
+        self._after = after  # the works an export carried, written where the librarian reads them (issue #10, D)
+        self._works: set[str] = set()  # the works the requests since the last export's start named
         self._lock = threading.Lock()
         self._running = False
         self._pending = False
@@ -58,9 +91,11 @@ class ExportQueue:
         self.last_finished_at: str | None = None
         self.started_at: str | None = None  # the running export's start, for the view's clock (E1.a)
 
-    def request(self) -> dict:
-        """Start an export, or mark one more after the running one; never two at once, never a queue of them."""
+    def request(self, works: set[str] | None = None) -> dict:
+        """Start an export, or mark one more after the running one; never two at once, never a queue of them. `works` names
+        the works the request's verdicts touched, written into the index database after the export that carries them."""
         with self._lock:
+            self._works |= set(works or ())
             if self._running:
                 self._pending = True
             else:
@@ -72,8 +107,12 @@ class ExportQueue:
 
     def _loop(self) -> None:
         while True:
+            with self._lock:
+                carried, self._works = self._works, set()  # a request during this export names the next one's works
             try:
                 self._run()
+                if self._after is not None and carried:
+                    self._after(carried)
                 error = None
             except Exception as failure:  # the verdict is recorded; a failed export is reported, never raised into the view
                 error = f'{type(failure).__name__}: {failure}'

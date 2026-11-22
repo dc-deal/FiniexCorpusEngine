@@ -150,11 +150,14 @@ def pages_of(text: str, work: str, path: str, numbers_are_pdf_pages: bool = True
     return pages
 
 
-def load_works(folder: Path, keys: dict) -> list[Page]:
-    """Every Markdown work in a folder, named by its citation key where one is known (`keys`: key -> file stem)."""
+def load_works(folder: Path, keys: dict, stems: set[str] | None = None) -> list[Page]:
+    """Every Markdown work in a folder, named by its citation key where one is known (`keys`: key -> file stem); with
+    `stems`, the files of those stems alone."""
     by_slug = {slug: key for key, slug in keys.items()}
     pages = []
     for path in sorted(folder.glob('*.md')):
+        if stems is not None and path.stem not in stems:
+            continue
         text = path.read_text(encoding='utf-8')
         source = SOURCE_LINE.search(text[:2000])
         from_pdf = not (source and source.group(1).lower().endswith('.epub'))
