@@ -494,7 +494,13 @@
       ],
       "shelf": "trading_finance",
       "language": "en",
-      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it. Customary credit goes to the Commission, which issued the rule."
+      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it. Customary credit goes to the Commission, which issued the rule.",
+      "series": {
+        "id": "sec_regulation_nms",
+        "title": "Regulation NMS (17 CFR 242): the rules held",
+        "part": 1,
+        "of": 3
+      }
     },
     {
       "id": "sec_regulation_nms_rule_605_2025",
@@ -516,7 +522,13 @@
       ],
       "shelf": "trading_finance",
       "language": "en",
-      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its last page is Rule 606's first). Customary credit goes to the Commission, which issued the rule."
+      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its last page is Rule 606's first). Customary credit goes to the Commission, which issued the rule.",
+      "series": {
+        "id": "sec_regulation_nms",
+        "title": "Regulation NMS (17 CFR 242): the rules held",
+        "part": 2,
+        "of": 3
+      }
     },
     {
       "id": "sec_regulation_nms_rule_606_2025",
@@ -538,7 +550,13 @@
       ],
       "shelf": "trading_finance",
       "language": "en",
-      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its first page is Rule 605's last). Customary credit goes to the Commission, which issued the rule."
+      "notes": "The annual edition of title 17, volume 5, revised as of 1 April 2025; the section's pages, which begin and end with parts of the sections beside it (its first page is Rule 605's last). Customary credit goes to the Commission, which issued the rule.",
+      "series": {
+        "id": "sec_regulation_nms",
+        "title": "Regulation NMS (17 CFR 242): the rules held",
+        "part": 3,
+        "of": 3
+      }
     },
     {
       "id": "fix_latest_ep284_introduction",
