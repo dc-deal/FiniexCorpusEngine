@@ -69,8 +69,9 @@ def warm_steps(bases: dict[str, readings.Readings], search: search_hits.Search, 
     natively, and the files not served), what any page's view needs (each base's vector index by page, which the first page
     of a base read whole), each work's pages without a reading, which its page list and its unread pages share (1.3 s for a
     work's first list in the container, the rest warm); then the Pages view's one load, the licensed EPUBs' cuts, which the
-    Sources list counts their sections from, and last the search index (136 s with both bases in the container), which only
-    a search needs: a page's view never waits for it."""
+    Sources list counts their sections from, and last the search index, which only a search needs: a page's view never waits
+    for it (read from the index database in 2.2 s where the configuration says so, issue #10 part E; assembled from files
+    it took 202.3 s with both bases in the container)."""
     steps: list[Step] = [('the Sources list', sources_list), ('the overview', overview_page)]
     steps += [(f'the {name} legacy pages', store.legacy) for name, store in bases.items() if store.legacy]
     steps += [(f'the {name} files not served', store.not_served) for name, store in bases.items() if store.not_served]

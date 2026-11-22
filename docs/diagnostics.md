@@ -1969,3 +1969,14 @@ neither virtualised nor split. What a person waited for was the first call after
 step, the Sources list and the overview together (11.4 s); the Sources list is now a step of its own, warm 2.3 s after a start,
 the overview after it (9.3 s). Answers are compressed where the browser takes them: the list's 298 KB travel as 28 KB. 397 unit
 tests, 88 checks in the browser (3 skipped on today's data), 1,640 Python tests.
+
+**The search index from the index database (issue #10, part E, 22 Nov).** Where this machine's configuration has the librarian
+read the index database, the view's search reads it too, through the core's own build, and so says what the librarian serves:
+whether search (BM25) holds a page, the text served for it, a kept edition. It loads in seconds where files took minutes: the
+warm-up's last step went from 202.3 s to 2.2 s, the whole warm-up from 472 s to 265 s, measured one after the other in the
+container. A loaded index is asked at most every five seconds, when a page is shown, whether an import or a verdict wrote it
+since, and is loaded again where one did, so a page never says what the librarian served before an import; where the database
+cannot be asked, the index loaded last serves on, said once in the log. Files serve as before under `--public-only`, in a clone
+without the database, and where the database cannot be read, the reason in the log. Before the switch both were compared on the
+real data, every page field by field: the same works, the same pages, the same hits for twenty searches; what differed was the
+database's own and went to line 1. 397 unit tests, 88 checks in the browser (3 skipped on today's data), 1,642 Python tests.

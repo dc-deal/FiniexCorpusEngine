@@ -73,6 +73,44 @@ def test_the_pages_are_read_in_a_process_of_their_own_with_the_apps_switch(monke
     assert 'in this process instead' in capsys.readouterr().err
 
 
+def test_the_search_is_the_core_s_build_with_the_view_s_own_reader(monkeypatch):
+    # issue #10 part E: the database where the configuration says so, else files read in a process of their own
+    asked = []
+    monkeypatch.setattr(search_server, 'build_service',
+                        lambda public_only, read=None: asked.append((public_only, read)) or 'a service')
+    assert search_hits.Search(public_only=True).service() == 'a service'
+    assert asked == [(True, search_hits.read_pages)]
+
+
+def test_a_search_read_from_the_database_asks_for_a_written_index_at_most_every_few_seconds(capsys):
+    from types import SimpleNamespace
+
+    now = [100.0]
+    asked = []
+    search = search_hits.Search(public_only=False, clock=lambda: now[0])
+    search._service = SimpleNamespace(database_url='postgresql://invented', refresh=lambda: asked.append(now[0]))
+    search.ready()
+    search.ready()
+    assert asked == [100.0]  # once within the few seconds
+    now[0] += search_hits.REFRESH_SECONDS
+    search.ready()
+    assert asked == [100.0, 100.0 + search_hits.REFRESH_SECONDS]
+    # a database that cannot be asked: the index loaded last serves on, said once
+    def gone():
+        raise ConnectionError('the database is down')
+
+    search._service.refresh = gone
+    for _ in range(2):
+        now[0] += search_hits.REFRESH_SECONDS
+        assert search.ready() is search._service
+    assert capsys.readouterr().err.count('keeps the index it loaded last') == 1
+    # one built from files is never asked
+    files = search_hits.Search(public_only=True, clock=lambda: now[0])
+    files._service = SimpleNamespace(database_url=None, refresh=lambda: asked.append('files'))
+    files.ready()
+    assert 'files' not in asked
+
+
 def test_warming_builds_the_index_once_with_the_apps_own_switch(built):
     search = search_hits.Search(public_only=True)
     search.warm()
