@@ -22,6 +22,7 @@ tiktoken==0.14.0                   # token counts, as the embedding API bills th
 python-dotenv==1.2.3               # reads the provider keys from .env
 psycopg[binary]==3.3.9             # the index database (issue #10): PostgreSQL, raw SQL, no ORM
 pgvector==0.5.1                    # its vector type for psycopg
+numpy==2.5.5                       # the stored vectors as arrays, for their import and the gate's exact search
 
 # Reading page images (the vision conversion)
 anthropic==2.3.0                   # the official SDK: LangChain's ChatAnthropic has no Message Batches API

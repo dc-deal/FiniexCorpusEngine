@@ -1,8 +1,6 @@
 """The index database's migration runner (issue #10, part A): files checked before the schema is touched, each applied
 once, in its own transaction, under a lock, and an edited applied file refused as drift."""
 import shutil
-import uuid
-from urllib.parse import urlsplit, urlunsplit
 
 import psycopg
 import pytest
@@ -54,21 +52,6 @@ def test_the_checksum_ignores_line_endings_but_not_an_edit():
 def test_the_shipped_migrations_parse_and_count_up_from_001():
     found = MigrationRunner('unused').discover()
     assert [m.version for m in found] == [f'{number:03d}' for number in range(1, len(found) + 1)]
-
-
-@pytest.fixture
-def scratch_database():
-    """A database of its own on the running server, dropped after: the real index is never touched."""
-    from backend.database.database_url import database_url
-
-    url = database_url()
-    name = f'corpus_test_{uuid.uuid4().hex[:12]}'
-    with psycopg.connect(url, autocommit=True) as admin:
-        admin.execute(f'CREATE DATABASE {name}')
-    parts = urlsplit(url)
-    yield urlunsplit(parts._replace(path=f'/{name}'))
-    with psycopg.connect(url, autocommit=True) as admin:
-        admin.execute(f'DROP DATABASE IF EXISTS {name} WITH (FORCE)')
 
 
 @pytest.mark.database

@@ -250,4 +250,12 @@ chat model, a stage of its own.
   applied once each, in a transaction of their own, under an advisory lock, an edited applied file refused as drift (the
   RAG engine's runner, ported; its docstring names the maintained runners checked, Alembic and yoyo, and why they lost).
   A foreign image never gets the whole .env, and without the password only the database does not start. The database
-  holds derived data only, so the librarian serves exactly as before until the switch (part C).
+  holds derived data only, so the librarian serves exactly as before until the switch (part C). **Part B, built:** the
+  tables `works`, `pages` (each page as the librarian serves it, with its place in the ranking's order so a tie breaks as
+  the port breaks it), `postings` and `chunks` (each knowledge base with an HNSW index of its own, since the two are
+  searched apart and fused by rank); `python -m backend.search.database.index_import` fills them from the pages the
+  librarian assembles and the vectors both Chroma stores hold, nothing embedded again, about 3.5 minutes for both
+  knowledge bases. Its gate (`index_gate`) then asks every work's coverage probe of both rankings: on 22 Nov all 82 gave
+  the same six pages with the same scores, the coverage gate's result was the same, the database answered in 36 ms against
+  the port's 11 ms in the median, and the HNSW search found the exact top ten of sample vectors in both bases (recall 1.0;
+  3 and 7 ms). The per-base index removed the prototype's slow filtered query (73 ms).

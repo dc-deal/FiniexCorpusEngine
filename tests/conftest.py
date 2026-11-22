@@ -78,6 +78,26 @@ def database_reachable() -> bool:
     return _DATABASE['up']
 
 
+@pytest.fixture
+def scratch_database():
+    """An empty database of its own on the running server, dropped after: the real index is never touched. Its URL is
+    handed to the test; only tests marked `database` use it."""
+    import uuid
+    from urllib.parse import urlsplit, urlunsplit
+
+    import psycopg
+
+    from backend.database.database_url import database_url
+
+    url = database_url()
+    name = f'corpus_test_{uuid.uuid4().hex[:12]}'
+    with psycopg.connect(url, autocommit=True) as admin:
+        admin.execute(f'CREATE DATABASE {name}')
+    yield urlunsplit(urlsplit(url)._replace(path=f'/{name}'))
+    with psycopg.connect(url, autocommit=True) as admin:
+        admin.execute(f'DROP DATABASE IF EXISTS {name} WITH (FORCE)')
+
+
 @pytest.fixture(autouse=True)
 def _skip_without_database(request):
     """A test marked `database` skips where the index database is not running, as the data markers skip without data."""
