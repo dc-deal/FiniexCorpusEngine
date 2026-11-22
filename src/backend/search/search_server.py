@@ -30,6 +30,7 @@ import sys
 import threading
 import time
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
@@ -759,8 +760,17 @@ class SearchService:
             # the private base's index too (#8), where this server gives that base out and its index was built here
             private = 'licensed' in self.bases and retrieval.licensed_index_built()
             kept = frozenset(key for key, work in self.works.items() if work.kept_for)  # a kept edition's chunks stay out (E1.a)
+            stores = {}
+            if self.database_url is not None:  # read from the index database: the vectors too, by the same switch (C2, 6.a)
+                from backend.providers import embedding_route
+                from backend.search.database.pgvector_chunk_store import PgvectorChunkStore
+
+                embeddings = embedding_route.embeddings()
+                stores['store'] = PgvectorChunkStore(self.database_url, 'free', embeddings)
+                if private:
+                    stores['private_store'] = PgvectorChunkStore(self.database_url, 'licensed', embeddings)
             self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans, private=private,
-                                                            kept=kept)
+                                                            kept=kept, **stores)
         given = {'search_query': search_query, 'concept_query': concept_query, 'keywords': keywords}  # the caller's own translation
         # the router kept out of this call only when asked (S1.a); the default call stays the one every client makes
         found = self._semantic.search(question, hits, **{name: value for name, value in given.items() if value},
@@ -1216,13 +1226,19 @@ def banner(service: SearchService, tools: list[str], http: int | None, public_on
             f"  bases      {bases}{'; --public-only: the licensed base is not read' if public_only else ''}",
             '  routes     ' + ' · '.join(f'{kind} {count:,}' for kind, count in routes.most_common()),
             '  tools      ' + ' · '.join(tools),
-            f'  index      {source} in {service.start_seconds:.1f} s']
+            f'  index      {source} in {service.start_seconds:.1f} s',
+            # the semantic search's vectors follow the index (C2, 6.a): the database's HNSW indexes, or the Chroma stores
+            '  vectors    ' + ('the index database (pgvector)' if service.database_url else 'the Chroma stores')]
 
 
-def build_service(public_only: bool, index: str | None = None, **options) -> SearchService:
+def build_service(public_only: bool, index: str | None = None, read: Callable[[bool], dict] | None = None,
+                  **options) -> SearchService:
     """The service a start asks for (issue #10, part C): read from the index database where the configuration or `--index`
     says so, else from files, as always. `--public-only` reads files alone, so the licensed base is never touched. A
-    database that cannot be read, or holds no work, never stops the librarian: it serves from files and says why."""
+    database that cannot be read, or holds no work, never stops the librarian: it serves from files and says why.
+
+    `read` assembles the pages from files, `knowledge_bases` when None: the view passes its own, which reads them in a
+    process of its own, since reading in the serving process starved every request beside it (line 2, 10 Nov)."""
     from backend.configuration.app_config_manager import AppConfigManager
 
     source = IndexSource(index) if index else AppConfigManager().get_database().librarian_reads
@@ -1238,7 +1254,7 @@ def build_service(public_only: bool, index: str | None = None, **options) -> Sea
             reason = f'{type(error).__name__}: {str(error).splitlines()[0] if str(error) else ""}'
         print(f'corpus-search: the index database cannot serve ({reason}); the index is assembled from files',
               file=sys.stderr)
-    return SearchService(knowledge_bases(public_only), **options)
+    return SearchService((read or knowledge_bases)(public_only), **options)
 
 
 def main() -> None:

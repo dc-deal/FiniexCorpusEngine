@@ -22,6 +22,7 @@ import chromadb
 import numpy
 import psycopg
 from pgvector.psycopg import register_vector
+from psycopg.types.json import Jsonb
 
 from backend.configuration import data_paths
 from backend.database.database_url import database_url
@@ -58,6 +59,19 @@ def served_pages(bases: dict) -> tuple[list[page_index.Page], dict]:
     return pages, works
 
 
+def no_nul(value):
+    """A text without NUL characters, which PostgreSQL's text type refuses (found 22 Nov: a paper's text layer held one,
+    and a work's import stopped); a NUL carries nothing a reader sees. Other values pass unchanged; a dict or list is
+    cleaned through, for a chunk's metadata."""
+    if isinstance(value, str):
+        return value.replace('\x00', '')
+    if isinstance(value, dict):
+        return {key: no_nul(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [no_nul(item) for item in value]
+    return value
+
+
 def copy_rows(connection: psycopg.Connection, pages: list[page_index.Page], works: dict, first_id: int,
               first_ordinal: int) -> int:
     """Works, pages and their postings copied in: page ids from `first_id` in the librarian's own order, so a work's pages
@@ -68,8 +82,8 @@ def copy_rows(connection: psycopg.Connection, pages: list[page_index.Page], work
         with cursor.copy('COPY works (key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for, '
                          'pages) FROM STDIN') as copy:
             for work in works.values():
-                copy.write_row((work.key, work.knowledge_base, work.title, work.licence, work.route, work.subject,
-                                work.view_id, work.edition, work.year, work.kept_for, work.pages))
+                copy.write_row((work.key, work.knowledge_base, no_nul(work.title), work.licence, work.route,
+                                no_nul(work.subject), work.view_id, work.edition, work.year, work.kept_for, work.pages))
         postings = 0
         with cursor.copy('COPY pages (id, work, knowledge_base, label, line, line_end, path, pdf, printed, section, route, '
                          'reading_key, searchable, text, index_text, length, ordinal) FROM STDIN') as copy:
@@ -80,8 +94,8 @@ def copy_rows(connection: psycopg.Connection, pages: list[page_index.Page], work
                 ranked += page.searchable
                 tokens[position] = words
                 copy.write_row((position, page.work, page.knowledge_base, page.page, page.line, page.line_end, page.path,
-                                page.pdf, page.printed, page.section, page.route or '', page.reading_key, page.searchable,
-                                page.text, page.index_text, len(words), ordinal))
+                                page.pdf, page.printed, no_nul(page.section), page.route or '', page.reading_key,
+                                page.searchable, no_nul(page.text), no_nul(page.index_text), len(words), ordinal))
         with cursor.copy('COPY postings (term, page_id, tf) FROM STDIN') as copy:
             for page_id, words in tokens.items():
                 for term, frequency in collections.Counter(words).items():
@@ -139,8 +153,10 @@ def write_chunks(connection: psycopg.Connection, stores: dict[str, Path], keys: 
                     for chunk_id, vector, metadata, text in zip(batch['ids'], batch['embeddings'], batch['metadatas'],
                                                                  batch['documents']):
                         metadata = dict(metadata or {})
-                        copy.write_row((chunk_id, base, metadata.get('source_id') or '', text or '',
-                                        json.dumps(metadata, ensure_ascii=False), model,
+                        # A Jsonb, never a dumped string: a string is stored as a JSON string, and every key in it is
+                        # lost to SQL (found 22 Nov: all 81,542 chunks, so `metadata->>'chunk_id'` was null everywhere)
+                        copy.write_row((chunk_id, base, metadata.get('source_id') or '', no_nul(text or ''),
+                                        Jsonb(no_nul(metadata)), model,
                                         numpy.asarray(vector, dtype=numpy.float32)))
                         counts[base] += 1
     return counts

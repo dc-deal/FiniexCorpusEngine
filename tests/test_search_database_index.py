@@ -72,6 +72,19 @@ def test_a_page_outside_the_ranking_is_kept_whole_but_never_ranked(index):
 
 
 @pytest.mark.database
+def test_a_nul_in_a_text_layer_is_dropped_not_refused(scratch_database):
+    """PostgreSQL's text refuses NUL; a text layer may hold one (a paper's did, 22 Nov), so the import drops it."""
+    MigrationRunner(scratch_database).apply()
+    pages = [page('alpha', '1', 'momentum\x00 oscillator'), page('alpha', '2', 'trend')]
+    with psycopg.connect(scratch_database) as connection:
+        index_import.write_pages(connection, pages, {'alpha': work('alpha')})
+        connection.commit()
+        stored = connection.execute("SELECT text FROM pages WHERE label = '1'").fetchone()[0]
+    assert '\x00' not in stored and stored.startswith('momentum oscillator')
+    assert index_import.no_nul({'a': ['x\x00y'], 'b': 3}) == {'a': ['xy'], 'b': 3}
+
+
+@pytest.mark.database
 def test_one_page_written_again_is_seen_by_the_next_query(index):
     page_id = index.execute("SELECT id FROM pages WHERE work = 'beta' AND label = '2'").fetchone()[0]
     words = page_index.tokenize('a fresh zzmarker word')
@@ -101,6 +114,9 @@ def test_stored_vectors_are_found_again_by_their_base_s_index(index, tmp_path):
     nearest = index.execute("SELECT id, model FROM chunks WHERE knowledge_base = 'licensed' ORDER BY embedding <=> %s LIMIT 1",
                             (vectors[4],)).fetchone()
     assert nearest == ('licensed:4', 'model-x')
+    # the metadata is stored as an object, so SQL reaches its keys (a dumped string was stored as a JSON string)
+    assert index.execute("SELECT jsonb_typeof(metadata), metadata->>'source_id' FROM chunks WHERE id = 'free:1'").fetchone() == \
+        ('object', 'free')
 
 
 def services(url: str):
@@ -127,6 +143,34 @@ def test_the_service_read_from_the_database_answers_as_the_one_built_from_files(
 
 
 @pytest.mark.database
+def test_the_service_read_from_the_database_searches_its_vectors_there_too(index, scratch_database, monkeypatch):
+    """One switch (C2, 6.a): a librarian read from the database gives the semantic search a store per base over the
+    `chunks` table; one built from files keeps the Chroma stores."""
+    from backend.search import retrieval, semantic_search
+    from backend.search.database.pgvector_chunk_store import PgvectorChunkStore
+
+    built = []
+
+    class Recorder:
+        def __init__(self, sources, **options):
+            built.append(options)
+
+        def search(self, question, hits, **options):
+            return {'state': 'nothing found', 'hits': []}
+
+    monkeypatch.setattr(semantic_search, 'SemanticSearch', Recorder)
+    monkeypatch.setattr(retrieval, 'licensed_index_built', lambda: True)
+    monkeypatch.setattr('backend.providers.embedding_route.embeddings', lambda: object())
+    memory, database = services(scratch_database)
+    memory.semantic_search('anything', hits=3)
+    database.semantic_search('anything', hits=3)
+    assert 'store' not in built[0] and 'private_store' not in built[0]
+    stores = [built[1]['store'], built[1]['private_store']]
+    assert all(isinstance(store, PgvectorChunkStore) for store in stores)
+    assert [store.knowledge_base for store in stores] == ['free', 'licensed']
+
+
+@pytest.mark.database
 def test_a_change_written_to_the_database_is_served_on_the_next_call_without_a_restart(index, scratch_database):
     from backend.search.search_server import SearchService
 
@@ -148,6 +192,11 @@ def test_a_database_that_cannot_serve_never_stops_the_librarian(monkeypatch, cap
     service = search_server.build_service(False, 'database', view_url=None)
     assert service.database_url is None and list(service.works) == ['alpha']
     assert 'cannot serve' in capsys.readouterr().err
+    # a caller's own reader serves the fallback (the view reads its pages in a process of its own)
+    asked = []
+    own = search_server.build_service(False, 'database', read=lambda public_only: asked.append(public_only) or
+                                      {'free': ([PAGES[4]], {'gamma': WORKS['gamma']})}, view_url=None)
+    assert asked == [False] and list(own.works) == ['gamma']
 
 
 @pytest.mark.database

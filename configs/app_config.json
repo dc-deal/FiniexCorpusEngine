@@ -27,7 +27,7 @@
     "max_tokens": 4000
   },
   "database": {
-    "_comment": "Where the index database listens for a process on this machine (issue #10, 3.a): PostgreSQL with pgvector, the Compose service postgres, published on the loopback only; 5433 is the RAG engine's. The password is never here: it is CORPUS_DB_PASSWORD in .env. A container reaches the database as postgres:5432, named by CORPUS_DB_HOST and CORPUS_DB_PORT in Compose; a whole URL in CORPUS_DATABASE_URL wins over everything where it is set. librarian_reads: memory assembles the index from files at every start, as before; database loads it from the index database in seconds and serves a written change without a restart (issue #10, part C), falling back to files where the database cannot serve; --public-only always reads files.",
+    "_comment": "Where the index database listens for a process on this machine (issue #10, 3.a): PostgreSQL with pgvector, the Compose service postgres, published on the loopback only; 5433 is the RAG engine's. The password is never here: it is CORPUS_DB_PASSWORD in .env. A container reaches the database as postgres:5432, named by CORPUS_DB_HOST and CORPUS_DB_PORT in Compose; a whole URL in CORPUS_DATABASE_URL wins over everything where it is set. librarian_reads: memory assembles the index from files at every start, as before; database loads it from the index database in seconds and serves a written change without a restart (issue #10, part C), and the semantic search reads its vectors there too, from pgvector (part C2), falling back to files and Chroma where the database cannot serve; --public-only always reads files.",
     "host": "127.0.0.1",
     "port": 5434,
     "name": "corpusengine",

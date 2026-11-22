@@ -266,7 +266,8 @@ chat model, a stage of its own.
   asked on the real data of both services and the answers compared whole: every probe's `search` and `search_works`, ten
   more questions, 400 random pages opened, 20 contents and the works list. A database that is down, unconfigured or empty
   never stops the librarian: it says why and assembles from files, after a 5-second connection timeout. `--public-only`
-  always reads files, so the licensed base is never touched. The semantic search still reads Chroma. **Part D, built:** a
+  always reads files, so the licensed base is never touched. The semantic search still read Chroma (until C2, below).
+  **Part D, built:** a
   verdict names its work to the view's export queue; once the export that carries it has run, that work alone is written
   again into the database (`index_import.import_works`, or `--works KEY …` by hand): the page builders take a filter, so
   only its pages are assembled, its rows are replaced inside one transaction, its chunks copied again from the Chroma
@@ -274,3 +275,17 @@ chat model, a stage of its own.
   A verdict's work is named as the librarian names it (a stem, its citation key, the work a stand-in serves). Rewritten
   pages take ids and ordinals after the highest, so a tie among them may break otherwise than after a whole import, which
   restores the order; the export itself still runs whole (15 s warm natively, about 3.5 minutes in the container).
+  **Part C2, built:** the semantic search reads its vectors from the database too, by the same switch. `PgvectorChunkStore`
+  answers the one call the chain makes (`similarity_search_with_score`, a passage and its cosine distance), with the
+  knowledge base written into the statement so that base's own HNSW index serves. `langchain-postgres` 0.0.19 was read
+  first and declined: it pins `pgvector<0.4`, adds SQLAlchemy and asyncpg for one query, filters on columns only (not on
+  the metadata's keys) and binds the base as a parameter, which a cached generic plan cannot match to a per-base index.
+  Measured on 104 real questions (the 61 evaluation questions and 43 topics of the IDE's needs) against an exact search,
+  a tie at the tenth distance counted as found: Chroma 0.995 (free) and 0.996 (licensed); pgvector's graph as first built
+  (`ef_construction` 64) 0.978 and 0.995, one question finding none of its exact ten, since a question lies far from every
+  passage; built again with `ef_construction` 200 (migration 004, 58 s) and searched at `ef_search` 400, 0.996 and 0.999,
+  6.5 and 12 ms a query. The whole chain over both stores, the router kept out: 98 of 104 questions gave the same ten
+  passages in the same order, 100 the same set, the relevance floor's verdict was the same on all 104 and similarities
+  agreed within 0.000002, at 304 ms against Chroma's 654 ms in the median. Found on the way: the import had stored every
+  passage's metadata as a JSON string, so SQL reached none of its keys; fixed and imported again. Chroma stays the
+  embedding writer, and the import copies its vectors.

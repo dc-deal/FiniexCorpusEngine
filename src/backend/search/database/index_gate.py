@@ -4,8 +4,10 @@ pages, before the librarian reads from it.
 - **Keyword:** every coverage-gate probe (one per work, `coverage_gate.build_probe`) asked of both; the top six pages and
   their scores must agree, and so must the gate's own result (works reached in the top six, works at rank 1).
 - **Semantic:** sample stored vectors of each knowledge base as queries; the database's HNSW top ten against an exact
-  search over the same base, recall@10 at least `MIN_RECALL`. The samples are stored vectors, which flatters recall a
-  little, as the prototype said.
+  search over the same base, recall@10 at least `MIN_RECALL`, at the `ef_search` the semantic search queries with. A
+  found chunk counts when its distance is within the exact tenth's: a base holds about 300 duplicate vectors (up to 21
+  identical), and among equal distances the exact ten are an arbitrary pick, which counting ids scored as misses. The
+  samples are stored vectors, which flatters recall a little, as the prototype said.
 
 A report goes to `_work/database/` with each probe's work and the pages that differed (keys and labels, never text).
 """
@@ -25,13 +27,14 @@ from backend.configuration import data_paths
 from backend.ingestion import index_store
 from backend.search import coverage_gate, page_index
 from backend.search.database import keyword_sql
+from backend.search.database.pgvector_chunk_store import SEARCH_EF
 
 HITS = 6
 SCORE_TOLERANCE = 1e-9
 SAMPLES = 100
 K = 10
 MIN_RECALL = 0.98
-EF_SEARCH = 100
+TIE = 1e-5  # a distance this close to the exact tenth's is a tie with it
 REPORTS = data_paths.WORKING / 'database'
 
 
@@ -75,7 +78,7 @@ def keyword_gate(connection: psycopg.Connection, pages: list[page_index.Page]) -
 def semantic_gate(connection: psycopg.Connection, stores: dict[str, Path]) -> dict:
     """Per knowledge base: HNSW recall@10 against an exact search, on sample stored vectors."""
     register_vector(connection)
-    connection.execute(f'SET hnsw.ef_search = {EF_SEARCH}')
+    connection.execute(f'SET hnsw.ef_search = {SEARCH_EF}')
     result = {}
     for base, path in stores.items():
         collection = chromadb.PersistentClient(path=str(path), settings=chromadb.config.Settings(anonymized_telemetry=False)
@@ -90,12 +93,13 @@ def semantic_gate(connection: psycopg.Connection, stores: dict[str, Path]) -> di
         step = max(1, len(ids) // SAMPLES)
         recalls, times = [], []
         for query in normed[::step][:SAMPLES]:
-            exact = {ids[i] for i in numpy.argsort(-(normed @ query))[:K]}
+            tenth = float(1 - numpy.sort(normed @ query)[-K])  # the exact tenth's cosine distance
             started = time.perf_counter()
             found = [row[0] for row in connection.execute(
-                'SELECT id FROM chunks WHERE knowledge_base = %s ORDER BY embedding <=> %s LIMIT %s', (base, query, K))]
+                'SELECT embedding <=> %s FROM chunks WHERE knowledge_base = %s ORDER BY embedding <=> %s LIMIT %s',
+                (query, base, query, K))]
             times.append(1000 * (time.perf_counter() - started))
-            recalls.append(len(exact & set(found)) / K)
+            recalls.append(sum(1 for distance in found if distance <= tenth + TIE) / K)
         result[base] = {'chunks': len(ids), 'samples': len(recalls), 'recall_at_10': round(statistics.mean(recalls), 4),
                         'ms_median': round(statistics.median(times), 1)}
     return result
