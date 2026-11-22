@@ -146,6 +146,28 @@ def direct_cells() -> dict:
             for base, path in DIRECT_PAGES.items() if path.exists()}
 
 
+def free_planned_pages() -> set[tuple[str, int]]:
+    """(file, PDF page) of every free page a plan holds: every page of the works the corpus cell reads whole (`FREE_WORKS`)
+    and a session's pages to read (`DIRECT_PAGES['free']`, why 'unread'). A free PDF outside them is planned nowhere: a
+    NoDerivatives work is never read (72.a), and a work taken in later serves its text layer until its reading is decided.
+    Found 22 Nov: the view called every unread free page planned, the FIX specification's among them. A whole work whose
+    PDF is not on this machine (a clone before `acquire`) adds nothing."""
+    cell = CORPUS_CELLS['FREE-SM']
+    source = json.loads(Path(cell.page_source).read_text(encoding='utf-8'))
+    files = {page['work']: page['file'] for page in source['pages'] + source.get('corpus_works', [])}
+    found = set()
+    for work in cell.whole_works:
+        path = FREE_ARCHIVE / files[work]
+        if path.exists():
+            with pymupdf.open(path) as document:
+                found |= {(files[work], number) for number in range(1, len(document) + 1)}
+    direct = DIRECT_PAGES['free']
+    if direct.exists():
+        found |= {(page['file'], page['pdf_page']) for page in json.loads(direct.read_text(encoding='utf-8')).get('pages', [])
+                  if page.get('why') == 'unread'}
+    return found
+
+
 def known_cells() -> dict:
     """Every cell whose readings the check flow and the export can find: the batch cells, the second reader's, the replays,
     the direct readings."""

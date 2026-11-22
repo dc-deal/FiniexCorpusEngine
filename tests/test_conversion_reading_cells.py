@@ -135,6 +135,35 @@ def test_the_corpus_cell_reads_every_page_of_the_four_free_pdfs_as_the_pilot_cho
     assert pilot_page['work_card'] == SOURCE['work_cards']['openstax-finance-2e']
 
 
+def test_the_free_plan_is_the_whole_works_and_a_sessions_unread_pages_nothing_else(tmp_path, monkeypatch):
+    for name, count in (('whole.pdf', 3), ('other.pdf', 2)):
+        with pymupdf.open() as document:
+            for _ in range(count):
+                document.new_page()
+            document.save(tmp_path / name)
+    monkeypatch.setattr(reading_cells, 'FREE_ARCHIVE', tmp_path)
+    source = tmp_path / 'source.json'
+    source.write_text(json.dumps({'work_cards': {}, 'pages': [], 'corpus_works': [{'file': 'whole.pdf', 'work': 'whole'},
+                                                                                    {'file': 'absent.pdf', 'work': 'absent'}]}),
+                      encoding='utf-8')
+    monkeypatch.setattr(reading_cells, 'CORPUS_CELLS', {'FREE-SM': reading_cells.Cell(
+        'FREE-SM', reading_cells.SONNET, 'hi', 'markdown', source, whole_works=('whole', 'absent'))})
+    direct = tmp_path / 'direct.json'
+    direct.write_text(json.dumps({'pages': [{'file': 'other.pdf', 'pdf_page': 2, 'why': 'unread'},
+                                            {'file': 'other.pdf', 'pdf_page': 1, 'why': 'read in the session'}]}), encoding='utf-8')
+    monkeypatch.setattr(reading_cells, 'DIRECT_PAGES', {'free': direct, 'licensed': tmp_path / 'none.json'})
+    # every page of the whole work on this machine, the session's unread page; not the absent work, not a page read already
+    assert reading_cells.free_planned_pages() == {('whole.pdf', 1), ('whole.pdf', 2), ('whole.pdf', 3), ('other.pdf', 2)}
+
+
+def test_no_derivatives_work_of_the_free_catalog_is_planned():
+    catalog = json.loads((REPO / 'corpus' / 'catalog.json').read_text(encoding='utf-8'))['sources']
+    no_derivatives = {Path(source['files'][0]['path']).name for source in catalog
+                      if source.get('format') == 'pdf' and '-ND' in source['licence'].replace(' ', '-')}
+    assert no_derivatives  # the FIX specification and Makarov and Schoar, 22 Nov
+    assert not {file for file, _ in reading_cells.free_planned_pages()} & no_derivatives
+
+
 def test_a_page_whose_work_has_no_card_is_an_error_not_a_blank_prompt(tmp_path):
     source = page_list(tmp_path, [{'file': 'other.pdf', 'pdf_page': 3, 'work': 'other', 'expected_output_tokens': 1200}], {})
     with pytest.raises(ValueError, match='no work card'):
