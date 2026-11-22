@@ -1016,3 +1016,9 @@ The record of how the diagnostics frontend came about, mistakes included.
   the mark turning beside still under reduced motion; a toast gone with the pointer away beside one held; both checks failed on
   their first runs over the faults above. On the way, the check that the coverage's fold stays open over a reload waits for the
   store before it reloads, as the details' check does: it reloaded once before `toggle` had stored the choice.
+- **The free catalog's series** (22 Nov, line 1). `CatalogSource` takes `series` as `Work` has it (`readings.Series`); pydantic
+  left the free catalog's key out silently, so `/api/works` answered 200 with no series for a free work. A test holds an
+  invented entry with a series and one without. Seen in the browser: the facet lists the three, their parts under each heading
+  in order. Four Sources checks took the free list as flat, or the invented series as the only one: they open every series first
+  (`openSeries`, the first closed heading each time) or name the invented series' heading; one measured the bar while opening
+  the last heading had scrolled the page, and now measures it from the top.

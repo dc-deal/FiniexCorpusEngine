@@ -37,6 +37,13 @@ async function pick(page: Page, facet: string, value: string): Promise<void> {
   await page.keyboard.press('Escape')
 }
 
+// Opens every series' heading in the Sources list, so each of its works stands as a row: the free catalog names series too
+// (22 Nov). One at a time, the first closed one each time, as an open heading leaves the closed ones' order
+async function openSeries(page: Page): Promise<void> {
+  const closed = page.locator('tr.series-head .series-toggle[aria-expanded="false"]')
+  while (await closed.count()) await closed.first().click()
+}
+
 // Opens every fold a view shows, nested ones too, looked up anew after each click: opening a fold may draw the view again,
 // and a list taken once can hold a row that is gone by the time it is clicked. `limit` stops after that many, in reading
 // order, for a check that needs each kind of fold opened rather than each fold
@@ -169,7 +176,8 @@ test('the sources list every work of the catalog, each marked free', async ({ pa
   const works = await (await request.get('/api/works')).json() as unknown[]
   await page.goto('/#/sources')
   await settled(page)
-  await expect(page.locator('tbody tr')).toHaveCount(works.length)
+  await openSeries(page)
+  await expect(page.locator('tbody tr[data-work]')).toHaveCount(works.length)
   await expect(page.locator('tbody .kb-mark[data-kb="free"]')).toHaveCount(works.length)
   await page.screenshot({ path: `${SHOTS}/sources.png` })
 })
@@ -378,6 +386,7 @@ test('every work says how far it is refined: five meters in Sources, its levels 
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#/sources')
     await settled(page)
+    await openSeries(page)
     // one Coverage column in place of B3's six: five meters a work, each level's words in its card
     await expect(page.locator('table.works thead th')).toHaveText(['Work', 'Knowledge base', 'Coverage', 'Authors', 'Year', 'Format', 'Topic'])
     for (const work of laddered) {
@@ -3040,7 +3049,7 @@ test('the sources table fits its width from a phone to 2,000 px, giving up colum
   })
   await page.goto('/#/sources')
   await settled(page)
-  await page.locator('tr.series-head .series-toggle').click()
+  await page.locator('tr.series-head[data-series="series:an_invented_course"] .series-toggle').click()
   const shownAt: Record<number, string[]> = {}
   for (const width of [390, 600, 900, 1100, 1280, 2000]) {
     await page.setViewportSize({ width, height: 900 })
@@ -3058,8 +3067,8 @@ test('the sources table fits its width from a phone to 2,000 px, giving up colum
 })
 
 // Y1.a (the operator, 19 Nov): the sources list narrowed by the facet bar, a series' parts under one heading, and a reload
-// (F5) that brings the reader back to the bar and the place they left. The free knowledge base names no series, so three
-// invented licensed parts of an invented series join the served list
+// (F5) that brings the reader back to the bar and the place they left. Three invented licensed parts of an invented series
+// join the served list, beside the free catalog's own series (22 Nov)
 test('the sources bar narrows without moving, groups a series, and a reload brings the reader back (Y1.a)', async ({ page }) => {
   const part = (number: number) => ({ knowledge_base: 'licensed', id: `an_invented_course_${number}`, title: `Lecture ${number}`,
     authors: 'A. Lecturer', year: 2010 + number, format: 'pdf', shelf: 'trading_finance', structure: 'not read page by page',
@@ -3072,7 +3081,7 @@ test('the sources bar narrows without moving, groups a series, and a reload brin
   await settled(page)
 
   // the series: one closed heading with its title and its count, its parts in their order once opened
-  const head = page.locator('tr.series-head')
+  const head = page.locator('tr.series-head[data-series="series:an_invented_course"]')
   await expect(head.locator('.series-title')).toHaveText('An Invented Course')
   await expect(head.locator('.series-count')).toHaveText('3 works')
   await expect(page.locator('tr.in-series')).toHaveCount(0)
@@ -3084,7 +3093,10 @@ test('the sources bar narrows without moving, groups a series, and a reload brin
     .toEqual(['an_invented_course_1', 'an_invented_course_2', 'an_invented_course_3'])
   // its toggle stays under the pointer, open or closed
   expect(await toggle.boundingBox()).toEqual(shut)
-  // every work stands as a row now, the bar's count over all of them
+  // every work stands as a row once the free catalog's own series are open too, the bar's count over all of them; back at the
+  // top, where the bar is measured from, since opening the last heading scrolled it into view
+  await openSeries(page)
+  await page.evaluate(() => window.scrollTo(0, 0))
   const all = await page.locator('tbody tr[data-work]').count()
   await expect(page.locator('.facet-count-label')).toHaveText(`${all} of ${all}`)
 
@@ -3114,7 +3126,8 @@ test('the sources bar narrows without moving, groups a series, and a reload brin
   await page.reload()
   await settled(page)
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(place)
-  await expect(page.locator('tr.in-series')).toHaveCount(3)
+  // the invented series still open, its three parts beneath its heading
+  await expect(page.locator('tr.in-series[data-work^="an_invented_course_"]')).toHaveCount(3)
   // and the check can tell: a tab that kept no place opens at the top
   await page.evaluate(() => sessionStorage.removeItem('scroll.v1'))
   await page.reload()

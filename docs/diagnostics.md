@@ -1954,3 +1954,8 @@ every view, shows an export while it runs or waits: an hourglass that turns, sti
 of about 5 min", or "· running 3 min" without an estimate; a click opens what it is, since when, whether one more waits, and the
 verdicts that wait for it; at its end "✓ served" for 4 s, a failure in the error role until clicked away. 397 unit tests, 87
 checks in the browser (3 skipped on today's data), 1,562 Python tests.
+
+**The free catalog's series (22 Nov).** The free catalog names series now, in the licensed catalog's shape (Y1.a): the
+Regulation NMS rules held, the FIX Latest specification's parts and the FIX session layer's two documents. The Sources view's
+Series facet lists them and their works stand under their headings, part by part; before, the free catalog's model dropped the
+field. 397 unit tests, 87 checks in the browser (3 skipped on today's data), 1,628 Python tests.
