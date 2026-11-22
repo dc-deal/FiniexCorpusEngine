@@ -40,6 +40,8 @@ class CatalogSource(BaseModel):
     licence: str
     format: str
     shelf: str
+    # the series the entry is a part of, in the licensed catalog's shape (line 1, 22 Nov): the free catalog names some too
+    series: Series | None = None
 
 
 class StandIn(BaseModel):
@@ -87,7 +89,8 @@ class Work(BaseModel):
     # how the work is cut, as the list knows it (Y1.a): read page by page, by its sections (a free HTML work, a licensed
     # EPUB), or not read yet; the sources view's structure facet takes it as it stands
     structure: Literal['read page by page', 'sections by heading', 'not read page by page'] | None = None
-    # the series the local licensed catalog puts it in, None for every other work and under --public-only (Y1.a)
+    # the series its catalog puts it in, the free one's or the local licensed one's (Y1.a; the free catalog's since 22 Nov);
+    # None for a work in none, and for a licensed work under --public-only
     series: Series | None = None
     # how far it is refined, the five levels of U1.a, from the shelf and its read pages' states; None where the shelf has no
     # row of it on this machine

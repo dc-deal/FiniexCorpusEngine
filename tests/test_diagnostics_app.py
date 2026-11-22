@@ -53,6 +53,19 @@ def test_a_work_carries_exactly_the_fields_of_its_model_and_its_knowledge_base()
     assert {work['knowledge_base'] for work in works} == {'free'}
 
 
+def test_a_free_catalog_entry_s_series_reaches_its_work_and_one_without_stays_none(tmp_path):
+    # invented: two entries of the free catalog, one a part of a series in the licensed catalog's shape, one in none
+    entry = {'title': 'A Rule', 'authors': 'An Agency', 'publisher': 'An Agency', 'year': 2025, 'licence': 'public domain',
+             'format': 'pdf', 'shelf': 'regulation'}
+    catalog = tmp_path / 'catalog.json'
+    catalog.write_text(json.dumps({'sources': [
+        {**entry, 'id': 'a_rule_part', 'series': {'id': 'a_rule_set', 'title': 'A Rule Set', 'part': 2, 'of': 3}},
+        {**entry, 'id': 'a_rule_alone'}]}), encoding='utf-8')
+    works = {work.id: work for work in sources.works(catalog)}
+    assert works['a_rule_part'].series == sources.Series(id='a_rule_set', title='A Rule Set', part=2, of=3)
+    assert works['a_rule_alone'].series is None
+
+
 def test_a_catalog_entry_missing_a_shown_field_is_refused(tmp_path):
     catalog = tmp_path / 'catalog.json'
     catalog.write_text(json.dumps({'sources': [{'id': 'x', 'title': 'No authors'}]}), encoding='utf-8')
