@@ -174,7 +174,8 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
             pages_planned[page['file']].add(page['pdf_page'])
     planned = Counter({file: len(numbers) for file, numbers in pages_planned.items()})
     new = search_server.new_licensed_pdfs(keys)
-    standing_in = search_server.stand_ins(keys)  # a stand-in serving its work whole (126.a)
+    # a stand-in serving its work whole (126.a): a PDF that may be sent, or an EPUB (22 Nov)
+    standing_in = {**search_server.stand_ins(keys), **search_server.epub_stand_ins(keys)}
     by_work = defaultdict(list)
     for page in pages:
         by_work[page.work].append(page)

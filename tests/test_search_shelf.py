@@ -138,3 +138,25 @@ def test_the_semantic_level_counts_each_source_s_chunks_and_the_pages_they_cover
     detail = shelf.semantic_detail(index_db)
     assert detail['book'] == {'pages': {3: 2, 4: 1}, 'sections': {'s1': 2, 's2': 1}} and detail['site']['pages'] == {}
     assert shelf.semantic_detail(tmp_path / 'none.sqlite3') == {}
+
+
+def test_a_stand_in_epub_the_list_names_serves_its_work_in_place_of_the_legacy_text(tmp_path, monkeypatch):
+    # the operator, 22 Nov: two works whose originals are missing are served from their stand-in EPUBs
+    import shutil
+
+    from test_ingestion_epub_sections import an_epub
+
+    a_licensed_shelf(tmp_path, monkeypatch)
+    plan = tmp_path / 'rollout'
+    plan.mkdir()
+    (plan / 'plan.json').write_text(json.dumps({'order': []}), encoding='utf-8')
+    monkeypatch.setattr(rollout, 'FOLDER', plan)
+    (tmp_path / 'archive' / 'book_b__alt.pdf').unlink()
+    shutil.copy(an_epub(tmp_path), tmp_path / 'archive' / 'book_b__alt.epub')
+    (tmp_path / 'stand_ins.json').write_text(json.dumps({'suffix': '__alt', 'works': ['key-b']}), encoding='utf-8')
+    pages, works = search_server.licensed_pages()
+    assert {page.route for page in pages if page.work == 'key-b'} == {search_server.EPUB_ROUTE}
+    assert not any('legacy bee' in page.text for page in pages)
+    (row,) = [row for row in shelf.licensed_rows(pages, works) if row['work'] == 'key-b']
+    assert row['file'] == 'book_b__alt.epub' and row['format'] == 'epub' and not row.get('stand_in_of')
+    assert search_server.legacy_fallback_pages().get('book_b.pdf') is None

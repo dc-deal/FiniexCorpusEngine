@@ -330,14 +330,27 @@ EPUB_ROUTE = 'epub, parsed by section'
 
 
 def licensed_epubs(keys: dict[str, str]) -> dict[str, Path]:
-    """Work key -> EPUB, for every licensed EPUB that is not a stand-in (decision 123.a, the operator's P1.a, 18 Nov). An EPUB of a
-    legacy work serves it in place of its legacy text, since the EPUB is the file the text was made from; one without a legacy
-    text joins under its file's stem. A stand-in EPUB stays beside the legacy text of its work, which stands. The provenance
-    list does not matter here: nothing of an EPUB reaches a provider."""
+    """Work key -> EPUB (decision 123.a, the operator's P1.a, 18 Nov). An EPUB of a legacy work serves it in place of its legacy
+    text, since the EPUB is the file the text was made from; one without a legacy text joins under its file's stem. A
+    stand-in EPUB serves its work in place of the legacy text too where the stand-ins' list names the work (`epub_stand_ins`);
+    any other stays beside it. The provenance list does not matter here: nothing of an EPUB reaches a provider."""
     by_slug = {slug: key for key, slug in keys.items()}
     suffix, _ = stand_in_rule()
-    return {by_slug.get(path.stem, path.stem): path for path in sorted(LICENSED_ARCHIVE.glob('*.epub'))
-            if not (suffix and path.stem.endswith(suffix))}
+    own = {by_slug.get(path.stem, path.stem): path for path in sorted(LICENSED_ARCHIVE.glob('*.epub'))
+           if not (suffix and path.stem.endswith(suffix))}
+    return {**own, **epub_stand_ins(keys)}
+
+
+def epub_stand_ins(keys: dict[str, str]) -> dict[str, Path]:
+    """Work key -> the stand-in EPUB that serves it: where the file a legacy text was converted from is not held and the
+    stand-ins' list names the work (126.a), the publisher's EPUB beats the conversion of a file no longer here (the operator,
+    22 Nov, for two works: measured, their EPUBs hold 96 and 99.7 % of the legacy text's words, and the newer edition of
+    one 13 % more)."""
+    suffix, works = stand_in_rule()
+    if not suffix:
+        return {}
+    found = {key: LICENSED_ARCHIVE / f'{keys[key]}{suffix}.epub' for key in works if key in keys}
+    return {key: path for key, path in found.items() if path.exists()}
 
 
 def epub_pages(key: str, path: Path, marks: list[str]) -> list[page_index.Page]:

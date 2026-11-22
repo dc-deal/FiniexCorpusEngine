@@ -80,15 +80,18 @@ def test_the_search_server_serves_an_epub_by_section_and_never_ranks_by_its_imag
     assert IMAGE_MARK in pages[0].text and 'image' not in pages[0].words
 
 
-def test_an_epub_serves_its_legacy_work_and_a_stand_in_stays_beside_it(tmp_path, monkeypatch):
+def test_an_epub_serves_its_legacy_work_and_a_stand_in_serves_only_when_the_list_names_its_work(tmp_path, monkeypatch):
+    # the operator, 22 Nov: a stand-in EPUB of a listed work serves it; one the list does not name stays beside it
     from backend.search import search_server
 
-    for name in ('book_of_a.epub', 'new_book.epub', 'old_book__replacement.epub', 'book_of_b.pdf'):
+    for name in ('book_of_a.epub', 'new_book.epub', 'old_book__replacement.epub', 'other_book__replacement.epub',
+                 'book_of_b.pdf'):
         (tmp_path / name).write_bytes(b'')
     monkeypatch.setattr(search_server, 'LICENSED_ARCHIVE', tmp_path)
     monkeypatch.setattr(search_server, 'stand_in_rule', lambda: ('__replacement', ['old']))
-    found = search_server.licensed_epubs({'a': 'book_of_a', 'b': 'book_of_b', 'old': 'old_book'})
-    assert {key: path.name for key, path in found.items()} == {'a': 'book_of_a.epub', 'new_book': 'new_book.epub'}
+    found = search_server.licensed_epubs({'a': 'book_of_a', 'b': 'book_of_b', 'old': 'old_book', 'other': 'other_book'})
+    assert {key: path.name for key, path in found.items()} == {
+        'a': 'book_of_a.epub', 'new_book': 'new_book.epub', 'old': 'old_book__replacement.epub'}
 
 
 def test_an_epub_2_book_is_named_by_its_ncx(tmp_path):
