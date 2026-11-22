@@ -4,14 +4,20 @@ search holds the page and what text it serves. A search a person runs goes to th
 client's does (`librarian`, L1.a): the search screen that called this index directly went with it.
 
 Beside it, where the diagnostics shows a page the search names: a page of an exported reading, found by the work and the PDF
-page, both of which the export carries beside the catalog id (the call log's links). Building the index takes about 20 s over
-the free knowledge base and 50 s with the licensed one (measured 10 Nov), so the start command warms it while the app comes
-up, its pages read in a process of their own.
+page, both of which the export carries beside the catalog id (the call log's links).
+
+Where this machine's configuration has the librarian read the index database (issue #10, part C), the view reads it too (part
+E, 22 Nov): the core's `build_service` loads it in seconds, against about three minutes to assemble it from files, which kept
+the view's warm-up and every call during it slow after each restart. Files stay where the configuration says so, under
+`--public-only`, and where the database cannot serve: they are read in a process of their own, the view's reader handed to
+the core, since in this process the reading starved every request beside it. A service read from the database is asked, at
+most every few seconds, whether an import or a verdict wrote the index since, and loads it again where one did.
 """
 
 import multiprocessing
 import sys
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
@@ -20,6 +26,8 @@ from pydantic import BaseModel
 
 from backend.diagnostics.readings import KnowledgeBase, Readings
 from backend.search import search_server, shelf
+
+REFRESH_SECONDS = 5.0  # how often a page's view asks the index database whether its index was written since
 
 
 class PageLink(BaseModel):
@@ -49,18 +57,23 @@ def read_pages(public_only: bool) -> dict:
 
 
 def build_service(public_only: bool) -> search_server.SearchService:
-    """The core's search over the knowledge bases given out; with `public_only` the licensed one is never read (81.a)."""
-    return search_server.SearchService(read_pages(public_only))
+    """The core's search over the knowledge bases given out: from the index database where this machine's configuration says
+    so, else, and where the database cannot serve, from files read in a process of their own (`read_pages`, looked up at the
+    call, so a test's own reader reaches it); with `public_only` files alone, the licensed base never read (81.a)."""
+    return search_server.build_service(public_only, read=read_pages)
 
 
 class Search:
     """The search, built once, on first use or ahead of it by `warm`, and shared by every request: a built index is only
     read, so requests may search it side by side."""
 
-    def __init__(self, public_only: bool):
+    def __init__(self, public_only: bool, clock=time.monotonic):
         self.public_only = public_only
         self._service: search_server.SearchService | None = None
         self._lock = threading.Lock()
+        self._clock = clock
+        self._asked = float('-inf')  # when the database was last asked whether the index was written
+        self._said = False  # a database that could not be asked is said once
 
     def service(self) -> search_server.SearchService:
         with self._lock:
@@ -69,8 +82,22 @@ class Search:
             return self._service
 
     def ready(self) -> search_server.SearchService | None:
-        """The search if it is built, without waiting for it: an overview never blocks on the index."""
-        return self._service
+        """The search if it is built, without waiting for it: an overview never blocks on the index. One read from the database
+        is asked at most every `REFRESH_SECONDS` whether an import or a verdict wrote the index since (one cheap query), and
+        loads it again where one did, so a page says what the librarian serves; where the database cannot be asked, the index
+        loaded last stays."""
+        service = self._service
+        if service is None or getattr(service, 'database_url', None) is None or self._clock() - self._asked < REFRESH_SECONDS:
+            return service
+        self._asked = self._clock()
+        try:
+            service.refresh()
+        except Exception as error:  # noqa: BLE001 — the database gone for a moment: the index loaded last serves on
+            if not self._said:
+                print(f'the search keeps the index it loaded last: {type(error).__name__}: {error}', file=sys.stderr,
+                      flush=True)
+                self._said = True
+        return service
 
     def warm(self) -> None:
         """Build the index in the background, so the first search does not wait for it."""

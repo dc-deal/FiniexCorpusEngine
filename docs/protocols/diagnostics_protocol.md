@@ -1033,3 +1033,16 @@ The record of how the diagnostics frontend came about, mistakes included.
   list and the overview as two steps, and `GZipMiddleware` (level 6; Starlette leaves PNG and JPEG alone) packs the list's 298
   KB to 28 KB. The browser check of 8.a takes the free data's own PDF without readings and was shown failing with a list that
   opened nothing (`page_list` false); an older test meant only licensed works where it said no work is "not read".
+- **The search index from the index database** (issue #10, part E, 22 Nov). `search_hits.build_service` hands over to
+  `search_server.build_service(public_only, read=read_pages)`: the database where `database.librarian_reads` says so, else
+  files, read in a process of their own as before (`read_pages` looked up at the call, so a test's reader reaches it). The view
+  reads only `by_page`, `works` and `ranked_pages()`, never `index.pages`, which the database's index holds as a dict.
+  `Search.ready()` calls `refresh()` (one generation query) at most every `REFRESH_SECONDS` (5) for a service with a
+  `database_url`, with an injectable clock for the test; a failure is printed once and the index loaded last serves on. The gate
+  ran before the switch, in a throwaway container on the compose network over the main tree's data with this branch's code:
+  works by key and eight fields, every page key, every page's fields, its text by digest and its keyword rung, and twenty
+  searches. The page keys and the hits held; three differences were the database's and went to line 1 (an edition kept after the
+  last write still ranked there, some text-layer pages with other text, the legacy pages' paths absolute on the importing host).
+  The view takes the database all the same: it is what the librarian serves, and a re-import reaches the view through
+  `refresh()` without a restart. Warm-up measured one after the other in a throwaway container: the search step 202.3 s to 2.2
+  s, the whole 472 s to 265 s.
