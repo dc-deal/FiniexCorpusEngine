@@ -186,3 +186,33 @@ def test_the_issue_share_may_rise_by_one_standard_error_and_no_further():
 def test_a_stopped_work_fails_the_judge_gate():
     report = report_of(('w', 'ok', [], True), works={'w': {'stopped': True}})
     assert rollout.gates_of(report, [], None)['gates']['judge_sample']['stopped_works'] == ['w']
+
+
+def test_an_append_named_by_its_files_plans_only_those_new_works_and_the_others_wait(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    # the waiting work's text-only page has no Haiku check: it would stop an append of every new work, not this one
+    appending(tmp_path, monkeypatch, rows_of('w', 20) + rows_of('new', 3) + rows_of('waiting', 2) + rows_of('later', 1, signals=PLAIN))
+    result = rollout.append(SimpleNamespace(files=['new']))
+    assert {page['file'] for page in result['order'][20:]} == {'new.pdf'} and result['pages'] == 23
+    assert {page['file'] for page in json.loads((tmp_path / 'round_05.json').read_text(encoding='utf-8'))['pages']} == {'new.pdf'}
+
+
+def test_an_append_without_files_plans_every_new_work_as_before(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    appending(tmp_path, monkeypatch, rows_of('w', 20) + rows_of('new', 3) + rows_of('waiting', 2))
+    result = rollout.append(SimpleNamespace(files=None))
+    assert {page['file'] for page in result['order'][20:]} == {'new.pdf', 'waiting.pdf'}
+
+
+@pytest.mark.parametrize('names, refusal', [(['no_such_work'], 'not among'), (['w'], 'in a round already'),
+                                            (['held'], 'not among')])
+def test_an_append_named_by_an_unknown_held_or_planned_file_writes_nothing(tmp_path, monkeypatch, names, refusal):
+    from types import SimpleNamespace
+
+    appending(tmp_path, monkeypatch, rows_of('w', 20) + rows_of('new', 3))  # a held file is never measured: no row
+    plan_before = (tmp_path / 'plan.json').read_bytes()
+    with pytest.raises(SystemExit, match=refusal):
+        rollout.append(SimpleNamespace(files=names))
+    assert (tmp_path / 'plan.json').read_bytes() == plan_before and not (tmp_path / 'round_05.json').exists()

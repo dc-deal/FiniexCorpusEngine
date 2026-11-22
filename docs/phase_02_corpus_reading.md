@@ -149,6 +149,10 @@ first such work and were closed with tests: the export listed only pages a defau
 session stood in no export (`reading_export.with_session_pages`), and the shelf planned only the rollout's pages, so the work
 counted as read against nothing planned.
 
+**One new work's intake by name (22 November).** `rollout append`, which plans every sendable PDF no round holds yet, and the
+cascade's `page_classes sample-plan` take `--files NAME …`, so one new work is read through the API while the others that wait
+for another route stay unplanned, and a name that is unknown, held back or already in a round writes nothing.
+
 **A night's run, and the judge in the session (the operator's N1.a, N2.a, N3.a, 19 November).** Once the API credit ends, a
 work read whole is still judged: `session_judge` writes the check plan's own judge requests (the image the reader saw, the
 formulas rendered, the transcription as the judge sees it, the active judge's instructions and schema) as folders for a Sonnet

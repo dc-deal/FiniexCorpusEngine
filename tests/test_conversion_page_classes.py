@@ -1,3 +1,5 @@
+import json
+
 import pymupdf
 import pytest
 
@@ -58,3 +60,49 @@ def test_measure_reads_a_real_page_and_finds_a_monospaced_listing(tmp_path):
         signals_found = page_classes.measure(page)
     assert signals_found['mono_run'] >= page_classes.CODE_LINES and signals_found['text_chars'] > page_classes.TEXT_LAYER_CHARS
     assert 'code' in page_classes.decide(signals_found)
+
+
+def test_files_names_a_pdf_by_its_name_or_stem_and_none_means_every_file():
+    rows = [{'file': 'a_book.pdf', 'pdf_page': 1}, {'file': 'b_paper.pdf', 'pdf_page': 1}]
+    assert page_classes.files_named(rows, None) is None and page_classes.files_named(rows, []) is None
+    assert page_classes.files_named(rows, ['a_book', 'b_paper.pdf']) == {'a_book.pdf', 'b_paper.pdf'}
+    with pytest.raises(SystemExit, match=r"\['held_book'\] not among"):
+        page_classes.files_named(rows, ['a_book', 'held_book'])
+
+
+class ReportStore:
+    """The licensed store as `sample_plan` reads and writes it."""
+
+    def __init__(self, folder, rows):
+        (folder / 'rows.json').write_text(json.dumps({'rows': rows}), encoding='utf-8')
+        self.folder, self.reports = folder, {}
+
+    def path(self, *parts):
+        return self.folder / 'rows.json'
+
+    def write_report(self, name, report):
+        self.reports[name] = report
+
+
+def test_a_cascade_plan_named_by_its_files_plans_only_their_text_only_pages_and_an_unknown_name_writes_nothing(tmp_path,
+                                                                                                              monkeypatch):
+    from types import SimpleNamespace
+
+    from backend.conversion.reading import page_class_check, page_render
+    from backend.conversion.store import reading_store
+
+    rows = [{'file': name, 'pdf_page': 1, 'signals': PLAIN} for name in ('new_paper.pdf', 'waiting_book.pdf')]
+    store = ReportStore(tmp_path, rows)
+    monkeypatch.setattr(reading_store, 'open_store', lambda mirror: store)
+    monkeypatch.setattr(pymupdf, 'open', lambda path: [object()])
+    monkeypatch.setattr(page_render, 'render', lambda page, size: None)
+    monkeypatch.setattr(page_class_check, 'entry_for', lambda **asked: {'file': asked['file_name'], 'estimate_usd': 0.001})
+    page_classes.sample_plan(SimpleNamespace(plan='cascade', size=200, files=['new_paper']))
+    assert [entry['file'] for entry in store.reports['page_classes_cascade_plan.json']['entries']] == ['new_paper.pdf']
+    page_classes.sample_plan(SimpleNamespace(plan='cascade', size=200, files=None))  # without a name: every file, as before
+    assert [entry['file'] for entry in store.reports['page_classes_cascade_plan.json']['entries']] == ['new_paper.pdf',
+                                                                                                         'waiting_book.pdf']
+    store.reports.clear()
+    with pytest.raises(SystemExit, match='nothing written'):
+        page_classes.sample_plan(SimpleNamespace(plan='cascade', size=200, files=['no_such_paper']))
+    assert store.reports == {}

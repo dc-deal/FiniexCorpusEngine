@@ -239,6 +239,21 @@ def estimate(args) -> None:
         print(f'  {name}: {sent} pages to the reader ({sent / len(rows):.1%}), about {sent * args.usd_per_page:.0f} USD')
 
 
+def files_named(rows: list[dict], names: list[str] | None) -> set[str] | None:
+    """The files `--files` names among the measured pages' files, each named by its file name or its stem; None where no name
+    is given, which means every file (22 Nov: a new work's intake, while other sendable works wait for another route). A
+    name that is not there, or a held file's, which `estimate` never measures, stops the command before anything is written."""
+    if not names:
+        return None
+    by_name = {}
+    for file in {row['file'] for row in rows}:
+        by_name[file] = by_name[Path(file).stem] = file
+    unknown = sorted(name for name in names if name not in by_name)
+    if unknown:
+        raise SystemExit(f'--files: {unknown} not among the measured sendable PDFs; nothing written')
+    return {by_name[name] for name in names}
+
+
 SAMPLE_SIZE = 200
 PLANS = {'sample': 'page_classes_sample_plan.json',  # 200 random text-only pages: measures what the rules miss
          'cascade': 'page_classes_cascade_plan.json'}  # every text-only page: decision 67.a, rules then Haiku then Sonnet
@@ -253,6 +268,8 @@ def sample_plan(args) -> None:
 
     store = open_store('licensed')
     rows = json.loads(store.path('reports', 'page_classes_licensed_rows.json').read_text(encoding='utf-8'))['rows']
+    chosen = files_named(rows, getattr(args, 'files', None))
+    rows = [row for row in rows if chosen is None or row['file'] in chosen]
     text_only = [row for row in rows if row['signals']['text_chars'] >= TEXT_LAYER_CHARS and not decide(row['signals'])]
     # The seed keeps the label it was drawn with (the decision is 66.a now): a new seed would draw another sample and buy it again
     sample = text_only if args.plan == 'cascade' else random.Random('page_classes:29.a').sample(text_only, min(args.size, len(text_only)))
@@ -316,6 +333,8 @@ def main() -> None:
     estimate_parser.set_defaults(run=estimate)
     plan_parser = commands.add_parser('sample-plan')
     plan_parser.add_argument('--size', type=int, default=SAMPLE_SIZE)
+    plan_parser.add_argument('--files', nargs='+', metavar='NAME',
+                             help='plan only these PDFs, each by its file name or stem; default every sendable PDF')
     plan_parser.set_defaults(run=sample_plan)
     submit_parser = commands.add_parser('sample-submit')
     submit_parser.add_argument('--cap', type=float, default=40.0)

@@ -14,6 +14,7 @@ classes, its difficulty and its round, in `rollout/plan.json` beside the rounds.
     python -m backend.conversion.reading.rollout plan             # writes the rounds; spends nothing
     python -m backend.conversion.reading.rollout resplit          # the stored order in today's round sizes; a sent round never changes
     python -m backend.conversion.reading.rollout append           # new works as rounds after the last; no round file changes
+    python -m backend.conversion.reading.rollout append --files X # only the new work X (file name or stem); the others wait
     python -m backend.conversion.reading.rollout gates --round 1  # the four gates of a round, from its check report and manifests
 """
 
@@ -148,7 +149,11 @@ def append(args=None) -> dict:
     rows = json.loads(store.path('reports', 'page_classes_licensed_rows.json').read_text(encoding='utf-8'))['rows']
     stored = json.loads((FOLDER / 'plan.json').read_text(encoding='utf-8'))
     planned = {page['file'] for page in stored['order']}
-    new_rows = [row for row in rows if reading_cells.may_send(row['file']) and row['file'] not in planned]
+    chosen = page_classes.files_named(rows, getattr(args, 'files', None))  # only these new works, where named (22 Nov)
+    if chosen is not None and chosen & planned:
+        raise SystemExit(f'--files: {sorted(chosen & planned)} in a round already; nothing written')
+    new_rows = [row for row in rows if reading_cells.may_send(row['file']) and row['file'] not in planned
+                and (chosen is None or row['file'] in chosen)]
     checks = [record for record in store.readings() if record.get('kind') == 'classcheck']
     checked = {(record['file'], record['pdf_page']) for record in checks}
     haiku = {(record['file'], record['pdf_page']): record['answer']['classes'] for record in checks if record.get('answer')}
@@ -274,7 +279,10 @@ def main() -> None:
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('plan').set_defaults(run=plan)
     commands.add_parser('resplit').set_defaults(run=resplit)
-    commands.add_parser('append').set_defaults(run=append)
+    append_parser = commands.add_parser('append')
+    append_parser.add_argument('--files', nargs='+', metavar='NAME',
+                               help='plan only these new works, each by its file name or stem; default every new work')
+    append_parser.set_defaults(run=append)
     gates_parser = commands.add_parser('gates')
     gates_parser.add_argument('--round', type=int, required=True)
     gates_parser.set_defaults(run=gates)
