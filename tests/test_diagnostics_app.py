@@ -337,7 +337,8 @@ def test_without_a_readable_licensed_catalog_a_licensed_work_shows_what_it_showe
     for case, text in (('missing', None), ('not_json', '{not json'), ('not_a_catalog', '[1, 2]'), ('no_entry', '{"sources": []}')):
         both = licensed_with_a_catalog(monkeypatch, tmp_path / case, text)
         assert licensed_work(both) == today, case
-        assert not any(work['not_read'] for work in both.get('/api/works').json()), case
+        # no licensed work is said to be not read; a free catalog PDF without readings is (8.a), whatever the licensed catalog
+        assert not any(work['not_read'] for work in both.get('/api/works').json() if work['knowledge_base'] == 'licensed'), case
         assert both.get('/api/licensed/works/a_licensed_book/pages').json()['title'] == 'a_licensed_book', case
 
 
@@ -418,14 +419,23 @@ def test_the_warm_up_goes_in_the_order_a_person_meets_the_views_after_a_restart(
 
     bases = {'free': SimpleNamespace(legacy=None, not_served=None, warm_unread=lambda: None),
              'licensed': SimpleNamespace(legacy=lambda: 'pages', not_served=lambda: 'files', warm_unread=lambda: None)}
-    steps = app_module.warm_steps(bases, SimpleNamespace(service=lambda: 'index'), lambda: 'list')
+    steps = app_module.warm_steps(bases, SimpleNamespace(service=lambda: 'index'), lambda: 'list', lambda: 'overview')
+    # the Sources list a step of its own before the overview (9.a): warm about 2 s after a start, not after both
     assert [name for name, _ in steps] == [
-        'the Sources list and the overview', 'the licensed legacy pages', 'the licensed files not served',
+        'the Sources list', 'the overview', 'the licensed legacy pages', 'the licensed files not served',
         'the free vector index by page', 'the licensed vector index by page', 'the free pages without a reading',
         'the licensed pages without a reading', 'the Pages view', 'the licensed EPUBs', 'the search index']
     # a public app has no EPUB to cut
-    public = app_module.warm_steps({'free': bases['free']}, SimpleNamespace(service=lambda: 'index'), lambda: 'list')
+    public = app_module.warm_steps({'free': bases['free']}, SimpleNamespace(service=lambda: 'index'), lambda: 'list', lambda: 'overview')
     assert 'the licensed EPUBs' not in [name for name, _ in public]
+
+
+def test_an_answer_is_compressed_where_the_browser_takes_it_and_a_short_one_is_not():
+    # 9.a, measured 22 Nov: the Sources list's 298 KB as 28 KB
+    works = client.get('/api/works', headers={'Accept-Encoding': 'gzip'})
+    assert works.status_code == 200 and works.headers.get('content-encoding') == 'gzip' and works.json()
+    assert client.get('/api/app', headers={'Accept-Encoding': 'gzip'}).headers.get('content-encoding') is None
+    assert client.get('/api/works', headers={'Accept-Encoding': 'identity'}).headers.get('content-encoding') is None
 
 
 def test_a_warm_up_step_that_fails_is_said_and_the_rest_goes_on_and_no_list_cuts_beside_it():

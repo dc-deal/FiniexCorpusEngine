@@ -35,6 +35,9 @@ from backend.diagnostics.unread_pages import Coverage
 from backend.diagnostics.work_editions import Editions
 
 FREE_EXPORT = data_paths.FREE_READINGS
+# the free knowledge base's catalog, tracked with it: the sources view lists its works, and a PDF of it the export has no pages
+# of opens its page list all the same (8.a)
+FREE_CATALOG = Path(__file__).resolve().parents[3] / 'corpus' / 'catalog.json'
 LICENSED_EXPORT = data_paths.LICENSED_WORKING / 'readings'
 # The knowledge bases the core exports, one index each (decision 80.a); every row carries its own.
 # (`KnowledgeBase`, 'free' or 'licensed', is defined with the coverage ladder's shapes, which this module's page list carries)
@@ -1452,7 +1455,7 @@ def catalog_entries(path: Path) -> list[CatalogEntry]:
 def knowledge_bases(public_only: bool = False) -> dict[str, 'Readings']:
     """The knowledge bases the views give out, by name. With `public_only` the licensed one is never read, so no licensed
     title, page or count can appear: a recorded review is safe by construction, not by care (decision 81.a)."""
-    bases = {'free': Readings(shelf=lambda: shelf_of('free'))}
+    bases = {'free': Readings(shelf=lambda: shelf_of('free'), free_catalog=FREE_CATALOG)}
     if not public_only:
         licensed = licensed_readings()
         if licensed is not None:
@@ -1535,7 +1538,8 @@ class Readings:
 
     def __init__(self, export: Path = FREE_EXPORT, root: Path | None = None, catalog: Path | None = None,
                  legacy: Callable[[], dict[str, set[int]]] | None = None, planned: Callable[[], set[tuple[str, int]]] | None = None,
-                 not_served: Callable[[], dict[str, str]] | None = None, shelf: Callable[[], dict | None] | None = None):
+                 not_served: Callable[[], dict[str, str]] | None = None, shelf: Callable[[], dict | None] | None = None,
+                 free_catalog: Path | None = None):
         self.export = export
         self.root = root  # what a work's `pdf` path is relative to; None: the repository's layout, the data in _data/
         self.index = export / 'index.json'
@@ -1552,6 +1556,10 @@ class Readings:
         self._works: list[dict] = []
         self._entries: dict[str, CatalogEntry] = {}
         self._unread: list[CatalogEntry] = []
+        # the free catalog, handed in by `knowledge_bases` for the free store alone (8.a): its PDFs the export has no pages of
+        self.free_catalog = free_catalog
+        self._free: list[dict] = []
+        self._free_at: tuple[stamps.Stamp | None, stamps.Stamp | None] | None = None
         # what serves a page without a reading and which are planned (V1.b): the licensed works' legacy pages and plans, handed in
         # by `licensed_readings` alone; None: no work has legacy Markdown and every page is planned, as a free PDF's are
         self.legacy = legacy
@@ -1604,6 +1612,24 @@ class Readings:
         """The licensed catalog's entry of a file, read or not: how an EPUB the librarian serves finds its title."""
         self.works()
         return next((entry for entry in [*self._entries.values(), *self._unread] if entry.file == file_name), None)
+
+    def free_entries(self) -> list[dict]:
+        """The free catalog's PDFs the export has no pages of, in the catalog's order (8.a, 22 Nov: the FIX documents, served
+        from their text layer and never read by a model): each its id, title and PDF as the catalog names it. [] without the
+        free catalog, as in the licensed store. Read again whenever the catalog or the export changes."""
+        if self.free_catalog is None:
+            return []
+        stamp = stamps.stamp(self.free_catalog)
+        works = self.works()
+        if (self._read_at, stamp) != self._free_at:
+            read = {work['source_id'] for work in works}
+            listed = json.loads(self.free_catalog.read_text(encoding='utf-8')).get('sources') or [] if stamp is not None else []
+            self._free = [{'id': source['id'], 'title': source.get('title') or source['id'], 'pdf': files[0]['path']}
+                          for source in listed
+                          if source.get('format') == 'pdf' and source['id'] not in read
+                          and (files := source.get('files') or []) and str(files[0].get('path') or '').lower().endswith('.pdf')]
+            self._free_at = (self._read_at, stamp)
+        return self._free
 
     def unread_entries(self) -> list[CatalogEntry]:
         """The licensed catalog's entries the export has no pages of, in the catalog's order (the operator's O1.a, 18 Nov):
@@ -1681,18 +1707,28 @@ class Readings:
     def warm_unread(self) -> None:
         """Every work's pages without a reading built ahead, as its page list builds them on its first call: the start's
         warm-up (line 1, 20 Nov), the read works' and the catalog's PDFs not read yet alike."""
-        unread = [work for entry in self.unread_entries() if (work := self.entry_work(entry.id))]
+        ids = [*(entry.id for entry in self.unread_entries()), *(entry['id'] for entry in self.free_entries())]
+        unread = [work for source_id in ids if (work := self.entry_work(source_id))]
         for work in [*self.works(), *unread]:
             self.unread_of(work, self.rows_of(work['source_id']))
 
     def entry_work(self, source_id: str) -> dict | None:
-        """A licensed catalog entry with a PDF the export has no pages of, as a work its page list can stand on (U1.a: every
-        work opens, one not read page by page too): every page of it without a reading. None for any other."""
+        """A catalog entry with a PDF the export has no pages of, as a work its page list can stand on (U1.a: every work
+        opens, one not read page by page too): every page of it without a reading. A licensed catalog's entry, or the free
+        catalog's (8.a), whose key in the search is the shelf's where the shelf names one. None for any other."""
         entry = next((one for one in self.unread_entries() if one.id == source_id), None)
-        if entry is None or not (entry.file or '').lower().endswith('.pdf'):
+        if entry is not None:
+            if not (entry.file or '').lower().endswith('.pdf'):
+                return None
+            return {'knowledge_base': 'licensed', 'source_id': source_id, 'work': entry.id, 'title': entry.title, 'file': entry.file,
+                    'pdf': data_paths.stored(data_paths.LICENSED_ARCHIVE / entry.file), 'outline': None}
+        free = next((one for one in self.free_entries() if one['id'] == source_id), None)
+        if free is None:
             return None
-        return {'knowledge_base': 'licensed', 'source_id': source_id, 'work': entry.id, 'title': entry.title, 'file': entry.file,
-                'pdf': data_paths.stored(data_paths.LICENSED_ARCHIVE / entry.file), 'outline': None}
+        key = next((row['work'] for row in (self.shelf_data() or {}).get('works') or []
+                    if row.get('source_id') == source_id and row.get('work')), source_id)
+        return {'knowledge_base': 'free', 'source_id': source_id, 'work': key, 'title': free['title'], 'file': Path(free['pdf']).name,
+                'pdf': free['pdf'], 'outline': None}
 
     def pages(self, knowledge_base: KnowledgeBase, source_id: str, title: str) -> WorkPages:
         """A work's pages under the knowledge base its export entry names; only a catalog work that no export lists, one

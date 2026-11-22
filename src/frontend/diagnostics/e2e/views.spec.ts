@@ -375,6 +375,50 @@ test('a work lists every PDF page, one no reader has read quiet and opening its 
   await expect(page.locator('tr[data-page]')).toHaveCount(3)
 })
 
+// 8.a (22 Nov): a free catalog PDF the export has no pages of opens its page list from Sources, every page not read, each
+// served from its text layer where it has one, as a licensed catalog entry's does (U1.a). The free data's own: the fewest pages
+test('a free catalog PDF without readings opens its pages from Sources, each not read and served from its text layer (8.a)', async ({ page, request }) => {
+  type Listed = { id: string, knowledge_base: string, format: string, readings: unknown | null, page_list: boolean,
+    ladder: { rungs: { of: number | null }[] } | null }
+  const works = await (await request.get('/api/works')).json() as Listed[]
+  const pages = (work: Listed) => work.ladder?.rungs[0]?.of ?? Number.POSITIVE_INFINITY
+  const unread = works.filter(work => work.knowledge_base === 'free' && work.format === 'pdf' && !work.readings)
+    .sort((a, b) => pages(a) - pages(b))[0]
+  test.skip(!unread, 'every free catalog PDF has readings here')
+  expect(unread!.page_list).toBe(true)
+  const listed = await (await request.get(`/api/free/works/${unread!.id}/pages`)).json() as
+    { pages: { pdf_page: number, read: boolean, route_why: string }[] }
+  expect(listed.pages.every(one => !one.read)).toBe(true)
+  await page.goto('/#/sources')
+  await settled(page)
+  await openSeries(page)
+  await page.locator(`tr[data-work="${unread!.id}"] a`).first().click()
+  await expect(page).toHaveURL(new RegExp(`#/free/sources/${unread!.id}$`))
+  await settled(page)
+  await asTable(page)
+  await expect(page.locator('tr[data-page]')).toHaveCount(listed.pages.length)
+  const served = listed.pages.find(one => one.route_why === "served from the PDF's text layer")!
+  const row = page.locator(`tr[data-page="${served.pdf_page}"]`)
+  await expect(row.locator('.state-mark')).toHaveAttribute('data-state', 'not_read')
+  await expect(row.locator('.why')).toHaveText("served from the PDF's text layer")
+  // the page opens its own view, not read, its image the PDF's own
+  await row.locator('a').first().click()
+  await settled(page)
+  await expect(page.locator('[data-label="Check"] .state-mark')).toHaveAttribute('data-state', 'not_read')
+  await expect(page.locator('.own-image img')).toBeVisible()
+  // and the check sees a title that opens nothing: the list as it was before 8.a, a moment
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    const json = (await response.json() as Listed[]).map(work => (work.id === unread!.id ? { ...work, page_list: false } : work))
+    await route.fulfill({ response, json })
+  })
+  await page.goto('/#/sources')
+  await page.reload()
+  await settled(page)
+  await openSeries(page)
+  await expect(page.locator(`tr[data-work="${unread!.id}"] a`)).toHaveCount(0)
+})
+
 test('every work says how far it is refined: five meters in Sources, its levels on its page, the corpus\'s on the overview (U1.a)', async ({ page, request }) => {
   type Rung = { level: string, number: number, said: string, count: number | null, share: number | null,
     pages_filter: Record<string, string[]> | null }

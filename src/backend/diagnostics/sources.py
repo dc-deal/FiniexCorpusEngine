@@ -13,10 +13,10 @@ from typing import Literal
 
 from backend.diagnostics.ladder_types import Ladder
 from backend.diagnostics.work_editions import Editions
-from backend.diagnostics.readings import KnowledgeBase, Series, WorkReadings
+from backend.diagnostics.readings import FREE_CATALOG, KnowledgeBase, Series, WorkReadings
 
 ROOT = Path(__file__).resolve().parents[3]
-CATALOG = ROOT / 'corpus' / 'catalog.json'
+CATALOG = FREE_CATALOG
 # What the sources view says, in place of page counts, of a licensed catalog entry the export has no pages of (O1.a): the
 # view's own state until the core reads it, an EPUB by its sections as the free HTML works are (123.a), which then replace it
 NOT_READ = 'not read page by page'

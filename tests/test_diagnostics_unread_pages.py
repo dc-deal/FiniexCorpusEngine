@@ -173,3 +173,54 @@ def test_the_state_and_level_of_a_page_without_a_reading_follow_every_other():
     assert readings.STATE_ORDER[-1] == unread_pages.UNREAD and readings.LEVEL_ORDER[-1] == unread_pages.UNREAD_LEVEL
     # the core's own words for a page without a reading, so a search hit and the page list name its route alike
     assert unread_pages.ROUTES['text layer'] == served_readings.route_of(None)
+
+
+def a_free_catalog(tmp_path, shelf: dict | None = None) -> readings.Readings:
+    """An invented free knowledge base whose export holds no page: its catalog names a PDF of two pages, the second without a
+    text layer, and an HTML work, which is cut by section and never listed by page (8.a)."""
+    export = tmp_path / 'export'
+    export.mkdir()
+    (export / 'index.json').write_text(json.dumps({'works': [], 'pages': []}), encoding='utf-8')
+    entry = {'title': 'An Invented Specification', 'authors': 'A Committee', 'publisher': 'A Committee', 'year': 2024,
+             'licence': 'CC BY-ND 4.0', 'shelf': 'trading_finance'}
+    catalog = tmp_path / 'catalog.json'
+    catalog.write_text(json.dumps({'sources': [
+        {**entry, 'id': 'an_invented_spec', 'format': 'pdf', 'files': [{'path': 'corpus/raw/an_invented_spec.pdf'}]},
+        {**entry, 'id': 'an_invented_site', 'format': 'html', 'files': [{'path': 'corpus/raw/an_invented_site.html'}]}]}),
+        encoding='utf-8')
+    a_pdf(tmp_path / 'corpus' / 'raw' / 'an_invented_spec.pdf', 2, blank=(2,))
+    return readings.Readings(export=export, root=tmp_path, free_catalog=catalog, shelf=(lambda: shelf) if shelf else None)
+
+
+def test_a_free_catalog_pdf_without_readings_lists_every_page_unread_served_from_its_text_layer(tmp_path):
+    # its key in the search the shelf's, where the shelf names one
+    store = a_free_catalog(tmp_path, {'works': [{'source_id': 'an_invented_spec', 'work': 'an-invented-spec'}]})
+    # the PDF the export has no pages of, the HTML work not among them; the licensed store, without the free catalog, has none
+    assert [entry['id'] for entry in store.free_entries()] == ['an_invented_spec']
+    assert readings.Readings(export=tmp_path / 'export', root=tmp_path).free_entries() == []
+    assert store.entry_work('an_invented_spec') == {'knowledge_base': 'free', 'source_id': 'an_invented_spec', 'work': 'an-invented-spec',
+                                                     'title': 'An Invented Specification', 'file': 'an_invented_spec.pdf',
+                                                     'pdf': 'corpus/raw/an_invented_spec.pdf', 'outline': None}
+    assert store.entry_work('an_invented_site') is None
+    # every page listed, none read, each served from its text layer where it has one
+    pages = store.pages('free', 'an_invented_spec', 'An Invented Specification').pages
+    assert [(page.pdf_page, page.read, page.route_why) for page in pages] == [
+        (1, False, "served from the PDF's text layer"), (2, False, 'nothing served: the page has no text layer')]
+    page = store.unread_page('an_invented_spec', 1, 'An Invented Specification')
+    assert (page.read, page.route_why, page.check.state) == (False, "served from the PDF's text layer", unread_pages.UNREAD)
+
+
+def test_the_sources_list_opens_a_free_catalog_pdf_without_readings_and_its_pages(tmp_path, monkeypatch):
+    from backend.diagnostics import sources
+
+    store = a_free_catalog(tmp_path)
+    monkeypatch.setattr(readings, 'knowledge_bases', lambda public_only=False: {'free': store})
+    real = sources.works
+    monkeypatch.setattr(sources, 'works', lambda catalog=None: real(catalog or store.free_catalog))
+    client = TestClient(create_app(public_only=True), base_url=LOCAL)
+    works = {work['id']: work for work in client.get('/api/works').json()}
+    assert (works['an_invented_spec']['page_list'], works['an_invented_spec']['structure']) == (True, 'not read page by page')
+    assert works['an_invented_site']['page_list'] is False
+    listed = client.get('/api/free/works/an_invented_spec/pages').json()
+    assert [(page['pdf_page'], page['read']) for page in listed['pages']] == [(1, False), (2, False)]
+    assert client.get('/api/free/works/an_invented_spec/pages/1').json()['route_why'] == "served from the PDF's text layer"

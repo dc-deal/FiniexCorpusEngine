@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
@@ -58,17 +59,19 @@ def operation_id(route: APIRoute) -> str:
 Step = tuple[str, Callable[[], object]]
 
 
-def warm_steps(bases: dict[str, readings.Readings], search: search_hits.Search, first: Callable[[], object]) -> list[Step]:
+def warm_steps(bases: dict[str, readings.Readings], search: search_hits.Search, sources_list: Callable[[], object],
+               overview_page: Callable[[], object]) -> list[Step]:
     """What the first requests after a start would otherwise wait for, in the order a person meets the views after a restart
     (line 1, 20 Nov: every merge restarts the container, and a work's page list took 24 s, its first page 18 s more): the
-    Sources list and the overview, the landing page (each work's readings in figures, the shelves, every reading file's
-    integrity: 22 s on the operator's first load of 10 Nov); then what a work's page list needs (the legacy pages, 15.8 s
+    Sources list first, a step of its own (9.a, 22 Nov: with the overview in one step it waited 11.4 s for both, on its own
+    it is warm about 2 s after a start); then the overview, the landing page (each work's readings in figures, the shelves,
+    every reading file's integrity: 6.6 s cold, measured 22 Nov); then what a work's page list needs (the legacy pages, 15.8 s
     natively, and the files not served), what any page's view needs (each base's vector index by page, which the first page
     of a base read whole), each work's pages without a reading, which its page list and its unread pages share (1.3 s for a
     work's first list in the container, the rest warm); then the Pages view's one load, the licensed EPUBs' cuts, which the
     Sources list counts their sections from, and last the search index (136 s with both bases in the container), which only
     a search needs: a page's view never waits for it."""
-    steps: list[Step] = [('the Sources list and the overview', first)]
+    steps: list[Step] = [('the Sources list', sources_list), ('the overview', overview_page)]
     steps += [(f'the {name} legacy pages', store.legacy) for name, store in bases.items() if store.legacy]
     steps += [(f'the {name} files not served', store.not_served) for name, store in bases.items() if store.not_served]
     steps += [(f'the {name} vector index by page', lambda name=name: page_ladder.semantic_detail(name)) for name in bases]
@@ -122,6 +125,9 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
                   summary='Read-only views of the knowledge bases: where every source and reading came from.')
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_HOSTS)
     app.add_middleware(stamps.OneLook)  # each file's stamp looked at once a request (line 1, 20 Nov)
+    # answers compressed where the browser takes it (9.a, measured 22 Nov: the Sources list's 298 KB as 28 KB, packed in 5 ms);
+    # Starlette leaves the page images, PNG and JPEG already, as they are
+    app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=6)
 
     def store_of(knowledge_base: str) -> readings.Readings:
         store = bases.get(knowledge_base)
@@ -159,10 +165,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
         for name, store in bases.items():
             if name == 'free':
                 html = html_works.counts()
-                listed += [work.model_copy(update={'readings': (summary := store.summary(work.id)), **html_structure(work, html),
-                                                   'structure': sources.READ_PAGES if summary else sources.SECTIONS if work.format == 'html' else None,
-                                                   'page_list': summary is not None})
-                           for work in sources.works()]
+                listed += [free_work(store, work, html) for work in sources.works()]
             else:
                 # a licensed work's title, authors and the rest from the local licensed catalog, where this machine has one
                 # (N1.a); its store reads it, which no --public-only app has
@@ -274,6 +277,16 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
             title = (served_row or row).get('title')
         own = next((edition['key'] for edition in family['editions'] if edition['key'] in work_editions.keys_of(row)), key)
         return work_editions.editions_of(row, rows, title or key, current=own)
+
+    def free_work(store: readings.Readings, work: sources.Work, html: dict) -> sources.Work:
+        """A free catalog work as the Sources list shows it: its readings, its structure, and whether its pages open; a PDF
+        the export has no pages of opens its page list, every page not read (8.a), as a licensed catalog entry's does."""
+        summary = store.summary(work.id)
+        unread = summary is None and store.entry_work(work.id) is not None
+        structure = (sources.READ_PAGES if summary else sources.SECTIONS if work.format == 'html'
+                     else sources.NOT_READ if unread else None)
+        return work.model_copy(update={'readings': summary, **html_structure(work, html), 'structure': structure,
+                                       'page_list': summary is not None or unread, **({'not_read': sources.NOT_READ} if unread else {})})
 
     def unread_structure(entry: readings.CatalogEntry, epubs: dict[str, tuple[str, Path]]) -> dict:
         """A catalog entry without page readings: an EPUB the librarian serves, by its sections; else not read yet."""
@@ -584,7 +597,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
     if DIST.is_dir():
         app.mount('/', StaticFiles(directory=DIST, html=True), name='ui')
     if warm_search:  # once every route stands, so the warm-up calls the Sources list and the overview as a request would
-        steps = warm_steps(bases, search, lambda: (list_works(), show_overview()))
+        steps = warm_steps(bases, search, list_works, show_overview)
         threading.Thread(target=run_warm, args=(steps,), name='warm', daemon=True).start()
     return app
 

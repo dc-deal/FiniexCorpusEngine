@@ -1022,3 +1022,14 @@ The record of how the diagnostics frontend came about, mistakes included.
   in order. Four Sources checks took the free list as flat, or the invented series as the only one: they open every series first
   (`openSeries`, the first closed heading each time) or name the invented series' heading; one measured the bar while opening
   the last heading had scrolled the page, and now measures it from the top.
+- **A free PDF not read yet, gzip, the warm-up split** (8.a, 9.a, 22 Nov). The free store takes the free catalog
+  (`free_catalog`, `readings.FREE_CATALOG`, which `sources.CATALOG` now names): `free_entries` lists its PDFs the export has no
+  pages of (`files[0].path`), and `entry_work` builds a work from one, its search key the shelf's, so `pages`, `unread_page`,
+  the image and `warm_unread` serve it as a licensed entry's; `app.free_work` sets `page_list` and "not read page by page". No
+  core change: the catalog names each PDF. Measured for 9.a first: the list 0.084 s warm in the server, 0.18 s in the browser
+  for 298 KB, drawn in 20 ms (84 rows, 2,470 nodes); the first call after a start 2.08 s (the plain list 0.8 s, coverage 1.0 s,
+  readings 0.25 s), the overview 6.6 s; not the garbage collector (tested with the search index in memory, unchanged by
+  `gc.freeze()`). So no virtualisation and no second call for coverage (line 1's choice (b)): `warm_steps` takes the Sources
+  list and the overview as two steps, and `GZipMiddleware` (level 6; Starlette leaves PNG and JPEG alone) packs the list's 298
+  KB to 28 KB. The browser check of 8.a takes the free data's own PDF without readings and was shown failing with a list that
+  opened nothing (`page_list` false); an older test meant only licensed works where it said no work is "not read".

@@ -1959,3 +1959,13 @@ checks in the browser (3 skipped on today's data), 1,562 Python tests.
 Regulation NMS rules held, the FIX Latest specification's parts and the FIX session layer's two documents. The Sources view's
 Series facet lists them and their works stand under their headings, part by part; before, the free catalog's model dropped the
 field. 397 unit tests, 87 checks in the browser (3 skipped on today's data), 1,628 Python tests.
+
+**A free PDF not read yet opens its pages, and the Sources list is warm sooner (8.a, 9.a, 22 Nov).** A free catalog PDF the
+export has no pages of (the FIX documents, served from their text layer and never read by a model) opens its page list from
+Sources as a licensed catalog entry's does: every page listed as not read, each served from its text layer where it has one,
+each opening its own view with the PDF's own image; the list says "not read page by page" in place of its counts. The Sources
+list was measured before anything was made lazy: 84 rows draw in about 20 ms and the list answers in 0.08 s warm, so it is
+neither virtualised nor split. What a person waited for was the first call after a restart, which waited for the warm-up's first
+step, the Sources list and the overview together (11.4 s); the Sources list is now a step of its own, warm 2.3 s after a start,
+the overview after it (9.3 s). Answers are compressed where the browser takes them: the list's 298 KB travel as 28 KB. 397 unit
+tests, 88 checks in the browser (3 skipped on today's data), 1,640 Python tests.
