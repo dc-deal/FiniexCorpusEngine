@@ -106,13 +106,14 @@ def run_warm(steps: list[Step], say: Callable[[str], None] = lambda line: print(
 def create_app(public_only: bool = False, warm_search: bool = False, librarian_client: Callable[[], Any] | None = None,
                allow_verdicts: bool = False, export_run: Callable[[], None] | None = None) -> FastAPI:
     """The app over the knowledge bases it may give out. With `public_only` the licensed one is never read (decision 81.a),
-    so a recorded review cannot show a licensed title, page or count. `warm_search` reads every reading file and builds the
+    so a recorded review cannot show a licensed title, page or count. `warm_search` keeps which pages of the PDFs have a text
+    layer on disk (1.d), reads every reading file and builds the
     search index while the app comes up, as the start command does; the tests leave it off. `librarian_client` opens the
     Librarian page's one session with the running librarian on its first call (L1.a); without it the page calls nothing, as
     in every test, so no test reaches the librarian or a model.
     `allow_verdicts` opens the one write route, a person's verdict from the page view (213.b, 223.a); off, the app is
     read-only. `export_run` replaces the export a verdict sets going, for the tests, so none writes the real export."""
-    bases = readings.knowledge_bases(public_only)
+    bases = readings.knowledge_bases(public_only, keep_text_layers=warm_search)
     search = search_hits.Search(public_only)
     library = librarian.LibrarianService(librarian_client)
     judged = verdicts.VerdictService(allow_verdicts, bases, run=export_run)

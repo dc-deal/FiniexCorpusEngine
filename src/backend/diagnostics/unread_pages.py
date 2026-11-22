@@ -22,9 +22,16 @@ chapters and the facet bar count it as they count a read page; it has no reading
 state of the export, the PDF, the legacy pages and the plans, and the legacy pages once per state of the licensed export
 (15.8 s natively, warmed at the app's start). The licensed knowledge base is never read under --public-only, and neither is
 anything here of it.
+
+Whether a page has a text layer is the one question asked of the PDF itself, and the start command's app keeps the answers on
+disk, in each knowledge base's working folder, by file and for as long as the PDF's stamp holds (`TextLayers`, line 1's 1.d,
+22 Nov): asked anew of every unread page of every PDF at each start, it took 187 s of a 265 s warm-up in the container. A
+test's app keeps them in memory alone, so no test reads or writes this machine's.
 """
 
 import json
+import os
+import sys
 import threading
 from functools import lru_cache
 from pathlib import Path
@@ -200,6 +207,84 @@ def not_served_files() -> dict[str, str]:
         return _NOT_SERVED[state]
 
 
+TEXT_LAYERS_ABOUT = ("Which pages of each PDF have a text layer, for the diagnostics view's pages without a reading "
+                     "(line 1's 1.d, 22 Nov): by file, kept while the PDF's stamp (modified in nanoseconds, size) holds. "
+                     "Derived: deleting it costs one slow start.")
+
+
+def text_layers_file(knowledge_base: str) -> Path:
+    """Where a knowledge base's text layers are kept: its working folder, on this machine alone (274.a)."""
+    working = data_paths.LICENSED_WORKING if knowledge_base == 'licensed' else data_paths.FREE_WORKING
+    return working / 'diagnostics' / 'text_layers.json'
+
+
+class TextLayers:
+    """Which pages of each PDF have a text layer, the one question a page without a reading asks of its PDF, kept by file
+    while the PDF's stamp holds: a page is opened with pymupdf only where no entry of that stamp knows it. With a `path` the
+    answers are read from it at the first question and written to it whole after each PDF that taught something new; without,
+    they live as long as this object. Built here rather than taken from a library: `diskcache` and `joblib.Memory` key by
+    arguments and cannot tell that a PDF changed, nor add the pages a later question asks to what an earlier one learned."""
+
+    def __init__(self, path: Path | None):
+        self.path = path
+        self._entries: dict[str, dict] | None = None
+        self._lock = threading.Lock()
+        self._said = False
+
+    def _load(self) -> dict[str, dict]:
+        if self._entries is None:
+            self._entries = {}
+            if self.path is not None and self.path.exists():
+                try:
+                    self._entries = dict(json.loads(self.path.read_text(encoding='utf-8')).get('pdfs') or {})
+                except (OSError, ValueError, AttributeError, TypeError):  # a damaged file is built anew
+                    self._entries = {}
+        return self._entries
+
+    def _save(self) -> None:
+        """Written whole through a file of this process's own beside it, so a reader never sees half of it; where the folder
+        cannot be written, the answers stay in memory, said once."""
+        if self.path is None:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            part = self.path.with_name(f'{self.path.name}.{os.getpid()}.part')
+            part.write_text(json.dumps({'about': TEXT_LAYERS_ABOUT, 'pdfs': self._entries}, separators=(',', ':')),
+                            encoding='utf-8')
+            part.replace(self.path)
+        except OSError as error:
+            if not self._said:
+                print(f'the text layers stay in memory: {error}', file=sys.stderr, flush=True)
+                self._said = True
+
+    def pages(self, pdf: Path, file: str, read: set[int], needs_text: bool) -> tuple[int, set[int]]:
+        """The PDF's page count and, of its pages not in `read`, those with a text layer; none asked where `needs_text` is
+        False (a work its legacy Markdown or nothing serves). The PDF is opened only where the count or one of those pages is
+        not known for its stamp, and then outside the lock, so a question about another PDF never waits for it."""
+        found = stamp(pdf)
+        held = list(found) if found else None
+        with self._lock:
+            entry = self._load().get(file)
+        known = entry is not None and entry.get('stamp') == held
+        count: int | None = entry['pages'] if known else None
+        text: set[int] = set(entry['text']) if known else set()
+        none: set[int] = set(entry['none']) if known else set()
+
+        def wanted(pages: int) -> list[int]:
+            return [number for number in range(1, pages + 1)
+                    if needs_text and number not in read and number not in text and number not in none]
+
+        if count is None or wanted(count):
+            with pymupdf.open(pdf) as document:
+                count = document.page_count
+                for number in wanted(count):
+                    (text if document[number - 1].get_text().strip() else none).add(number)
+            with self._lock:
+                self._load()[file] = {'stamp': held, 'pages': count, 'text': sorted(text), 'none': sorted(none)}
+                self._save()
+        return count, (text - read) if needs_text else set()
+
+
 def units_at(outline: list[dict] | None, pdf_page: int) -> list[str] | None:
     """The units a page without a reading lies in, by the outline's ranges: each deepest unit whose pages hold it, in reading
     order, two where one ends and the next begins on it. The export's own units of a read page come from where its text lies,
@@ -212,31 +297,33 @@ def units_at(outline: list[dict] | None, pdf_page: int) -> list[str] | None:
 
 
 def unread_rows(work: dict, rows: list[dict], pdf: Path, legacy: dict[str, set[int]] | None,
-                planned: set[tuple[str, int]] | None, not_served: str | None = None) -> tuple[list[dict], Coverage] | None:
+                planned: set[tuple[str, int]] | None, not_served: str | None = None,
+                layers: TextLayers | None = None) -> tuple[list[dict], Coverage] | None:
     """The rows of a work's PDF pages that have none in the export, and the work's coverage; None where its PDF is not on this
     machine. `legacy`: the licensed works' legacy pages (None for the free base); `planned`: None where every page is;
     `not_served`: how the librarian serves the file other than page by page, as the shelf says it (`not_served_files`): not at
-    all, so nothing serves any of its pages, or by the legacy Markdown whole."""
+    all, so nothing serves any of its pages, or by the legacy Markdown whole; `layers`: which pages have a text layer, as
+    the start command's app keeps them (`TextLayers`); None: asked of the PDF."""
     if not pdf.exists() or pdf.suffix.lower() != '.pdf':
         return None
     read = {row['pdf_page'] for row in rows}
     file = work['file']
     legacy_work = legacy is not None and file in legacy
+    # only a page the text layer may serve is asked whether it has one
+    count, with_text = (layers or TextLayers(None)).pages(pdf, file, read, needs_text=not not_served and not legacy_work)
     found = []
-    with pymupdf.open(pdf) as document:
-        count = document.page_count
-        for number in range(1, count + 1):
-            if number in read:
-                continue
-            if not_served == WHOLE_LEGACY:
-                served_by = served_readings.LEGACY_ROUTE
-            elif not_served:
-                served_by = 'nothing'
-            elif legacy_work:
-                served_by = served_readings.LEGACY_ROUTE if number in legacy[file] else 'nothing'
-            else:
-                served_by = served_readings.TEXT_LAYER if document[number - 1].get_text().strip() else 'nothing'
-            found.append((number, served_by))
+    for number in range(1, count + 1):
+        if number in read:
+            continue
+        if not_served == WHOLE_LEGACY:
+            served_by = served_readings.LEGACY_ROUTE
+        elif not_served:
+            served_by = 'nothing'
+        elif legacy_work:
+            served_by = served_readings.LEGACY_ROUTE if number in legacy[file] else 'nothing'
+        else:
+            served_by = served_readings.TEXT_LAYER if number in with_text else 'nothing'
+        found.append((number, served_by))
     out = [{'knowledge_base': work['knowledge_base'], 'source_id': work['source_id'], 'work': work.get('work'), 'file': file,
             'pdf_page': number, 'printed_label': None, 'units': units_at(work.get('outline'), number), 'route': ROUTES[served_by],
             'route_level': UNREAD_LEVEL, 'fallback': None if served_by == 'nothing' else served_by,

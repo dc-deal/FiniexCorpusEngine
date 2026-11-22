@@ -1055,3 +1055,17 @@ The record of how the diagnostics frontend came about, mistakes included.
   before; the line ending at the text layer and no row planned after. Tests: the wrapper asked once per state of its two lists;
   an invented NoDerivatives PDF with no page planned beside a work read whole whose every unread page is; and on the real data
   (markers `corpus` and `readings`) the FIX volume with none planned and an OpenStax page in the plan.
+- **The text layers kept on disk** (line 1's 1.d, 22 Nov). `unread_pages.TextLayers` keeps, per file, the PDF's stamp
+  (`stamps.stamp`: modified in nanoseconds and size, the same natively and through the container's mount), its page count and
+  the pages asked so far with and without a text layer; a question about a page it does not know opens the PDF and adds it,
+  outside the lock. It is written whole through `<name>.<pid>.part` and `os.replace` after each PDF that taught something new,
+  and a damaged file is built anew. `unread_rows` takes it as `layers` and asks only where the text layer may serve (no legacy
+  Markdown, served at all); without one it asks the PDF as before. `knowledge_bases(keep_text_layers=warm_search)` gives each
+  base its file (`text_layers_file`: the free and the licensed working folders), so only the start command's app reads or writes
+  them; the 8.a test's stand-in for `knowledge_bases` took the new keyword. Checked against `diskcache` and `joblib.Memory`,
+  which key by arguments and cannot tell that a PDF changed nor add later pages to an entry. Tests: kept and read back with the
+  PDF closed to it, a page not asked before added, a changed PDF and a damaged file asked anew; a work's unread rows the same
+  from kept layers as from the PDF; only the start command's app keeps them. Measured one run after the other in a throwaway
+  container: the licensed step 187.8 s, 209.1 s building, 0.9 s after; the free 30.8 s and 1.2 s; the whole from 265 s to 61 s.
+  The run that built the files shared the host with a search assembled from files (the database's address left out of that run),
+  so its whole is not compared; two later runs, the files complete, took 62 s and 61 s.
