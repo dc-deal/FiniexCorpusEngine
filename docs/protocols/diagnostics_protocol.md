@@ -1046,3 +1046,12 @@ The record of how the diagnostics frontend came about, mistakes included.
   The view takes the database all the same: it is what the librarian serves, and a re-import reaches the view through
   `refresh()` without a restart. Warm-up measured one after the other in a throwaway container: the search step 202.3 s to 2.2
   s, the whole 472 s to 265 s.
+- **The free plan** (line 1's FIX note, 22 Nov). `unread_pages.free_planned_pages` wraps the core's
+  `reading_cells.free_planned_pages`, kept once per stamp of the corpus cell's page list and of the session's free list (the
+  free PDFs are unmodified copies, so their stamps are not asked), and `knowledge_bases` hands it to the free store as
+  `planned`, as `licensed_readings` hands the licensed store its own. The docstrings that said a free PDF is read whole now say
+  which free pages are planned. Gate: the Sources view, from the list to a FIX volume's page list (`fix_latest_ep284_trade`),
+  against the running service and this branch on port 8031: "every one of them is planned" and all 124 rows marked planned
+  before; the line ending at the text layer and no row planned after. Tests: the wrapper asked once per state of its two lists;
+  an invented NoDerivatives PDF with no page planned beside a work read whole whose every unread page is; and on the real data
+  (markers `corpus` and `readings`) the FIX volume with none planned and an OpenStax page in the plan.

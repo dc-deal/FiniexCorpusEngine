@@ -210,6 +210,56 @@ def test_a_free_catalog_pdf_without_readings_lists_every_page_unread_served_from
     assert (page.read, page.route_why, page.check.state) == (False, "served from the PDF's text layer", unread_pages.UNREAD)
 
 
+def test_the_free_plan_is_asked_once_per_state_of_the_corpus_cell_s_page_list_and_the_session_s(tmp_path, monkeypatch):
+    # line 1's FIX note (22 Nov): the free plan is the core's, kept until either list it is built from is written again
+    import dataclasses
+
+    from backend.conversion.reading import reading_cells
+
+    source, direct = tmp_path / 'pages.json', tmp_path / 'direct.json'
+    source.write_text('{"pages": []}', encoding='utf-8')
+    cell = dataclasses.replace(reading_cells.CORPUS_CELLS['FREE-SM'], page_source=source)
+    monkeypatch.setitem(reading_cells.CORPUS_CELLS, 'FREE-SM', cell)
+    monkeypatch.setitem(reading_cells.DIRECT_PAGES, 'free', direct)
+    monkeypatch.setattr(unread_pages, '_FREE_PLANNED', {})
+    asked = []
+    monkeypatch.setattr(reading_cells, 'free_planned_pages', lambda: asked.append(1) or {('a_work.pdf', len(asked))})
+    assert unread_pages.free_planned_pages() == unread_pages.free_planned_pages() == {('a_work.pdf', 1)}
+    direct.write_text('{"pages": []}', encoding='utf-8')  # a session lists pages to read
+    assert unread_pages.free_planned_pages() == {('a_work.pdf', 2)}
+
+
+def test_a_free_pdf_no_plan_holds_has_no_page_planned_and_a_work_read_whole_keeps_its_pages_planned(tmp_path):
+    # a NoDerivatives specification is never read (72.a); a work the corpus cell reads whole is planned page by page, so a
+    # page of it without a reading stays planned
+    whole = a_work(tmp_path / 'whole')
+    file = whole.work(KELLY)['file']
+    plan = {(file, number) for number in range(1, 7)}
+    whole.planned = lambda: plan
+    covered = whole.pages('free', KELLY, 'Kelly').coverage
+    assert (covered.planned, covered.said.endswith('every one of them is planned')) == (3, True)
+    (tmp_path / 'spec').mkdir()
+    spec = a_free_catalog(tmp_path / 'spec')
+    spec.planned = lambda: plan
+    covered = spec.pages('free', 'an_invented_spec', 'An Invented Specification').coverage
+    assert covered.planned == 0 and 'planned' not in covered.said
+    assert not any(page.planned for page in spec.pages('free', 'an_invented_spec', 'An Invented Specification').pages)
+
+
+@pytest.mark.corpus
+@pytest.mark.readings
+def test_no_page_of_a_fix_volume_is_planned_and_every_page_of_a_work_read_whole_is():
+    # the real free data: the FIX specification is CC BY-ND and never read; OpenStax is read whole, so a page of it without a
+    # reading would stay planned (today every page of it has one)
+    client = TestClient(create_app(public_only=True), base_url=LOCAL)
+    answer = client.get('/api/free/works/fix_latest_ep284_trade/pages').json()
+    assert answer['coverage']['planned'] == 0 and 'planned' not in answer['coverage']['said']
+    assert not any(page['planned'] for page in answer['pages'])
+    planned = unread_pages.free_planned_pages()
+    assert ('openstax_principles_of_finance_2e.pdf', 1) in planned
+    assert not any(file.startswith('fix_') for file, _ in planned)
+
+
 def test_the_sources_list_opens_a_free_catalog_pdf_without_readings_and_its_pages(tmp_path, monkeypatch):
     from backend.diagnostics import sources
 

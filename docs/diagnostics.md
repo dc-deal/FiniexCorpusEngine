@@ -1980,3 +1980,10 @@ cannot be asked, the index loaded last serves on, said once in the log. Files se
 without the database, and where the database cannot be read, the reason in the log. Before the switch both were compared on the
 real data, every page field by field: the same works, the same pages, the same hits for twenty searches; what differed was the
 database's own and went to line 1. 397 unit tests, 88 checks in the browser (3 skipped on today's data), 1,642 Python tests.
+
+**A free page is planned only where a plan holds it (line 1's FIX note, 22 Nov).** A work's page list called every free page
+without a reading planned, as if every free PDF were read whole, so the FIX specification's volumes, CC BY-ND and never read,
+said "every one of them is planned". The free store now asks the core's free plan (every page of the works the corpus cell reads
+whole, and a session's pages to read) as the licensed store asks its own: a FIX volume's line ends with what serves its pages,
+and a work read whole keeps a page without a reading planned. 397 unit tests, 88 checks in the browser (3 skipped on today's
+data), 1,649 Python tests.

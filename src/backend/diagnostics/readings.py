@@ -1455,7 +1455,8 @@ def catalog_entries(path: Path) -> list[CatalogEntry]:
 def knowledge_bases(public_only: bool = False) -> dict[str, 'Readings']:
     """The knowledge bases the views give out, by name. With `public_only` the licensed one is never read, so no licensed
     title, page or count can appear: a recorded review is safe by construction, not by care (decision 81.a)."""
-    bases = {'free': Readings(shelf=lambda: shelf_of('free'), free_catalog=FREE_CATALOG)}
+    bases = {'free': Readings(shelf=lambda: shelf_of('free'), free_catalog=FREE_CATALOG,
+                              planned=unread_pages.free_planned_pages)}
     if not public_only:
         licensed = licensed_readings()
         if licensed is not None:
@@ -1561,7 +1562,8 @@ class Readings:
         self._free: list[dict] = []
         self._free_at: tuple[stamps.Stamp | None, stamps.Stamp | None] | None = None
         # what serves a page without a reading and which are planned (V1.b): the licensed works' legacy pages and plans, handed in
-        # by `licensed_readings` alone; None: no work has legacy Markdown and every page is planned, as a free PDF's are
+        # by `licensed_readings` alone, and the free plan by `knowledge_bases`; None: no work has legacy Markdown, and every page
+        # is planned, as in an export a test invents
         self.legacy = legacy
         self.planned = planned
         # and the files the librarian serves not at all, by source id, with the shelf's why (U1.a); None: every file is served

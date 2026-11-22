@@ -11,8 +11,11 @@ first proposed, the text layer wherever no Markdown has the page, would have nam
 leaves out, which the librarian serves nothing for. A PDF beside an EPUB or a stand-in that serves its work would serve
 nothing, which the rule does not see; no exported work is one today.
 
-A page is planned where the rollout's plan holds it (`rollout.FOLDER / 'plan.json'`) or a session's list of pages to read
-(`reading_cells.DIRECT_PAGES`, why 'unread'); a free PDF is read whole, so each of its pages is planned, as the shelf counts it.
+A licensed page is planned where the rollout's plan holds it (`rollout.FOLDER / 'plan.json'`) or a session's list of pages to
+read (`reading_cells.DIRECT_PAGES`, why 'unread'); a free page where the corpus cell reads its work whole or a session's list
+holds it (`reading_cells.free_planned_pages`). Any other free PDF is planned nowhere: a NoDerivatives work is never read
+(72.a), and a work taken in later serves its text layer until its reading is decided (line 1, 22 Nov: the view called every
+unread free page planned, the FIX specification's among them).
 
 Each unread page stands as a row of the export's shape in a state of its own, `not_read`, so the summary, the routes, the
 chapters and the facet bar count it as they count a read page; it has no reading to open and no image. It is built once per
@@ -102,6 +105,7 @@ def coverage_said(pdf_pages: int, read: int, parts: list[UnreadPart], planned: i
 _GUARD = threading.Lock()
 _LEGACY: dict[tuple, dict[str, set[int]]] = {}
 _PLANNED: dict[tuple, set[tuple[str, int]]] = {}
+_FREE_PLANNED: dict[tuple, set[tuple[str, int]]] = {}
 _NOT_SERVED: dict[tuple, dict[str, str]] = {}
 
 
@@ -126,7 +130,7 @@ def legacy_pages() -> dict[str, set[int]]:
 
 def planned_pages() -> set[tuple[str, int]]:
     """(file, PDF page) of every licensed page a plan holds: the rollout's plan and a session's pages to read, once per state
-    of the two. A free PDF is read whole, so the free base asks for none."""
+    of the two. The free base asks `free_planned_pages`."""
     from backend.conversion.reading import reading_cells, rollout
 
     plan, direct = rollout.FOLDER / 'plan.json', reading_cells.DIRECT_PAGES['licensed']
@@ -142,6 +146,21 @@ def planned_pages() -> set[tuple[str, int]]:
             _PLANNED.clear()
             _PLANNED[state] = found
         return _PLANNED[state]
+
+
+def free_planned_pages() -> set[tuple[str, int]]:
+    """(file, PDF page) of every free page a plan holds, the core's own (`reading_cells.free_planned_pages`): every page of the
+    works the corpus cell reads whole and a session's pages to read, once per state of the cell's page list and the session's.
+    The free PDFs are unmodified copies, so their stamps are not asked (line 1, 22 Nov)."""
+    from backend.conversion.reading import reading_cells
+
+    source, direct = Path(reading_cells.CORPUS_CELLS['FREE-SM'].page_source), reading_cells.DIRECT_PAGES['free']
+    state = (stamp(source), stamp(direct))
+    with _GUARD:
+        if state not in _FREE_PLANNED:
+            _FREE_PLANNED.clear()
+            _FREE_PLANNED[state] = reading_cells.free_planned_pages()
+        return _FREE_PLANNED[state]
 
 
 WHOLE_LEGACY = 'whole legacy'  # a file's work served by its legacy Markdown whole, which names no PDF page (U1.a)
