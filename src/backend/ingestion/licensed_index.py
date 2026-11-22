@@ -16,6 +16,7 @@ embedding sends text to a provider (decision 33). The folder is refused wherever
 
 import argparse
 import hashlib
+import sqlite3
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -93,6 +94,17 @@ def fingerprint(pages: list) -> str:
     return digest.hexdigest()
 
 
+def index_connection(path: Path, dry_run: bool) -> sqlite3.Connection | None:
+    """The private index's facts. A dry run opens them read-only, so it compares each work's fingerprint without writing
+    (found 22 Nov: without them a dry run counted every work as changed, 0.21 USD instead of the new works' cents); None
+    where a dry run finds no index yet."""
+    if not dry_run:
+        return index_store.connect(path)
+    if not path.exists():
+        return None
+    return sqlite3.connect(f'file:{path.as_posix()}?mode=ro', uri=True)
+
+
 def plans(pages: list, works: dict, held: set[str], catalog: dict[str, dict] | None = None) -> tuple[list[dict], dict]:
     """Per private work not held back: its source, sections, chunks and token count; and what was left out, by why."""
     by_work = defaultdict(list)
@@ -133,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     keys = search_server.legacy_keys()
     pages, works = search_server.licensed_pages()
     planned, left_out = plans(pages, works, held_works(keys), catalog_entries(keys))
-    connection = None if args.dry_run else index_store.connect(directory / 'knowledge.sqlite3')
+    connection = index_connection(directory / 'knowledge.sqlite3', args.dry_run)
     if connection is not None and not args.force:
         for plan in planned:
             if index_store.stored_fingerprint(connection, plan['source']['id']) == plan['fingerprint']:
@@ -145,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
           f"{sum(len(plan['chunks']) for plan in todo):,} chunks, {tokens:,} tokens, estimate {estimated_usd(tokens):.4f} USD; "
           f"left out: {left_out or 'nothing'}")
     if args.dry_run or not todo:
+        if connection is not None:
+            connection.close()
         return 0
     started = datetime.now(timezone.utc).isoformat(timespec='seconds')
     store = index_store.chroma(directory / 'chroma', embedding_route.embeddings(), embedding_route.INDEX_MODEL)

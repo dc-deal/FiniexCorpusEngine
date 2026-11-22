@@ -33,6 +33,25 @@ def test_a_work_whose_pages_did_not_change_keeps_its_fingerprint():
     assert licensed_index.fingerprint(first) != licensed_index.fingerprint([page('book', '7'), page('book', '8', route='legacy markdown')])
 
 
+def test_a_dry_run_reads_the_stored_fingerprints_without_writing(tmp_path):
+    # found 22 Nov: a dry run without the index's facts counted every work as changed and overstated the estimate
+    import sqlite3
+
+    import pytest
+
+    from backend.ingestion import index_store
+
+    path = tmp_path / 'knowledge.sqlite3'
+    assert licensed_index.index_connection(path, dry_run=True) is None and not path.exists()
+    with index_store.connect(path) as written:
+        written.execute("INSERT INTO sources (id, fingerprint) VALUES ('book', 'f1')")
+    connection = licensed_index.index_connection(path, dry_run=True)
+    assert index_store.stored_fingerprint(connection, 'book') == 'f1'
+    with pytest.raises(sqlite3.OperationalError):
+        connection.execute("INSERT INTO sources (id, fingerprint) VALUES ('other', 'f2')")
+    connection.close()
+
+
 def test_an_epub_section_without_a_pdf_page_cites_its_section():
     planned, _ = licensed_index.plans([page('epub_work', None)], {'epub_work': work('epub_work')}, held=set())
     assert 'pdf_page' not in planned[0]['chunks'][0].metadata and planned[0]['sections'][0].pages == []
