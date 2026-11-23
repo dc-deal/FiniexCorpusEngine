@@ -8,6 +8,7 @@ their task notification reports them) and the batches' folder lists, so a sessio
 stands. Generalised from the first such run (a scanned work, 18 Nov night).
 
     python -m backend.conversion.reading.night_run start --knowledge-base licensed --run night01 --work FILE.pdf [--judge-share 0.6]
+    python -m backend.conversion.reading.night_run start --knowledge-base licensed --run night02 --add-pages LIST.json
     python -m backend.conversion.reading.night_run batch --run night01 --number 3 --size 25     # prepare, write the folder list
     python -m backend.conversion.reading.night_run store --run night01 --number 3              # store it, remove its folders
     python -m backend.conversion.reading.night_run log --run night01 --number 3 --tokens 270000 --ms 812000 --pages 25
@@ -56,14 +57,20 @@ def save(knowledge_base: str, run: str, ledger: dict) -> None:
 
 
 def start(args) -> dict:
-    """The works join the direct cell whole, with the share of their pages the judge sees, and the run's ledger begins."""
-    direct_reader.pages(SimpleNamespace(knowledge_base=args.knowledge_base, add_work=args.work, judge_share=args.judge_share))
+    """The works join the direct cell whole, or the pages a page list names do (27.a), with the share of their pages the judge
+    sees, and the run's ledger begins; the run's works are the files it names either way."""
+    add_pages = getattr(args, 'add_pages', None)
+    works = sorted(set(args.work or []) | {file_name for file_name, _ in direct_reader.page_list(add_pages)})
+    if not works:
+        sys.exit('name the works to read whole (--work) or a page list (--add-pages)')
+    direct_reader.pages(SimpleNamespace(knowledge_base=args.knowledge_base, add_work=args.work, add_pages=add_pages,
+                                        judge_share=args.judge_share))
     ledger = {'about': "a night's run in the session (N3.a): per batch the pages it finished and the agents' tokens and time as "
                        'their task notification reports them; per judge chunk the same', 'run': args.run,
-              'knowledge_base': args.knowledge_base, 'works': sorted(args.work), 'judge_share': args.judge_share, 'chunks': CHUNKS,
+              'knowledge_base': args.knowledge_base, 'works': works, 'judge_share': args.judge_share, 'chunks': CHUNKS,
               'started_at': datetime.now(UTC).isoformat(), 'batches': {}, 'judge_chunks': {}}
     save(args.knowledge_base, args.run, ledger)
-    print(f"night run {args.run}: {len(args.work)} works, judge share {args.judge_share:.0%} in {CHUNKS} chunks")
+    print(f"night run {args.run}: {len(works)} works, judge share {args.judge_share:.0%} in {CHUNKS} chunks")
     return ledger
 
 
@@ -189,7 +196,9 @@ def build_parser() -> argparse.ArgumentParser:
     started = commands.add_parser('start')
     started.add_argument('--knowledge-base', choices=('free', 'licensed'), required=True)
     started.add_argument('--run', required=True)
-    started.add_argument('--work', action='append', required=True, metavar='FILE')
+    started.add_argument('--work', action='append', metavar='FILE', help='a work the run reads whole (its structure pages)')
+    started.add_argument('--add-pages', metavar='FILE', help='a page list {about, pages: [{file, pdf_page}]}: the run reads '
+                                                            'those pages, and its works are the files it names (27.a)')
     started.add_argument('--judge-share', type=float, default=JUDGE_SHARE)
     for name in ('batch', 'store', 'log', 'status'):
         command = commands.add_parser(name)

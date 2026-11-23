@@ -10,6 +10,7 @@ another door, around the provider's own safeguard (the filter rule; 280.a). `pag
 checks again.
 
     python -m backend.conversion.reading.direct_reader pages --knowledge-base licensed
+    python -m backend.conversion.reading.direct_reader pages --knowledge-base licensed --add-pages LIST.json --judge-share 0.6
     python -m backend.conversion.reading.direct_reader prepare --knowledge-base licensed --limit 1
         (the session reads page.png under instructions.md and writes reading.md beside them)
     python -m backend.conversion.reading.direct_reader store --knowledge-base licensed
@@ -116,22 +117,45 @@ def pages(args) -> dict:
     rows = json.loads((base.export / 'index.json').read_text(encoding='utf-8'))['pages']
     listed = {(page['file'], page['pdf_page']): page
               for name in base.cells() for page in reading_cells.pages_for(reading_cells.known_cells()[name])}
-    chosen, left = select(rows, listed, set(pipeline_db.protected_pages(base.name)))
+    protected = set(pipeline_db.protected_pages(base.name))
+    chosen, left = select(rows, listed, protected)
     target = reading_cells.DIRECT_PAGES[args.knowledge_base]
     earlier = json.loads(target.read_text(encoding='utf-8')) if target.exists() else {}
     added = sorted(set(earlier.get('added_works', [])) | set(getattr(args, 'add_work', None) or []))
+    new_named = page_list(getattr(args, 'add_pages', None))
+    named = sorted({(page['file'], page['pdf_page']) for page in earlier.get('added_pages', [])} | set(new_named))
+    share = getattr(args, 'judge_share', None)
     shares = {**earlier.get('judge_shares', {}),  # the share of a work's pages its judge sees (N2.a), by the work's key
-              **({Path(name).stem: args.judge_share for name in args.add_work or []} if getattr(args, 'judge_share', None) else {})}
+              **({Path(name).stem: share for name in getattr(args, 'add_work', None) or []} if share else {}),
+              **({Path(file_name).stem: share for file_name, _ in new_named} if share else {})}
     known = {(page['file'], page['pdf_page']) for page in chosen}
     for file_name in added:
         chosen += [page for page in whole_work(base, file_name, rows) if (page['file'], page['pdf_page']) not in known]
+    known = {(page['file'], page['pdf_page']) for page in chosen}
+    for file_name in sorted({file_name for file_name, _ in named}):
+        own, skipped = named_pages(base, file_name, {number for name, number in named if name == file_name}, rows, protected)
+        chosen += [page for page in own if (page['file'], page['pdf_page']) not in known]
+        left.update(skipped)
     cards = {page['work']: page.pop('work_card') for page in chosen}
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({'work_cards': cards, 'added_works': added, 'judge_shares': shares, 'pages': chosen}, indent=1,
-                                 ensure_ascii=False) + '\n', encoding='utf-8')
+    target.write_text(json.dumps({'work_cards': cards, 'added_works': added, 'judge_shares': shares,
+                                  'added_pages': [{'file': file_name, 'pdf_page': number} for file_name, number in named],
+                                  'pages': chosen}, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
     print(f"{args.knowledge_base}: {len(chosen)} pages for a direct reading {dict(Counter(p['why'] for p in chosen))}, "
           f'written to {target.name}; left out {dict(left)}')
     return {'pages': len(chosen), 'left': dict(left)}
+
+
+def page_list(path: str | None) -> list[tuple[str, int]]:
+    """The pages a JSON page list names, {about, pages: [{file, pdf_page}]}, as (file, PDF page); none without a path. A list
+    that does not read so stops the command before anything is written."""
+    if not path:
+        return []
+    try:
+        listed = json.loads(Path(path).read_text(encoding='utf-8'))
+        return [(str(page['file']), int(page['pdf_page'])) for page in listed['pages']]
+    except (OSError, KeyError, TypeError, ValueError) as broken:
+        raise SystemExit(f'{path}: not a page list {{about, pages: [{{file, pdf_page}}]}} ({broken!r}); nothing written') from None
 
 
 WORK_CARD = ('A book in English. Read the page as printed: its columns in reading order, its printed page number and running '
@@ -152,12 +176,8 @@ def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
 
     if not reading_cells.may_send(file_name):
         raise SystemExit(f'{file_name} is held back by the provenance list (send: false): never sent to a provider')
-    own = [row for row in rows if row['file'] == file_name]
-    # A page the session read stays in the list, so its readings and its check stay the cell's (found 19 Nov: the list written
-    # anew after the reading had dropped every read page, and the export would have lost the whole work); a page another reader
-    # read, or one a filter or a reader turned away, stays out.
-    in_session = {row['pdf_page'] for row in own if read_in_session(row)}
-    read = {row['pdf_page'] for row in own if row['pdf_page'] not in in_session} | {row['pdf_page'] for row in own if touched_by_a_filter(row)}
+    in_session, other_reader, turned_away = page_history(file_name, rows)
+    read = other_reader | turned_away
     path = data_paths.LICENSED_ARCHIVE / file_name if base.name == 'licensed' else data_paths.locate(file_name)
     work = Path(file_name).stem
     with pymupdf.open(path) as document:
@@ -175,6 +195,59 @@ def whole_work(base, file_name: str, rows: list[dict]) -> list[dict]:
              'expected_output_tokens': 1900, 'deviation': DIRECT_DEVIATION,
              'why': READ_IN_SESSION if number in in_session else 'unread', 'work_card': card}
             for number in wanted]
+
+
+def page_history(file_name: str, rows: list[dict]) -> tuple[set[int], set[int], set[int]]:
+    """One file's pages by what their rows record: read in the session, read by another reader, turned away by a filter or a
+    reader. A page the session read stays in the cell's list, so its readings and its check stay the cell's (found 19 Nov: the
+    list written anew after the reading had dropped every read page, and the export would have lost the whole work); a page
+    another reader read, or one a filter or a reader turned away, stays out."""
+    own = [row for row in rows if row['file'] == file_name]
+    in_session = {row['pdf_page'] for row in own if read_in_session(row)}
+    other_reader = {row['pdf_page'] for row in own if row['pdf_page'] not in in_session}
+    turned_away = {row['pdf_page'] for row in own if touched_by_a_filter(row)}
+    return in_session, other_reader, turned_away
+
+
+def named_pages(base, file_name: str, numbers: set[int], rows: list[dict], protected: set) -> tuple[list[dict], Counter]:
+    """The pages a page list names of one licensed file, for the direct cell (27.a, 23 Nov: a scan's weak pages, where its
+    OCR text layer is poor; the whole work would cost several times as much): each checked as `whole_work` checks a work's
+    pages. A file the provenance list holds back, or a page the file does not have, stops the command before anything is
+    written; a page a filter or a reader turned away, another reader read, or a person checked (191.a) is left out, and
+    counted. A page the session read stays, as in a work read whole."""
+    import pymupdf
+
+    from backend.conversion.reading import page_classes
+
+    if not reading_cells.may_send(file_name):
+        raise SystemExit(f'{file_name} is held back by the provenance list (send: false): never sent to a provider')
+    in_session, other_reader, turned_away = page_history(file_name, rows)
+    path = data_paths.LICENSED_ARCHIVE / file_name if base.name == 'licensed' else data_paths.locate(file_name)
+    with pymupdf.open(path) as document:
+        count = document.page_count
+        missing = sorted(number for number in numbers if not 1 <= number <= count)
+        if missing:
+            raise SystemExit(f'{file_name} has {count} pages, no page {missing}: nothing written')
+        scan = not any(document[number].get_text().strip() for number in range(0, count, 25))
+        classes = {}  # pdf page -> the structure the rules find, for the reader's note; a scan's pages have none
+        if not scan:
+            furniture = page_classes.repeated_images(document)
+            classes = {number: page_classes.classify(document[number - 1], furniture).classes for number in numbers}
+    card = WORK_CARD + (SCAN_NOTE if scan else '')
+    out, left = [], Counter()
+    for number in sorted(numbers):
+        if number in turned_away:
+            left['a filter or a refusal in its history'] += 1
+        elif number in other_reader:
+            left['read by another reader'] += 1
+        elif (file_name, number) in protected:
+            left['a person checked it'] += 1
+        else:
+            out.append({'file': file_name, 'pdf_page': number, 'work': Path(file_name).stem, 'gold': False,
+                        'class_note': f"structure the rules found: {', '.join(sorted(classes[number]))}" if classes.get(number) else '',
+                        'expected_output_tokens': 1900, 'deviation': DIRECT_DEVIATION,
+                        'why': READ_IN_SESSION if number in in_session else 'unread', 'work_card': card})
+    return out, left
 
 
 READ_IN_SESSION = 'read in the session'  # a page of a work read whole that the session read already: kept, never read again
@@ -385,8 +458,12 @@ def main(argv: list[str] | None = None) -> int:
         if name == 'pages':
             command.add_argument('--add-work', action='append', metavar='FILE',
                                  help='add every unread page of this file to the cell, kept on later runs (the experiment of 18 Nov)')
+            command.add_argument('--add-pages', metavar='FILE',
+                                 help='add the pages this JSON list names, {about, pages: [{file, pdf_page}]}, each checked as a '
+                                      "whole work's pages are; kept on later runs (27.a)")
             command.add_argument('--judge-share', type=float, metavar='SHARE',
-                                 help="with --add-work: judge this share of the work's pages, e.g. 0.6 for a night's work (N2.a)")
+                                 help="with --add-work or --add-pages: judge this share of the work's pages, e.g. 0.6 for a "
+                                      "night's work (N2.a)")
         if name == 'prepare':
             command.add_argument('--limit', type=int, default=1, help='at most this many pages; 0 prepares all')
             command.add_argument('--page', help="one page by its id, e.g. 'work:p0103'")

@@ -70,3 +70,20 @@ def test_a_prepared_page_the_cell_no_longer_lists_is_never_batched(tmp_path, mon
     monkeypatch.setattr(night_run, 'listed_pages', lambda base: {('book.pdf', 2)})
     night_run.start(SimpleNamespace(knowledge_base='licensed', run='n1', work=['book.pdf'], judge_share=0.6))
     assert night_run.batch(SimpleNamespace(run='n1', number=1, size=5)) == ['book__p0002']
+
+
+def test_a_run_from_a_page_list_takes_its_works_from_the_list_and_a_run_with_neither_stops(tmp_path, monkeypatch):
+    # 27.a (23 Nov): Run D reads the pages a list names, not whole works
+    import pytest
+
+    listed = tmp_path / 'weak.json'
+    listed.write_text(json.dumps({'about': 'weak pages', 'pages': [{'file': 'b.pdf', 'pdf_page': 2}, {'file': 'a.pdf', 'pdf_page': 1}]}),
+                      encoding='utf-8')
+    asked = []
+    monkeypatch.setattr(night_run, 'runs_folder', lambda base: tmp_path / 'night')
+    monkeypatch.setattr(night_run.direct_reader, 'pages', lambda args: asked.append((args.add_work, args.add_pages, args.judge_share)))
+    ledger = night_run.start(SimpleNamespace(knowledge_base='licensed', run='d1', work=None, add_pages=str(listed), judge_share=0.6))
+    assert ledger['works'] == ['a.pdf', 'b.pdf'] and asked == [(None, str(listed), 0.6)]
+    with pytest.raises(SystemExit):
+        night_run.start(SimpleNamespace(knowledge_base='licensed', run='d2', work=None, add_pages=None, judge_share=0.6))
+    assert len(asked) == 1  # nothing was asked of the cell

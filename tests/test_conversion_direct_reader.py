@@ -197,3 +197,89 @@ def test_a_born_digital_work_gives_only_its_structure_pages_and_a_scan_every_pag
     assert [page['pdf_page'] for page in pages] == [2] and 'code' in pages[0]['class_note']
     read = [{'file': 'book.pdf', 'pdf_page': 1, 'attempts': [{'mode': 'session', 'class_now': 'ok'}]}]
     assert [page['pdf_page'] for page in direct_reader.whole_work(SimpleNamespace(name='licensed'), 'book.pdf', read)] == [1, 2]
+
+
+def a_scan(folder, pages: int, name: str = 'scan.pdf') -> None:
+    import pymupdf
+
+    document = pymupdf.open()
+    for _ in range(pages):
+        document.new_page()  # no text: a scan as far as the text layer can tell
+    document.save(folder / name)
+
+
+def test_a_page_list_adds_only_its_pages_each_checked_as_a_whole_work_s_page(tmp_path, monkeypatch):
+    # 27.a (23 Nov): the weak pages of a scan whose OCR text layer is poor, not the whole work
+    from types import SimpleNamespace
+
+    a_scan(tmp_path, 5)
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: name != 'held.pdf')
+    rows = [{'file': 'scan.pdf', 'pdf_page': 2, 'attempts': [{'mode': 'batch', 'class_now': 'ok'}]},
+            {'file': 'scan.pdf', 'pdf_page': 3, 'attempts': [{'class_now': 'blocked'}]},
+            {'file': 'scan.pdf', 'pdf_page': 5, 'attempts': [{'mode': 'session', 'class_now': 'ok'}]}]
+    base = SimpleNamespace(name='licensed')
+    pages, left = direct_reader.named_pages(base, 'scan.pdf', {1, 2, 3, 4, 5}, rows, {('scan.pdf', 4)})
+    assert [(page['pdf_page'], page['why']) for page in pages] == [(1, 'unread'), (5, direct_reader.READ_IN_SESSION)]
+    assert left == {'read by another reader': 1, 'a filter or a refusal in its history': 1, 'a person checked it': 1}
+    assert pages[0]['work'] == 'scan' and pages[0]['deviation'] == DIRECT_DEVIATION
+    assert pages[0]['work_card'].endswith(direct_reader.SCAN_NOTE)
+
+
+def test_a_page_list_naming_a_held_file_or_a_page_the_file_lacks_stops_before_anything_is_written(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    a_scan(tmp_path, 2)
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: name != 'held.pdf')
+    base = SimpleNamespace(name='licensed')
+    with pytest.raises(SystemExit, match=r'no page \[9\]'):
+        direct_reader.named_pages(base, 'scan.pdf', {1, 9}, [], set())
+    with pytest.raises(SystemExit, match='held back'):
+        direct_reader.named_pages(base, 'held.pdf', {1}, [], set())
+
+
+def test_pages_takes_a_page_list_and_its_judge_share_keeps_it_on_later_runs_and_a_broken_list_writes_nothing(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    from backend.conversion.store import pipeline_db
+
+    a_scan(tmp_path, 3)
+    export, target = tmp_path / 'export', tmp_path / 'direct' / 'pages.json'
+    export.mkdir()
+    (export / 'index.json').write_text(json.dumps({'pages': []}), encoding='utf-8')
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: True)
+    monkeypatch.setattr(direct_reader.reading_cells, 'DIRECT_PAGES', {'licensed': target})
+    monkeypatch.setitem(reading_export.BASES, 'licensed', SimpleNamespace(name='licensed', export=export, cells=lambda: []))
+    monkeypatch.setattr(pipeline_db, 'protected_pages', lambda base: [])
+    listed = tmp_path / 'weak.json'
+    listed.write_text(json.dumps({'about': 'weak pages', 'pages': [{'file': 'scan.pdf', 'pdf_page': 3},
+                                                                   {'file': 'scan.pdf', 'pdf_page': 1}]}), encoding='utf-8')
+    direct_reader.pages(SimpleNamespace(knowledge_base='licensed', add_work=None, add_pages=str(listed), judge_share=0.6))
+    kept = json.loads(target.read_text(encoding='utf-8'))
+    assert [page['pdf_page'] for page in kept['pages']] == [1, 3] and kept['judge_shares'] == {'scan': 0.6}
+    assert kept['added_pages'] == [{'file': 'scan.pdf', 'pdf_page': 1}, {'file': 'scan.pdf', 'pdf_page': 3}]
+    assert kept['added_works'] == []  # the work is not taken whole
+    direct_reader.pages(SimpleNamespace(knowledge_base='licensed', add_work=None, judge_share=None))  # a later run keeps them
+    assert [page['pdf_page'] for page in json.loads(target.read_text(encoding='utf-8'))['pages']] == [1, 3]
+    before = target.read_bytes()
+    listed.write_text(json.dumps({'pages': [{'file': 'scan.pdf'}]}), encoding='utf-8')
+    with pytest.raises(SystemExit, match='not a page list'):
+        direct_reader.pages(SimpleNamespace(knowledge_base='licensed', add_work=None, add_pages=str(listed), judge_share=None))
+    assert target.read_bytes() == before
+
+
+def test_the_works_of_a_page_list_are_judged_by_a_sample_as_works_read_whole_are(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    from backend.conversion.checks import check_run
+
+    source = tmp_path / 'pages.json'
+    source.write_text(json.dumps({'added_works': ['whole.pdf'], 'added_pages': [{'file': 'scan.pdf', 'pdf_page': 3}]}),
+                      encoding='utf-8')
+    monkeypatch.setattr(direct_reader.reading_cells, 'DIRECT_PAGES', {'licensed': source})
+    monkeypatch.setattr(direct_reader.reading_cells, 'known_cells', lambda: {'LIC-DIRECT-OPUS': SimpleNamespace(page_source=source)})
+    assert check_run.whole_works(['LIC-DIRECT-OPUS']) == {'whole', 'scan'}

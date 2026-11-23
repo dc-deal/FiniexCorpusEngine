@@ -93,7 +93,8 @@ WHOLE_WORK_SAMPLE = 60
 
 
 def whole_works(cells: list[str]) -> set[str]:
-    """The works the direct cell took whole, by their key (the file's stem), from its page list's `added_works`."""
+    """The works the direct cell took whole, by their key (the file's stem), from its page list's `added_works`, and the works
+    whose pages it took by a page list (`added_pages`, 27.a): both are judged by a sample, the share their list names."""
     from backend.conversion.reading import reading_cells
 
     lists = set(reading_cells.DIRECT_PAGES.values())
@@ -101,7 +102,9 @@ def whole_works(cells: list[str]) -> set[str]:
     for name in cells:
         source = Path(reading_cells.known_cells()[name].page_source)
         if source in lists and source.exists():
-            works |= {Path(file_name).stem for file_name in json.loads(source.read_text(encoding='utf-8')).get('added_works', [])}
+            listed = json.loads(source.read_text(encoding='utf-8'))
+            works |= {Path(file_name).stem for file_name in listed.get('added_works', [])}
+            works |= {Path(page['file']).stem for page in listed.get('added_pages', [])}
     return works
 
 
