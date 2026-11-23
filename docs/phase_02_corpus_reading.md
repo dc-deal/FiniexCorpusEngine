@@ -110,6 +110,22 @@ versions were tried as prototypes: frozen and hashed beside the active one, run 
 - **A second model breaks a blind spot the first shares with itself.** Reader and judge were one model. On p. 94 the reader
   put a chart's crossing at 2000; judges 1 to 3 objected, but read it as 2006–2007. The axis is in chained 2012 dollars, so
   real and nominal GDP meet at 2012 by definition. judge/4, on another model, read 2012.
+- **An independent reader on pages the judge passed (23 Nov 2026).**
+  - **The setup.** OpenAI's `gpt-6.1-terra` read a seeded sample of 100 free pages that Sonnet read and Sonnet's judge
+    passed (`backend.conversion.measurement.blind_spot`, 1.34 USD). Its readings are stored under a key of their own and
+    are never served.
+  - **The comparison.** The two readings were compared word by word, over the verbatim blocks, with a table's markup
+    removed. 89 pages agreed above 0.97. On the 11 others the differences were:
+    - order: a table read by rows or by columns;
+    - section numbers that one reader keeps as an attribute;
+    - in three places, a word.
+  - **The three words, checked against the text layer and the image.**
+    - One error that both Sonnet models missed: Delegated Regulation 2017/565, p. 48, reads "UCITS KID" where the page
+      prints "UCITS KIID".
+    - Two printed typos, "Adminstrative" and "spent intially", which Sonnet kept as printed and the other reader silently
+      corrected.
+  - **The result.** One shared error in 100 judged pages. The other reader is no better witness, since it normalises what
+    is printed; the text layer stays the first one.
 - **The instrument is measured too.** The one clean calibration page judge/4 flagged holds a real omission: the pilot reading
   the set keeps lacks the table title of accounting p. 69. The served reading has it. No earlier judge found it.
 - **The new weakness is severity.** judge/4 finds the right block, but grades it differently from the person: p. 119's
