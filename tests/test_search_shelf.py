@@ -40,6 +40,18 @@ def test_a_work_a_session_reads_whole_plans_every_page_of_its_file(tmp_path, mon
     assert rows['key-a']['planned'] == 3
 
 
+def test_the_pages_a_list_names_are_planned_like_a_whole_works(tmp_path, monkeypatch):
+    # 27.a (23 Nov): Run D names single pages of works taken neither whole nor by the rollout
+    from backend.conversion.reading import reading_cells
+
+    direct = tmp_path / 'direct_pages.json'
+    named = [{'file': 'book_c.pdf', 'pdf_page': 2}]
+    direct.write_text(json.dumps({'added_pages': named, 'pages': named}), encoding='utf-8')
+    monkeypatch.setattr(reading_cells, 'DIRECT_PAGES', {'licensed': direct})
+    rows = licensed_shelf(tmp_path, monkeypatch)
+    assert rows['key-c']['planned'] == 2  # the rollout's page 1 and the list's page 2
+
+
 def test_every_reason_the_serving_rule_knows_is_counted(monkeypatch):
     # 18 Nov: a fixed list of six left the pages a person or an automated review rejected out of every total
     from backend.conversion.store.served_readings import TEXT_LAYER_WHY
