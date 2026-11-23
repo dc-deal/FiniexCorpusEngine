@@ -12,6 +12,7 @@ import ApiFailure from '@/components/ApiFailure.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import CoverageLadder from '@/components/CoverageLadder.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LanguageMark from '@/components/LanguageMark.vue'
 import LadderLegend from '@/components/LadderLegend.vue'
 import { applyFacets, sortRows } from '@/components/base/facet_filter'
 import { groupRows, keepOpenGroups, openGroups } from '@/row_groups'
@@ -31,7 +32,8 @@ import { sayDate } from '@/human_time'
  * read page by page, or a PDF not read yet, its page list, which holds every PDF page (V1.b); an HTML work its outline (the
  * operator's 6.a); a licensed EPUB its sections.
  *
- * The facet bar narrows it (the operator's Y1.a, 19 Nov): by knowledge base, format, topic, structure and series, a search
+ * The facet bar narrows it (the operator's Y1.a, 19 Nov; the language #11): by knowledge base, language, format, topic,
+ * structure and series, a search
  * over title, authors and id, sorted by title, author or year. The parts of one series stand together under a heading,
  * closed, where the first of them would stand in the sort, in their parts' order. A reload (F5) brings back the bar and
  * where the reader stood.
@@ -96,6 +98,8 @@ const said = (value: string | null | undefined): string[] => (value ? [value] : 
 
 const FACETS: FacetDefinition<Work>[] = [
   { id: 'kb', label: 'Knowledge base', valuesOf: work => [work.knowledge_base] },
+  // the language its catalog names (#11), its ISO 639-1 code as the row shows it
+  { id: 'language', label: 'Language', valuesOf: work => said(work.language) },
   { id: 'format', label: 'Format', valuesOf: work => said(work.format) },
   // the catalog's topic shelf, named as its column is (23.a): never taken for the Shelf view's counts
   { id: 'shelf', label: 'Topic', valuesOf: work => said(work.shelf) },
@@ -302,7 +306,7 @@ onMounted(() => {
                 </span>
               </HoverCard>
             </td>
-            <td data-rank="3"><KnowledgeBaseMark :kb="line.work.knowledge_base" /></td>
+            <td data-rank="3"><KnowledgeBaseMark :kb="line.work.knowledge_base" /> <LanguageMark :language="line.work.language" /></td>
             <!-- how far the work is refined (U1.a), its levels' figures in the meters' card; where no shelf is built here, how
                  the work is cut, in the API's words (B3.a) -->
             <td data-cell="coverage">

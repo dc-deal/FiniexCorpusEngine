@@ -7,6 +7,7 @@ import AppButton from '@/components/base/AppButton.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import HtmlOutlineNode from '@/components/HtmlOutlineNode.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LanguageMark from '@/components/LanguageMark.vue'
 import { useHtmlStore } from '@/stores/html_store'
 import { useSettingsStore } from '@/stores/settings_store'
 import { useViewName } from '@/view_name'
@@ -53,7 +54,7 @@ const childrenOf = computed(() => {
     <LoadingLine v-else-if="!shown" />
     <template v-else>
       <h1 class="view-title">{{ shown.title }}</h1>
-      <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> {{ shown.source_id }}</p>
+      <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> <LanguageMark :language="shown.language" /> {{ shown.source_id }}</p>
       <p v-if="shown.why_not" class="why-not">{{ shown.why_not }}</p>
       <template v-else>
         <p class="summary">

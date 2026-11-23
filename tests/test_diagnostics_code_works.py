@@ -47,7 +47,8 @@ def an_invented_service(tmp_path, catalogued: bool = True) -> search_server.Sear
     pages.append(page_index.Page(BOOK, '1', 1, 'An invented page of an invented book.', 'an_invented_book.pdf', pdf='1',
                                  knowledge_base='licensed', route='vision reading'))
     works = {CODE: search_server.Work(CODE, 'An Invented Code', 'licensed', 'an invented licence', code_pages.CODE_ROUTE,
-                                      len(FILES), view_id=CODE, code_language='EasyLanguage', companion_of=BOOK),
+                                      len(FILES), view_id=CODE, code_language='EasyLanguage', companion_of=BOOK,
+                                      language='en'),
              BOOK: search_server.Work(BOOK, 'An Invented Book', 'licensed', 'an invented licence', 'vision reading', 1,
                                       view_id=BOOK)}
     catalog = tmp_path / 'code_catalog.json'
@@ -71,6 +72,7 @@ SHELF = {'works': [{'work': BOOK, 'source_id': 'an_invented_book_src', 'file': '
 def test_a_code_work_lists_its_folders_and_files_each_with_the_core_s_catalog_entry(service):
     found = code_works.code_work(service, 'licensed', CODE, SHELF)
     assert (found.title, found.code_language, found.files, found.units) == ('An Invented Code', 'EasyLanguage', 3, 2)
+    assert found.language == 'en'  # its catalog's, as the service names it (#11)
     assert [folder.count for folder in found.folders] == [1, 1, 1]
     assert [(folder.title, [file.label for file in folder.files]) for folder in found.folders] == [
         ('Functions', ['Functions/Invented Average.txt']), ('Indicators', ['Indicators/Invented Band (I).txt']),

@@ -97,6 +97,7 @@ class HtmlWork(BaseModel):
     authors: str | None = None
     licence: str | None = None
     licence_url: str | None = None
+    language: str | None = None  # the language of its text, ISO 639-1, as its catalog names it (#11)
     route: str = ROUTE
     why_not: str | None = None  # the index is not built on this machine
     sections: int = 0

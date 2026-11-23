@@ -347,6 +347,7 @@ class WorkPages(BaseModel):
     # every PDF page counted (V1.b): how many are read and what serves the rest, said in one line; None where the work's PDF
     # is not on this machine, and then its pages are the read ones alone
     coverage: Coverage | None = None
+    language: str | None = None  # the language of its text, ISO 639-1, as its catalog names it (#11)
     # how far the work is refined, the five levels of U1.a, which the app sets from the shelf; None where none is built here
     ladder: Ladder | None = None
     # the work's editions where it is held in more than one (E1.a), this record's own marked
@@ -1437,6 +1438,7 @@ class CatalogEntry(BaseModel):
     # a book's companion code (#12): `format` "code", its folder as `file`, its language and the book it accompanies by key
     code_language: str | None = None
     companion_of: str | None = None
+    language: str | None = None  # the language of its text, ISO 639-1, as its catalog names it (#11)
 
 
 def catalog_entries(path: Path) -> list[CatalogEntry]:

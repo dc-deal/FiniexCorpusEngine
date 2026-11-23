@@ -5,6 +5,7 @@ import ApiFailure from '@/components/ApiFailure.vue'
 import CodeUnitTable, { type UnitRow } from '@/components/CodeUnitTable.vue'
 import FoldSection from '@/components/base/FoldSection.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LanguageMark from '@/components/LanguageMark.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import { useCodeStore } from '@/stores/code_store'
 import { useViewName } from '@/view_name'
@@ -55,7 +56,7 @@ function rowsOf(folder: CodeWork['folders'][number]): UnitRow[] {
     <LoadingLine v-else-if="!shown" />
     <template v-else>
       <h1 class="view-title">{{ shown.title }}</h1>
-      <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> {{ shown.work }}</p>
+      <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> <LanguageMark :language="shown.language" /> {{ shown.work }}</p>
       <p class="summary" data-part="summary">
         <span>{{ counted(shown.files, 'file') }}<template v-if="shown.code_language"> of {{ shown.code_language }}</template></span>
         <span class="route">{{ shown.route }}</span>

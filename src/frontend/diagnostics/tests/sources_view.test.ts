@@ -355,7 +355,7 @@ describe('SourcesView', () => {
     const view = mountView()
     await flushPromises()
     expect(view.findAll('.facet-trigger').map(chip => chip.attributes('data-facet')))
-      .toEqual(['kb', 'format', 'shelf', 'structure', 'series'])
+      .toEqual(['kb', 'language', 'format', 'shelf', 'structure', 'series'])
     await view.find('.facet-trigger[data-facet="kb"]').trigger('click')
     await flushPromises()
     const licensed = document.querySelector<HTMLElement>('.facet-option[data-value="licensed"]')!
@@ -364,6 +364,24 @@ describe('SourcesView', () => {
     licensed.click()
     await flushPromises()
     expect(view.findAll('tbody tr').map(row => row.attributes('data-work'))).toEqual(['an_invented_course_1'])
+    expect(view.find('.facet-count-label').text()).toBe('1 of 3')
+  })
+
+  it('names each work\'s language beside its knowledge base and narrows by it, a work without one matched by none (#11)', async () => {
+    vi.mocked(getWorks).mockResolvedValue([aWork({ language: 'en' }),
+      aWork({ id: 'an_invented_german_work', title: 'Ein erfundenes Werk', language: 'de' }),
+      aWork({ id: 'an_invented_unsaid_work', title: 'An Invented Work', language: null })])
+    const view = mountView()
+    await flushPromises()
+    expect(view.find('tr[data-work="an_invented_german_work"] [data-language]').text()).toBe('de')
+    expect(view.find('tr[data-work="an_invented_unsaid_work"] [data-language]').exists()).toBe(false)
+    await view.find('.facet-trigger[data-facet="language"]').trigger('click')
+    await flushPromises()
+    const german = document.querySelector<HTMLElement>('.facet-option[data-facet="language"][data-value="de"]')!
+    expect(german.querySelector('.facet-count')!.textContent).toBe('1')
+    german.click()
+    await flushPromises()
+    expect(view.findAll('tbody tr').map(row => row.attributes('data-work'))).toEqual(['an_invented_german_work'])
     expect(view.find('.facet-count-label').text()).toBe('1 of 3')
   })
 

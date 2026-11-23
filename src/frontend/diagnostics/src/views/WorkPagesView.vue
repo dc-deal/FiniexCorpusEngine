@@ -10,6 +10,7 @@ import LoadingLine from '@/components/base/LoadingLine.vue'
 import CoverageLadder from '@/components/CoverageLadder.vue'
 import EditionBar from '@/components/EditionBar.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LanguageMark from '@/components/LanguageMark.vue'
 import LadderDetails from '@/components/LadderDetails.vue'
 import OutlineUnitNode from '@/components/OutlineUnitNode.vue'
 import PageJump from '@/components/PageJump.vue'
@@ -219,7 +220,9 @@ watch(() => [props.kb, props.work], () => { marked.value = new Set() })
       <div class="summary work-facts" data-part="work-facts">
         <RecordRows>
           <FoldSection label="Work" class="work-id" plain>
-            <template #title><KnowledgeBaseMark :kb="shown.knowledge_base" /><span class="source-id">{{ shown.source_id }}</span></template>
+            <template #title>
+              <KnowledgeBaseMark :kb="shown.knowledge_base" /><LanguageMark :language="shown.language" /><span class="source-id">{{ shown.source_id }}</span>
+            </template>
           </FoldSection>
           <!-- how far the work is refined (U1.a): five levels in words and figures, its read level the page list's own line of
                V1.b, the details folded beneath; where no shelf is built here, that line alone -->

@@ -540,6 +540,37 @@ test('a book\'s companion code stands under its book in Sources, its folders wit
   await expect(page.locator('[data-label="Unit"]')).toContainText('not in the catalog')
 })
 
+// #11 (23 Nov): every work names its language, beside its knowledge base in its row and its head, and Sources filters by it.
+// The free data names English alone today, so one work is said to be German here, a moment, to hold the facet to filtering
+test('each work names its language beside its knowledge base, and the language facet filters the list (#11)', async ({ page, request }) => {
+  type Listed = { id: string, knowledge_base: string, language: string | null, series: unknown, page_list: boolean }
+  const works = await (await request.get('/api/works')).json() as Listed[]
+  expect(works.every(work => work.language === 'en'), 'the free data names English for every work').toBe(true)
+  const german = works.find(work => !work.series && work.page_list)!
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    const json = (await response.json() as Listed[]).map(work => (work.id === german.id ? { ...work, language: 'de' } : work))
+    await route.fulfill({ response, json })
+  })
+  await page.goto('/#/sources')
+  await settled(page)
+  await openSeries(page)
+  await expect(page.locator(`tr[data-work="${german.id}"] [data-language]`)).toHaveText('de')
+  const englishRows = await page.locator('tr[data-work] [data-language="en"]').count()
+  expect(englishRows).toBeGreaterThan(0)
+  await pick(page, 'language', 'de')
+  await expect(page.locator('tr[data-work]')).toHaveCount(1)
+  await expect(page.locator(`tr[data-work="${german.id}"]`)).toBeVisible()
+  await pick(page, 'language', 'de')  // picked again, the facet lets go
+  await pick(page, 'language', 'en')
+  await openSeries(page)
+  await expect(page.locator('tr[data-work] [data-language="de"]')).toHaveCount(0)
+  // a work's head says it too, as its catalog names it
+  await page.goto(`/#/free/sources/${german.id}`)
+  await settled(page)
+  await expect(page.locator('.work-id [data-language]')).toHaveText('en')
+})
+
 test('every work says how far it is refined: five meters in Sources, its levels on its page, the corpus\'s on the overview (U1.a)', async ({ page, request }) => {
   type Rung = { level: string, number: number, said: string, count: number | null, share: number | null,
     pages_filter: Record<string, string[]> | null }

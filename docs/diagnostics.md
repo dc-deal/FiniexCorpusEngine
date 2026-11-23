@@ -2032,3 +2032,10 @@ page shows exactly the compact answer a client gets. Measured against the runnin
 hits with a snippet each and the search block, against none and half the characters without it. A kept edition in the works
 table names its own pages, which open by its key; the search's base, a work's kind and a contents' starting point come with the
 tools' schemas into their forms. 405 unit tests, 94 checks in the browser (3 skipped on today's data), 1,700 Python tests.
+
+**Every work names its language (issue #11, 23 Nov).** Each catalog names the language of a work's text, its ISO 639-1 code, and
+the view shows it beside the knowledge base wherever the work stands: its row in Sources and its head, a page list's, an HTML
+work's, an EPUB's and a code work's alike, as the code the catalog writes ("en"), its meaning in a card under the pointer.
+Sources filters by it, a facet beside the knowledge base; with one language today the facet stands greyed, as every facet with a
+single value does, and it filters the moment a second one comes, which the tests and a browser check already hold with two. On
+this machine every row names one. 406 unit tests, 95 checks in the browser (3 skipped on today's data), 1,705 Python tests.

@@ -42,6 +42,7 @@ class CatalogSource(BaseModel):
     shelf: str
     # the series the entry is a part of, in the licensed catalog's shape (line 1, 22 Nov): the free catalog names some too
     series: Series | None = None
+    language: str | None = None  # the language of its text, ISO 639-1, as its catalog names it (#11)
 
 
 class CodePart(BaseModel):
@@ -117,6 +118,8 @@ class Work(BaseModel):
     possible_edition: str | None = None
     # its companion code (#12), folded into its row; on a code work whose book is not listed here, its own part
     code: CodePart | None = None
+    # the language of its text, ISO 639-1, as its catalog names it (#11); None where no catalog lists it here
+    language: str | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

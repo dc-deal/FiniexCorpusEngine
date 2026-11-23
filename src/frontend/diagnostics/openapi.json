@@ -3227,6 +3227,17 @@
             ],
             "title": "Code Language"
           },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
           "companion": {
             "anyOf": [
               {
@@ -3859,6 +3870,17 @@
               }
             ],
             "title": "Licence"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "route": {
             "type": "string",
@@ -5263,6 +5285,17 @@
               }
             ],
             "title": "Licence Url"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "route": {
             "type": "string",
@@ -11053,6 +11086,17 @@
                 "type": "null"
               }
             ]
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           }
         },
         "type": "object",
@@ -11148,6 +11192,17 @@
                 "type": "null"
               }
             ]
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "ladder": {
             "anyOf": [

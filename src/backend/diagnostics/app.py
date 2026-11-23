@@ -33,7 +33,7 @@ from backend.diagnostics import (calls, code_works, coverage_ladder, epub_works,
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
 # the licensed catalog's fields the sources view shows beside a work's title (N1.a)
-CATALOG_FIELDS = {'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes', 'series'}
+CATALOG_FIELDS = {'authors', 'publisher', 'year', 'edition', 'format', 'shelf', 'licence', 'notes', 'series', 'language'}
 
 # The names a request may address this server by: a page elsewhere can point a domain of its own at 127.0.0.1 (DNS
 # rebinding) and read what the GET routes serve, licensed pages and the coding sessions' questions among them, so any
@@ -339,6 +339,15 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
             return {'structure_why_not': sources.EPUB_COUNTING}
         return {'sections': count}
 
+    def language_of(knowledge_base: str, source_id: str) -> str | None:
+        """A work's language as its catalog names it (#11): the free catalog's, or the local licensed one's by the work's id;
+        None where the catalog does not list it."""
+        if knowledge_base == 'free':
+            return next((work.language for work in sources.works() if work.id == source_id), None)
+        store = bases.get(knowledge_base)
+        entry = store.catalog_entry(source_id) if store else None
+        return entry.language if entry else None
+
     def catalog_fields(store: readings.Readings, source_id: str) -> dict:
         """The licensed catalog's fields of a work the sources view shows, {} where the catalog does not list it."""
         entry = store.catalog_entry(source_id)
@@ -367,7 +376,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
         found = html_works.work(source_id, html_title(knowledge_base, source_id))
         if found is None:
             raise HTTPException(404, f'the search index holds no HTML work {source_id!r}')
-        return found
+        return found.model_copy(update={'language': language_of(knowledge_base, source_id)})
 
     @app.get('/api/{knowledge_base}/html/{source_id}/sections/{label}')
     def html_section(knowledge_base: readings.KnowledgeBase, source_id: str, label: str) -> html_works.HtmlSection:
@@ -421,7 +430,9 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
         # its ladder and its editions (E1.a): a kept edition's record says so in neutral words, and names every edition
         built = store_of(knowledge_base).shelf_data()
         row = coverage_ladder.row_for(built, source_id, source_id)
-        return found.model_copy(update={'licence': licence, 'editions': editions_of_record(knowledge_base, built, row, source_id),
+        entry = bases['licensed'].catalog_entry_of_file(epub_works.epubs()[source_id].name)
+        return found.model_copy(update={'licence': licence, 'language': entry.language if entry else None,
+                                        'editions': editions_of_record(knowledge_base, built, row, source_id),
                                         'ladder': coverage_ladder.work_ladder(row, None, (built or {}).get('built_at'))})
 
     @app.get('/api/{knowledge_base}/epub/{source_id}/sections/{label}')
@@ -480,7 +491,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
         row = coverage_ladder.row_for(built, source_id)
         ladder = coverage_ladder.work_ladder(row, answer.summary.states if answer.summary else None, (built or {}).get('built_at'))
         return answer.model_copy(update={'ladder': coverage_ladder.with_coverage(ladder, answer.coverage),
-                                         'editions': editions_of_record(knowledge_base, built, row, source_id)})
+                                         'editions': editions_of_record(knowledge_base, built, row, source_id),
+                                         'language': language_of(knowledge_base, source_id)})
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages/{pdf_page}')
     def page_detail(knowledge_base: readings.KnowledgeBase, source_id: str, pdf_page: int) -> readings.PageDetail:

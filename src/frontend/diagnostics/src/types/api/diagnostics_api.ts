@@ -1189,6 +1189,8 @@ export interface components {
             title: string;
             /** Code Language */
             code_language?: string | null;
+            /** Language */
+            language?: string | null;
             companion?: components["schemas"]["Companion"] | null;
             /** Licence */
             licence?: string | null;
@@ -1415,6 +1417,8 @@ export interface components {
             file: string;
             /** Licence */
             licence?: string | null;
+            /** Language */
+            language?: string | null;
             /**
              * Route
              * @default epub, parsed by section
@@ -1838,6 +1842,8 @@ export interface components {
             licence?: string | null;
             /** Licence Url */
             licence_url?: string | null;
+            /** Language */
+            language?: string | null;
             /**
              * Route
              * @default html, parsed by section
@@ -3692,6 +3698,8 @@ export interface components {
             /** Possible Edition */
             possible_edition?: string | null;
             code?: components["schemas"]["CodePart"] | null;
+            /** Language */
+            language?: string | null;
         };
         /** WorkPages */
         WorkPages: {
@@ -3721,6 +3729,8 @@ export interface components {
             /** Pages */
             pages: components["schemas"]["PageRow"][];
             coverage?: components["schemas"]["Coverage"] | null;
+            /** Language */
+            language?: string | null;
             ladder?: components["schemas"]["Ladder"] | null;
             editions?: components["schemas"]["Editions"] | null;
         };

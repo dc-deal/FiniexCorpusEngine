@@ -63,6 +63,7 @@ class EpubWork(BaseModel):
     title: str
     file: str
     licence: str | None = None  # the local licensed catalog's, as the sources list shows it; None where it lists no entry
+    language: str | None = None  # the language of its text, ISO 639-1, as its catalog names it (#11)
     route: str = ROUTE
     sections: int = 0
     images: int = 0

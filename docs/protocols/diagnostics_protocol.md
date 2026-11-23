@@ -1107,3 +1107,12 @@ The record of how the diagnostics frontend came about, mistakes included.
   (works) and `under` (toc) came through the schema-built forms with no code. Tests: the form's default and the server's beside
   it, a kept edition's pages in the shaped answer and in the table. Checked against the running librarian in a throwaway
   container: the field ticked, 10 of 10 hits with a snippet with it, none without, the answer's characters halved.
+- **Every work names its language** (#11, 23 Nov). `language` on `CatalogSource` (the free catalog), `CatalogEntry` (the
+  licensed one) and `sources.Work`; `CATALOG_FIELDS` takes it, so a licensed row and a stand-in's fill carry it with the rest.
+  The heads: `WorkPages`, `HtmlWork` and `EpubWork` take it from the catalog (`language_of`, the free catalog by id or the
+  licensed one by the work's id; an EPUB by its file), `CodeWork` from the search service's work. One `LanguageMark` beside
+  every `KnowledgeBaseMark` that stands for a work, the code with a card, and the `language` facet after the knowledge base's.
+  No name table: the code is what the catalog writes, and a name would be a list of the view's own. Tests over invented catalogs
+  in English and German and a work that names none: the rows, a head, the facet's counts and its filtering; the browser check
+  said one free work was German, a moment, and was shown failing on the build before (`language` absent). On the real data every
+  row names one, and every kind of head says it.

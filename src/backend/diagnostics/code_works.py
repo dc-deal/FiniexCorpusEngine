@@ -74,6 +74,7 @@ class CodeWork(BaseModel):
     work: str
     title: str
     code_language: str | None = None
+    language: str | None = None  # the language of its comments and names, ISO 639-1, as its catalog names it (#11)
     companion: Companion | None = None
     licence: str | None = None
     route: str
@@ -169,7 +170,8 @@ def code_work(service: Any, knowledge_base: str, work: str, shelf: dict | None =
     counts = sorted((catalog.get('categories') or {}).items(), key=lambda pair: (-pair[1], pair[0]))
     total = int(catalog.get('total') or 0)
     return CodeWork(knowledge_base=meta.knowledge_base, work=work, title=meta.title, code_language=meta.code_language,
-                    companion=companion_of(service, meta, shelf), licence=meta.licence, route=meta.route,
+                    language=getattr(meta, 'language', None), companion=companion_of(service, meta, shelf),
+                    licence=meta.licence, route=meta.route,
                     files=sum(len(folder.files) for folder in folders), units=total,
                     categories=[CategoryCount(category=category, units=count) for category, count in counts],
                     catalog_said=None if total else NO_CATALOG, folders=folders)

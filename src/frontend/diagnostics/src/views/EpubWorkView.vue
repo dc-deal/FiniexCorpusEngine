@@ -9,6 +9,7 @@ import EditionBar from '@/components/EditionBar.vue'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import HtmlOutlineNode from '@/components/HtmlOutlineNode.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import LanguageMark from '@/components/LanguageMark.vue'
 import LadderDetails from '@/components/LadderDetails.vue'
 import RecordTrail from '@/components/RecordTrail.vue'
 import { useEpubStore } from '@/stores/epub_store'
@@ -59,7 +60,7 @@ const childrenOf = computed(() => {
       <h1 class="view-title">{{ shown.title }}</h1>
       <!-- its work's editions (E1.a), each a link to its record, this one's own marked -->
       <EditionBar v-if="shown.editions" :editions="shown.editions" :kb="kb" />
-      <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> {{ shown.source_id }}</p>
+      <p class="work-id"><KnowledgeBaseMark :kb="shown.knowledge_base" /> <LanguageMark :language="shown.language" /> {{ shown.source_id }}</p>
       <p class="summary" data-part="summary">
         <span>{{ counted(shown.sections, 'section') }} by heading · {{ counted(shown.images, 'image') }}</span>
         <span class="route">{{ shown.route }}</span>
