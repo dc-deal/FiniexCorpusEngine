@@ -234,6 +234,13 @@ This file is written from `corpus/catalog.json` by `python -m backend.ingestion.
 - **Licence:** BIS terms: download and redistribution for non-commercial purposes, the BIS cited as the source, stated at <https://www.bis.org/terms_conditions.htm>, checked 2026-11-22
 - **Source:** <https://www.bis.org/publ/qtrpdf/r_qt2212.htm>
 
+### Momentum effects in the cryptocurrency market after one-day abnormal returns
+
+- **Authors:** Guglielmo Maria Caporale, Alex Plastun
+- **Publisher:** Springer (Financial Markets and Portfolio Management 34(3), 2020, 251-266), 2020
+- **Licence:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), stated at <https://creativecommons.org/licenses/by/4.0/>, checked 2026-11-23
+- **Source:** <https://doi.org/10.1007/s11408-020-00357-1>
+
 ## Non-commercial works
 
 The code may be used commercially under its MIT licence; these works may not. Their licences forbid commercial use, so

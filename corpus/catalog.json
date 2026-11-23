@@ -969,6 +969,28 @@
         "of": 2
       },
       "notes": "Licensed by the BIS terms of use, read at the source on 2026-11-22: \"Users may download, display, print out, photocopy or redistribute any BIS Material for non-commercial purposes\", and a limited extract may be reproduced elsewhere with the BIS cited; the document's own line reads \"(c) Bank for International Settlements 2022. All rights reserved. Limited extracts may be reproduced or translated provided the source is stated.\" The BIS's own PDF with a text layer. Served from its text layer as published and never read, so nothing is altered; a quote names the BIS. Non-commercial use only."
+    },
+    {
+      "id": "caporale_plastun_crypto_momentum_2020",
+      "title": "Momentum effects in the cryptocurrency market after one-day abnormal returns",
+      "subject": "Whether a cryptocurrency's price keeps moving after a day of abnormal returns: Bitcoin, Ethereum and Litecoin against the US dollar, 2015-2019; hourly returns on abnormal days against normal ones, a momentum effect within the abnormal day that can be detected before the day ends, and on the day after, tested by statistical methods and a trading simulation, with a contrarian effect in two cases. Crypto venues, daily and hourly data; what follows a large one-day move.",
+      "authors": "Guglielmo Maria Caporale, Alex Plastun",
+      "publisher": "Springer (Financial Markets and Portfolio Management 34(3), 2020, 251-266)",
+      "year": 2020,
+      "licence": "CC BY 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "licence_checked": "2026-11-23",
+      "source_url": "https://doi.org/10.1007/s11408-020-00357-1",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://link.springer.com/content/pdf/10.1007/s11408-020-00357-1.pdf",
+          "path": "corpus/raw/caporale_plastun_crypto_momentum_2020.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The journal's open-access version, read at the source on 2026-11-23: the article page says \"Open access\" and \"This article is licensed under a Creative Commons Attribution 4.0 International License\", and the PDF's own licence paragraph (p. 13) says the same. Served from its text layer as published; asked for by a client's request on price shocks (what follows a large one-day move in crypto). The publisher answers a script's request for the PDF with a browser check, so `acquire` fails for this file: fetch it from the URL in a browser into the path given (the manifest records the bytes and sha256 of the copy taken in)."
     }
   ]
 }
