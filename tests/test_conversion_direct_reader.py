@@ -271,6 +271,37 @@ def test_pages_takes_a_page_list_and_its_judge_share_keeps_it_on_later_runs_and_
     assert target.read_bytes() == before
 
 
+def test_a_file_held_back_after_a_list_named_it_is_skipped_and_counted_and_a_new_list_naming_it_stops(tmp_path, monkeypatch):
+    # line 1's 1.a (23 Nov): a reseller's stamp found in a scan after its pages were named must not block every later run
+    import json
+    from types import SimpleNamespace
+
+    from backend.conversion.store import pipeline_db
+
+    a_scan(tmp_path, 2, 'stamped.pdf')
+    a_scan(tmp_path, 2, 'clean.pdf')
+    export, target = tmp_path / 'export', tmp_path / 'direct' / 'pages.json'
+    export.mkdir()
+    (export / 'index.json').write_text(json.dumps({'pages': []}), encoding='utf-8')
+    monkeypatch.setattr(direct_reader.data_paths, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(direct_reader.reading_cells, 'DIRECT_PAGES', {'licensed': target})
+    monkeypatch.setitem(reading_export.BASES, 'licensed', SimpleNamespace(name='licensed', export=export, cells=lambda: []))
+    monkeypatch.setattr(pipeline_db, 'protected_pages', lambda base: [])
+    listed = tmp_path / 'list.json'
+    listed.write_text(json.dumps({'pages': [{'file': 'stamped.pdf', 'pdf_page': 1}, {'file': 'stamped.pdf', 'pdf_page': 2},
+                                            {'file': 'clean.pdf', 'pdf_page': 1}]}), encoding='utf-8')
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: True)
+    direct_reader.pages(SimpleNamespace(knowledge_base='licensed', add_work=None, add_pages=str(listed), judge_share=None))
+    monkeypatch.setattr(direct_reader.reading_cells, 'may_send', lambda name: name != 'stamped.pdf')  # the stamp is found
+    outcome = direct_reader.pages(SimpleNamespace(knowledge_base='licensed', add_work=None, judge_share=None))
+    kept = json.loads(target.read_text(encoding='utf-8'))
+    assert [(page['file'], page['pdf_page']) for page in kept['pages']] == [('clean.pdf', 1)]
+    assert outcome['left'] == {direct_reader.HELD_SINCE_NAMED: 2}
+    assert {page['file'] for page in kept['added_pages']} == {'stamped.pdf', 'clean.pdf'}  # the plan's record stays whole
+    with pytest.raises(SystemExit, match='held back'):
+        direct_reader.pages(SimpleNamespace(knowledge_base='licensed', add_work=None, add_pages=str(listed), judge_share=None))
+
+
 def test_the_works_of_a_page_list_are_judged_by_a_sample_as_works_read_whole_are(tmp_path, monkeypatch):
     import json
     from types import SimpleNamespace

@@ -132,8 +132,16 @@ def pages(args) -> dict:
     for file_name in added:
         chosen += [page for page in whole_work(base, file_name, rows) if (page['file'], page['pdf_page']) not in known]
     known = {(page['file'], page['pdf_page']) for page in chosen}
+    new_files = {file_name for file_name, _ in new_named}
     for file_name in sorted({file_name for file_name, _ in named}):
-        own, skipped = named_pages(base, file_name, {number for name, number in named if name == file_name}, rows, protected)
+        numbers = {number for name, number in named if name == file_name}
+        # A file held back after a list named it stays in the list, so the record of what was planned stays whole, and its
+        # pages are left out and counted; a held file a new list names still stops the command (line 1's 1.a, 23 Nov: a
+        # reseller's stamp found in a scan after its pages were named would otherwise block every later run).
+        if file_name not in new_files and not reading_cells.may_send(file_name):
+            left[HELD_SINCE_NAMED] += len(numbers)
+            continue
+        own, skipped = named_pages(base, file_name, numbers, rows, protected)
         chosen += [page for page in own if (page['file'], page['pdf_page']) not in known]
         left.update(skipped)
     cards = {page['work']: page.pop('work_card') for page in chosen}
@@ -144,6 +152,9 @@ def pages(args) -> dict:
     print(f"{args.knowledge_base}: {len(chosen)} pages for a direct reading {dict(Counter(p['why'] for p in chosen))}, "
           f'written to {target.name}; left out {dict(left)}')
     return {'pages': len(chosen), 'left': dict(left)}
+
+
+HELD_SINCE_NAMED = 'held back since it was named'
 
 
 def page_list(path: str | None) -> list[tuple[str, int]]:
