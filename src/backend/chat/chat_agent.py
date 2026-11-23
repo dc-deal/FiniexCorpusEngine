@@ -94,7 +94,7 @@ def build_tools(config: dict, *, client, generator_chain, prices) -> list:
     """
 
     def searcher(question: str, hits: int) -> dict:
-        return client.call('semantic_search', {'question': question, 'hits': hits})
+        return client.call('semantic_search', {'question': question, 'hits': hits, 'diagnostics': True})  # its trace and citations (#14)
 
     @tool(response_format='content_and_artifact', return_direct=True)
     def search_knowledge_base(question: str) -> tuple[str, dict]:

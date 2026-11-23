@@ -315,3 +315,34 @@ chat model, a stage of its own.
   sentence is marked as derived and is never quoted. Every answer is stored under a key of everything asked, so a unit is
   never bought twice.
 - **Licensed code is read and cited, never copied into another codebase;** every tool that names code says so.
+
+**A client's report (issue #14, 23 Nov 2026).** The testing IDE ran a real knowledge request through every tool: about 45
+calls, with no error and no wrong page. What it found in its way is taken up here.
+
+- **The two bases merged by similarity.** `semantic_search` used to merge the free and the licensed list by rank
+  (reciprocal rank fusion, decision 39.a, chosen for bases that might one day embed with different models). Both embed
+  with the same model, so their similarities compare. Measured on the 61 evaluation questions, the router kept out, the top
+  10 of each merge:
+
+  | merge | pairs the wrong way round (by more than 0.05) | expected source in the top 10 (of 45) | top three's mean similarity |
+  |---|---:|---:|---:|
+  | by rank (as before) | 203, in 45 questions | 39 | 0.466 |
+  | each passage at its own similarity (chosen) | 0 | 38 | 0.554 |
+  | each list's own order kept, at a running minimum | 2 | 23 | 0.435 |
+
+  The third was built first and measured worse: a list fused with keyword hits is not ordered by similarity, so its
+  minimum falls at once. A passage only the keyword search found follows the rest. `corpus` (`all`, `free`, `licensed`)
+  searches one base alone.
+- **Compact answers.** An MCP client's `semantic_search` leaves out the candidate lists of both bases and each hit's
+  `citation` and `snippet` unless it asks for `diagnostics`; the client measured them at about 70 % of a 12-hit answer.
+  The chat and the diagnostics view ask for them. `works` takes `corpus` and `kind`.
+- **Smaller ones:**
+  - `usage.embedding` gives the question's embedding tokens and USD;
+  - `toc(work, depth, under)` descends into one entry;
+  - a kept edition names its own page count (`pages_kept`);
+  - the descriptions say how large an answer can be and that an EPUB page is a whole section.
+- **Subject sentences.** `backend.ingestion.subject_check` lists a sentence that names the front matter or two products
+  or more; the one the client found was rewritten.
+- **An outline kept through a verdict.** A PDF without bookmarks takes its outline from its readings' headings where every
+  page stands on a reading. A verdict that set one page's reading aside took a whole regulation's outline away; such a
+  reading now still gives its headings.

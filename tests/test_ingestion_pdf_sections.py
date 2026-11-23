@@ -273,3 +273,11 @@ def test_the_outline_keeps_an_entry_pointing_backwards_in_reading_order_and_mark
     outline = pdf.outline_of(toc, pages)
     assert [unit.title for unit in outline.units] == ['Blank Page', 'Part A', 'Part B']
     assert not outline.units[0].indexed and outline.units[2].last_page == 4
+
+
+def test_a_reading_a_verdict_set_aside_still_gives_its_headings_to_the_outline():
+    # found 23 Nov: one rejected word on one page of a regulation took the whole outline away
+    set_aside = {1: {'text': 'PART 220 CREDIT', 'headings': ['PART 220 CREDIT']},
+                 2: {'text': None, 'headings': ['§ 220.2 Definitions.'], 'seen': True}}
+    assert pdf.outline_without_bookmarks(set_aside, [5, 6]) == ('readings', [[1, 'PART 220 CREDIT', 1],
+                                                                             [1, '§ 220.2 Definitions.', 2]])

@@ -17,7 +17,11 @@ word-for-word check of its quotes stay with the client: that is answering, not r
     service.search('how is the amortization of a bond discount computed?', hits=10)
 """
 
+from backend.ingestion.chunking import count_tokens
 from backend.search import page_index, query_routing
+
+EMBEDDING_MODEL = 'text-embedding-3-small'  # the index's model (embedding_route.INDEX_MODEL names it with its maker)
+EMBEDDING_USD_PER_TOKEN = 0.02 / 1_000_000  # its list price, the same through OpenAI and OpenRouter (read 2026-10-29)
 
 STATES = ('found', 'nothing found', 'declined', 'error')
 
@@ -92,9 +96,10 @@ class SemanticSearch:
             self._private_keywords = retrieval.licensed_keyword_index()
 
     def search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-               keywords: list[str] | None = None, route: bool = True, only: dict | None = None) -> dict:
+               keywords: list[str] | None = None, route: bool = True, only: dict | None = None, corpus: str = 'all') -> dict:
         """Route the question and search for it; a decline searches nothing and says so. `only`: a metadata filter on both
-        indexes' chunks (#12: a code work's chunks by their route).
+        indexes' chunks (#12: a code work's chunks by their route). `corpus`: 'free' or 'licensed' searches that base alone,
+        'all' both, merged by similarity (#14).
 
         The caller may translate the question itself (decision 279.a): a calling session is a model already. With any of
         `search_query`, `concept_query` or `keywords` the router is not asked and nothing is declined. Without them the router
@@ -121,10 +126,11 @@ class SemanticSearch:
             routed = {**query_routing.plan_query(self._router, question), 'translated_by': 'the router'}
         plan = routed['plan']
         behaviour = query_routing.behaviour(plan)
-        # What the router used, so a client can price the call (the chat does): its model and tokens. The query embeddings are
-        # not counted, about 0.000002 USD a question at 0.02 USD per million tokens.
+        # What the router used, so a client can price the call (the chat does): its model and tokens; the query embeddings
+        # follow once the bases searched are known (#14: a client totals what a session spent)
         usage = {'router': {'model': self._config['router']['model'] if routed['translated_by'] == 'the router' else None,
-                            **{key: routed.get(key, 0) for key in ('input_tokens', 'output_tokens', 'reasoning_tokens')}}}
+                            **{key: routed.get(key, 0) for key in ('input_tokens', 'output_tokens', 'reasoning_tokens')}},
+                 'embedding': {'model': EMBEDDING_MODEL, 'tokens': 0, 'usd': 0.0}}
         answer = {'question': question, 'behaviour': behaviour,
                   'plan': {**plan.model_dump(), 'fell_back': routed['fell_back'], 'translated_by': routed['translated_by']},
                   'relevance': None, 'below_floor': None, 'search': {}, 'hits': [], 'usage': usage}
@@ -135,12 +141,16 @@ class SemanticSearch:
         chain = dict(k=max(1, hits), use_shelf_filter=settings['shelf_filter'], use_concept_query=settings['concept_query'],
                      use_keyword_search=settings['keyword_search'], bm25_on_keywords=settings['bm25_on_keywords'],
                      with_signal=True, demote_sections=frozenset(settings.get('demote_sections') or ()), only=only)
-        results, relevance = query_routing.search(plan, store=self._store, keyword_index=self._keywords, trace=trace, **chain)
-        if self.private:
-            from backend.search import retrieval
-
-            # The same chain over the private index, the two fused by rank (reciprocal rank fusion, k = 60, as 39.a fuses
-            # two indexes): scores of two indexes are not comparable, ranks are. The free chain and its trace stay as they were.
+        lists, relevances, chains = [], [], 0
+        if corpus in ('all', 'free'):
+            results, relevance = query_routing.search(plan, store=self._store, keyword_index=self._keywords, trace=trace, **chain)
+            lists.append(results)
+            relevances.append(relevance)
+            chains += 1
+        if self.private and corpus in ('all', 'licensed'):
+            # The same chain over the private index. Both indexes embed with the same model, so their similarities compare,
+            # and the two lists are merged by similarity, each keeping its own order (#14, 23 Nov: merged by rank, a weak
+            # free hit stood above a strong licensed one in every call a client made). The free chain's trace stays as it was.
             private_trace: dict = {}
             private_chain = {**chain, 'k': max(1, hits) * 2} if self.kept else chain
             private, private_relevance = query_routing.search(plan, store=self._private_store,
@@ -148,10 +158,40 @@ class SemanticSearch:
                                                               **private_chain)
             if self.kept:
                 private = [result for result in private if result['citation'].get('source_id') not in self.kept][:max(1, hits)]
-            results = retrieval.reciprocal_rank_fusion([results, private])[:max(1, hits)]
-            relevance = max((value for value in (relevance, private_relevance) if value is not None), default=None)
+            lists.append(private)
+            relevances.append(private_relevance)
+            chains += 1
             trace['licensed'] = private_trace
+        results = (lists[0] if len(lists) == 1 else merge_by_similarity(lists))[:max(1, hits)] if lists else []
+        relevance = max((value for value in relevances if value is not None), default=None)
+        embedded = [plan.search_query, *([plan.concept_query] if settings['concept_query'] and plan.concept_query else [])]
+        tokens = chains * sum(count_tokens(text) for text in embedded if text)
+        usage['embedding'] = {'model': EMBEDDING_MODEL, 'tokens': tokens, 'usd': round(tokens * EMBEDDING_USD_PER_TOKEN, 8)}
         floor = settings['relevance_floor']
         return {**answer, 'state': 'found' if results else 'nothing found', 'relevance': relevance,
                 'below_floor': relevance is None or relevance < floor, 'relevance_floor': floor, 'search': trace,
                 'hits': [hit_of(result, question, self.sources) for result in results]}
+
+
+def merge_by_similarity(lists: list[list[dict]]) -> list[dict]:
+    """Several bases' result lists as one, each passage at its own vector similarity (#14); a passage only the keyword search
+    found, which has none, follows the rest in its own list's order. A passage two lists hold stands once.
+
+    Measured on the 61 evaluation questions (23 Nov 2026, the router kept out, the top 10 of each merge): merged by rank,
+    203 pairs of the two bases stood the wrong way round by more than 0.05 similarity, in 45 questions; by each passage's
+    own similarity none, an expected source in the top 10 for 38 of 45 questions against 39, and the top three's mean
+    similarity 0.554 against 0.466. Keeping each list's own order and merging at a running minimum of its similarities was
+    tried first and measured worse (23 of 45): a list fused with keyword hits is not ordered by similarity, so its minimum
+    falls at once and pulls the whole list down."""
+    keyed = []
+    for position, results in enumerate(lists):
+        for rank, result in enumerate(results):
+            similarity = result.get('similarity')
+            keyed.append(((0, -similarity, 0, 0) if similarity is not None else (1, 0.0, rank, position), result))
+    keyed.sort(key=lambda item: item[0])
+    seen, merged = set(), []
+    for _, result in keyed:
+        if result['chunk_id'] not in seen:
+            seen.add(result['chunk_id'])
+            merged.append(result)
+    return merged

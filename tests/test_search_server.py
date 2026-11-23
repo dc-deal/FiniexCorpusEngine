@@ -721,3 +721,51 @@ def test_the_code_catalog_lists_and_finds_units_by_name_first_and_filters_them(t
     assert served.code_catalog(unit='strategy')['units'][0]['source_named'] == 'From an invented article'
     assert served.code_catalog(category='volume')['state'] == 'nothing found'
     assert served.code_catalog(category='astrology')['state'] == 'error' and served.code_catalog(hits=0)['state'] == 'error'
+
+
+def test_a_semantic_search_names_its_corpus_and_answers_compact_unless_asked_for_its_diagnostics():
+    served, asked = code_service(), []
+
+    class Semantic:
+        def search(self, question, hits, **options):
+            asked.append(options)
+            return {'state': 'found', 'search': {'lists': []}, 'usage': {'embedding': {'tokens': 4, 'usd': 0.00000008}},
+                    'hits': [{'work': 'book', 'page': {'label': '40'}, 'citation': {'source_id': 'book'}, 'snippet': 's',
+                              'text': 'a fast average'}]}
+
+    served._semantic = Semantic()
+    full = served.semantic_search('a fast average', hits=1)  # the service's own default keeps them: the view and the chat
+    assert 'search' in full and 'citation' in full['hits'][0]
+    compact = served.semantic_search('a fast average', hits=1, diagnostics=False, corpus='licensed')
+    assert 'search' not in compact and {'citation', 'snippet'}.isdisjoint(compact['hits'][0])
+    assert compact['hits'][0]['text'] == 'a fast average' and compact['usage']['embedding']['tokens'] == 4
+    assert asked[-1] == {'corpus': 'licensed'}
+    assert served.semantic_search('x', corpus='free')['state'] == 'error'  # a base this server does not give out
+    assert served.semantic_search('x', corpus='both')['state'] == 'error'
+
+
+def test_the_mcp_tool_answers_compact_by_default():
+    import inspect
+
+    server = search_server.build_server(code_service())
+    tool = {tool.name: tool for tool in asyncio.run(server.list_tools())}['semantic_search']
+    assert tool.input_schema['properties']['diagnostics']['default'] is False
+    assert tool.input_schema['properties']['corpus']['default'] == 'all'
+    assert 'merged by similarity' in tool.description and 'about 1,500 characters a hit' in tool.description
+    assert inspect.signature(search_server.SearchService.semantic_search).parameters['diagnostics'].default is True
+
+
+def test_works_narrow_by_corpus_and_kind_and_a_kept_edition_counts_its_own_pages():
+    served = code_service()
+    assert [work['work'] for work in served.list_works(kind='code')] == ['book_code']
+    assert [work['work'] for work in served.list_works(corpus='free')] == []
+    served.works['book_code'].kept_for, served.works['book_code'].pages = 'book', 0
+    kept = {work['work']: work for work in served.list_works()}['book_code']
+    assert (kept['pages'], kept['kept_for'], kept['pages_kept']) == (0, 'book', 2)
+
+
+def test_a_contents_descends_into_one_entry():
+    served = code_service()
+    under = served.toc('book_code', depth=1, under='Strategies')
+    assert under['under'] == 'Strategies' and [entry['title'] for entry in under['entries']] == ['Strategies', 'Breakout (S)']
+    assert served.toc('book_code', under='Nowhere')['state'] == 'nothing found'

@@ -458,7 +458,9 @@ def outline_without_bookmarks(served: dict | None, printed: list) -> tuple[str, 
     no text lies outside the readings' view; else one entry per page, named by its printed number, so nothing is dropped. The
     readings give no heading levels (the contract leaves them to assembly), so every entry is of level 1."""
     served = served or {}
-    read = all(served.get(number, {}).get('text') is not None for number in range(1, len(printed) + 1))
+    # a page counts as seen where a reading stands on it, or where a verdict set its reading aside, whose headings stand
+    read = all(served.get(number, {}).get('text') is not None or served.get(number, {}).get('seen')
+               for number in range(1, len(printed) + 1))
     headings = [[1, title, number] for number in range(1, len(printed) + 1) for title in served.get(number, {}).get('headings') or []]
     if read and headings:
         return 'readings', headings

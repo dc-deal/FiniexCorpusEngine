@@ -783,15 +783,24 @@ class SearchService:
         return {**answer, 'state': 'found', 'image': image.describe(), 'data': image.data, 'format': image.format}
 
     def semantic_search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None, route: bool = True, kind: str | None = None) -> dict:
+                        keywords: list[str] | None = None, route: bool = True, kind: str | None = None,
+                        corpus: str = 'all', diagnostics: bool = True) -> dict:
         """The chat's retrieval chain (decision 98.c): route, then search by meaning and by keywords; over the free index, and
-        the private one fused by rank where this server gives the private base out and its index was built (#8)."""
+        the private one where this server gives the private base out and its index was built (#8), the two merged by
+        similarity (#14). `corpus` searches one base alone. Without `diagnostics` the answer is compact (#14): no `search`
+        block with every candidate list, and no `citation` or `snippet` beside a hit's own fields."""
         from backend.search import semantic_search
 
         if refused := hits_refused(hits):  # before the router is built or called: a refused call costs nothing
             return {'state': 'error', 'error': refused, 'question': question, 'hits': []}
         if kind not in KINDS:
             return {'state': 'error', 'error': f'unknown kind {kind!r}; use one of {[k for k in KINDS if k]} or none',
+                    'question': question, 'hits': []}
+        if corpus not in CORPORA:
+            return {'state': 'error', 'error': f'unknown corpus {corpus!r}; use one of {list(CORPORA)}', 'question': question,
+                    'hits': []}
+        if corpus != 'all' and corpus not in self.bases:
+            return {'state': 'error', 'error': f'the {corpus} knowledge base is not given out by this server',
                     'question': question, 'hits': []}
         if self._semantic is None:
             from backend.search import retrieval
@@ -817,7 +826,8 @@ class SearchService:
         found = self._semantic.search(question, hits if kind is None else hits * SEMANTIC_WIDENING[kind],
                                       **{name: value for name, value in given.items() if value},
                                       **({} if route else {'route': False}),
-                                      **({'only': {'route': code_pages.CODE_ROUTE}} if kind == 'code' else {}))
+                                      **({'only': {'route': code_pages.CODE_ROUTE}} if kind == 'code' else {}),
+                                      **({} if corpus == 'all' else {'corpus': corpus}))
         kept_hits = []
         for hit in found.get('hits') or []:
             work = self.works.get(hit.get('work'))
@@ -832,6 +842,11 @@ class SearchService:
             found['hits'] = kept_hits[:hits]
             if not found['hits'] and found.get('state') == 'found':
                 found['state'] = 'nothing found'
+        if not diagnostics:  # compact (#14): the candidate lists and the hit's repeated fields left out
+            found.pop('search', None)
+            for hit in found.get('hits') or []:
+                hit.pop('citation', None)
+                hit.pop('snippet', None)
         return found
 
     def code_catalog(self, query: str | None = None, unit: str | None = None, category: str | None = None,
@@ -891,18 +906,27 @@ class SearchService:
             self._catalog_stamp = stamp
         return self._catalog
 
-    def list_works(self) -> list[dict]:
-        """Every work the server knows; a kept edition (E1.a) names the edition its work serves, the served one its kept ones."""
+    def list_works(self, corpus: str = 'all', kind: str | None = None) -> list[dict]:
+        """Every work the server knows, or those of one knowledge base or one kind (#14); a kept edition (E1.a) names the
+        edition its work serves and its own page count (`pages_kept`: its pages open by its key, but the searches skip
+        them, so `pages` is 0), the served one its kept ones."""
         kept_by: dict[str, list[str]] = {}
         for work in self.works.values():
             if work.kept_for:
                 kept_by.setdefault(work.kept_for, []).append(work.key)
+        kept_pages: dict[str, int] = {}
+        if any(work.kept_for for work in self.works.values()):
+            for key, _ in self.by_page:
+                if self.works.get(key) is not None and self.works[key].kept_for:
+                    kept_pages[key] = kept_pages.get(key, 0) + 1
+        chosen = [work for work in self.works.values() if (corpus == 'all' or work.knowledge_base == corpus)
+                  and (kind is None or work.kind == kind)]
         return [{'work': work.key, 'title': work.title, 'edition': work.edition, 'year': work.year,
                  'knowledge_base': work.knowledge_base, 'licence': work.licence, 'route': work.route, 'pages': work.pages,
                  'subject': work.subject, **self._code(work),
-                 **({'kept_for': work.kept_for} if work.kept_for else {}),
+                 **({'kept_for': work.kept_for, 'pages_kept': kept_pages.get(work.key, 0)} if work.kept_for else {}),
                  **({'kept_editions': sorted(kept_by[work.key])} if work.key in kept_by else {})}
-                for work in sorted(self.works.values(), key=lambda work: work.key)]
+                for work in sorted(chosen, key=lambda work: work.key)]
 
     def search_works(self, query: str, corpus: str = 'all', hits: int = 10) -> dict:
         """Which works hold a subject (decision 124.a): the page ranking of `search`, summed per work over its best
@@ -941,7 +965,7 @@ class SearchService:
                           'best_sections': sections})
         return {'state': 'found', 'query': query, 'corpus': corpus, 'pages_with_every_term': len(every), 'works': found}
 
-    def toc(self, work: str, depth: int = 2) -> dict:
+    def toc(self, work: str, depth: int = 2, under: str | None = None) -> dict:
         """A work's table of contents, to descend into before reading (decision 124.a): its PDF's bookmarks where its page
         labels are PDF pages, else the headings of its legacy Markdown, else its HTML sections, else the headings its page
         readings found; each entry with the page label `open_page` takes. Entries deeper than `depth` are counted, not sent."""
@@ -953,9 +977,21 @@ class SearchService:
         meta = self.works[work]
         if not entries:
             return {'state': 'nothing found', 'work': work, 'title': meta.title, 'why': 'no bookmarks and no headings', 'entries': []}
-        kept = [entry for entry in entries if entry['level'] <= depth]
+        top = 0
+        if under is not None:  # one entry and what lies under it, its depth counted from it (#14)
+            found = next((at for at, entry in enumerate(entries) if entry.get('page') == under), None)
+            if found is None:
+                found = next((at for at, entry in enumerate(entries) if entry['title'].lower() == under.lower()), None)
+            if found is None:
+                return {'state': 'nothing found', 'work': work, 'title': meta.title, 'under': under,
+                        'why': 'no entry with that page label or title', 'entries': []}
+            top = entries[found]['level']
+            end = next((at for at in range(found + 1, len(entries)) if entries[at]['level'] <= top), len(entries))
+            entries = entries[found:end]  # the entry itself at depth 0, its children at 1
+        kept = [entry for entry in entries if entry['level'] - top <= depth]
         return {'state': 'found', 'work': work, 'title': meta.title, 'knowledge_base': meta.knowledge_base, 'source': source,
-                'depth': depth, 'entries': kept, 'left_out': len(entries) - len(kept)}
+                'depth': depth, **({'under': under} if under is not None else {}), 'entries': kept,
+                'left_out': len(entries) - len(kept)}
 
     def _contents(self, work: str) -> tuple[str, list[dict]]:
         own = [page for (key, _), page in self.by_page.items() if key == work]
@@ -1215,16 +1251,23 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         and served, never rewritten. With printed=true, `page` is the number
         printed on the page, as an index entry or a "see p. 291" in the text gives it; the answer names both numbers. `view_url`
         links the page in the diagnostics view, for a person to check it against its image. A code page is a whole source
-        file, its label the file's path in its work, with `lines` (first and last, counted from 1) for a citation."""
+        file, its label the file's path in its work, with `lines` (first and last, counted from 1) for a citation. Sizes: a
+        PDF page is a few thousand characters; an EPUB or HTML page (`s12`) is a whole section and can run to tens of
+        thousands. `view_url` is null where the view has no page to show: a legacy text with neither a reading nor an
+        image."""
         return logged('open_page', ctx, lambda: service.open_page(work, page, printed), work=work, page=page, printed=printed)
 
     @server.tool()
-    def works(*, ctx: Context) -> list[dict]:
-        """Every work the server knows, local and free: key, title, edition and year, knowledge base, licence, route and how
-        many pages are searchable. Where a work is held in more than one edition, one is searched and the others are kept: a kept edition
-        names the edition searched (`kept_for`) and still opens by its own key. `kind` is "text" or "code"; a code work (a
-        book's companion source files) names its `code_language` and the work it accompanies (`companion_of`)."""
-        return logged('works', ctx, service.list_works)
+    def works(corpus: str = 'all', kind: str | None = None, *, ctx: Context) -> list[dict] | dict:
+        """Every work the server knows, local and free: key, title, edition and year, knowledge base, licence, route, how
+        many pages are searchable, and one sentence on what the work is for. Where a work is held in more than one edition,
+        one is searched and the others are kept: a kept edition names the edition searched (`kept_for`) and its own page
+        count (`pages_kept`), and still opens by its own key. `kind` is "text" or "code"; a code work (a book's companion
+        source files) names its `code_language` and the work it accompanies (`companion_of`). The whole shelf is about
+        90,000 characters: corpus ("all", "free", "licensed") and kind ("text", "code") narrow it."""
+        if corpus not in CORPORA or kind not in KINDS:
+            return {'state': 'error', 'error': f'corpus is one of {list(CORPORA)}; kind is "text", "code" or none'}
+        return logged('works', ctx, lambda: service.list_works(corpus, kind), corpus=corpus, kind=kind)
 
     @server.tool()
     def code_catalog(query: str | None = None, unit: str | None = None, category: str | None = None, work: str | None = None,
@@ -1255,17 +1298,18 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
                       hits=hits)
 
     @server.tool()
-    def toc(work: str, depth: int = 2, *, ctx: Context) -> dict:
+    def toc(work: str, depth: int = 2, under: str | None = None, *, ctx: Context) -> dict:
         """A work's table of contents, local and free, to descend into before reading a page: its PDF's bookmarks, else the
         headings of
         its text, each with the page label `open_page` takes, and where they come from. depth 1 to 6 (default 2): deeper
-        entries are counted in `left_out`, not sent. work: one key from `works`."""
-        return logged('toc', ctx, lambda: service.toc(work, depth), work=work, depth=depth)
+        entries are counted in `left_out`, not sent. work: one key from `works`. under: an entry's page label or title, to
+        descend into that entry alone, its depth counted from it."""
+        return logged('toc', ctx, lambda: service.toc(work, depth, under), work=work, depth=depth, under=under)
 
     @server.tool()
     def semantic_search(question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None, router: bool = True, kind: str | None = None, *,
-                        ctx: Context) -> dict:
+                        keywords: list[str] | None = None, router: bool = True, kind: str | None = None,
+                        corpus: str = 'all', diagnostics: bool = False, *, ctx: Context) -> dict:
         """Search by meaning and by keywords at once, the way the chat does, over every knowledge base this server gives out
         (the licensed one beside the free one where it is given out, the two fused by rank). About two seconds; the question is
         embedded through a paid API (a fraction of a cent). Translate the question yourself for the best results and to spare
@@ -1280,11 +1324,15 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         true means it lies under the floor that parts covered questions from uncovered ones, so the books likely say nothing
         on this: say so rather than answer from the passages. Use it for a question in plain words; use `search` for exact
         terms. kind: "code" for passages of source files only, "text" for prose only; without it both, so an article and its
-        code example come back side by side."""
+        code example come back side by side. corpus: "all" (both bases, merged by similarity, since both are embedded with
+        the same model), "free" or "licensed". The answer is compact, about 1,500 characters a hit (each hit's full text
+        about 1,000): `diagnostics` true adds every candidate list of both bases and each hit's `citation` and `snippet`,
+        several times the size. `usage` names the router's tokens and the question's embedding (tokens and USD), so a
+        session can total what it spent."""
         return logged('semantic_search', ctx,
                       lambda: service.semantic_search(question, hits, search_query, concept_query, keywords, route=router,
-                                                      kind=kind),
-                      query=question, hits=hits, kind=kind)
+                                                      kind=kind, corpus=corpus, diagnostics=diagnostics),
+                      query=question, hits=hits, kind=kind, corpus=corpus)
 
     @server.tool()
     def page_image(work: str, page: str, *, ctx: Context) -> list[dict | Image]:

@@ -211,6 +211,9 @@ def continues_previous(parsed) -> bool:
     return first is not None and first.attrs.get('cont') in ('prev', 'both')
 
 
+SET_ASIDE = ('rejected', 'rejected_by_review')  # a reading a person or a delegated review set aside, the page on its text layer
+
+
 def served_pages(file_name: str, rows: list[dict] | None = None, export: Path = EXPORT) -> dict:
     """PDF page -> what the chat's index uses of a free PDF's page: quotable text, whether it continues the page before, the
     printed number, the route, the reading key and its headings. Pages served from the text layer carry only their route.
@@ -223,8 +226,12 @@ def served_pages(file_name: str, rows: list[dict] | None = None, export: Path = 
     for row in export_rows(file_name) if rows is None else [row for row in rows if row['file'] == file_name]:
         why = text_layer_why(row)
         if why is not None:
+            # A reading a verdict set aside still saw the page: its headings stand, so a PDF whose outline comes from its
+            # readings keeps it (found 23 Nov: one rejected word on one page of a regulation took the whole outline away)
+            seen = why in SET_ASIDE and bool(row.get('text_file'))
+            headings = headings_of(parse((export / row['text_file']).read_text(encoding='utf-8'), row['form'])) if seen else None
             pages[row['pdf_page']] = {'text': None, 'continues': None, 'printed': None, 'route': TEXT_LAYER_WHY[why], 'reading_key': None,
-                                      'headings': None}
+                                      'headings': headings, 'seen': seen}
             continue
         parsed = parse((export / row['text_file']).read_text(encoding='utf-8'), row['form'])
         pages[row['pdf_page']] = {'text': quotable_text(parsed), 'continues': continues_previous(parsed), 'printed': printed_of(parsed),
