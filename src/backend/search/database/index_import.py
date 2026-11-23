@@ -80,10 +80,11 @@ def copy_rows(connection: psycopg.Connection, pages: list[page_index.Page], work
     index's generation is raised, so a running librarian loads it again. Returns the count of postings."""
     with connection.cursor() as cursor:
         with cursor.copy('COPY works (key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for, '
-                         'pages) FROM STDIN') as copy:
+                         'pages, code_language, companion_of) FROM STDIN') as copy:
             for work in works.values():
                 copy.write_row((work.key, work.knowledge_base, no_nul(work.title), work.licence, work.route,
-                                no_nul(work.subject), work.view_id, work.edition, work.year, work.kept_for, work.pages))
+                                no_nul(work.subject), work.view_id, work.edition, work.year, work.kept_for, work.pages,
+                                getattr(work, 'code_language', None), getattr(work, 'companion_of', None)))
         postings = 0
         with cursor.copy('COPY pages (id, work, knowledge_base, label, line, line_end, path, pdf, printed, section, route, '
                          'reading_key, searchable, text, index_text, length, ordinal) FROM STDIN') as copy:

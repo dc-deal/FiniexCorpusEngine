@@ -21,8 +21,8 @@ def client(tmp_path):
 
 
 def test_the_client_sees_every_tool_the_server_offers(client):
-    assert sorted(tool.name for tool in client.tools()) == ['open_page', 'page_image', 'search', 'search_works', 'semantic_search',
-                                                             'toc', 'works']  # the chat's agent takes five of them (124.a)
+    assert sorted(tool.name for tool in client.tools()) == ['code_catalog', 'open_page', 'page_image', 'search', 'search_works',
+                                                             'semantic_search', 'toc', 'works']  # the chat's agent takes five of them (124.a)
 
 
 def test_a_call_returns_the_server_s_json_and_an_image_as_its_artifact(client):

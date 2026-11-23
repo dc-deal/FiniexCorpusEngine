@@ -29,6 +29,8 @@ def page_of(citation: dict, chunk_id: str | None = None) -> dict:
 
     Found live on 2026-11-05: the label was the section's anchor ('Definition'), and the chat's "open source 1" asked
     `open_page` for a page no tool names."""
+    if citation.get('page_label'):  # a page named by its source, as a code file is (#12)
+        return {'label': str(citation['page_label']), 'pdf': None, 'printed': None}
     if citation.get('pdf_page') is not None:
         printed = citation.get('printed_page')
         return {'label': str(citation['pdf_page']), 'pdf': str(citation['pdf_page']),
@@ -90,8 +92,9 @@ class SemanticSearch:
             self._private_keywords = retrieval.licensed_keyword_index()
 
     def search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-               keywords: list[str] | None = None, route: bool = True) -> dict:
-        """Route the question and search for it; a decline searches nothing and says so.
+               keywords: list[str] | None = None, route: bool = True, only: dict | None = None) -> dict:
+        """Route the question and search for it; a decline searches nothing and says so. `only`: a metadata filter on both
+        indexes' chunks (#12: a code work's chunks by their route).
 
         The caller may translate the question itself (decision 279.a): a calling session is a model already. With any of
         `search_query`, `concept_query` or `keywords` the router is not asked and nothing is declined. Without them the router
@@ -131,7 +134,7 @@ class SemanticSearch:
         trace: dict = {}
         chain = dict(k=max(1, hits), use_shelf_filter=settings['shelf_filter'], use_concept_query=settings['concept_query'],
                      use_keyword_search=settings['keyword_search'], bm25_on_keywords=settings['bm25_on_keywords'],
-                     with_signal=True, demote_sections=frozenset(settings.get('demote_sections') or ()))
+                     with_signal=True, demote_sections=frozenset(settings.get('demote_sections') or ()), only=only)
         results, relevance = query_routing.search(plan, store=self._store, keyword_index=self._keywords, trace=trace, **chain)
         if self.private:
             from backend.search import retrieval

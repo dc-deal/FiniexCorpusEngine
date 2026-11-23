@@ -26,7 +26,7 @@ CHROMA_DIRECTORY = data_paths.INDEX / 'chroma'
 DATABASE = data_paths.INDEX / 'knowledge.sqlite3'
 
 # The metadata a caller gets with every chunk, enough to quote and cite it without the index.
-CITATION_FIELDS = ('source_id', 'source_title', 'authors', 'licence', 'licence_url', 'shelf',
+CITATION_FIELDS = ('source_id', 'source_title', 'authors', 'licence', 'licence_url', 'shelf', 'page_label',
                    'format', 'chapter', 'section', 'heading_path', 'printed_page', 'pdf_page',
                    'url', 'anchor',
                    'pdf_page_end', 'printed_page_end', 'route', 'reading_key',  # the trace of phase 5, shown with a hit (98.c)

@@ -84,3 +84,22 @@ def test_a_licensed_html_source_the_provenance_list_holds_back_stays_out(tmp_pat
     assert licensed_index.held_works(search_server.legacy_keys()) == set()
     monkeypatch.setattr(reading_cells, 'may_send', lambda name: name != 'invented_rule.html')
     assert licensed_index.held_works(search_server.legacy_keys()) == {'invented_rule'}
+
+
+def test_a_code_work_is_embedded_a_file_a_chunk_under_a_header_that_names_it():
+    # #12: never cut, so a unit of code reaches the embedding whole, and its page label rides along to open the file
+    code = 'inputs: Length(14);\nPlot1(Average(Close, Length));\n'
+    pages = [page_index.Page('book_code', 'Indicators/Fast (I).txt', 1, code, 'p', section='Indicators', route='source code')]
+    source = {'id': 'book_code', 'title': 'A Book: companion code', 'authors': 'A. Author', 'shelf': 'trading_finance',
+              'format': 'code', 'licence': 'licensed', 'licence_url': ''}
+    [chunk] = licensed_index.code_chunks(pages, source, 'EasyLanguage')
+    assert chunk.page_content == 'A Book: companion code · Indicators/Fast (I).txt · EasyLanguage\n\n' + code
+    assert chunk.metadata['page_label'] == 'Indicators/Fast (I).txt' and chunk.metadata['chunk_id'] == 'book_code:0000:000'
+    assert chunk.metadata['section_id'] == 'book_code:0000' and chunk.metadata['route'] == 'source code'
+
+
+def test_a_hit_from_a_code_chunk_opens_its_file():
+    from backend.search import semantic_search
+
+    assert semantic_search.page_of({'page_label': 'Indicators/Fast (I).txt'}, 'book_code:0000:000') == {
+        'label': 'Indicators/Fast (I).txt', 'pdf': None, 'printed': None}

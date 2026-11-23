@@ -121,10 +121,10 @@ def test_works_lists_every_work_with_its_knowledge_base_and_licence():
         ('free-book', 'free', 2), ('key-a', 'licensed', 1)]
 
 
-def test_the_server_offers_exactly_its_seven_tools_and_says_to_start_with_the_shelf():
+def test_the_server_offers_exactly_its_eight_tools_and_says_to_start_with_the_shelf():
     server = search_server.build_server(service())
-    assert sorted(tool.name for tool in asyncio.run(server.list_tools())) == ['open_page', 'page_image', 'search', 'search_works',
-                                                                               'semantic_search', 'toc', 'works']
+    assert sorted(tool.name for tool in asyncio.run(server.list_tools())) == ['code_catalog', 'open_page', 'page_image', 'search',
+                                                                               'search_works', 'semantic_search', 'toc', 'works']
     assert search_server.INSTRUCTIONS.startswith('A library') and 'Start with `works`' in search_server.INSTRUCTIONS
 
 
@@ -603,3 +603,121 @@ def test_a_client_learns_what_each_tool_costs_and_takes_and_in_which_order_to_us
     semantic = described['semantic_search']
     assert 'two seconds' in semantic and 'paid API' in semantic and 'language model' in semantic and 'below_floor' in semantic
     assert 'free knowledge base' not in semantic  # since #8 it searches every base the server gives out
+
+
+CODE_TEXT = 'inputs: Length(14);\nvars: FastValue(0);\nFastValue = Average(Close, Length);\nPlot1(FastValue, "Fast");\n'
+
+
+def code_service() -> search_server.SearchService:
+    """A licensed book and its companion code (#12), with invented text and code."""
+    from backend.search import code_pages
+
+    book = [page('book', '40', 'A fast average follows the price with a short length. ' * 6, 'archive/book.pdf#page=40',
+                 pdf='40', knowledge_base='licensed', route='text layer: the page has no reading')]
+    code = [page('book_code', 'Indicators/Fast Average (I).txt', CODE_TEXT, '_sources/licensed/code/book_code/Indicators/f.txt',
+                 line_end=5, section='Indicators', knowledge_base='licensed', route=code_pages.CODE_ROUTE,
+                 index_text=code_pages.index_words(CODE_TEXT) + '\nfast average'),
+            page('book_code', 'Strategies/Breakout (S).txt', 'if MarketPosition = 0 then buy next bar at market;\n',
+                 '_sources/licensed/code/book_code/Strategies/b.txt', line_end=2, section='Strategies',
+                 knowledge_base='licensed', route=code_pages.CODE_ROUTE)]
+    works = {'book': search_server.Work('book', 'A Book', 'licensed', 'licensed, local use only', 'per page', 1),
+             'book_code': search_server.Work('book_code', 'A Book: companion code', 'licensed', 'licensed, local use only',
+                                             code_pages.CODE_ROUTE, 2, view_id='book_code', code_language='EasyLanguage',
+                                             companion_of='book')}
+    return search_server.SearchService({'licensed': (book + code, works)}, view_url='http://view')
+
+
+def test_a_code_hit_names_its_kind_language_companion_and_lines_and_a_prose_hit_its_kind():
+    hits = code_service().search('fast average length')['hits']
+    by_work = {hit['work']: hit for hit in hits}
+    assert by_work['book']['kind'] == 'text' and 'code_language' not in by_work['book']
+    code = by_work['book_code']
+    assert (code['kind'], code['code_language'], code['companion_of'], code['lines']) == (
+        'code', 'EasyLanguage', 'book', {'first': 1, 'last': 5})
+    assert code['view_url'] == 'http://view/#/licensed/code/book_code/Indicators%2FFast%20Average%20%28I%29.txt'
+
+
+def test_a_search_takes_code_or_text_alone_and_refuses_another_kind():
+    served = code_service()
+    assert {hit['work'] for hit in served.search('fast average length', kind='code')['hits']} == {'book_code'}
+    assert {hit['work'] for hit in served.search('fast average length', kind='text')['hits']} == {'book'}
+    assert served.search('market position', kind='code')['hits'][0]['page']['label'] == 'Strategies/Breakout (S).txt'
+    assert served.search('fast', kind='prose')['state'] == 'error'
+
+
+def test_a_code_file_opens_whole_with_its_lines_and_its_work_lists_folders_then_files():
+    served = code_service()
+    opened = served.open_page('book_code', 'Indicators/Fast Average (I).txt')
+    assert opened['text'] == CODE_TEXT and opened['kind'] == 'code' and opened['lines'] == {'first': 1, 'last': 5}
+    contents = served.toc('book_code')
+    assert contents['source'] == 'code folders'
+    assert [entry['title'] for entry in contents['entries']] == ['Indicators', 'Fast Average (I)', 'Strategies', 'Breakout (S)']
+    listed = {work['work']: work for work in served.list_works()}
+    assert listed['book_code']['kind'] == 'code' and listed['book_code']['companion_of'] == 'book'
+    assert listed['book']['kind'] == 'text'
+
+
+def test_a_semantic_search_for_code_filters_inside_the_search_and_one_for_text_after_it():
+    from backend.search import code_pages
+
+    served, asked = code_service(), []
+
+    class Semantic:
+        def search(self, question, hits, **options):
+            asked.append((hits, options))
+            return {'state': 'found', 'hits': [{'work': 'book', 'page': {'label': '40'}},
+                                               {'work': 'book_code', 'page': {'label': 'Strategies/Breakout (S).txt'}}]}
+
+    served._semantic = Semantic()
+    assert [hit['work'] for hit in served.semantic_search('a breakout', hits=2, kind='code')['hits']] == ['book_code']
+    assert asked[-1] == (2, {'only': {'route': code_pages.CODE_ROUTE}})
+    assert [hit['work'] for hit in served.semantic_search('a breakout', hits=2, kind='text')['hits']] == ['book']
+    assert asked[-1] == (6, {})  # prose filtered after the fusion, from three times the hits
+    both = served.semantic_search('a breakout', hits=2)['hits']
+    assert [hit['kind'] for hit in both] == ['text', 'code'] and both[1]['lines'] == {'first': 1, 'last': 2}
+
+
+def test_a_code_work_in_the_local_catalog_is_served_file_by_file(tmp_path, monkeypatch):
+    from test_search_code_pages import a_code_work
+
+    a_licensed_shelf(tmp_path, monkeypatch)
+    a_code_work(tmp_path / 'archive')
+    entry = {'id': 'invented_code', 'file': 'code/invented_code', 'format': 'code', 'title': 'Invented: companion code',
+             'code_language': 'EasyLanguage', 'companion_of': 'key-a', 'name_prefix': 'XYZ'}
+    (tmp_path / 'catalog.json').write_text(json.dumps({'sources': [entry]}), encoding='utf-8')
+    pages, works = search_server.licensed_pages()
+    work = works['invented_code']
+    assert (work.kind, work.code_language, work.companion_of, work.pages, work.title) == (
+        'code', 'EasyLanguage', 'key-a', 2, 'Invented: companion code')
+    assert [page.page for page in pages if page.work == 'invented_code'] == ['Indicators/Fast Average (I).txt',
+                                                                            'Strategies/XYZBreakout.txt']
+    assert search_server.licensed_pages({'invented_code'})[1].keys() == {'invented_code'}
+
+
+def test_the_code_catalog_lists_and_finds_units_by_name_first_and_filters_them(tmp_path, monkeypatch):
+    from backend.ingestion import code_catalog
+
+    units = {
+        'book_code|Indicators/Fast Average (I).txt': {
+            'work': 'book_code', 'page': 'Indicators/Fast Average (I).txt', 'name': 'Fast Average', 'unit': 'indicator',
+            'category': 'trend', 'aliases': ['FA'], 'summary': 'A short moving average of the close.', 'summary_is': 'derived',
+            'inputs': [{'name': 'Length', 'default': '14'}], 'source_named': None, 'lines': {'first': 1, 'last': 5}},
+        'book_code|Strategies/Breakout (S).txt': {
+            'work': 'book_code', 'page': 'Strategies/Breakout (S).txt', 'name': 'Breakout', 'unit': 'strategy',
+            'category': 'breakout', 'aliases': [], 'summary': 'Buys a close above the highest high, with an average filter.',
+            'summary_is': 'derived', 'inputs': [], 'source_named': 'From an invented article', 'lines': {'first': 1, 'last': 2}},
+        'gone_code|Functions/X.txt': {
+            'work': 'gone_code', 'page': 'Functions/X.txt', 'name': 'X', 'unit': 'function', 'category': 'utility',
+            'aliases': [], 'summary': 'average', 'summary_is': 'derived', 'inputs': [], 'source_named': None, 'lines': {}}}
+    path = tmp_path / 'code_catalog.json'
+    path.write_text(json.dumps({'units': units}), encoding='utf-8')
+    monkeypatch.setattr(code_catalog, 'CATALOG', path)
+    served = code_service()
+    listed = served.code_catalog()
+    assert listed['total'] == 2 and [unit['name'] for unit in listed['units']] == ['Fast Average', 'Breakout']  # a work not served is left out
+    assert listed['categories'] == {'trend': 1, 'breakout': 1} and listed['units'][0]['code_language'] == 'EasyLanguage'
+    found = served.code_catalog('average')
+    assert [unit['name'] for unit in found['units']] == ['Fast Average', 'Breakout']  # its name first, then a sentence
+    assert served.code_catalog(unit='strategy')['units'][0]['source_named'] == 'From an invented article'
+    assert served.code_catalog(category='volume')['state'] == 'nothing found'
+    assert served.code_catalog(category='astrology')['state'] == 'error' and served.code_catalog(hits=0)['state'] == 'error'

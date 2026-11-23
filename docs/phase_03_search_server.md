@@ -14,6 +14,7 @@ for the shelf since 8 Nov:
 | `search_works(query, corpus, hits)` | since 8 Nov (124.a), which works hold a subject: the page ranking of `search` summed per work over its best five pages, each work with its subject sentence, how many pages hold a query word and how many hold every one, and its best three sections; `pages_with_every_term` 0 says no page holds all the words |
 | `toc(work, depth)` | since 8 Nov (124.a), a work's table of contents with the page labels `open_page` takes: its PDF's bookmarks, else its headings or HTML sections; entries deeper than `depth` (1 to 6) are counted, not sent |
 | `semantic_search(question, hits)` | since 5 Nov (decision 98.c), the chat's retrieval chain as a tool: a router decides whether to search and rewrites the question into a search query, a broader concept query and keywords; passages close in meaning and the best keyword matches are fused. Up to `hits` passages (1 to 50), shaped like `search`, each with its full passage text, for a client that verifies quotes word for word, and the router's model and tokens under `usage`, so a client can price the call (the query embeddings, about 0.000002 USD a question, are not counted) |
+| `code_catalog(query, unit, category, work, hits)` | since 23 Nov (#12), which indicators, functions and strategies the corpus holds as code: each unit's work and file, name and other names, kind, category, declared inputs, the source its comment names, lines, and one derived sentence; filtered by unit, category and work, found by name first |
 | `page_image(work, page)` | on request only, the page's image: a scan's own embedded pixels, never upscaled, or a 150 dpi render of a born-digital page, with a line saying which, the stored format, pixels, dpi and bytes; or why there is none (decision 92.a) |
 
 The ranking is Okapi BM25 over **one document per printed page**, because a citation needs a page. It is ported unchanged from a
@@ -289,3 +290,28 @@ chat model, a stage of its own.
   agreed within 0.000002, at 304 ms against Chroma's 654 ms in the median. Found on the way: the import had stored every
   passage's metadata as a JSON string, so SQL reached none of its keys; fixed and imported again. Chroma stays the
   embedding writer, and the import copies its vectors.
+
+**Code as a source (issue #12, 23 Nov 2026).** A book's companion code is a work of its own beside the book
+(`companion_of`), described in the local licensed catalog with `format: "code"`, its folder and its `code_language`.
+
+- **One file is one page** (`backend.search.code_pages`): its label is its path in the work's folder, its section the
+  folder, its lines the whole file. The text is the file as given, decoded and never rewritten.
+- **The ranking sees more words than the quote:** each camelCase identifier split (`MarketPosition` adds `market
+  position`) and the file's name, with the publisher's prefix split off. The port's tokenizer is unchanged, so the prose
+  ranking is untouched. A code page is never left out for being short or full of digits.
+- **Every answer names its kind:** `search`, `open_page`, `works` and `semantic_search` say `kind` (`text` or `code`); a
+  code page adds its language, the work it accompanies and its lines. `toc` lists a code work's folders and files.
+- **A `kind` filter.** `search` and `semantic_search` take `kind`. For code it is a metadata filter on the chunks' route,
+  inside both halves of the hybrid search: code is a small part of the index and rarely reaches the top of a fused list,
+  so filtering after the fusion found one or two units where the filter finds five. Prose is filtered after the fusion,
+  from three times the hits.
+- **Chunks.** A code file is embedded whole, one chunk, under a header line naming the work, the file and the language,
+  and its page label rides along, so a semantic hit opens the file.
+- **The catalog** (`code_catalog`, built by `backend.ingestion.code_catalog`) is LLM-based metadata extraction for
+  metadata filtering, the technique of self-query retrieval. Code reads what code can read: a unit's name, its kind, its
+  declared inputs and the source its opening comment names. Claude Haiku, over the API with structured output, gives one
+  category from a closed list, the other names the unit goes by, and one sentence on what it computes or trades. The
+  issue planned the reading in a session; the API was chosen instead, so the stage is a command that can run again. The
+  sentence is marked as derived and is never quoted. Every answer is stored under a key of everything asked, so a unit is
+  never bought twice.
+- **Licensed code is read and cited, never copied into another codebase;** every tool that names code says so.

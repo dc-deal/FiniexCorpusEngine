@@ -60,6 +60,21 @@ def sections_of(work: str, pages: list) -> list[Section]:
     return sections
 
 
+def code_chunks(pages: list, source: dict, code_language: str) -> list:
+    """A code work's chunks (#12): one a file, never cut, under a header line that names the work, the file and the language,
+    so a passage of code carries what it is to the embedding. Its page label rides along, so a hit opens the file."""
+    from langchain_core.documents import Document
+
+    chunks = []
+    for ordinal, page in enumerate(pages):
+        content = f"{source['title']} · {page.page} · {code_language}" + '\n\n' + page.text
+        metadata = {**chunking.source_metadata(source), 'chunk_id': f"{page.work}:{ordinal:04d}:000",
+                    'section_id': f"{page.work}:{ordinal:04d}", 'section': page.section, 'page_label': page.page,
+                    'route': page.route, 'tokens': chunking.count_tokens(content)}
+        chunks.append(Document(page_content=content, metadata={k: v for k, v in metadata.items() if v is not None}))
+    return chunks
+
+
 def source_of(work, entry: dict | None) -> dict:
     """A private work as a chunk's citation fields, the free catalog's names: title, authors and shelf from the local licensed
     catalog where it lists the work's file (N1.a), else the librarian's own title. The shelf is what the router's shelf filter
@@ -118,7 +133,8 @@ def plans(pages: list, works: dict, held: set[str], catalog: dict[str, dict] | N
             continue
         source = source_of(works[key], (catalog or {}).get(key))
         sections = sections_of(key, by_work[key])
-        chunks = chunking.chunk_sections(sections, source)
+        code = getattr(works[key], 'code_language', None)
+        chunks = code_chunks(by_work[key], source, code) if code else chunking.chunk_sections(sections, source)
         for chunk in chunks:
             chunk.metadata['knowledge_base'] = KNOWLEDGE_BASE
         planned.append({'source': source, 'fingerprint': fingerprint(by_work[key]), 'sections': sections, 'chunks': chunks,

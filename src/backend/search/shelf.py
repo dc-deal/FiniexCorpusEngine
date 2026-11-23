@@ -199,6 +199,11 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
         if key in new or key in standing_in:
             out.append(file_row(key, (new.get(key) or standing_in[key]).name, served))
             continue
+        if getattr(works[key], 'code_language', None):  # a code work (#12): its files, each served as it is, none read
+            row = row_of('licensed', key, works[key].title, key, None, 'code', len(served), None, {}, served, {},
+                         semantic=semantic.get(key))
+            out.append({**row, 'code_language': works[key].code_language, 'companion_of': works[key].companion_of})
+            continue
         slug = keys.get(key, key)
         own = [name for name in (f'{slug}.pdf', f'{slug}.epub', f'{slug}.html') if name in archive]
         suffix = search_server.stand_in_rule()[0]

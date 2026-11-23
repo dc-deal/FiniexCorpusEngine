@@ -96,3 +96,10 @@ def test_extra_queries_are_fused_by_rank():
     fused = query_routing.search(plan(), k=2, use_shelf_filter=False,
                                  extra_queries=['walk-forward validation'], store=store)
     assert [r['chunk_id'] for r in fused] == ['b', 'a']
+
+
+def test_a_callers_own_filter_stands_in_place_of_the_shelf_filter():
+    # #12: a search for code filters the chunks by their route, whatever the plan's shelf
+    store = FakeStore({'backtesting a trading strategy': ['a']})
+    query_routing.search(plan(), k=5, use_shelf_filter=True, store=store, only={'route': 'source code'})
+    assert store.filters == [{'route': 'source code'}]

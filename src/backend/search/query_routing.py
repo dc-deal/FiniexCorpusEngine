@@ -225,8 +225,9 @@ def shelf_filter(plan: QueryPlan) -> dict | None:
 def search(plan: QueryPlan, k: int, use_shelf_filter: bool, extra_queries: list[str] | None = None,
            use_concept_query: bool = False, use_keyword_search: bool = False, bm25_on_keywords: bool = False,
            store=None, keyword_index=None, with_signal: bool = False, trace: dict | None = None,
-           demote_sections=frozenset()):
-    """Retrieve for a plan: nothing for a decline, one search, or several fused by RRF.
+           demote_sections=frozenset(), only: dict | None = None):
+    """Retrieve for a plan: nothing for a decline, one search, or several fused by RRF. `only`: a metadata filter a caller
+    asks for (#12: a code work's chunks by their route), used in place of the plan's shelf filter.
 
     Args:
         plan: The router's plan.
@@ -250,7 +251,7 @@ def search(plan: QueryPlan, k: int, use_shelf_filter: bool, extra_queries: list[
     """
     if plan.route != 'search':
         return ([], None) if with_signal else []
-    filters = shelf_filter(plan) if use_shelf_filter else None
+    filters = only or (shelf_filter(plan) if use_shelf_filter else None)
     concept = [plan.concept_query] if use_concept_query and (plan.concept_query or '').strip() else []
     queries = [plan.search_query, *concept, *(extra_queries or [])]
     roles = ['search_query', *['concept_query'] * len(concept),

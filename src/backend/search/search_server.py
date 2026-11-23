@@ -41,7 +41,7 @@ from backend.configuration import data_paths
 from backend.conversion.store.reading_store import REPO
 from backend.conversion.store.served_readings import (LEGACY_ROUTE, READING_ROUTE, TEXT_LAYER_WHY, printed_of,  # noqa: F401
                                                 route_of, text_layer_why)
-from backend.search import page_index
+from backend.search import code_pages, page_index
 from backend.types.config_types.app_config_types import IndexSource
 
 CATALOG = REPO / 'corpus' / 'catalog.json'
@@ -53,6 +53,9 @@ WORK_KEYS = REPO / 'src' / 'backend' / 'conversion' / 'reading' / 'mini_pilot_pa
 FURNITURE = {'page_header', 'page_footer', 'page_number', 'watermark', 'decoration', 'margin_tab', 'description'}
 # 'description' is derived by the reader, never the author's words, so it is never searched as if quoted (OC-9.a)
 CORPORA = ('all', 'free', 'licensed')
+KINDS = (None, 'text', 'code')  # a work of text or of source code (#12); None: both
+SEMANTIC_WIDENING = {'text': 3, 'code': 1}  # how many more passages a kind-filtered semantic search fetches (#12)
+CATALOG_HITS = 400  # the most units one call of code_catalog lists: a whole work's catalog fits (#12)
 # The most hits one call returns (decision 96.a). Measured 2026-11-06 on the free knowledge base: a page hit is about 790
 # characters, so 50 are about 40,000; a passage carries up to 1,000 characters of text besides. Without a bound one call
 # asking for thousands would flood the calling model's context and keep the server busy building hits nobody reads.
@@ -88,6 +91,13 @@ class Work:
     edition: str | None = None
     year: int | None = None
     kept_for: str | None = None  # a kept edition (E1.a): the key of the edition its work serves; the searches skip it
+    code_language: str | None = None  # a code work's programming language (#12); None for a work of text
+    companion_of: str | None = None  # the work a code work accompanies, by its key (#12)
+
+    @property
+    def kind(self) -> str:
+        """'code' for a work of source files (#12), else 'text'."""
+        return 'code' if self.code_language else 'text'
 
 
 def legacy_headings(path: Path, offset: int = 0) -> list[dict]:
@@ -513,6 +523,13 @@ def licensed_pages(only: set[str] | None = None) -> tuple[list[page_index.Page],
         own = html_pages(key, path, entry, marks)
         works[key] = Work(key, path.stem, 'licensed', LICENSED_LICENCE, HTML_ROUTE, sum(page.searchable for page in own))
         pages += own
+    for key, (folder, entry) in code_pages.licensed_code(LICENSED_CATALOG, LICENSED_ARCHIVE).items():  # companion code (#12)
+        if not wanted(key):
+            continue
+        own = code_pages.code_pages(key, folder, prefix=entry.get('name_prefix'))
+        works[key] = Work(key, entry.get('title') or key, 'licensed', LICENSED_LICENCE, code_pages.CODE_ROUTE, len(own),
+                          view_id=key, code_language=entry.get('code_language'), companion_of=entry.get('companion_of'))
+        pages += own
     for key, subject in licensed_subjects().items():
         if key in works:
             works[key].subject = subject
@@ -674,9 +691,19 @@ class SearchService:
             return f'{self.view_url}/#/{work.knowledge_base}/html/{work.view_id}/{label}'
         if work.route == EPUB_ROUTE and label:  # the view's EPUB section (line 2, 18 Nov): the work by its key, URL-encoded
             return f'{self.view_url}/#/{work.knowledge_base}/epub/{quote(work.view_id, safe="")}/{label}'
+        if work.kind == 'code' and label:  # a code file (#12), its path URL-encoded; the view's code page (line 2)
+            return f'{self.view_url}/#/{work.knowledge_base}/code/{quote(work.view_id, safe="")}/{quote(label, safe="")}'
         if pdf:
             return f'{self.view_url}/#/{work.knowledge_base}/sources/{work.view_id}/page/{pdf}'
         return None
+
+    def _code(self, work: Work, page: page_index.Page | None = None) -> dict:
+        """What a client needs to know of a work's kind (#12): `kind` always; for code its language, the work it
+        accompanies and a page's lines."""
+        if work.kind != 'code':
+            return {'kind': 'text'}
+        lines = {'lines': {'first': page.line, 'last': page.line_end}} if page is not None and page.line_end else {}
+        return {'kind': 'code', 'code_language': work.code_language, 'companion_of': work.companion_of, **lines}
 
     def _hit(self, score: float, page: page_index.Page, query: str) -> dict:
         work = self.works[page.work]
@@ -686,16 +713,19 @@ class SearchService:
                 'page': {'label': page.page, 'pdf': page.pdf, 'printed': page.printed}, 'section': page.section,
                 'where': self._where(page), 'snippet': page_index.snippet(page.text, query), 'terms_found': found,
                 'terms_missing': missing, 'licence': work.licence, 'route': page.route or work.route,
-                'reading_key': page.reading_key, 'view_url': self.view_of(page.work, page.page, page.pdf)}
+                'reading_key': page.reading_key, 'view_url': self.view_of(page.work, page.page, page.pdf), **self._code(work, page)}
 
-    def search(self, query: str, corpus: str = 'all', hits: int = 6, work: str | None = None) -> dict:
+    def search(self, query: str, corpus: str = 'all', hits: int = 6, work: str | None = None, kind: str | None = None) -> dict:
         if refused := hits_refused(hits):
             return {'state': 'error', 'error': refused, 'hits': []}
         if corpus not in CORPORA:
             return {'state': 'error', 'error': f'unknown corpus {corpus!r}; use one of {list(CORPORA)}', 'hits': []}
         if work is not None and work not in self.works:
             return {'state': 'error', 'error': f'unknown work {work!r}; the tool works lists every key', 'hits': []}
-        accept = lambda page: (corpus == 'all' or page.knowledge_base == corpus) and (work is None or page.work == work)
+        if kind not in KINDS:
+            return {'state': 'error', 'error': f'unknown kind {kind!r}; use one of {[k for k in KINDS if k]} or none', 'hits': []}
+        accept = lambda page: ((corpus == 'all' or page.knowledge_base == corpus) and (work is None or page.work == work)
+                               and (kind is None or self.works[page.work].kind == kind))
         ranked = self.index.search(query, hits, accept)
         if not ranked:
             return {'state': 'nothing found', 'query': query, 'corpus': corpus, 'hits': []}
@@ -724,7 +754,7 @@ class SearchService:
                 'page': {'label': found.page, 'pdf': found.pdf, 'printed': found.printed}, 'section': found.section,
                 'where': self._where(found), 'text': found.text, 'licence': meta.licence, 'route': found.route or meta.route,
                 'reading_key': found.reading_key, 'view_url': self.view_of(work, found.page, found.pdf),
-                **({'note': note} if note else {})}
+                **self._code(meta, found), **({'note': note} if note else {})}
 
     def page_image(self, work: str, page: str) -> dict:
         """A page's image (decision 92.a), with what it is, or why there is none. A work the server does not serve, a licensed
@@ -753,13 +783,16 @@ class SearchService:
         return {**answer, 'state': 'found', 'image': image.describe(), 'data': image.data, 'format': image.format}
 
     def semantic_search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None, route: bool = True) -> dict:
+                        keywords: list[str] | None = None, route: bool = True, kind: str | None = None) -> dict:
         """The chat's retrieval chain (decision 98.c): route, then search by meaning and by keywords; over the free index, and
         the private one fused by rank where this server gives the private base out and its index was built (#8)."""
         from backend.search import semantic_search
 
         if refused := hits_refused(hits):  # before the router is built or called: a refused call costs nothing
             return {'state': 'error', 'error': refused, 'question': question, 'hits': []}
+        if kind not in KINDS:
+            return {'state': 'error', 'error': f'unknown kind {kind!r}; use one of {[k for k in KINDS if k]} or none',
+                    'question': question, 'hits': []}
         if self._semantic is None:
             from backend.search import retrieval
 
@@ -778,14 +811,85 @@ class SearchService:
             self._semantic = semantic_search.SemanticSearch(free_sources(), frozen_plans=self._frozen_plans, private=private,
                                                             kept=kept, **stores)
         given = {'search_query': search_query, 'concept_query': concept_query, 'keywords': keywords}  # the caller's own translation
-        # the router kept out of this call only when asked (S1.a); the default call stays the one every client makes
-        found = self._semantic.search(question, hits, **{name: value for name, value in given.items() if value},
-                                      **({} if route else {'route': False}))
+        # the router kept out of this call only when asked (S1.a); the default call stays the one every client makes; a kind
+        # asked for (#12): code by a filter on its chunks' route, inside both searches, since a few hundred chunks of code
+        # among a hundred thousand rarely reach the top of a fused list; prose after the fusion, from three times the hits
+        found = self._semantic.search(question, hits if kind is None else hits * SEMANTIC_WIDENING[kind],
+                                      **{name: value for name, value in given.items() if value},
+                                      **({} if route else {'route': False}),
+                                      **({'only': {'route': code_pages.CODE_ROUTE}} if kind == 'code' else {}))
+        kept_hits = []
         for hit in found.get('hits') or []:
-            hit['view_url'] = self.view_of(hit.get('work'), (hit.get('page') or {}).get('label'), (hit.get('page') or {}).get('pdf'))
             work = self.works.get(hit.get('work'))
+            if kind is not None and (work.kind if work else 'text') != kind:
+                continue
+            hit['view_url'] = self.view_of(hit.get('work'), (hit.get('page') or {}).get('label'), (hit.get('page') or {}).get('pdf'))
             hit['edition'], hit['year'] = (work.edition, work.year) if work else (None, None)
+            if work is not None:
+                hit.update(self._code(work, self.by_page.get((work.key, str((hit.get('page') or {}).get('label'))))))
+            kept_hits.append(hit)
+        if kind is not None:
+            found['hits'] = kept_hits[:hits]
+            if not found['hits'] and found.get('state') == 'found':
+                found['state'] = 'nothing found'
         return found
+
+    def code_catalog(self, query: str | None = None, unit: str | None = None, category: str | None = None,
+                     work: str | None = None, hits: int = 50) -> dict:
+        """The units of the code works this server gives out (#12): indicators, functions and strategies, each with what code
+        read from it and what a model said of it (`ingestion.code_catalog`). Filtered by unit, category and work; with a
+        query, ranked by the query's words in the unit's name and other names first, then in its sentence."""
+        from backend.ingestion import code_catalog
+
+        if not 1 <= hits <= CATALOG_HITS:
+            return {'state': 'error', 'error': f'hits must be 1 to {CATALOG_HITS}; got {hits}', 'units': []}
+        if unit is not None and unit not in code_pages.UNIT_KINDS.values():
+            return {'state': 'error', 'error': f'unknown unit {unit!r}; use one of {sorted(code_pages.UNIT_KINDS.values())}',
+                    'units': []}
+        if category is not None and category not in code_catalog.CATEGORIES:
+            return {'state': 'error', 'error': f'unknown category {category!r}; use one of {list(code_catalog.CATEGORIES)}',
+                    'units': []}
+        records = [record for record in self._catalog_units() if record['work'] in self.works
+                   and (unit is None or record['unit'] == unit) and (category is None or record['category'] == category)
+                   and (work is None or record['work'] == work)]
+        if query:
+            asked, phrase = set(page_index.tokenize(query)), ' '.join(page_index.tokenize(query))
+            scored = []
+            for record in records:
+                names = [' '.join(page_index.tokenize(name)) for name in [record['name'], *record.get('aliases', [])]]
+                named = set(page_index.tokenize(' '.join(names)))
+                said = set(page_index.tokenize(f"{record['summary']} {record['category']}"))
+                # the query's words in a name weigh most; the query whole as a name, or inside one, more still, so
+                # "adaptive moving average" finds the unit of that name before every unit whose name only shares a word
+                score = (3 * len(asked & named) + len(asked & said) + 12 * (phrase in names)
+                         + 6 * any(phrase in name for name in names))
+                if score:
+                    scored.append((score, record))
+            records = [record for _, record in sorted(scored, key=lambda pair: (-pair[0], pair[1]['name'].lower()))]
+        else:
+            records.sort(key=lambda record: (record['work'], record['unit'] or '', record['name'].lower()))
+        counts: dict[str, int] = {}
+        for record in records:
+            counts[record['category']] = counts.get(record['category'], 0) + 1
+        units = []
+        for record in records[:hits]:
+            meta = self.works[record['work']]
+            units.append({key: record.get(key) for key in ('work', 'page', 'name', 'unit', 'category', 'aliases', 'summary',
+                                                            'summary_is', 'inputs', 'source_named', 'lines')}
+                         | {'code_language': meta.code_language, 'companion_of': meta.companion_of,
+                            'view_url': self.view_of(record['work'], record['page'], None)})
+        return {'state': 'found' if units else 'nothing found', 'total': len(records), 'categories': counts, 'units': units}
+
+    def _catalog_units(self) -> list[dict]:
+        """The catalog's records, read again only when its file changed."""
+        from backend.ingestion import code_catalog
+
+        path = code_catalog.CATALOG
+        stamp = (path.stat().st_mtime_ns, path.stat().st_size) if path.exists() else None
+        if getattr(self, '_catalog_stamp', None) != stamp or getattr(self, '_catalog', None) is None:
+            self._catalog = list(json.loads(path.read_text(encoding='utf-8'))['units'].values()) if stamp else []
+            self._catalog_stamp = stamp
+        return self._catalog
 
     def list_works(self) -> list[dict]:
         """Every work the server knows; a kept edition (E1.a) names the edition its work serves, the served one its kept ones."""
@@ -795,7 +899,7 @@ class SearchService:
                 kept_by.setdefault(work.kept_for, []).append(work.key)
         return [{'work': work.key, 'title': work.title, 'edition': work.edition, 'year': work.year,
                  'knowledge_base': work.knowledge_base, 'licence': work.licence, 'route': work.route, 'pages': work.pages,
-                 'subject': work.subject,
+                 'subject': work.subject, **self._code(work),
                  **({'kept_for': work.kept_for} if work.kept_for else {}),
                  **({'kept_editions': sorted(kept_by[work.key])} if work.key in kept_by else {})}
                 for work in sorted(self.works.values(), key=lambda work: work.key)]
@@ -855,6 +959,8 @@ class SearchService:
 
     def _contents(self, work: str) -> tuple[str, list[dict]]:
         own = [page for (key, _), page in self.by_page.items() if key == work]
+        if self.works[work].kind == 'code':  # a code work's folders and files (#12), each file opening its page
+            return 'code folders', code_pages.contents(own)
         if self._images is None:
             self._images = image_sources()
         pdf = self._images.get(work, {}).get('pdf')
@@ -902,7 +1008,10 @@ INSTRUCTIONS = (
     'check a quote; all three are local and free, but an image weighs on your own context. No tool lets a model write or '
     'rephrase a text: every hit quotes the stored page as it stands. Every hit names its knowledge base, and its edition and '
     'year where the catalog has them. A score ranks the hits of one call only; it is not comparable between tools or calls. '
-    'Where a work is held in more than one edition, the searches use one and skip the others, which `works` names.')
+    'Where a work is held in more than one edition, the searches use one and skip the others, which `works` names. Some '
+    'books come with their companion code, a work of its own (`kind` "code"): `code_catalog` lists its indicators, functions '
+    'and strategies and finds one by name, `search` and `semantic_search` take `kind` "code" or "text", and `open_page` opens '
+    'a file whole with its lines. Licensed code is read and cited, never copied into another codebase.')
 
 
 CALL_LOG = data_paths.LOGS / 'search_server.jsonl'  # git-ignored: one line per tool call, never a page's text
@@ -1085,31 +1194,53 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         return result
 
     @server.tool()
-    def search(query: str, corpus: str = 'all', hits: int = 6, work: str | None = None, *, ctx: Context) -> dict:
+    def search(query: str, corpus: str = 'all', hits: int = 6, work: str | None = None, kind: str | None = None, *,
+               ctx: Context) -> dict:
         """Search the books by keywords (BM25 over pages): local, no model, milliseconds, free. Best for exact terms, names,
         numbers and a formula's symbols; for a question in plain words use `semantic_search`. Returns up to `hits` pages
         (1 to 50), best first, each with its knowledge base, work, edition and year, page (label, PDF page where known, printed
-        number), section, file and lines, a snippet, licence and the route that made its text, and `view_url`, a link to show
-        a person the page in the diagnostics view (image, reading, checks); or state "nothing found". The score ranks this
-        call's hits only. A page under 200 characters, mostly digits or a table is left out of the ranking but opens with
-        `open_page`. corpus: "all", "free" or "licensed". work: one key from `works`."""
-        return logged('search', ctx, lambda: service.search(query, corpus, hits, work), query=query, corpus=corpus, hits=hits,
-                      work=work)
+        number), section, file and lines, a snippet, licence and the route that made its text, `kind` ("text" or "code"), and
+        `view_url`, a link to show a person the page in the diagnostics view (image, reading, checks); or state "nothing
+        found". The score ranks this call's hits only. A page under 200 characters, mostly digits or a table is left out of
+        the ranking but opens with `open_page`; a code page never is. corpus: "all", "free" or "licensed". work: one key
+        from `works`. kind: "code" for source files only (a book's companion code: a hit then names its `code_language`, the
+        work it accompanies and its lines), "text" for prose only; without it both. Licensed code is read and cited, never
+        copied into another codebase."""
+        return logged('search', ctx, lambda: service.search(query, corpus, hits, work, kind), query=query, corpus=corpus,
+                      hits=hits, work=work, kind=kind)
 
     @server.tool()
     def open_page(work: str, page: str, printed: bool = False, *, ctx: Context) -> dict:
         """One page in full, by work key and page label as a search hit gives them: local and free, the text exactly as stored
         and served, never rewritten. With printed=true, `page` is the number
         printed on the page, as an index entry or a "see p. 291" in the text gives it; the answer names both numbers. `view_url`
-        links the page in the diagnostics view, for a person to check it against its image."""
+        links the page in the diagnostics view, for a person to check it against its image. A code page is a whole source
+        file, its label the file's path in its work, with `lines` (first and last, counted from 1) for a citation."""
         return logged('open_page', ctx, lambda: service.open_page(work, page, printed), work=work, page=page, printed=printed)
 
     @server.tool()
     def works(*, ctx: Context) -> list[dict]:
         """Every work the server knows, local and free: key, title, edition and year, knowledge base, licence, route and how
         many pages are searchable. Where a work is held in more than one edition, one is searched and the others are kept: a kept edition
-        names the edition searched (`kept_for`) and still opens by its own key."""
+        names the edition searched (`kept_for`) and still opens by its own key. `kind` is "text" or "code"; a code work (a
+        book's companion source files) names its `code_language` and the work it accompanies (`companion_of`)."""
         return logged('works', ctx, service.list_works)
+
+    @server.tool()
+    def code_catalog(query: str | None = None, unit: str | None = None, category: str | None = None, work: str | None = None,
+                     hits: int = 50, *, ctx: Context) -> dict:
+        """Which indicators, functions and strategies the corpus holds as code, as `works` lists its books: local, no model,
+        milliseconds, free. Each unit names its work and file (the page label `open_page` takes), its name and the other
+        names it goes by, its kind (`unit`: "function", "indicator" or "strategy"), a category, the inputs its code
+        declares, the source its opening comment names, its lines, `view_url`, and one sentence on what it computes or
+        trades. That sentence is derived by a model (`summary_is`), never the source's words: cite the code itself.
+        query: words to find a unit by, its name first ("Bollinger", "adaptive average"); without it every unit, by work
+        and kind. unit, category, work: filters. category is one of trend, momentum, mean reversion, breakout, volatility,
+        volume, pattern, cycle, seasonality, spread and arbitrage, risk and money management, statistics, utility. hits: 1
+        to 400. `categories` counts the matching units per category. Licensed code is read and cited, never copied into
+        another codebase."""
+        return logged('code_catalog', ctx, lambda: service.code_catalog(query, unit, category, work, hits), query=query,
+                      unit=unit, category=category, work=work, hits=hits)
 
     @server.tool()
     def search_works(query: str, corpus: str = 'all', hits: int = 10, *, ctx: Context) -> dict:
@@ -1133,7 +1264,8 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
 
     @server.tool()
     def semantic_search(question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None, router: bool = True, *, ctx: Context) -> dict:
+                        keywords: list[str] | None = None, router: bool = True, kind: str | None = None, *,
+                        ctx: Context) -> dict:
         """Search by meaning and by keywords at once, the way the chat does, over every knowledge base this server gives out
         (the licensed one beside the free one where it is given out, the two fused by rank). About two seconds; the question is
         embedded through a paid API (a fraction of a cent). Translate the question yourself for the best results and to spare
@@ -1147,10 +1279,12 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         or state "declined", "nothing found" or "error". `relevance` is the best similarity of meaning found; `below_floor`
         true means it lies under the floor that parts covered questions from uncovered ones, so the books likely say nothing
         on this: say so rather than answer from the passages. Use it for a question in plain words; use `search` for exact
-        terms."""
+        terms. kind: "code" for passages of source files only, "text" for prose only; without it both, so an article and its
+        code example come back side by side."""
         return logged('semantic_search', ctx,
-                      lambda: service.semantic_search(question, hits, search_query, concept_query, keywords, route=router),
-                      query=question, hits=hits)
+                      lambda: service.semantic_search(question, hits, search_query, concept_query, keywords, route=router,
+                                                      kind=kind),
+                      query=question, hits=hits, kind=kind)
 
     @server.tool()
     def page_image(work: str, page: str, *, ctx: Context) -> list[dict | Image]:
