@@ -118,6 +118,10 @@ describe('the Librarian\'s answers, each tool\'s own parts (L1.a)', () => {
     global: { plugins: [router] } })
     expect(works.find('[data-part="works-table"] tr[data-work="a-work"]').text()).toContain('An Invented Book')
     expect(works.find('[data-part="kept-editions"]').text()).toBe('kept beside it: a-work-1st')
+    // a kept edition says the edition searched and its own pages, which open by its key (#14)
+    const kept = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'works', works: [{ work: 'a-work-1st', title: 'An Invented Book',
+      kept_for: 'a-work', pages_kept: 312, kept_editions: [] }] }) }, global: { plugins: [router] } })
+    expect(kept.find('[data-part="kept-for"]').text().replace(/\s+/g, ' ')).toBe('kept: a-work is searched; its own 312 pages open by its key')
     const found = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'search_works', found_works: [{ rank: 1, work: 'a-work',
       title: 'An Invented Book', pages_matching: 9, pages_with_every_term: 2, best_sections: [{ section: '4 Bonds', page: '88',
         page_said: 'p. 80 (PDF p. 88)', score: 4 }] }] }) }, global: { plugins: [router] } })

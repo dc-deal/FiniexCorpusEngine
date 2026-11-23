@@ -2024,3 +2024,11 @@ started with `--public-only` reads nothing for a code route. Measured on the rea
 0.93 s, one request with every file and its catalog entry, a file in 0.1 s. 405 unit tests, 94 checks in the browser (3 skipped
 on today's data; two of the EU regulation's chapter checks fail on the free export of 23 Nov, whose outline of it came back
 empty, sent to line 1), 1,690 Python tests.
+
+**The semantic search's full answer on the Librarian page (#14, 23 Nov).** The librarian now answers an MCP client's semantic
+search compact: no candidate lists, and no citation or snippet on a hit, unless it is asked for `diagnostics`. The Librarian
+page asks for it by its own default, ticked in the form beside the router's, so its cards keep their snippets; unticked, the
+page shows exactly the compact answer a client gets. Measured against the running librarian on a question over the free base: 10
+hits with a snippet each and the search block, against none and half the characters without it. A kept edition in the works
+table names its own pages, which open by its key; the search's base, a work's kind and a contents' starting point come with the
+tools' schemas into their forms. 405 unit tests, 94 checks in the browser (3 skipped on today's data), 1,700 Python tests.

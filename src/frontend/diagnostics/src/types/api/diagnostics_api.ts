@@ -3771,6 +3771,8 @@ export interface components {
             subject?: string | null;
             /** Kept For */
             kept_for?: string | null;
+            /** Pages Kept */
+            pages_kept?: number | null;
             /**
              * Kept Editions
              * @default []

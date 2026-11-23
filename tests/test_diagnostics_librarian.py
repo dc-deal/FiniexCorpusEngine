@@ -24,6 +24,7 @@ SCHEMA = {'type': 'object', 'required': ['question'], 'properties': {
     'keywords': {'anyOf': [{'items': {'type': 'string'}, 'type': 'array'}, {'type': 'null'}], 'default': None},
     'router': {'default': True, 'type': 'boolean'},
     'corpus': {'default': 'all', 'enum': ['all', 'free', 'licensed'], 'type': 'string'},
+    'diagnostics': {'default': False, 'type': 'boolean'},
 }}
 
 
@@ -69,17 +70,30 @@ def test_each_tool_s_form_comes_from_its_input_schema_and_the_view_keeps_the_rou
     fields = {field.name: field for field in tool.fields}
     assert [(name, field.kind, field.required) for name, field in fields.items()] == [
         ('question', 'text', True), ('hits', 'integer', False), ('search_query', 'text', False), ('keywords', 'list', False),
-        ('router', 'boolean', False), ('corpus', 'choice', False)]
+        ('router', 'boolean', False), ('corpus', 'choice', False), ('diagnostics', 'boolean', False)]
     assert (fields['hits'].default, fields['hits'].minimum, fields['hits'].maximum) == (10, 1, 50)
     assert fields['corpus'].choices == ['all', 'free', 'licensed']
     # the operator wants the bare semantic search: the router off in the form, the server's own default kept beside it
     assert (fields['router'].default, fields['router'].server_default) == (False, True)
+    # and its full answer, which the cards' snippets need (#14): ticked, the server's compact default beside it
+    assert (fields['diagnostics'].default, fields['diagnostics'].server_default) == (True, False)
     # a caller's own translation folded under a title of its own
     assert [name for name, field in fields.items() if field.folded] == ['search_query', 'keywords']
     assert tool.folded_title == 'your own translation, which spares the router'
     # another tool keeps the server's defaults and folds nothing
     other = librarian.tool_of(a_tool('search', schema=SCHEMA))
     assert next(field for field in other.fields if field.name == 'router').default is True and other.folded_title is None
+    assert next(field for field in other.fields if field.name == 'diagnostics').default is False
+
+
+def test_a_kept_edition_in_the_works_says_its_own_pages(tmp_path):
+    kept = {'work': 'an-invented-first', 'title': 'An Invented Book', 'kept_for': 'an-invented-second', 'pages_kept': 312,
+            'pages': 0}
+    served = {'work': 'an-invented-second', 'title': 'An Invented Book', 'pages': 340, 'kept_editions': ['an-invented-first']}
+    answer = {'result': [kept, served]}
+    works = librarian.shaped('works', {}, answer, 0.01).works
+    assert [(work.work, work.kept_for, work.pages_kept) for work in works] == [
+        ('an-invented-first', 'an-invented-second', 312), ('an-invented-second', None, None)]
 
 
 def test_the_tools_stand_in_the_server_s_staggered_order_and_a_new_one_after_them():

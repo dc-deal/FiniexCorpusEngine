@@ -31,8 +31,10 @@ TOOL_ORDER = ('works', 'search_works', 'code_catalog', 'search', 'semantic_searc
 # code names stay what a client calls, beside them in the tab's head, and in the address
 LABELS = {'search': 'search (BM25)', 'semantic_search': 'semantic (hybrid)'}
 # the view's own defaults where they differ from the server's: the operator wants the bare semantic search (S1.a, L1.a), so the
-# router, a language model, runs only when a person ticks it
-VIEW_DEFAULTS: dict[str, dict[str, Any]] = {'semantic_search': {'router': False}}
+# router, a language model, runs only when a person ticks it; and its full answer (#14, line 1, 23 Nov): a client's is compact,
+# without the candidate lists and each hit's citation and snippet, which the page's cards show, so the view asks for them,
+# ticked in the form, and a person who unticks it sees exactly the compact answer a client gets
+VIEW_DEFAULTS: dict[str, dict[str, Any]] = {'semantic_search': {'router': False, 'diagnostics': True}}
 # the fields a person seldom fills, folded beneath the form under a title of their own: a caller's own translation
 FOLDED: dict[str, tuple[str, tuple[str, ...]]] = {
     'semantic_search': ('your own translation, which spares the router', ('search_query', 'concept_query', 'keywords'))}
@@ -145,6 +147,7 @@ class WorkRow(BaseModel):
     pages: int | None = None
     subject: str | None = None
     kept_for: str | None = None
+    pages_kept: int | None = None  # a kept edition's own pages, which open by its key and which the searches skip (#14)
     kept_editions: list[str] = []
 
 
@@ -386,7 +389,7 @@ def works_of(listed: list) -> list[WorkRow]:
                     edition_said=work_editions.words(work.get('edition'), work.get('year')),
                     knowledge_base=work.get('knowledge_base'), licence=work.get('licence'), route=work.get('route'),
                     pages=work.get('pages'), subject=work.get('subject'), kept_for=work.get('kept_for'),
-                    kept_editions=list(work.get('kept_editions') or []))
+                    pages_kept=work.get('pages_kept'), kept_editions=list(work.get('kept_editions') or []))
             for work in listed if isinstance(work, dict)]
 
 

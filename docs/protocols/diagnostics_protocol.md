@@ -1100,3 +1100,10 @@ The record of how the diagnostics frontend came about, mistakes included.
   the Sources test. Looked at on the real data in a throwaway container: the code folded under its book, every file with a
   catalog entry, a file's range marked and in view, `code_catalog` on the Librarian page opening its files here; screenshots of
   invented code only.
+- **`diagnostics` by the view's default** (#14, 23 Nov). `VIEW_DEFAULTS['semantic_search']` takes `diagnostics: True` beside
+  `router: False`: the field keeps the server's own default (`false`) as `server_default`, and the form starts ticked, since the
+  page's `HitCard`s draw the snippet a compact answer leaves out; the candidate lists and the citation stand only in the raw
+  answer. `WorkRow.pages_kept` and its words in `LibrarianWorks` beside "kept for". `corpus` (semantic_search, works), `kind`
+  (works) and `under` (toc) came through the schema-built forms with no code. Tests: the form's default and the server's beside
+  it, a kept edition's pages in the shaped answer and in the table. Checked against the running librarian in a throwaway
+  container: the field ticked, 10 of 10 hits with a snippet with it, none without, the answer's characters halved.

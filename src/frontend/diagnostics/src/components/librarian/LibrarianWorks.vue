@@ -2,6 +2,7 @@
 import DataTable from '@/components/base/DataTable.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import { knowledgeBaseOf } from '@/knowledge_base'
+import { counted } from '@/counted'
 import type { FoundWork, WorkRow } from '@/types/api/librarian_types'
 
 /**
@@ -38,7 +39,10 @@ function openPage(work: string, page: string) {
         <td>
           {{ work.title }}
           <p v-if="work.subject" class="secondary subject">{{ work.subject }}</p>
-          <p v-if="work.kept_for" class="secondary" data-part="kept-for">kept: {{ work.kept_for }} is searched</p>
+          <p v-if="work.kept_for" class="secondary" data-part="kept-for">
+            kept: {{ work.kept_for }} is searched<template v-if="work.pages_kept != null">; its own {{ counted(work.pages_kept, 'page') }}
+              open by its key</template>
+          </p>
           <p v-if="work.kept_editions.length" class="secondary" data-part="kept-editions">kept beside it: {{ work.kept_editions.join(', ') }}</p>
         </td>
         <td class="secondary">{{ work.edition_said ?? '' }}</td>
