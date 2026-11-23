@@ -991,6 +991,72 @@
       "shelf": "trading_finance",
       "language": "en",
       "notes": "The journal's open-access version, read at the source on 2026-11-23: the article page says \"Open access\" and \"This article is licensed under a Creative Commons Attribution 4.0 International License\", and the PDF's own licence paragraph (p. 13) says the same. Served from its text layer as published; asked for by a client's request on price shocks (what follows a large one-day move in crypto). The publisher answers a script's request for the PDF with a browser check, so `acquire` fails for this file: fetch it from the URL in a browser into the path given (the manifest records the bytes and sha256 of the copy taken in)."
+    },
+    {
+      "id": "kaminski_lo_stop_loss_rules_2014",
+      "title": "When Do Stop-Loss Rules Stop Losses? (original manuscript)",
+      "subject": "What a stop-loss rule adds to or takes from a portfolio: an analytical framework for policies that cut exposure after cumulative losses pass a threshold and re-enter later, their effect on expected return and volatility for random-walk, momentum and mean-reverting returns, and an empirical test on daily index futures, where some stop-loss policies raise the return and cut the volatility at longer sampling frequencies. When a stop helps a strategy and when it only costs.",
+      "authors": "Kathryn M. Kaminski, Andrew W. Lo",
+      "publisher": "MIT Open Access Articles (original manuscript of Journal of Financial Markets 18, 2014, 234-254)",
+      "year": 2014,
+      "licence": "CC BY-NC-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "licence_checked": "2026-11-23",
+      "source_url": "https://hdl.handle.net/1721.1/114876",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://dspace.mit.edu/bitstreams/0ac4d64e-37c1-48e4-9dac-04b657804f64/download",
+          "path": "corpus/raw/kaminski_lo_stop_loss_rules_2014.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The authors' original manuscript as deposited at MIT's DSpace, licensed by its record and by its own cover sheet (\"Version: Original manuscript; Terms of use: http://creativecommons.org/licenses/by-nc-nd/4.0/\"), read at the source on 2026-11-23; the journal's own version is Elsevier's and is not this file. The cover sheet is its first page. NoDerivatives: served from its text layer as published and never read (72.a). Cite it as the journal article (doi 10.1016/j.finmar.2013.07.001) with the note that the text is the original manuscript. MIT's repository refuses a script (429), so `acquire` fails for this file: fetch it from the URL in a browser into the path given."
+    },
+    {
+      "id": "miralles_quiros_bitcoin_price_shocks_2022",
+      "title": "Intraday Bitcoin price shocks: when bad news is good news",
+      "subject": "An event study of Bitcoin after hourly price shocks, the shocks defined by filter sizes: over- and under-reaction measured by average cumulative returns with three alternative approaches, clear overreaction after negative shocks that grows over the hours after the event, strongest 6 to 24 hours later, and a trading rule that buys after negative shocks. What follows a sharp intraday fall in crypto.",
+      "authors": "José Luis Miralles-Quirós, María Mar Miralles-Quirós",
+      "publisher": "Taylor & Francis (Journal of Applied Economics 25(1), 2022, 1294-1313)",
+      "year": 2022,
+      "licence": "CC BY 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "licence_checked": "2026-11-23",
+      "source_url": "https://doi.org/10.1080/15140326.2022.2151253",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.tandfonline.com/doi/pdf/10.1080/15140326.2022.2151253",
+          "path": "corpus/raw/miralles_quiros_bitcoin_price_shocks_2022.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The journal's open-access version: the PDF's own licence line (p. 2) says \"This is an Open Access article distributed under the terms of the Creative Commons Attribution License\", which the licence the publisher registered with Crossref confirms, read on 2026-11-23. Its first page is the publisher's download cover. Served from its text layer as published. The publisher refuses a script, so `acquire` fails for this file: fetch it from the URL in a browser into the path given."
+    },
+    {
+      "id": "pynnonen_rank_test_car_2022",
+      "title": "Non-Parametric Statistic for Testing Cumulative Abnormal Stock Returns",
+      "subject": "A rank test for cumulative abnormal returns in event studies that holds when events cluster: multi-day CARs replaced by cumulated standardized ranks, modified to stay robust to the cross-sectional correlation that calendar-time overlapping event windows bring, shown by simulation well specified under complete and partial overlap. How to test an event's effect when the events overlap.",
+      "authors": "Seppo Pynnönen",
+      "publisher": "MDPI (Journal of Risk and Financial Management 15(4), 149, 2022)",
+      "year": 2022,
+      "licence": "CC BY 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "licence_checked": "2026-11-23",
+      "source_url": "https://doi.org/10.3390/jrfm15040149",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.mdpi.com/1911-8074/15/4/149/pdf",
+          "path": "corpus/raw/pynnonen_rank_test_car_2022.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The journal's open-access version: its first page says \"This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license\", read on 2026-11-23. Served from its text layer as published. The publisher refuses a script, so `acquire` fails for this file: fetch it from the URL in a browser into the path given."
     }
   ]
 }

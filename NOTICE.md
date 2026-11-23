@@ -241,6 +241,27 @@ This file is written from `corpus/catalog.json` by `python -m backend.ingestion.
 - **Licence:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), stated at <https://creativecommons.org/licenses/by/4.0/>, checked 2026-11-23
 - **Source:** <https://doi.org/10.1007/s11408-020-00357-1>
 
+### When Do Stop-Loss Rules Stop Losses? (original manuscript)
+
+- **Authors:** Kathryn M. Kaminski, Andrew W. Lo
+- **Publisher:** MIT Open Access Articles (original manuscript of Journal of Financial Markets 18, 2014, 234-254), 2014
+- **Licence:** [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/), stated at <https://creativecommons.org/licenses/by-nc-nd/4.0/>, checked 2026-11-23
+- **Source:** <https://hdl.handle.net/1721.1/114876>
+
+### Intraday Bitcoin price shocks: when bad news is good news
+
+- **Authors:** José Luis Miralles-Quirós, María Mar Miralles-Quirós
+- **Publisher:** Taylor & Francis (Journal of Applied Economics 25(1), 2022, 1294-1313), 2022
+- **Licence:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), stated at <https://creativecommons.org/licenses/by/4.0/>, checked 2026-11-23
+- **Source:** <https://doi.org/10.1080/15140326.2022.2151253>
+
+### Non-Parametric Statistic for Testing Cumulative Abnormal Stock Returns
+
+- **Authors:** Seppo Pynnönen
+- **Publisher:** MDPI (Journal of Risk and Financial Management 15(4), 149, 2022), 2022
+- **Licence:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), stated at <https://creativecommons.org/licenses/by/4.0/>, checked 2026-11-23
+- **Source:** <https://doi.org/10.3390/jrfm15040149>
+
 ## Non-commercial works
 
 The code may be used commercially under its MIT licence; these works may not. Their licences forbid commercial use, so
@@ -250,6 +271,7 @@ a commercial use of this project leaves them out:
 - Principles of Accounting, Volume 1: Financial Accounting
 - Site Reliability Engineering
 - Trading and Arbitrage in Cryptocurrency Markets (accepted manuscript)
+- When Do Stop-Loss Rules Stop Losses? (original manuscript)
 
 ## For rights holders
 
