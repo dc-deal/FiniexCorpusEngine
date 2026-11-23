@@ -135,6 +135,29 @@ def test_a_page_outside_a_passed_sample_is_chosen_and_an_issue_or_an_unchecked_p
     assert outcome == {'chosen': 2, 'not chosen: issue': 1, 'not chosen: not checked': 1}
 
 
+def test_choose_skips_every_reading_of_a_file_it_is_told_to_skip(monkeypatch):
+    # line 1's 1.a (23 Nov): a file whose page images still carry a download mark keeps its readings unchosen
+    from types import SimpleNamespace
+
+    from backend.conversion.checks import check_run
+    from backend.conversion.store import pipeline_db
+
+    records = [{'file': name, 'pdf_page': 1, 'reading_key': key, 'model': 'claude-opus-5-5', 'deviation': DIRECT_DEVIATION}
+               for name, key in (('marked.pdf', 'km'), ('clean.pdf', 'kc'))]
+    chosen = []
+    monkeypatch.setattr(direct_reader, 'open_store', lambda name: None)
+    monkeypatch.setattr(direct_reader.vision_batches, 'readings_of', lambda cells, store: records)
+    monkeypatch.setattr(check_run, 'latest_per_page', lambda readings: readings)
+    monkeypatch.setattr(reading_export, 'check_states', lambda store, cells: {'km': {'state': 'ok'}, 'kc': {'state': 'ok'}})
+    monkeypatch.setattr(pipeline_db, 'chosen', lambda base: {})
+    monkeypatch.setattr(pipeline_db, 'choose', lambda base, file, page, key, why: chosen.append(file))
+    outcome = direct_reader.choose(SimpleNamespace(knowledge_base='licensed', skip_file=['marked.pdf']))
+    assert chosen == ['clean.pdf'] and outcome == {'chosen': 1, 'not chosen: skipped by name': 1}
+    chosen.clear()
+    direct_reader.choose(SimpleNamespace(knowledge_base='licensed'))  # without the option: as before
+    assert chosen == ['marked.pdf', 'clean.pdf']
+
+
 def test_a_whole_work_keeps_the_pages_the_session_read_and_leaves_out_those_another_reader_read(tmp_path, monkeypatch):
     # found 19 Nov: the page list written anew after the night dropped every read page, and with them the work's readings
     # from the cell, so the next export would have lost the whole work

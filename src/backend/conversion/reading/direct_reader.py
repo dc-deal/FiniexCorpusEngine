@@ -444,10 +444,13 @@ def choose(args) -> dict:
     target = open_store(args.knowledge_base)
     states = reading_export.check_states(target, (name,))
     current = pipeline_db.chosen(args.knowledge_base)
+    skipped = set(getattr(args, 'skip_file', None) or [])  # line 1's 1.a, 23 Nov: a file whose page images still carry a mark
     outcome = Counter()
     for record in check_run.latest_per_page(vision_batches.readings_of([name], target)):
         state = (states.get(record['reading_key']) or {}).get('state')
-        if state not in PASSED:
+        if record['file'] in skipped:
+            outcome['not chosen: skipped by name'] += 1
+        elif state not in PASSED:
             outcome[f'not chosen: {state or "not checked"}'] += 1
         elif (current.get((record['file'], record['pdf_page'])) or {}).get('reading_key') == record['reading_key']:
             outcome['already chosen'] += 1
@@ -475,6 +478,10 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument('--judge-share', type=float, metavar='SHARE',
                                  help="with --add-work or --add-pages: judge this share of the work's pages, e.g. 0.6 for a "
                                       "night's work (N2.a)")
+        if name == 'choose':
+            command.add_argument('--skip-file', action='append', metavar='FILE',
+                                 help="choose none of this file's readings (a file whose page images still carry a mark); "
+                                      'repeatable')
         if name == 'prepare':
             command.add_argument('--limit', type=int, default=1, help='at most this many pages; 0 prepares all')
             command.add_argument('--page', help="one page by its id, e.g. 'work:p0103'")
