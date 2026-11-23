@@ -620,7 +620,7 @@ def code_service() -> search_server.SearchService:
             page('book_code', 'Strategies/Breakout (S).txt', 'if MarketPosition = 0 then buy next bar at market;\n',
                  '_sources/licensed/code/book_code/Strategies/b.txt', line_end=2, section='Strategies',
                  knowledge_base='licensed', route=code_pages.CODE_ROUTE)]
-    works = {'book': search_server.Work('book', 'A Book', 'licensed', 'licensed, local use only', 'per page', 1),
+    works = {'book': search_server.Work('book', 'A Book', 'licensed', 'licensed, local use only', 'per page', 1, language='en'),
              'book_code': search_server.Work('book_code', 'A Book: companion code', 'licensed', 'licensed, local use only',
                                              code_pages.CODE_ROUTE, 2, view_id='book_code', code_language='EasyLanguage',
                                              companion_of='book')}
@@ -769,3 +769,14 @@ def test_a_contents_descends_into_one_entry():
     under = served.toc('book_code', depth=1, under='Strategies')
     assert under['under'] == 'Strategies' and [entry['title'] for entry in under['entries']] == ['Strategies', 'Breakout (S)']
     assert served.toc('book_code', under='Nowhere')['state'] == 'nothing found'
+
+
+def test_every_answer_that_names_a_work_names_its_language():
+    # #11: a quote is in that language, and the keyword search reaches a work only in its own
+    served = code_service()
+    assert served.search('fast average length', kind='text')['hits'][0]['language'] == 'en'
+    assert served.open_page('book', '40')['language'] == 'en'
+    assert {work['work']: work['language'] for work in served.list_works()}['book'] == 'en'
+    assert served.search_works('fast average')['works'][0]['language'] in ('en', None)
+    assert served.toc('book_code')['language'] is None  # the invented code work names none here
+    assert 'language' in search_server.INSTRUCTIONS and 'lower similarity' in search_server.INSTRUCTIONS

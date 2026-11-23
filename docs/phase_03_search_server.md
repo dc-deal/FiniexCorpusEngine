@@ -346,3 +346,23 @@ calls, with no error and no wrong page. What it found in its way is taken up her
 - **An outline kept through a verdict.** A PDF without bookmarks takes its outline from its readings' headings where every
   page stands on a reading. A verdict that set one page's reading aside took a whole regulation's outline away; such a
   reading now still gives its headings.
+
+**Every work names its language (issue #11, 23 Nov 2026).** Each work carries the language of its text as an ISO 639-1 code
+from its catalog, and every answer that names a work says it: a hit, an opened page, a contents list, the works list and
+`search_works`. The index database keeps it (migration 006, `works.language`), and an import refuses a work without one. A
+legacy work whose source is gone takes it from its stand-in's catalog entry. The corpus is English today, so every work says
+`en`.
+
+What the language means for a client was measured on 22 Nov with the index's embedding model (`text-embedding-3-small`),
+on five English questions, each with a matching English passage, the same content in German, and off-topic passages in
+both languages (a small sample; a larger one comes with the first work in another language):
+
+- the semantic search finds the German passage: in 5 of 5 cases it scores above both off-topic passages, by at least 0.29;
+- but with a penalty: it scores 0.09 to 0.27 below the English passage of the same content (0.44 to 0.57 against 0.55 to
+  0.76), and two of the five fall below the relevance floor of 0.495;
+- the keyword search compares words, so an English query does not reach a German page at all.
+
+So the server's instructions say: a quote is in the work's language, `search` reaches a work only in its own language, and
+`semantic_search` reaches it from another one too, at a lower similarity. Not now: translating queries for the keyword
+search, and the README's "English only", which changes when the first work in another language is taken in. Laws and other
+official texts enter only in an official English version; the corpus never quotes its own translation as a source's words.

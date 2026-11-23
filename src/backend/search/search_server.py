@@ -92,6 +92,7 @@ class Work:
     year: int | None = None
     kept_for: str | None = None  # a kept edition (E1.a): the key of the edition its work serves; the searches skip it
     code_language: str | None = None  # a code work's programming language (#12); None for a work of text
+    language: str | None = None  # the language of the work's text, ISO 639-1, from its catalog (#11); an import needs it
     companion_of: str | None = None  # the work a code work accompanies, by its key (#12)
 
     @property
@@ -195,7 +196,7 @@ def free_pdf_pages(only: set[str] | None = None) -> tuple[list[page_index.Page],
         if only is not None and key not in only and source['id'] not in only:
             continue
         work = works[key] = Work(key, source['title'], 'free', source['licence'], 'per page', subject=source.get('subject'),
-                                 view_id=source['id'], year=source.get('year'))
+                                 view_id=source['id'], year=source.get('year'), language=source.get('language'))
         own = pdf_work_pages(key, path, rows.get(path.name, {}), reading_export.quoted_pages('free', path.name), EXPORT, 'free')
         pages += own
         work.pages += sum(page.searchable for page in own)
@@ -216,7 +217,8 @@ def free_html_pages(only: set[str] | None = None) -> tuple[list[page_index.Page]
         if only is not None and source['id'] not in only:
             continue
         work = works[source['id']] = Work(source['id'], source['title'], 'free', source['licence'], 'html, parsed by section',
-                                          subject=source.get('subject'), view_id=source['id'], year=source.get('year'))
+                                          subject=source.get('subject'), view_id=source['id'], year=source.get('year'),
+                                          language=source.get('language'))
         for section in load_html_sections(source, manifest, data_paths.DATA):
             if not section.text.strip():
                 continue
@@ -545,9 +547,18 @@ def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str
     from backend.ingestion.licensed_index import catalog_entries
     from backend.search import editions
 
-    for key, entry in catalog_entries(keys).items():
+    entries = catalog_entries(keys)
+    for key, entry in entries.items():
         if key in works:
             works[key].edition, works[key].year = entry.get('edition'), entry.get('year')
+            works[key].language = entry.get('language')  # #11: every licensed work's catalog entry names it
+    # a legacy work whose source is gone is catalogued by its stand-in's file (126.a): the same work, so the same language,
+    # though not its edition or year, since the stand-in's pages differ
+    suffix = stand_in_rule()[0] if any(work.language is None for work in works.values()) else None
+    for key, work in works.items():
+        if work.language is None and suffix:
+            stand_in = entries.get(f'{keys.get(key, key)}{suffix}')
+            work.language = stand_in.get('language') if stand_in else None
     # the list names an edition by its file's stem, the catalog's id; a legacy work is keyed by its citation key (found by
     # line 2, 20 Nov: the served lecture's key is its legacy key), so a stem is turned into the key the server uses
     work_key = {slug: key for key, slug in keys.items()}.get
@@ -697,6 +708,10 @@ class SearchService:
             return f'{self.view_url}/#/{work.knowledge_base}/sources/{work.view_id}/page/{pdf}'
         return None
 
+    def _about(self, work: Work, page: page_index.Page | None = None) -> dict:
+        """What every answer that names a work says of it beside its title: its language (#11) and its kind (#12)."""
+        return {'language': work.language, **self._code(work, page)}
+
     def _code(self, work: Work, page: page_index.Page | None = None) -> dict:
         """What a client needs to know of a work's kind (#12): `kind` always; for code its language, the work it
         accompanies and a page's lines."""
@@ -713,7 +728,7 @@ class SearchService:
                 'page': {'label': page.page, 'pdf': page.pdf, 'printed': page.printed}, 'section': page.section,
                 'where': self._where(page), 'snippet': page_index.snippet(page.text, query), 'terms_found': found,
                 'terms_missing': missing, 'licence': work.licence, 'route': page.route or work.route,
-                'reading_key': page.reading_key, 'view_url': self.view_of(page.work, page.page, page.pdf), **self._code(work, page)}
+                'reading_key': page.reading_key, 'view_url': self.view_of(page.work, page.page, page.pdf), **self._about(work, page)}
 
     def search(self, query: str, corpus: str = 'all', hits: int = 6, work: str | None = None, kind: str | None = None) -> dict:
         if refused := hits_refused(hits):
@@ -754,7 +769,7 @@ class SearchService:
                 'page': {'label': found.page, 'pdf': found.pdf, 'printed': found.printed}, 'section': found.section,
                 'where': self._where(found), 'text': found.text, 'licence': meta.licence, 'route': found.route or meta.route,
                 'reading_key': found.reading_key, 'view_url': self.view_of(work, found.page, found.pdf),
-                **self._code(meta, found), **({'note': note} if note else {})}
+                **self._about(meta, found), **({'note': note} if note else {})}
 
     def page_image(self, work: str, page: str) -> dict:
         """A page's image (decision 92.a), with what it is, or why there is none. A work the server does not serve, a licensed
@@ -836,7 +851,7 @@ class SearchService:
             hit['view_url'] = self.view_of(hit.get('work'), (hit.get('page') or {}).get('label'), (hit.get('page') or {}).get('pdf'))
             hit['edition'], hit['year'] = (work.edition, work.year) if work else (None, None)
             if work is not None:
-                hit.update(self._code(work, self.by_page.get((work.key, str((hit.get('page') or {}).get('label'))))))
+                hit.update(self._about(work, self.by_page.get((work.key, str((hit.get('page') or {}).get('label'))))))
             kept_hits.append(hit)
         if kind is not None:
             found['hits'] = kept_hits[:hits]
@@ -891,7 +906,7 @@ class SearchService:
             meta = self.works[record['work']]
             units.append({key: record.get(key) for key in ('work', 'page', 'name', 'unit', 'category', 'aliases', 'summary',
                                                             'summary_is', 'inputs', 'source_named', 'lines')}
-                         | {'code_language': meta.code_language, 'companion_of': meta.companion_of,
+                         | {'code_language': meta.code_language, 'companion_of': meta.companion_of, 'language': meta.language,
                             'view_url': self.view_of(record['work'], record['page'], None)})
         return {'state': 'found' if units else 'nothing found', 'total': len(records), 'categories': counts, 'units': units}
 
@@ -923,7 +938,7 @@ class SearchService:
                   and (kind is None or work.kind == kind)]
         return [{'work': work.key, 'title': work.title, 'edition': work.edition, 'year': work.year,
                  'knowledge_base': work.knowledge_base, 'licence': work.licence, 'route': work.route, 'pages': work.pages,
-                 'subject': work.subject, **self._code(work),
+                 'subject': work.subject, **self._about(work),
                  **({'kept_for': work.kept_for, 'pages_kept': kept_pages.get(work.key, 0)} if work.kept_for else {}),
                  **({'kept_editions': sorted(kept_by[work.key])} if work.key in kept_by else {})}
                 for work in sorted(chosen, key=lambda work: work.key)]
@@ -962,7 +977,7 @@ class SearchService:
             found.append({'work': key, 'title': work.title, 'subject': work.subject, 'knowledge_base': work.knowledge_base,
                           'licence': work.licence, 'score': round(total[key], 2), 'pages_matching': len(per_work[key]),
                           'pages_with_every_term': sum(1 for _, number in per_work[key] if number in every),
-                          'best_sections': sections})
+                          'best_sections': sections, **self._about(work)})
         return {'state': 'found', 'query': query, 'corpus': corpus, 'pages_with_every_term': len(every), 'works': found}
 
     def toc(self, work: str, depth: int = 2, under: str | None = None) -> dict:
@@ -989,7 +1004,8 @@ class SearchService:
             end = next((at for at in range(found + 1, len(entries)) if entries[at]['level'] <= top), len(entries))
             entries = entries[found:end]  # the entry itself at depth 0, its children at 1
         kept = [entry for entry in entries if entry['level'] - top <= depth]
-        return {'state': 'found', 'work': work, 'title': meta.title, 'knowledge_base': meta.knowledge_base, 'source': source,
+        return {'state': 'found', 'work': work, 'title': meta.title, 'knowledge_base': meta.knowledge_base,
+                'language': meta.language, 'source': source,
                 'depth': depth, **({'under': under} if under is not None else {}), 'entries': kept,
                 'left_out': len(entries) - len(kept)}
 
@@ -1047,7 +1063,9 @@ INSTRUCTIONS = (
     'Where a work is held in more than one edition, the searches use one and skip the others, which `works` names. Some '
     'books come with their companion code, a work of its own (`kind` "code"): `code_catalog` lists its indicators, functions '
     'and strategies and finds one by name, `search` and `semantic_search` take `kind` "code" or "text", and `open_page` opens '
-    'a file whole with its lines. Licensed code is read and cited, never copied into another codebase.')
+    'a file whole with its lines. Licensed code is read and cited, never copied into another codebase. Every answer that '
+    'names a work names its `language` (ISO 639-1): a quote is in that language; `search` reaches a work only in its own '
+    'language, `semantic_search` reaches it from another one too, at a lower similarity.')
 
 
 CALL_LOG = data_paths.LOGS / 'search_server.jsonl'  # git-ignored: one line per tool call, never a page's text

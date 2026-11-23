@@ -146,3 +146,15 @@ def test_render_licences_attributes_every_source_and_names_what_is_missing():
 def test_the_offline_guard_refuses_a_real_download():
     with pytest.raises(RuntimeError, match='offline test'):
         urllib.request.urlopen('https://example.org', timeout=5)
+
+
+def test_every_free_work_names_its_language_as_an_iso_639_1_code():
+    # #11: the librarian tells every client the language of what it quotes, and an import refuses a work without one
+    import json
+    import re
+
+    from backend.configuration import data_paths
+
+    sources = json.loads((data_paths.ROOT / 'corpus' / 'catalog.json').read_text(encoding='utf-8'))['sources']
+    assert all(re.fullmatch(r'[a-z]{2}', source.get('language') or '') for source in sources), \
+        [source['id'] for source in sources if not re.fullmatch(r'[a-z]{2}', source.get('language') or '')]

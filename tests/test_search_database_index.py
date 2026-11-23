@@ -17,11 +17,12 @@ def page(work: str, label: str, text: str, knowledge_base: str = 'free', searcha
                            knowledge_base=knowledge_base, route='vision reading', searchable=searchable)
 
 
-def work(key: str, knowledge_base: str = 'free'):
+def work(key: str, knowledge_base: str = 'free', language: str = 'en'):
     from backend.search.search_server import Work
 
     ranked = sum(1 for p in PAGES if p.work == key and p.searchable)
-    return Work(key, key.title(), knowledge_base, 'CC BY', 'per page', ranked, subject=f'what {key} is for', view_id=key)
+    return Work(key, key.title(), knowledge_base, 'CC BY', 'per page', ranked, subject=f'what {key} is for', view_id=key,
+                language=language)
 
 
 PAGES = [page('alpha', '1', 'momentum oscillator overbought oversold'),
@@ -30,7 +31,7 @@ PAGES = [page('alpha', '1', 'momentum oscillator overbought oversold'),
          page('beta', '2', 'trend channel breakout', knowledge_base='licensed'),
          page('gamma', '1', 'momentum oscillator overbought oversold'),  # the same words as alpha 1: a tie
          page('gamma', '2', 'momentum index page', searchable=False)]
-WORKS = {'alpha': work('alpha'), 'beta': work('beta', 'licensed'), 'gamma': work('gamma')}
+WORKS = {'alpha': work('alpha'), 'beta': work('beta', 'licensed'), 'gamma': work('gamma', language='de')}  # #11: carried
 
 
 @pytest.fixture
@@ -222,3 +223,20 @@ def test_a_work_named_but_no_longer_served_loses_its_rows(index):
     assert index.execute("SELECT count(*) FROM works WHERE key = 'beta'").fetchone() == (0,)
     assert index.execute('SELECT count(*) FROM postings p LEFT JOIN pages g ON g.id = p.page_id WHERE g.id IS NULL'
                          ).fetchone() == (0,)
+
+
+@pytest.mark.database
+def test_every_work_keeps_its_language_through_the_database(index, scratch_database):
+    # #11: the database gives back what the catalog said, so a client is told the language of what it quotes
+    memory, database = services(scratch_database)
+    assert {work['work']: work['language'] for work in database.list_works()} == {'alpha': 'en', 'beta': 'en', 'gamma': 'de'}
+    assert database.search('momentum oscillator')['hits'][0]['language'] in ('en', 'de')
+    assert database.open_page('gamma', '1')['language'] == 'de'
+
+
+def test_an_import_refuses_a_work_without_its_language():
+    from backend.search.search_server import Work
+
+    nameless = Work('x', 'X', 'free', 'CC BY', 'per page', 1)
+    with pytest.raises(SystemExit, match='no language for'):
+        index_import.served_pages({'free': ([page('x', '1', 'momentum')], {'x': nameless})})
