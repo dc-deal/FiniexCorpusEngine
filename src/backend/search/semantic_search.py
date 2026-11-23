@@ -182,7 +182,7 @@ class SemanticSearch:
         floor = settings['relevance_floor']
         return {**answer, 'corpus': corpus, 'state': 'found' if results else 'nothing found', 'relevance': relevance,
                 'below_floor': relevance is None or relevance < floor, 'relevance_floor': floor, 'search': trace,
-                **({'per_page': True} if per_page else {}),
+                'per_page': per_page,  # said either way (the client's third check: false left the key out)
                 'hits': [{**hit_of(result, question, self.sources),
                           **({'more_on_page': more.get(result['chunk_id'], 0)} if per_page else {})} for result in results]}
 

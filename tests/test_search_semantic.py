@@ -193,4 +193,5 @@ def test_one_hit_per_page_is_asked_for_and_says_so():
     # #15: a client's default; the chat keeps every passage
     answer = searching(plan()).search('what does the sharpe ratio measure?', per_page=True)
     assert answer['per_page'] is True and answer['hits'][0]['more_on_page'] == 0
-    assert 'more_on_page' not in searching(plan()).search('what does the sharpe ratio measure?')['hits'][0]
+    every_passage = searching(plan()).search('what does the sharpe ratio measure?')
+    assert every_passage['per_page'] is False and 'more_on_page' not in every_passage['hits'][0]  # said either way

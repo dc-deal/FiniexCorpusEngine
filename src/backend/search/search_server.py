@@ -591,7 +591,9 @@ def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str
         if work.language is None and suffix:
             stand_in = entries.get(f'{keys.get(key, key)}{suffix}')
             work.language = stand_in.get('language') if stand_in else None
-            if stand_in and stand_in.get('title') and work.title in (key, keys.get(key)):
+            # its title too, where the work still bears a file's name: its key, its legacy file's, or its stand-in's
+            # (the client's third check: four works were named "…__replacement")
+            if stand_in and stand_in.get('title') and work.title in (key, keys.get(key), f'{keys.get(key, key)}{suffix}'):
                 work.title = stand_in['title']
     # the list names an edition by its file's stem, the catalog's id; a legacy work is keyed by its citation key (found by
     # line 2, 20 Nov: the served lecture's key is its legacy key), so a stem is turned into the key the server uses
@@ -1367,6 +1369,11 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         if isinstance(result, dict) and service.generation is not None:
             # the index this answer was read from (#15): two runs of a client are tied to one index, or told apart
             result = {**result, 'index_generation': service.generation}
+        elif isinstance(result, list) and service.generation is not None:
+            # `works` answers a list, which its readers take as one (the view, a client's script): each work names it
+            # (the client's third check, 23 Nov: the call it reads the generation from had none)
+            result = [{**item, 'index_generation': service.generation} if isinstance(item, dict) else item
+                      for item in result]
         log_call(tool, result, time.perf_counter() - started, log_path, caller, **asked)
         return result
 
@@ -1502,7 +1509,9 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         the same model); a passage only the keyword search found follows the rest. Returns up to `hits` passages, each a
         chunk of about 1,000 characters with its full text, its knowledge base, work, edition and year, page and section,
         licence and route, its score, and `view_url`, a link to the page in the diagnostics view; or state "declined",
-        "nothing found" or "error". `relevance` is the best similarity of meaning found; `below_floor` true means it lies
+        "nothing found" or "error". A similarity can differ between two calls of the same question in its fourth or fifth
+        decimal (the embedding is not bit for bit the same each time): compare ranks, or similarities within 0.001.
+        `relevance` is the best similarity of meaning found; `below_floor` true means it lies
         under the floor that parts covered questions from uncovered ones, so the books likely say nothing on this: say so
         rather than answer from the passages. The floor parts an off-topic question, not one from a neighbouring field: each
         hit names the `keywords_found` of yours it holds, and `keywords_covered` how many of them any hit holds; under a

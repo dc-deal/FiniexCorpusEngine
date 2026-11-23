@@ -519,6 +519,17 @@ def test_a_stand_in_serves_a_work_whose_first_file_is_not_held(tmp_path, monkeyp
     assert search_server.image_sources()['key-b'] == {'pdf': tmp_path / 'archive' / 'book_b__alt.pdf'}
 
 
+def test_a_stand_in_s_work_takes_its_title_and_language_from_the_stand_in_s_catalog_entry(tmp_path, monkeypatch):
+    # the client's third check, 23 Nov: four works were still named by their stand-in's file ("…__replacement")
+    a_licensed_shelf(tmp_path, monkeypatch)
+    (tmp_path / 'stand_ins.json').write_text(json.dumps({'suffix': '__alt', 'works': ['key-b']}), encoding='utf-8')
+    entry = {'id': 'book_b__alt', 'file': 'book_b__alt.pdf', 'format': 'pdf', 'title': 'Book B', 'language': 'en'}
+    (tmp_path / 'catalog.json').write_text(json.dumps({'sources': [entry]}), encoding='utf-8')
+    monkeypatch.setattr(search_server.data_paths, 'LICENSED_CATALOG', tmp_path / 'catalog.json')  # catalog_entries reads it there
+    _, works = search_server.licensed_pages()
+    assert (works['key-b'].title, works['key-b'].language) == ('Book B', 'en')
+
+
 def test_a_licensed_html_source_the_catalog_describes_is_served_by_its_labelled_sections(tmp_path, monkeypatch):
     from test_ingestion_html_labelled_sections import BASE, TITLE
 
@@ -843,6 +854,8 @@ def test_every_answer_names_the_index_generation_it_was_read_from_and_the_server
     served.generation = 7
     answer = json.loads(asyncio.run(server.call_tool('search', {'query': 'fast average'})).content[0].text)
     assert answer['index_generation'] == 7
+    listed = asyncio.run(server.call_tool('works', {}))  # a list: each work names it (the client's third check)
+    assert {json.loads(block.text)['index_generation'] for block in listed.content} == {7}
     assert re.fullmatch(r'\d+\.\d+\.\d+\+(\w{7}|unknown)(\.dirty)?', server._lowlevel_server.version)
 
 
