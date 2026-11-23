@@ -262,6 +262,13 @@ This file is written from `corpus/catalog.json` by `python -m backend.ingestion.
 - **Licence:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), stated at <https://creativecommons.org/licenses/by/4.0/>, checked 2026-11-23
 - **Source:** <https://doi.org/10.3390/jrfm15040149>
 
+### Conditional Volatility Targeting
+
+- **Authors:** Dion Bongaerts, Xiaowei Kang, Mathijs van Dijk
+- **Publisher:** Taylor & Francis for CFA Institute (Financial Analysts Journal 76(4), 2020, 54-71), 2020
+- **Licence:** [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/), stated at <https://creativecommons.org/licenses/by-nc-nd/4.0/>, checked 2026-11-23
+- **Source:** <https://doi.org/10.1080/0015198X.2020.1790853>
+
 ## Non-commercial works
 
 The code may be used commercially under its MIT licence; these works may not. Their licences forbid commercial use, so
@@ -272,6 +279,7 @@ a commercial use of this project leaves them out:
 - Site Reliability Engineering
 - Trading and Arbitrage in Cryptocurrency Markets (accepted manuscript)
 - When Do Stop-Loss Rules Stop Losses? (original manuscript)
+- Conditional Volatility Targeting
 
 ## For rights holders
 

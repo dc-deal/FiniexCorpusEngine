@@ -1057,6 +1057,28 @@
       "shelf": "trading_finance",
       "language": "en",
       "notes": "The journal's open-access version: its first page says \"This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license\", read on 2026-11-23. Served from its text layer as published. The publisher refuses a script, so `acquire` fails for this file: fetch it from the URL in a browser into the path given."
+    },
+    {
+      "id": "bongaerts_kang_van_dijk_conditional_volatility_targeting_2020",
+      "title": "Conditional Volatility Targeting",
+      "subject": "Volatility targeting applied only in the extremes: conventional volatility targeting levers exposure up when volatility is low and down when it is high, with high turnover and gains in few markets; a conditional strategy adjusts exposure only in high- and low-volatility states and consistently raises Sharpe ratios and cuts drawdowns and tail risk with low turnover and leverage, in the major equity markets and for momentum factors, and for tactical allocation among assets or factors. When scaling exposure by volatility pays.",
+      "authors": "Dion Bongaerts, Xiaowei Kang, Mathijs van Dijk",
+      "publisher": "Taylor & Francis for CFA Institute (Financial Analysts Journal 76(4), 2020, 54-71)",
+      "year": 2020,
+      "licence": "CC BY-NC-ND 4.0",
+      "licence_url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "licence_checked": "2026-11-23",
+      "source_url": "https://doi.org/10.1080/0015198X.2020.1790853",
+      "format": "pdf",
+      "files": [
+        {
+          "url": "https://www.tandfonline.com/doi/pdf/10.1080/0015198X.2020.1790853",
+          "path": "corpus/raw/bongaerts_kang_van_dijk_conditional_volatility_targeting_2020.pdf"
+        }
+      ],
+      "shelf": "trading_finance",
+      "language": "en",
+      "notes": "The journal's open-access version: its own licence line (p. 2) says \"This is an Open Access article distributed under the terms of the Creative Commons Attribution-NonCommercial-NoDerivatives License\", read on 2026-11-23. Its first page is the publisher's download cover. NoDerivatives: served from its text layer as published and never read (72.a). The publisher refuses a script, so `acquire` fails for this file: fetch it from the URL in a browser into the path given."
     }
   ]
 }
