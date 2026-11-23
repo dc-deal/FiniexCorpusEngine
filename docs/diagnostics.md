@@ -2039,3 +2039,14 @@ work's, an EPUB's and a code work's alike, as the code the catalog writes ("en")
 Sources filters by it, a facet beside the knowledge base; with one language today the facet stands greyed, as every facet with a
 single value does, and it filters the moment a second one comes, which the tests and a browser check already hold with two. On
 this machine every row names one. 406 unit tests, 95 checks in the browser (3 skipped on today's data), 1,705 Python tests.
+
+**A client's second check, shown (#15, 23 Nov).** The librarian's answers carry more since #15, and the Librarian page says it
+where a client would weigh it. A semantic search keeps one hit per page by default, its best passage, and a card says how many
+more passages of that page were among the candidates ("+2 more passages on this page"); the form's own switch shows every
+passage. Each hit names which of the plan's keywords its text holds, and the answer's head how many of them any hit holds and
+which none does, in the warning role where one is missing: a second signal beside the relevance floor, for a question from a
+neighbouring field that passes the floor on meaning alone. The head names the index the answer was read from ("index generation
+25"). A kept edition says why the other one is served, a contents call by title names the other entries it matched, and the code
+catalog how its query matched. A page's ladder names a table of contents in a work's front as the reason the ranking leaves it
+out, in the core's words, where it said "left out of the ranking" before: on today's data that is every such page. 407 unit
+tests, 95 checks in the browser (3 skipped on today's data), 1,720 Python tests.

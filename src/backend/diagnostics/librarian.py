@@ -114,6 +114,12 @@ class CallHead(BaseModel):
     seconds: float
     model_ran: bool = False
     model_said: str = 'no model'
+    # how many of the plan's keywords the hits hold, and which none does (#15), in the warning role where one is missing: a
+    # second signal beside the relevance floor
+    keywords_said: str | None = None
+    keywords_missing: bool | None = None
+    per_page_said: str | None = None  # "one hit per page, its best passage", where the answer says per_page (#15)
+    generation_said: str | None = None  # "index generation 25": which index the answer was read from (#15)
 
 
 class HitCard(BaseModel):
@@ -135,6 +141,8 @@ class HitCard(BaseModel):
     kind: str | None = None  # 'text' or 'code' (#12); a code hit names its language and lines
     code_language: str | None = None
     lines: code_works.LineRange | None = None
+    more_on_page_said: str | None = None  # "+2 more passages on this page", where the answer keeps one hit per page (#15)
+    keywords_found: list[str] | None = None  # which of the plan's keywords its text holds, in their order (#15)
 
 
 class WorkRow(BaseModel):
@@ -148,6 +156,7 @@ class WorkRow(BaseModel):
     subject: str | None = None
     kept_for: str | None = None
     pages_kept: int | None = None  # a kept edition's own pages, which open by its key and which the searches skip (#14)
+    kept_because: str | None = None  # why the other edition is served, as the editions list says it (#15)
     kept_editions: list[str] = []
 
 
@@ -183,6 +192,7 @@ class Contents(BaseModel):
     source: str | None = None
     left_out: int = 0
     entries: list[TocEntry] = []
+    other_matches: list[TocEntry] | None = None  # where `under` by title matched more than one entry, the others (#15)
 
 
 class OpenedPage(BaseModel):
@@ -215,6 +225,7 @@ class CatalogUnit(BaseModel):
 
 class CodeCatalog(BaseModel):
     total: int = 0
+    match: str | None = None  # with a query: "every word" or "some words" (#15)
     categories: list[code_works.CategoryCount] = []  # the server's own count, the most first
     units: list[CatalogUnit] = []
 
@@ -345,7 +356,17 @@ def head_of(tool: str, answer: Any, seconds: float) -> CallHead:
         floor_said = f'above the floor ({relevance:.3f} ≥ {floor:.3f})'
     model = ((answer.get('usage') or {}).get('router') or {}).get('model') if isinstance(answer.get('usage'), dict) else None
     model_said = f'a model ran: {model}' if model else ('no model ran' if tool == 'semantic_search' else 'no model')
+    covered = answer.get('keywords_covered') if isinstance(answer.get('keywords_covered'), dict) else None
+    keywords_said = missing = None
+    if covered and isinstance(covered.get('found'), int) and isinstance(covered.get('of'), int):
+        missing = [str(word) for word in covered.get('missing') or []]
+        keywords_said = (f"{covered['found']} of {counted(covered['of'], 'keyword')} on the hits"
+                         + (f": none holds {', '.join(missing)}" if missing else ''))
+    generation = answer.get('index_generation')
     return CallHead(state=state, said=str(said) if said else None, count=count,
+                    keywords_said=keywords_said, keywords_missing=bool(missing) if keywords_said else None,
+                    per_page_said='one hit per page, its best passage' if answer.get('per_page') is True else None,
+                    generation_said=f'index generation {generation}' if isinstance(generation, int) else None,
                     relevance=relevance if isinstance(relevance, (int, float)) else None,
                     relevance_floor=floor if isinstance(floor, (int, float)) else None,
                     below_floor=below if isinstance(below, bool) else None, floor_said=floor_said, seconds=round(seconds, 3),
@@ -361,8 +382,18 @@ def hits_of(answer: dict) -> list[HitCard] | None:
                     page_said=page_said(hit.get('page')), section=hit.get('section'), score=hit.get('score'),
                     snippet=hit.get('snippet'), text=hit.get('text'), route=hit.get('route'), licence=hit.get('licence'),
                     terms_missing=list(hit.get('terms_missing') or []), view=view_of(hit.get('view_url')),
-                    kind=hit.get('kind'), code_language=hit.get('code_language'), lines=lines_of(hit.get('lines')))
+                    kind=hit.get('kind'), code_language=hit.get('code_language'), lines=lines_of(hit.get('lines')),
+                    more_on_page_said=more_said(hit.get('more_on_page')),
+                    keywords_found=[str(word) for word in hit['keywords_found']]
+                    if isinstance(hit.get('keywords_found'), list) else None)
             for at, hit in enumerate((one for one in hits if isinstance(one, dict)), 1)]
+
+
+def more_said(more: Any) -> str | None:
+    """A per-page hit's other passages on its page among the candidates, in words: "+2 more passages on this page"."""
+    if not isinstance(more, int) or more < 1:
+        return None
+    return f"+{counted(more, 'more passage', 'more passages')} on this page"
 
 
 def lines_of(lines: Any) -> code_works.LineRange | None:
@@ -376,7 +407,7 @@ def catalog_of(answer: dict) -> CodeCatalog:
     """`code_catalog`'s answer: its units, each as the code work's page shows it, and its count by category."""
     counts = sorted(((str(key), value) for key, value in (answer.get('categories') or {}).items() if isinstance(value, int)),
                     key=lambda pair: (-pair[1], pair[0]))
-    return CodeCatalog(total=int(answer.get('total') or 0),
+    return CodeCatalog(total=int(answer.get('total') or 0), match=answer.get('match'),
                        categories=[code_works.CategoryCount(category=category, units=count) for category, count in counts],
                        units=[CatalogUnit(work=str(unit.get('work')), page=str(unit.get('page')),
                                           code_language=unit.get('code_language'), companion_of=unit.get('companion_of'),
@@ -389,7 +420,8 @@ def works_of(listed: list) -> list[WorkRow]:
                     edition_said=work_editions.words(work.get('edition'), work.get('year')),
                     knowledge_base=work.get('knowledge_base'), licence=work.get('licence'), route=work.get('route'),
                     pages=work.get('pages'), subject=work.get('subject'), kept_for=work.get('kept_for'),
-                    pages_kept=work.get('pages_kept'), kept_editions=list(work.get('kept_editions') or []))
+                    pages_kept=work.get('pages_kept'), kept_because=work.get('kept_because'),
+                    kept_editions=list(work.get('kept_editions') or []))
             for work in listed if isinstance(work, dict)]
 
 
@@ -440,7 +472,11 @@ def shaped(tool: str, arguments: dict, answer: Any, seconds: float) -> Librarian
                                  left_out=answer.get('left_out') or 0,
                                  entries=[TocEntry(level=int(entry.get('level') or 1), title=str(entry.get('title') or ''),
                                                    page=entry.get('page'))
-                                          for entry in answer['entries'] if isinstance(entry, dict)])
+                                          for entry in answer['entries'] if isinstance(entry, dict)],
+                                 other_matches=[TocEntry(level=int(entry.get('level') or 1),
+                                                         title=str(entry.get('title') or ''), page=entry.get('page'))
+                                                for entry in answer['other_matches'] if isinstance(entry, dict)]
+                                 if isinstance(answer.get('other_matches'), list) else None)
     elif tool == 'open_page' and answer.get('state') == 'found':
         call.page = OpenedPage(work=answer.get('work'), title=answer.get('title'),
                                edition_said=work_editions.words(answer.get('edition'), answer.get('year')),

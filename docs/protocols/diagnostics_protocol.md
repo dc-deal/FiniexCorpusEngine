@@ -1116,3 +1116,14 @@ The record of how the diagnostics frontend came about, mistakes included.
   in English and German and a work that names none: the rows, a head, the facet's counts and its filtering; the browser check
   said one free work was German, a moment, and was shown failing on the build before (`language` absent). On the real data every
   row names one, and every kind of head says it.
+- **#15 on the Librarian page and the ladder** (23 Nov). `CallHead` takes `keywords_said` and `keywords_missing` (from
+  `keywords_covered`), `per_page_said` and `generation_said` (`index_generation`); `HitCard` `more_on_page_said` and
+  `keywords_found`; `WorkRow.kept_because`; `Contents.other_matches`; `CodeCatalog.match`. The new fields default to None, so an
+  answer without them, and every test fixture written before, stays as it was; the generated types made a field with a list
+  default required, which the first build refused. The words are the API's ("+2 more passages on this page", "2 of 3 keywords on
+  the hits: none holds …"); the per_page switch came with the schema and keeps the server's default, as a client gets it.
+  `page_ladder.keyword` asks `page_index.contents_why(page.words)` after `structural_why` and before its fallback. Checked
+  against the running librarian: every shaped part equal to the raw answer it came from (keywords on each hit, the head's
+  coverage, the generation, the passages counted, the catalog's match, the kept editions' reasons, the contents' other matches),
+  and per_page false showing none of the per-page words. Over the real index, the ladder's reasons for every unranked page: "a
+  table of contents" where the fallback stood before, which no page gives any more.

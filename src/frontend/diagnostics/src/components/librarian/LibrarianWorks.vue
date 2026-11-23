@@ -40,8 +40,8 @@ function openPage(work: string, page: string) {
           {{ work.title }}
           <p v-if="work.subject" class="secondary subject">{{ work.subject }}</p>
           <p v-if="work.kept_for" class="secondary" data-part="kept-for">
-            kept: {{ work.kept_for }} is searched<template v-if="work.pages_kept != null">; its own {{ counted(work.pages_kept, 'page') }}
-              open by its key</template>
+            kept: {{ work.kept_for }} is searched<template v-if="work.kept_because">, {{ work.kept_because }}</template><template
+              v-if="work.pages_kept != null">; its own {{ counted(work.pages_kept, 'page') }} open by its key</template>
           </p>
           <p v-if="work.kept_editions.length" class="secondary" data-part="kept-editions">kept beside it: {{ work.kept_editions.join(', ') }}</p>
         </td>

@@ -112,16 +112,39 @@ describe('the Librarian\'s answers, each tool\'s own parts (L1.a)', () => {
     expect(JSON.parse(view.find('[data-part="raw-json"] pre').text())).toEqual({ state: 'found', hits: [{ title: 'An Invented Book' }] })
   })
 
+  it('says the plan\'s keywords on the hits beside the floor, the index read from, and a hit\'s other passages on its page (#15)', () => {
+    const view = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'semantic_search',
+      head: { state: 'found', seconds: 1.2, model_ran: false, model_said: 'no model ran', keywords_missing: true,
+        keywords_said: '2 of 3 keywords on the hits: none holds an invented term', per_page_said: 'one hit per page, its best passage',
+        generation_said: 'index generation 25' },
+      hits: [{ rank: 1, work: 'an-invented-book', title: 'An Invented Book', terms_missing: [], keywords_found: ['bond', 'discount'],
+        more_on_page_said: '+2 more passages on this page' }] }) }, global: { plugins: [router] } })
+    const keywords = view.find('[data-part="keywords"]')
+    expect(keywords.text()).toBe('2 of 3 keywords on the hits: none holds an invented term')
+    expect(keywords.classes()).toContain('warning')
+    expect(view.find('[data-part="per-page"]').text()).toBe('one hit per page, its best passage')
+    expect(view.find('[data-part="generation"]').text()).toBe('index generation 25')
+    expect(view.find('[data-part="more-on-page"]').text()).toBe('+2 more passages on this page')
+    expect(view.find('[data-part="keywords-found"]').text()).toBe('keywords: bond, discount')
+    // a title's other matches in the contents, each a call of open_page
+    const toc = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'toc', contents: { work: 'a-work', title: 'An Invented Book',
+      left_out: 0, entries: [{ level: 1, title: 'Bonds', page: '40' }], other_matches: [{ level: 2, title: 'Bonds again', page: '88' }] } }) },
+    global: { plugins: [router] } })
+    expect(toc.find('[data-part="other-matches"] a').attributes('href')).toBe('#/librarian?tool=open_page&work=a-work&page=88')
+  })
+
   it('draws the works as a table, a subject\'s works with each best section a call of open_page, and contents as a tree', () => {
     const works = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'works', works: [{ work: 'a-work', title: 'An Invented Book',
       edition_said: '2nd edition, 2001', knowledge_base: 'free', pages: 12, route: 'vision reading', kept_editions: ['a-work-1st'] }] }) },
     global: { plugins: [router] } })
     expect(works.find('[data-part="works-table"] tr[data-work="a-work"]').text()).toContain('An Invented Book')
     expect(works.find('[data-part="kept-editions"]').text()).toBe('kept beside it: a-work-1st')
-    // a kept edition says the edition searched and its own pages, which open by its key (#14)
+    // a kept edition says the edition searched, why (#15), and its own pages, which open by its key (#14)
     const kept = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'works', works: [{ work: 'a-work-1st', title: 'An Invented Book',
-      kept_for: 'a-work', pages_kept: 312, kept_editions: [] }] }) }, global: { plugins: [router] } })
-    expect(kept.find('[data-part="kept-for"]').text().replace(/\s+/g, ' ')).toBe('kept: a-work is searched; its own 312 pages open by its key')
+      kept_for: 'a-work', pages_kept: 312, kept_because: 'the newer edition is served', kept_editions: [] }] }) },
+    global: { plugins: [router] } })
+    expect(kept.find('[data-part="kept-for"]').text().replace(/\s+/g, ' '))
+      .toBe('kept: a-work is searched, the newer edition is served; its own 312 pages open by its key')
     const found = mount(LibrarianAnswer, { props: { call: aCall({ tool: 'search_works', found_works: [{ rank: 1, work: 'a-work',
       title: 'An Invented Book', pages_matching: 9, pages_with_every_term: 2, best_sections: [{ section: '4 Bonds', page: '88',
         page_said: 'p. 80 (PDF p. 88)', score: 4 }] }] }) }, global: { plugins: [router] } })

@@ -86,14 +86,48 @@ def test_each_tool_s_form_comes_from_its_input_schema_and_the_view_keeps_the_rou
     assert next(field for field in other.fields if field.name == 'diagnostics').default is False
 
 
+def test_a_semantic_answer_says_its_keywords_on_the_hits_its_index_and_a_hit_s_other_passages_on_its_page():
+    # #15: one hit per page, its other passages counted; the plan's keywords on each hit and over all; the index read from
+    answer = {'state': 'found', 'per_page': True, 'index_generation': 25,
+              'keywords_covered': {'found': 2, 'of': 3, 'missing': ['an invented term']},
+              'hits': [{'work': 'an-invented-book', 'page': {'label': '12', 'pdf': '12'}, 'more_on_page': 2,
+                        'keywords_found': ['bond', 'discount']},
+                       {'work': 'an-invented-book', 'page': {'label': '13', 'pdf': '13'}, 'more_on_page': 0,
+                        'keywords_found': []}]}
+    call = librarian.shaped('semantic_search', {'question': 'an invented question'}, answer, 1.0)
+    assert call.head.keywords_said == '2 of 3 keywords on the hits: none holds an invented term'
+    assert call.head.keywords_missing is True
+    assert (call.head.per_page_said, call.head.generation_said) == ('one hit per page, its best passage', 'index generation 25')
+    assert [(hit.more_on_page_said, hit.keywords_found) for hit in call.hits] == [
+        ('+2 more passages on this page', ['bond', 'discount']), (None, [])]
+    # every keyword held: said without the warning; an answer without the fields says none of it
+    answer['keywords_covered'] = {'found': 3, 'of': 3, 'missing': []}
+    head = librarian.shaped('semantic_search', {}, answer, 1.0).head
+    assert (head.keywords_said, head.keywords_missing) == ('3 of 3 keywords on the hits', False)
+    bare = librarian.shaped('search', {}, {'state': 'found', 'hits': [{'work': 'x'}]}, 0.1)
+    assert (bare.head.keywords_said, bare.head.keywords_missing, bare.head.generation_said, bare.hits[0].keywords_found) == (
+        None, None, None, None)
+
+
+def test_a_title_s_other_matches_in_the_contents_and_the_catalog_s_match_are_said():
+    contents = librarian.shaped('toc', {'work': 'w', 'under': 'Bonds'}, {
+        'state': 'found', 'work': 'w', 'entries': [{'level': 1, 'title': 'Bonds', 'page': '40'}],
+        'other_matches': [{'level': 2, 'title': 'Bonds again', 'page': '88'}]}, 0.1).contents
+    assert [(entry.title, entry.page) for entry in contents.other_matches] == [('Bonds again', '88')]
+    catalog = librarian.shaped('code_catalog', {'query': 'band'}, {'state': 'found', 'total': 0, 'match': 'some words',
+                                                                   'categories': {}, 'units': []}, 0.1).catalog
+    assert catalog.match == 'some words'
+
+
 def test_a_kept_edition_in_the_works_says_its_own_pages(tmp_path):
     kept = {'work': 'an-invented-first', 'title': 'An Invented Book', 'kept_for': 'an-invented-second', 'pages_kept': 312,
-            'pages': 0}
+            'pages': 0, 'kept_because': 'the newer edition is served'}
     served = {'work': 'an-invented-second', 'title': 'An Invented Book', 'pages': 340, 'kept_editions': ['an-invented-first']}
     answer = {'result': [kept, served]}
     works = librarian.shaped('works', {}, answer, 0.01).works
-    assert [(work.work, work.kept_for, work.pages_kept) for work in works] == [
-        ('an-invented-first', 'an-invented-second', 312), ('an-invented-second', None, None)]
+    assert [(work.work, work.kept_for, work.pages_kept, work.kept_because) for work in works] == [
+        ('an-invented-first', 'an-invented-second', 312, 'the newer edition is served'),
+        ('an-invented-second', None, None, None)]
 
 
 def test_the_tools_stand_in_the_server_s_staggered_order_and_a_new_one_after_them():

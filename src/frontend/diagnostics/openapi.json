@@ -2308,6 +2308,50 @@
             "type": "string",
             "title": "Model Said",
             "default": "no model"
+          },
+          "keywords_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keywords Said"
+          },
+          "keywords_missing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keywords Missing"
+          },
+          "per_page_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Page Said"
+          },
+          "generation_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Said"
           }
         },
         "type": "object",
@@ -2809,6 +2853,17 @@
             "type": "integer",
             "title": "Total",
             "default": 0
+          },
+          "match": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match"
           },
           "categories": {
             "items": {
@@ -3403,6 +3458,20 @@
             "type": "array",
             "title": "Entries",
             "default": []
+          },
+          "other_matches": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TocEntry"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Matches"
           }
         },
         "type": "object",
@@ -4697,6 +4766,31 @@
                 "type": "null"
               }
             ]
+          },
+          "more_on_page_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "More On Page Said"
+          },
+          "keywords_found": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keywords Found"
           }
         },
         "type": "object",
@@ -11395,6 +11489,17 @@
               }
             ],
             "title": "Pages Kept"
+          },
+          "kept_because": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept Because"
           },
           "kept_editions": {
             "items": {

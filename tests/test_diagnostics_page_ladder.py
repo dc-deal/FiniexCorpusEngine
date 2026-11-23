@@ -59,6 +59,12 @@ def test_whether_the_search_holds_a_page_and_why_not_and_the_text_it_serves():
     # a page the core would rank, left out all the same, says so without a reason it does not carry
     rung, _, _ = page_ladder.keyword(a_page('prose ' * 60, searchable=False), served, built=True)
     assert rung.said == 'not in search (BM25): left out of the ranking'
+    # a table of contents in a work's front, which the ranking leaves out since #15, says so in the core's words
+    headings = ('One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight')
+    contents = 'Contents\n' + '\n'.join(f'Chapter {name}: An Invented Heading on Bonds and Rates ........ {at * 10}'
+                                        for at, name in enumerate(headings, 1))
+    rung, _, _ = page_ladder.keyword(a_page(contents, searchable=False), served, built=True)
+    assert rung.said == 'not in search (BM25): a table of contents'
 
 
 @pytest.mark.readings

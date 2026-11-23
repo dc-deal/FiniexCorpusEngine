@@ -45,8 +45,12 @@ const catalogRows = computed<UnitRow[]>(() => (props.call.catalog?.units ?? []).
       <span v-if="head.count" data-part="count">{{ head.count }}</span>
       <span v-if="head.said" class="said" data-part="said">{{ head.said }}</span>
       <span v-if="head.floor_said" :class="{ warning: head.below_floor }" data-part="floor">{{ head.floor_said }}</span>
+      <!-- the plan's keywords on the hits (#15), a second signal beside the floor, in the warning role where one is missing -->
+      <span v-if="head.keywords_said" :class="{ warning: head.keywords_missing }" data-part="keywords">{{ head.keywords_said }}</span>
+      <span v-if="head.per_page_said" class="secondary" data-part="per-page">{{ head.per_page_said }}</span>
       <span class="secondary" data-part="took">{{ took }}</span>
       <span class="secondary" data-part="model">{{ head.model_said }}</span>
+      <span v-if="head.generation_said" class="secondary" data-part="generation">{{ head.generation_said }}</span>
     </p>
     <!-- the plan the router made, where it ran: its translation of the question -->
     <LabelledLines v-if="call.plan" class="plan" data-part="plan" :label-chars="14">
@@ -60,6 +64,7 @@ const catalogRows = computed<UnitRow[]>(() => (props.call.catalog?.units ?? []).
     <ContentsTree v-else-if="call.contents?.entries.length" :contents="call.contents" />
     <!-- the code catalog's units (#12), in the code work page's own rows, the server's count by category above them -->
     <div v-else-if="call.catalog" class="catalog" data-part="catalog">
+      <p v-if="call.catalog.match" class="secondary" data-part="catalog-match">match: {{ call.catalog.match }}</p>
       <p v-if="call.catalog.categories.length" class="secondary" data-part="catalog-categories">
         <span v-for="one in call.catalog.categories" :key="one.category" class="category">{{ one.category }} {{ one.units }}</span>
       </p>

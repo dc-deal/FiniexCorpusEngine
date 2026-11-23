@@ -138,9 +138,9 @@ def keyword(page, served_rung: PageRung, built: bool, kept: str | None = None) -
         return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}', short='not in BM25'), None, why
     if page.searchable:
         return PageRung(level='keyword search', reached=True, said='in search (BM25)', short='in BM25'), page.text, None
-    # the core's rule, which the ranking follows (`is_structural`); a page it would rank that the search leaves out all the
-    # same was left out for another reason, which the page does not carry
-    why = page_index.structural_why(page.words) or 'left out of the ranking'
+    # the core's rules, which the ranking follows: a structural page (`is_structural`), then a table of contents in a work's
+    # front (#15, `contents_why`); a page the search leaves out for neither was left out for a reason the page does not carry
+    why = page_index.structural_why(page.words) or page_index.contents_why(page.words) or 'left out of the ranking'
     return PageRung(level='keyword search', reached=False, said=f'not in search (BM25): {why}', short='not in BM25'), page.text, None
 
 

@@ -839,6 +839,14 @@ export interface components {
              * @default no model
              */
             model_said: string;
+            /** Keywords Said */
+            keywords_said?: string | null;
+            /** Keywords Missing */
+            keywords_missing?: boolean | null;
+            /** Per Page Said */
+            per_page_said?: string | null;
+            /** Generation Said */
+            generation_said?: string | null;
         };
         /** CallList */
         CallList: {
@@ -1046,6 +1054,8 @@ export interface components {
              * @default 0
              */
             total: number;
+            /** Match */
+            match?: string | null;
             /**
              * Categories
              * @default []
@@ -1242,6 +1252,8 @@ export interface components {
              * @default []
              */
             entries: components["schemas"]["TocEntry"][];
+            /** Other Matches */
+            other_matches?: components["schemas"]["TocEntry"][] | null;
         };
         /**
          * Cost
@@ -1650,6 +1662,10 @@ export interface components {
             /** Code Language */
             code_language?: string | null;
             lines?: components["schemas"]["LineRange"] | null;
+            /** More On Page Said */
+            more_on_page_said?: string | null;
+            /** Keywords Found */
+            keywords_found?: string[] | null;
         };
         /**
          * HtmlArticle
@@ -3783,6 +3799,8 @@ export interface components {
             kept_for?: string | null;
             /** Pages Kept */
             pages_kept?: number | null;
+            /** Kept Because */
+            kept_because?: string | null;
             /**
              * Kept Editions
              * @default []
