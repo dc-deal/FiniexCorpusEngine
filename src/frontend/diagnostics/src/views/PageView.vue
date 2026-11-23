@@ -881,10 +881,12 @@ watch(box, async () => {
         </FoldSection>
         <FoldSection v-else label="Details" plain><template #title><span class="none">none</span></template></FoldSection>
         </RecordRows>
-        <!-- a page no reader has read (V2.a): its own image beneath its rows; nothing of a reading, which it has not -->
-        <UnreadPage v-if="!shown.read" :page="shown" :image-url="imageUrl" />
       </template>
     </RecordZone>
+
+    <!-- a page no reader has read (V2.a): its own image below the record, in the wide container where a read page's
+         analysis stands, as wide as its image column and centred (the operator, 23 Nov); nothing of a reading, which it has not -->
+    <UnreadPage v-if="shown && !detailError && !shown.read" :page="shown" :image-url="imageUrl" />
 
     <!-- the analysis (181.a): the original beside its reading, under its own heading, the one part that takes the wide
          container (183); framed as an overlay while a judgement is recalled -->

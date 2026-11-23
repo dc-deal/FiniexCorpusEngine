@@ -419,6 +419,38 @@ test('a free catalog PDF without readings opens its pages from Sources, each not
   await expect(page.locator(`tr[data-work="${unread!.id}"] a`)).toHaveCount(0)
 })
 
+// the operator, 23 Nov ("Darstellung nicht optimal, weil zu groß. Seite kann mittig dargestellt werden"): a page without a
+// reading shows its image as wide as a read page's image column in the Analysis pane, its proportions kept, centred in the
+// content; at a laptop's width and at a wide screen's
+test('a page without a reading shows its image as wide as a read page\'s image column, centred (23 Nov)', async ({ page, request }) => {
+  type Listed = { id: string, knowledge_base: string, format: string, readings: unknown | null, page_list: boolean }
+  const works = await (await request.get('/api/works')).json() as Listed[]
+  const pdfs = works.filter(work => work.knowledge_base === 'free' && work.format === 'pdf' && work.page_list)
+  const unread = pdfs.find(work => !work.readings)
+  const read = pdfs.find(work => work.readings)
+  test.skip(!unread || !read, 'the free data holds no PDF without readings beside one with')
+  type Listing = { pages: { pdf_page: number, read: boolean }[] }
+  const pagesOf = async (id: string) => ((await (await request.get(`/api/free/works/${id}/pages`)).json()) as Listing).pages
+  const readPage = (await pagesOf(read!.id)).find(one => one.read)!
+  const unreadPage = (await pagesOf(unread!.id)).find(one => !one.read)!
+  for (const width of [1400, 2560]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(`/#/free/sources/${read!.id}/page/${readPage.pdf_page}`)
+    await settled(page)
+    const column = (await page.locator('.original').first().boundingBox())!
+    await page.goto(`/#/free/sources/${unread!.id}/page/${unreadPage.pdf_page}`)
+    await settled(page)
+    const image = page.locator('.own-image img')
+    await expect(image).toBeVisible()
+    await page.waitForFunction(() => (document.querySelector('.own-image img') as HTMLImageElement | null)?.complete === true)
+    const box = (await image.boundingBox())!
+    const main = (await page.locator('main.frame-main').boundingBox())!
+    expect(box.width, `no wider than a read page's image column at ${width} px`).toBeLessThanOrEqual(column.width + 0.5)
+    expect(box.width, `nor drawn smaller than it at ${width} px`).toBeGreaterThan(column.width * 0.9)
+    expect(Math.abs(box.x + box.width / 2 - (main.x + main.width / 2)), `centred at ${width} px`).toBeLessThanOrEqual(1)
+  }
+})
+
 test('every work says how far it is refined: five meters in Sources, its levels on its page, the corpus\'s on the overview (U1.a)', async ({ page, request }) => {
   type Rung = { level: string, number: number, said: string, count: number | null, share: number | null,
     pages_filter: Record<string, string[]> | null }

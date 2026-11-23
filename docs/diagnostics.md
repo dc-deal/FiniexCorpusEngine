@@ -2000,3 +2000,12 @@ chapter), by file and for as long as the PDF's size and modification time hold; 
 base's step, measured in the container one run after the other: 187.8 s before, 209.1 s on the first run, which builds the file,
 and 0.9 s after it; the free base's 30.8 s and 1.2 s; the whole warm-up from 265 s to 61 s. 397 unit tests, 88 checks in the
 browser (3 skipped on today's data), 1,652 Python tests.
+
+**A page without a reading shows its image at a read page's size, centred (the operator, 23 Nov).** "Darstellung nicht optimal,
+weil zu groß. Seite kann mittig dargestellt werden." A page no reader has read showed its image at its own pixel width within
+the record, as wide as the record allowed, beside nothing, where a read page shows the same image in one of the Analysis pane's
+two columns. It now stands below the record in the wide container, as wide as that column and centred: 676 px at a 1,400 px
+window, 936 px at 2,560 px, the column's own widths; where the analysis stacks its columns, below 900 px, it takes the whole
+width as a read page's does. A blocked or refused page has a row and so its Analysis pane already, the image in its column. A
+click opens nothing larger: the view has no such pattern for an image. 397 unit tests, 89 checks in the browser (3 skipped on
+today's data), 1,654 Python tests.
