@@ -3,8 +3,10 @@ import type { PageDetail } from '@/types/api/page_types'
 
 /**
  * A page no reader has read (the operator's V2.a, 20 Nov: "the work, then the page, then the image; the detail view says that
- * nothing was read, nothing extracted"): its image, the PDF's own as the librarian gives it, beneath the record's rows, which
- * say its state, what serves it and its own ladder as on every page (H1.a). Nothing of a reading stands here, which it has not.
+ * nothing was read, nothing extracted"): its image, the PDF's own as the librarian gives it, below the record, whose rows say
+ * its state, what serves it and its own ladder as on every page (H1.a). Nothing of a reading stands here, which it has not.
+ * The image is as wide as a read page's beside its reading, centred (the operator, 23 Nov: "Darstellung nicht optimal, weil
+ * zu groß. Seite kann mittig dargestellt werden"): it stands in the wide container, as the analysis does.
  */
 defineProps<{
   page: PageDetail
@@ -25,14 +27,24 @@ figcaption {
   color: var(--color-text-secondary);
 }
 
-/* the page as the PDF holds it, as wide as the record allows, its proportions kept */
+/* the page as the PDF holds it, its proportions kept: as wide as one of the analysis' two columns (`.side-by-side` in the
+   page view, the wide container's width less the gap between them, halved) and centred beneath the record */
 .own-image {
-  margin: var(--space-md) 0 0;
+  width: calc((100% - var(--space-md)) / 2);
+  margin: var(--space-md) auto 0;
+}
+
+/* where the analysis stacks its columns, one is the whole width (the same breakpoint as `.side-by-side`) */
+@media (max-width: 900px) {
+  .own-image {
+    width: auto;
+  }
 }
 
 .own-image img {
   display: block;
-  max-width: 100%;
+  box-sizing: border-box;
+  width: 100%;
   height: auto;
   border: 1px solid var(--color-border);
 }

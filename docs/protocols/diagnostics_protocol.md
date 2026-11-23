@@ -1069,3 +1069,13 @@ The record of how the diagnostics frontend came about, mistakes included.
   container: the licensed step 187.8 s, 209.1 s building, 0.9 s after; the free 30.8 s and 1.2 s; the whole from 265 s to 61 s.
   The run that built the files shared the host with a search assembled from files (the database's address left out of that run),
   so its whole is not compared; two later runs, the files complete, took 62 s and 61 s.
+- **A page without a reading, its image at a read page's size** (the operator, 23 Nov). `UnreadPage` moves out of `RecordZone`
+  to stand where `AnalysisSection` stands, in the wide container, and takes `width: calc((100% - var(--space-md)) / 2)` with
+  `margin-inline: auto`: one of `.side-by-side`'s two columns, the same breakpoint (900 px) giving the whole width; `box-sizing:
+  border-box` keeps its border inside that width. Measured before, on the running service: a read page's image column 936 px at
+  2,560 px and 676 px at 1,400 px; an unread page's image at its own 836 px either way, at the record's left edge, or as wide as
+  the record (1,240 px for a FIX page at 1,400 px). After: the column's widths, off centre by 0.0 px, on both example pages and
+  a free unread page. The browser check reads a free read page's `.original` column and a free unread page's image at 1,400 and
+  2,560 px, its width no more than the column's and no less than nine tenths of it, its centre within a pixel of the content's;
+  shown failing first on the old build (1,240 px against a 676 px column). A blocked or refused page has a reading row (`read`),
+  so the Analysis pane shows its image already; no full-size view, since none exists for an image anywhere in the view.
