@@ -27,9 +27,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from backend.chat import app_config
-from backend.diagnostics import (calls, coverage_ladder, epub_works, error_classes, html_works, librarian, local_only, overview,
-                                 page_integrity, page_chunks, page_ladder, prompts, readings, runs, search_hits, shelf_rows,
-                                 sources, stamps, verdicts, work_editions)
+from backend.diagnostics import (calls, code_works, coverage_ladder, epub_works, error_classes, html_works, librarian,
+                                 local_only, overview, page_integrity, page_chunks, page_ladder, prompts, readings, runs,
+                                 search_hits, shelf_rows, sources, stamps, verdicts, work_editions)
 
 DIST = sources.ROOT / 'src' / 'frontend' / 'diagnostics' / 'dist'
 # the licensed catalog's fields the sources view shows beside a work's title (N1.a)
@@ -164,6 +164,7 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
         """Every work of every knowledge base served: the free catalog in its order, then the licensed works as their
         export lists them. Only the free knowledge base has a catalog."""
         listed: list[sources.Work] = []
+        code: dict[str, list[readings.CatalogEntry]] = {}  # each base's code works, folded into their books' rows below (#12)
         for name, store in bases.items():
             if name == 'free':
                 html = html_works.counts()
@@ -178,7 +179,8 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
                 # then the catalog's entries the export has no pages of, as the free HTML works without readings stand (O1.a);
                 # an EPUB the librarian serves by section counts its sections (123.a), the others are not read yet
                 epubs = {path.name: (key, path) for key, path in epub_works.epubs().items()}
-                unread = store.unread_entries()
+                code[name] = [entry for entry in store.unread_entries() if entry.format == 'code']
+                unread = [entry for entry in store.unread_entries() if entry.format != 'code']
                 listed += [sources.Work(knowledge_base=name, id=entry.id, title=entry.title,
                                         page_list=store.entry_work(entry.id) is not None,
                                         **entry.model_dump(include=CATALOG_FIELDS), **unread_structure(entry, epubs))
@@ -199,10 +201,41 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
                    and not any(work.knowledge_base == name and work.id in (row['source_id'], row.get('work')) for work in listed)]
         listed = with_stand_ins(listed, shelves)  # each work once, its stand-in file folded into it
         listed = with_editions(listed, shelves)  # and once over its editions, each kept one folded into the served one
+        listed = with_code(listed, code, shelves)  # and its companion code folded into it (#12)
         return [work.model_copy(update={'ladder': coverage_ladder.work_ladder(
             coverage_ladder.row_for(shelves[work.knowledge_base], work.id, work.epub_key),
             work.readings.states if work.readings else None, (shelves[work.knowledge_base] or {}).get('built_at'))})
             for work in listed]
+
+    def with_code(listed: list[sources.Work], code: dict[str, list[readings.CatalogEntry]],
+                  shelves: dict[str, dict | None]) -> list[sources.Work]:
+        """Each code work folded into the row of the book it accompanies (#12, line 1's ask: "the code work stands under its
+        book, as a series or an edition does"), its own work in the search and never a row of its own at the top; one whose
+        book is not listed here stands as its own row, its part linking to its files."""
+        out = list(listed)
+        for name, entries in code.items():
+            rows = (shelves.get(name) or {}).get('works') or []
+            for entry in entries:
+                row = work_editions.row_of(entry.id, rows)
+                files = row.get('pages') if row and row.get('format') == 'code' else None
+                said = ('companion code' + (f': {entry.code_language}' if entry.code_language else '')
+                        + (f", {files:,} {'file' if files == 1 else 'files'}" if files else ''))
+                part = sources.CodePart(key=entry.id, title=entry.title, code_language=entry.code_language, files=files,
+                                        said=said)
+                # the book by the key the search names it by: its source id through the shelf's row or the export's work
+                book_row = work_editions.row_of(entry.companion_of, rows) if entry.companion_of else None
+                exported = {work['source_id'] for work in bases[name].works()
+                            if entry.companion_of and work.get('work') == entry.companion_of}
+                keys = {key for key in (entry.companion_of, *(work_editions.keys_of(book_row) if book_row else ()), *exported)
+                        if key}
+                book = next((work for work in out
+                             if work.knowledge_base == name and (work.id in keys or work.epub_key in keys)), None)
+                if book is not None:
+                    out[out.index(book)] = book.model_copy(update={'code': part})
+                else:
+                    out.append(sources.Work(knowledge_base=name, id=entry.id, title=entry.title, code=part,
+                                            **entry.model_dump(include=CATALOG_FIELDS)))
+        return out
 
     def with_stand_ins(listed: list[sources.Work], shelves: dict[str, dict | None]) -> list[sources.Work]:
         """Every work once (line 1, 20 Nov: three works stood twice): a stand-in file the shelf links to the work it stands in
@@ -414,6 +447,31 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
             raise HTTPException(404, f'no image {href!r} in {source_id!r}')
         data, media_type = found
         return Response(content=data, media_type=media_type)
+
+    def code_service(knowledge_base: str) -> Any:
+        """The search service a code work is read from (#12), the librarian's own pages; 404 before anything is read or built
+        for a knowledge base this app does not serve (--public-only, 81.a)."""
+        if knowledge_base not in bases:
+            raise HTTPException(404, f'no code work in the {knowledge_base} knowledge base here')
+        return search.service()
+
+    @app.get('/api/{knowledge_base}/code/{work}')
+    def code_work(knowledge_base: readings.KnowledgeBase, work: str) -> code_works.CodeWork:
+        """A book's companion code (#12): its folders and files, each file with the core's catalog entry, and the core's
+        count of its units by category."""
+        found = code_works.code_work(code_service(knowledge_base), knowledge_base, work, store_of(knowledge_base).shelf_data())
+        if found is None:
+            raise HTTPException(404, f'no code work {work!r} in the {knowledge_base} knowledge base')
+        return found
+
+    @app.get('/api/{knowledge_base}/code/{work}/files/{label:path}')
+    def code_file(knowledge_base: readings.KnowledgeBase, work: str, label: str) -> code_works.CodePage:
+        """One file of a code work as the librarian serves it (#12): its text and lines, its catalog entry, its neighbours."""
+        found = code_works.code_page(code_service(knowledge_base), knowledge_base, work, label,
+                                     store_of(knowledge_base).shelf_data())
+        if found is None:
+            raise HTTPException(404, f'no file {label!r} in the code work {work!r}')
+        return found
 
     @app.get('/api/{knowledge_base}/works/{source_id}/pages')
     def list_pages(knowledge_base: readings.KnowledgeBase, source_id: str) -> readings.WorkPages:

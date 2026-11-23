@@ -96,6 +96,26 @@ export const router = createRouter({
       meta: { label: 'Section' },
       props: route => ({ kb: route.params.kb as KnowledgeBase, work: String(route.params.work), section: String(route.params.section) }),
     },
+    // a book's companion code (#12, the operator's 3.a): its folders and files, and one file numbered, its label one encoded
+    // segment as the librarian's `view_url` gives it (`Indicators%2FA.txt`), the lines a hit names in `?lines=12-31`; only the
+    // licensed knowledge base has code works, and an app started with --public-only answers them 404
+    {
+      path: '/:kb(licensed)/code/:work',
+      name: 'code-work',
+      component: () => import('@/views/CodeWorkView.vue'),
+      sensitive: true,
+      meta: { label: 'Code' },
+      props: route => ({ kb: route.params.kb as KnowledgeBase, work: String(route.params.work) }),
+    },
+    {
+      path: '/:kb(licensed)/code/:work/:label',
+      name: 'code-page',
+      component: () => import('@/views/CodePageView.vue'),
+      sensitive: true,
+      meta: { label: 'Code file' },
+      props: route => ({ kb: route.params.kb as KnowledgeBase, work: String(route.params.work), label: String(route.params.label),
+        lines: typeof route.query.lines === 'string' ? route.query.lines : null }),
+    },
     { path: '/issues', name: 'issues', component: IssuesView, meta: { label: 'Issues' } },
     // the findings grouped by kind, block class and work: what kind of error recurs, and where
     { path: '/errors', name: 'errors', component: ErrorClassesView, meta: { label: 'Errors' } },

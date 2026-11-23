@@ -1434,6 +1434,9 @@ class CatalogEntry(BaseModel):
     licence: str | None = None
     notes: str | None = None  # a few words: "stand-in file", "re-typeset copy; printed pages differ"
     series: Series | None = None  # the series it is a part of, where the catalog names one (Y1.a)
+    # a book's companion code (#12): `format` "code", its folder as `file`, its language and the book it accompanies by key
+    code_language: str | None = None
+    companion_of: str | None = None
 
 
 def catalog_entries(path: Path) -> list[CatalogEntry]:

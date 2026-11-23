@@ -2009,3 +2009,18 @@ window, 936 px at 2,560 px, the column's own widths; where the analysis stacks i
 width as a read page's does. A blocked or refused page has a row and so its Analysis pane already, the image in its column. A
 click opens nothing larger: the view has no such pattern for an image. 397 unit tests, 89 checks in the browser (3 skipped on
 today's data), 1,654 Python tests.
+
+**A book's companion code (issue #12, the operator's 3.a, 23 Nov).** The core serves a book's companion code as a work of its
+own, one file a page, with a catalog of its units. The view shows it where its book stands: in Sources the code folds into the
+book's row, as a kept edition folds into the served one ("companion code: EasyLanguage"), never a row of its own at the top. Its
+own page lists its folders as folds and each file with what the core's catalog says of its unit: function, indicator or
+strategy, its category, the inputs the code declares, the source its opening comment names, and a model's sentence about it,
+said as derived and never as a quote; the catalog's count by category stands once in its head. A file opens numbered, in the one
+numbered look the raw reading has, with no highlighting (no maintained grammar of the language exists) and no image or reading,
+which a file has not; the lines a search hit names (`?lines=12-31`) are marked and scrolled to, and its previous and next file
+stay under the pointer. The Librarian page draws `code_catalog`'s units in the same rows, shows a code file `open_page` returns
+numbered, and opens a code hit's link here. Everything comes from the view's search service, the librarian's own pages; an app
+started with `--public-only` reads nothing for a code route. Measured on the real data in the browser: the code work's page in
+0.93 s, one request with every file and its catalog entry, a file in 0.1 s. 405 unit tests, 94 checks in the browser (3 skipped
+on today's data; two of the EU regulation's chapter checks fail on the free export of 23 Nov, whose outline of it came back
+empty, sent to line 1), 1,690 Python tests.

@@ -451,6 +451,95 @@ test('a page without a reading shows its image as wide as a read page\'s image c
   }
 })
 
+// #12 (the operator's 3.a, 23 Nov): a book's companion code. The browser checks run with --public-only, which serves no licensed
+// work, so the code API is mocked with invented code: no licensed file, name or title stands in a check
+const CODE_KEY = 'an_invented_code'
+const CODE_NAMES = ['Short', 'A much longer invented file name, which takes more room than the first one does', 'Mid length name']
+const CODE_LABELS = CODE_NAMES.map(name => `Indicators/${name}.txt`)
+const CODE_TEXT = Array.from({ length: 120 }, (_, at) => `Value${at + 1} = Average(Close, ${at + 1});`).join('\n')
+const CODE_UNIT = { name: 'Short', unit: 'indicator', category: 'trend', aliases: [], inputs: [{ name: 'Length', default: '10' }],
+  source_named: null, summary: 'An invented sentence about an invented average.', summary_is: 'derived (an invented model)' }
+
+async function anInventedCode(page: Page): Promise<void> {
+  await page.route('**/api/licensed/code/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    if (!path.includes('/files/')) {
+      await route.fulfill({ json: { knowledge_base: 'licensed', work: CODE_KEY, title: 'An Invented Code', code_language: 'EasyLanguage',
+        licence: null, route: 'source code, as the publisher gave it', files: 3, units: 1, companion: null,
+        categories: [{ category: 'trend', units: 1 }], catalog_said: null,
+        folders: [{ title: 'Indicators', count: 3, files: CODE_LABELS.map((label, at) => ({ label, name: CODE_NAMES[at],
+          unit: at === 0 ? CODE_UNIT : null })) }] } })
+      return
+    }
+    const label = decodeURIComponent(path.split('/files/')[1] ?? '')
+    const at = CODE_LABELS.indexOf(label)
+    if (at < 0) {
+      await route.fulfill({ status: 404, json: { detail: 'no such invented file' } })
+      return
+    }
+    await route.fulfill({ json: { knowledge_base: 'licensed', work: CODE_KEY, title: 'An Invented Code', code_language: 'EasyLanguage',
+      licence: null, route: 'source code, as the publisher gave it', label, folder: 'Indicators', name: CODE_NAMES[at], text: CODE_TEXT,
+      lines: { first: 1, last: 120 }, unit: at === 0 ? CODE_UNIT : null, previous: CODE_LABELS[at - 1] ?? null,
+      next: CODE_LABELS[at + 1] ?? null, previous_name: CODE_NAMES[at - 1] ?? null, next_name: CODE_NAMES[at + 1] ?? null,
+      position: at + 1, files: 3, companion: null } })
+  })
+}
+
+test('a code file stands numbered, the lines a hit names marked and in view, its pager under the pointer (#12)', async ({ page }) => {
+  await anInventedCode(page)
+  await page.goto(`/#/licensed/code/${CODE_KEY}/${encodeURIComponent(CODE_LABELS[0]!)}?lines=90-95`)
+  await settled(page)
+  const code = page.locator('[data-part="code"]')
+  await expect(code.locator('.numbered-line')).toHaveCount(120)
+  const marked = code.locator('.numbered-line.marked')
+  await expect(marked).toHaveCount(6)
+  await expect(marked.first()).toHaveAttribute('data-line', '90')
+  await expect(marked.first()).toBeInViewport()
+  // the numbers stand beside the text, never in it: the text copied is the file's
+  expect(await code.evaluate(element => element.textContent)).toBe(CODE_TEXT)
+  // previous and next stay under the pointer, file after file, whatever each file's name
+  await page.goto(`/#/licensed/code/${CODE_KEY}/${encodeURIComponent(CODE_LABELS[0]!)}`)
+  await settled(page)
+  await page.evaluate(() => window.scrollTo(0, 0))  // the lines asked for above left the page scrolled down
+  const nextBox = page.locator('nav.pager .pager-link').nth(1)
+  const first = (await nextBox.boundingBox())!
+  for (const at of [1, 2]) {
+    await page.locator('[data-part="next"]').click()
+    await expect(page.locator('[data-part="file-name"]')).toHaveText(CODE_NAMES[at]!)
+    const box = (await nextBox.boundingBox())!
+    // its place and its size: on the last file the empty place stands as the box did (it stood 10px lower before #12)
+    expect([box.x, box.y, box.width, box.height], `the next box on file ${at + 1}`).toEqual([first.x, first.y, first.width, first.height])
+  }
+  await expect(page.locator('[data-part="position"]')).toHaveText('file 3 of 3')
+})
+
+test('a book\'s companion code stands under its book in Sources, its folders with the catalog, a file one click on (#12)', async ({ page }) => {
+  await anInventedCode(page)
+  // the book's row as a licensed one would be, its companion code folded into it (an invented one, beside the free works)
+  await page.route('**/api/works', async route => {
+    const response = await route.fetch()
+    const works = await response.json() as { id: string, knowledge_base: string, series: unknown }[]
+    const book = { ...works.find(work => !work.series)!, knowledge_base: 'licensed', id: 'an_invented_book', title: 'An Invented Book',
+      code: { key: CODE_KEY, title: 'An Invented Code', code_language: 'EasyLanguage', files: 3, said: 'companion code: EasyLanguage, 3 files' } }
+    await route.fulfill({ response, json: [...works, book] })
+  })
+  await page.goto('/#/sources')
+  await settled(page)
+  const part = page.locator(`[data-part="code"][data-code="${CODE_KEY}"]`)
+  await expect(part).toHaveText('companion code: EasyLanguage, 3 files')
+  await expect(page.locator(`tr[data-work="${CODE_KEY}"]`)).toHaveCount(0)
+  await part.click()
+  await expect(page).toHaveURL(new RegExp(`#/licensed/code/${CODE_KEY}$`))
+  await settled(page)
+  await expect(page.locator('[data-part="categories"] [data-category="trend"]')).toHaveText('trend 1')
+  await expect(page.locator('[data-folder="Indicators"] tr[data-file]')).toHaveCount(3)
+  await expect(page.locator(`tr[data-file="${CODE_LABELS[0]}"] [data-part="derived"]`)).toHaveText('derived (an invented model), never quoted')
+  await page.locator(`tr[data-file="${CODE_LABELS[1]}"] a`).click()
+  await settled(page)
+  await expect(page.locator('[data-part="file-name"]')).toHaveText(CODE_NAMES[1]!)
+  await expect(page.locator('[data-label="Unit"]')).toContainText('not in the catalog')
+})
+
 test('every work says how far it is refined: five meters in Sources, its levels on its page, the corpus\'s on the overview (U1.a)', async ({ page, request }) => {
   type Rung = { level: string, number: number, said: string, count: number | null, share: number | null,
     pages_filter: Record<string, string[]> | null }
@@ -2604,9 +2693,9 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
   await onBlock.locator('[data-part="show-raw"]').click()
   // the raw text opens at the fault's own line where page/1.4 names it in its message, else at the line the block opens on
   const at = b04!.at_line ?? b04!.line
-  const marked = page.locator('pre.raw .raw-line.marked')
+  const marked = page.locator('pre.raw .numbered-line.marked')
   await expect(marked).toHaveAttribute('data-line', String(at))
-  await expect(page.locator(`pre.raw .raw-line[data-line="${b04!.line}"]`)).toContainText('#b04')
+  await expect(page.locator(`pre.raw .numbered-line[data-line="${b04!.line}"]`)).toContainText('#b04')
   await expect(marked).toBeInViewport()
   // every line an error names, marked as the API spans it (its block, from the opening fence to the closing one), here
   // quietly, as a person has looked at b04's error; the core's own data, where the unit tests invent theirs
@@ -2614,8 +2703,8 @@ test('a validator\'s error stands on its block, muted once a person looked, and 
     const [from, to] = error.lines ?? (error.line ? [error.line, error.line] : [1, 0])
     return [...Array.from({ length: to - from + 1 }, (_, step) => from + step), ...(error.at_line ? [error.at_line] : [])]
   }))
-  await expect(page.locator('pre.raw [data-error-line]')).toHaveCount(spanned.size)
-  await expect(page.locator(`pre.raw .raw-line[data-line="${at}"]`)).toHaveAttribute('data-error-line', 'error-looked')
+  await expect(page.locator('pre.raw [data-mark]')).toHaveCount(spanned.size)
+  await expect(page.locator(`pre.raw .numbered-line[data-line="${at}"]`)).toHaveAttribute('data-mark', 'error-looked')
   // the gutter's number is the line's, and none of it is text: the pre holds the reading as stored, a selection copies it
   expect(await marked.evaluate(line => getComputedStyle(line, '::before').content)).toBe(`"${at}"`)
   expect(await page.locator('pre.raw').evaluate(pre => pre.textContent)).toBe(p398.raw)
@@ -2651,21 +2740,21 @@ test('a validator\'s error nobody looked at stands red, on its block and in the 
   const alone = page.locator('[data-part="parse-errors"] li', { hasText: lineOnly!.said })
   await expect(alone.locator('[data-part="error-block"]')).toHaveCount(0)
   await alone.locator('[data-part="show-raw"]').click()
-  await expect(page.locator('pre.raw .raw-line.marked')).toHaveAttribute('data-line', String(lineOnly!.line))
-  await expect(page.locator('pre.raw .raw-line.marked')).toBeInViewport()
+  await expect(page.locator('pre.raw .numbered-line.marked')).toHaveAttribute('data-line', String(lineOnly!.line))
+  await expect(page.locator('pre.raw .numbered-line.marked')).toBeInViewport()
   // as a compiler marks an error (line 1's A.a, 18 Nov): b13's whole block from its opening fence to its closing one, the
   // named line strongest and in the error's colour, and the line named alone; nothing else
   const [first, last] = (b13 as Placed & { lines: number[] }).lines
-  const named = page.locator(`pre.raw .raw-line[data-line="${b13!.at_line ?? b13!.line}"]`)
-  await expect(named).toHaveAttribute('data-error-line', 'error-named')
-  await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveAttribute('data-error-line', 'error-block')
-  await expect(page.locator(`pre.raw .raw-line[data-line="${last}"]`)).toHaveText(/^:::\s*$/)
+  const named = page.locator(`pre.raw .numbered-line[data-line="${b13!.at_line ?? b13!.line}"]`)
+  await expect(named).toHaveAttribute('data-mark', 'error-named')
+  await expect(page.locator(`pre.raw .numbered-line[data-line="${last}"]`)).toHaveAttribute('data-mark', 'error-block')
+  await expect(page.locator(`pre.raw .numbered-line[data-line="${last}"]`)).toHaveText(/^:::\s*$/)
   expect(first).toBe(b13!.line)
   const marked338 = new Set((p338.reading!.error_places as (Placed & { lines: number[] | null })[]).flatMap(error => {
     const [from, to] = error.lines ?? (error.line ? [error.line, error.line] : [1, 0])
     return Array.from({ length: to - from + 1 }, (_, at) => from + at)
   }))
-  await expect(page.locator('pre.raw [data-error-line]')).toHaveCount(marked338.size)
+  await expect(page.locator('pre.raw [data-mark]')).toHaveCount(marked338.size)
   expect(await named.evaluate(line => getComputedStyle(line, '::before').color)).toBe(await colour('[data-part="parse-errors"] li'))
   await named.scrollIntoViewIfNeeded()
   await page.locator('pre.raw').screenshot({ path: `${SHOTS}/raw_error_block.png` })

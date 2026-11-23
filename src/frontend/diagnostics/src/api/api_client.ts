@@ -2,6 +2,7 @@ import axios from 'axios'
 import { ApiError } from '@/api/api_error'
 import type { AppInfo } from '@/types/api/app_types'
 import type { CallList } from '@/types/api/calls_types'
+import type { CodePage, CodeWork } from '@/types/api/code_types'
 import type { ErrorClassList } from '@/types/api/errors_types'
 import type { EpubSection, EpubWork } from '@/types/api/epub_types'
 import type { HtmlArticle, HtmlWork } from '@/types/api/html_types'
@@ -81,6 +82,18 @@ export async function getEpubWork(knowledgeBase: KnowledgeBase, sourceId: string
 /** One section of a licensed EPUB work: its text in runs, each image where its mark stands. */
 export async function getEpubSection(knowledgeBase: KnowledgeBase, sourceId: string, label: string): Promise<EpubSection> {
   const response = await http.get<EpubSection>(`/${knowledgeBase}/epub/${encodeURIComponent(sourceId)}/sections/${encodeURIComponent(label)}`)
+  return response.data
+}
+
+/** A book's companion code (#12): its folders and files, each with the core's catalog entry. */
+export async function getCodeWork(knowledgeBase: KnowledgeBase, work: string): Promise<CodeWork> {
+  const response = await http.get<CodeWork>(`/${knowledgeBase}/code/${encodeURIComponent(work)}`)
+  return response.data
+}
+
+/** One file of a code work by its label, its path in the work sent as one encoded segment. */
+export async function getCodePage(knowledgeBase: KnowledgeBase, work: string, label: string): Promise<CodePage> {
+  const response = await http.get<CodePage>(`/${knowledgeBase}/code/${encodeURIComponent(work)}/files/${encodeURIComponent(label)}`)
   return response.data
 }
 

@@ -44,6 +44,17 @@ class CatalogSource(BaseModel):
     series: Series | None = None
 
 
+class CodePart(BaseModel):
+    """A book's companion code (#12), folded into the book's row as a kept edition is into the served one (E1.a): its own
+    work in the search, its files opening in the code view."""
+
+    key: str  # its work key, which its view and the search name it by
+    title: str
+    code_language: str | None = None
+    files: int | None = None  # the files the shelf counts as served; None where the shelf has no row of it here
+    said: str  # "companion code: EasyLanguage, 355 files"
+
+
 class StandIn(BaseModel):
     """A stand-in file beside a work, which the librarian does not serve as long as the work's own text stands (the shelf's
     `stand_in_of`, line 1, 20 Nov): folded into its work's row, so a work stands once, the file named in its card."""
@@ -104,6 +115,8 @@ class Work(BaseModel):
     editions: Editions | None = None
     # a file that looks like another edition and is linked with none, in a warning's words: a call to look; None otherwise
     possible_edition: str | None = None
+    # its companion code (#12), folded into its row; on a code work whose book is not listed here, its own part
+    code: CodePart | None = None
 
 
 def works(catalog: Path = CATALOG) -> list[Work]:

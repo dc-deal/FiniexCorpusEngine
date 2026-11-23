@@ -169,6 +169,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/{knowledge_base}/code/{work}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Code Work
+         * @description A book's companion code (#12): its folders and files, each file with the core's catalog entry, and the core's
+         *     count of its units by category.
+         */
+        get: operations["code_work"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/{knowledge_base}/code/{work}/files/{label}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Code File
+         * @description One file of a code work as the librarian serves it (#12): its text and lines, its catalog entry, its neighbours.
+         */
+        get: operations["code_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/{knowledge_base}/works/{source_id}/pages": {
         parameters: {
             query?: never;
@@ -851,6 +892,30 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * CatalogUnit
+         * @description One unit `code_catalog` lists (#12): its file, what the core's catalog says of it, and its file in this view.
+         */
+        CatalogUnit: {
+            /** Work */
+            work: string;
+            /** Page */
+            page: string;
+            /** Code Language */
+            code_language?: string | null;
+            /** Companion Of */
+            companion_of?: string | null;
+            /** View */
+            view?: string | null;
+            unit: components["schemas"]["CodeUnit"];
+        };
+        /** CategoryCount */
+        CategoryCount: {
+            /** Category */
+            category: string;
+            /** Units */
+            units: number;
+        };
         /** Cell */
         Cell: {
             /** Segments */
@@ -973,6 +1038,189 @@ export interface components {
              * @default false
              */
             shared: boolean;
+        };
+        /** CodeCatalog */
+        CodeCatalog: {
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Categories
+             * @default []
+             */
+            categories: components["schemas"]["CategoryCount"][];
+            /**
+             * Units
+             * @default []
+             */
+            units: components["schemas"]["CatalogUnit"][];
+        };
+        /** CodeFile */
+        CodeFile: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            unit?: components["schemas"]["CodeUnit"] | null;
+        };
+        /** CodeFolder */
+        CodeFolder: {
+            /** Title */
+            title?: string | null;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Files */
+            files: components["schemas"]["CodeFile"][];
+        };
+        /** CodeInput */
+        CodeInput: {
+            /** Name */
+            name: string;
+            /** Default */
+            default: string;
+        };
+        /**
+         * CodePage
+         * @description One file of a code work, as `open_page` serves it, with its catalog entry and its neighbours in the work's order.
+         */
+        CodePage: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Work */
+            work: string;
+            /** Title */
+            title: string;
+            /** Code Language */
+            code_language?: string | null;
+            companion?: components["schemas"]["Companion"] | null;
+            /** Licence */
+            licence?: string | null;
+            /** Route */
+            route: string;
+            /** Label */
+            label: string;
+            /** Folder */
+            folder?: string | null;
+            /** Name */
+            name: string;
+            /** Text */
+            text: string;
+            lines: components["schemas"]["LineRange"];
+            unit?: components["schemas"]["CodeUnit"] | null;
+            /** Previous */
+            previous?: string | null;
+            /** Next */
+            next?: string | null;
+            /** Previous Name */
+            previous_name?: string | null;
+            /** Next Name */
+            next_name?: string | null;
+            /** Position */
+            position: number;
+            /** Files */
+            files: number;
+        };
+        /**
+         * CodePart
+         * @description A book's companion code (#12), folded into the book's row as a kept edition is into the served one (E1.a): its own
+         *     work in the search, its files opening in the code view.
+         */
+        CodePart: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** Code Language */
+            code_language?: string | null;
+            /** Files */
+            files?: number | null;
+            /** Said */
+            said: string;
+        };
+        /**
+         * CodeUnit
+         * @description What the core's catalog says of one file's unit (`code_catalog`).
+         */
+        CodeUnit: {
+            /** Name */
+            name: string;
+            /** Unit */
+            unit?: string | null;
+            /** Category */
+            category?: string | null;
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases: string[];
+            /**
+             * Inputs
+             * @default []
+             */
+            inputs: components["schemas"]["CodeInput"][];
+            /** Source Named */
+            source_named?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Summary Is */
+            summary_is?: string | null;
+        };
+        /**
+         * CodeWork
+         * @description A code work's own page: its folders and files, each file with its catalog entry, and the core's count by category.
+         */
+        CodeWork: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Work */
+            work: string;
+            /** Title */
+            title: string;
+            /** Code Language */
+            code_language?: string | null;
+            companion?: components["schemas"]["Companion"] | null;
+            /** Licence */
+            licence?: string | null;
+            /** Route */
+            route: string;
+            /** Files */
+            files: number;
+            /** Units */
+            units: number;
+            /**
+             * Categories
+             * @default []
+             */
+            categories: components["schemas"]["CategoryCount"][];
+            /** Catalog Said */
+            catalog_said?: string | null;
+            /** Folders */
+            folders: components["schemas"]["CodeFolder"][];
+        };
+        /**
+         * Companion
+         * @description The book a code work accompanies, and where its record opens here (as an edition's does, E1.a).
+         */
+        Companion: {
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+            /** View */
+            view?: ("pages" | "epub") | null;
+            /** Id */
+            id?: string | null;
         };
         /** Contents */
         Contents: {
@@ -1393,6 +1641,11 @@ export interface components {
             terms_missing: string[];
             /** View */
             view?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Code Language */
+            code_language?: string | null;
+            lines?: components["schemas"]["LineRange"] | null;
         };
         /**
          * HtmlArticle
@@ -1826,6 +2079,7 @@ export interface components {
             /** Found Works */
             found_works?: components["schemas"]["FoundWork"][] | null;
             contents?: components["schemas"]["Contents"] | null;
+            catalog?: components["schemas"]["CodeCatalog"] | null;
             page?: components["schemas"]["OpenedPage"] | null;
             image?: components["schemas"]["SentImage"] | null;
             plan?: components["schemas"]["RouterPlan"] | null;
@@ -1909,6 +2163,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** LineRange */
+        LineRange: {
+            /** First */
+            first: number;
+            /** Last */
+            last: number;
+        };
         /**
          * Milestone
          * @description One line of the corpus's history (X1.a, line 1, 19 Nov): its date, its name, and its figures summed over the knowledge
@@ -1962,6 +2223,11 @@ export interface components {
             text?: string | null;
             /** View */
             view?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Code Language */
+            code_language?: string | null;
+            lines?: components["schemas"]["LineRange"] | null;
         };
         /** Option */
         Option: {
@@ -3425,6 +3691,7 @@ export interface components {
             editions?: components["schemas"]["Editions"] | null;
             /** Possible Edition */
             possible_edition?: string | null;
+            code?: components["schemas"]["CodePart"] | null;
         };
         /** WorkPages */
         WorkPages: {
@@ -3762,6 +4029,71 @@ export interface operations {
                     "image/png": unknown;
                     "image/jpeg": unknown;
                     "image/gif": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    code_work: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                knowledge_base: "free" | "licensed";
+                work: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeWork"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    code_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                knowledge_base: "free" | "licensed";
+                work: string;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodePage"];
                 };
             };
             /** @description Validation Error */

@@ -22,6 +22,7 @@ import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PageJump from '@/components/PageJump.vue'
 import PageLadderLines from '@/components/PageLadderLines.vue'
 import UnreadPage from '@/components/UnreadPage.vue'
+import NumberedText from '@/components/base/NumberedText.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
 import RecordRows from '@/components/base/RecordRows.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
@@ -341,8 +342,7 @@ function share(value: number | null | undefined): string {
 
 // The raw text with its lines numbered as the validator counts them (228.a, the operator on accounting p. 338: "line 86? then please line numbers in the read-only editor too"): line 1 is the front matter's first `---`. The numbers stand in a gutter beside the
 // text, never in it, so the text copied is the text stored. A validator's error opens it at its line, marked.
-const rawText = ref<HTMLElement | null>(null)
-const rawLines = computed(() => (analysisRaw.value ?? '').split('\n'))
+const rawText = ref<InstanceType<typeof NumberedText> | null>(null)
 // The lines a validator's error names, marked as a compiler marks them (line 1's A.a, 18 Nov): the whole block the API says
 // it names (`lines`), since the validator names the line a block opens on while what it found may stand lines below, and
 // the fault's own line strongest: the one page/1.4 names in its message (`at_line`), else the line the error names. An
@@ -369,7 +369,7 @@ async function showRaw(line: number): Promise<void> {
   mode.value = 'raw'
   rawLine.value = line
   await nextTick()
-  rawText.value?.querySelector(`[data-line="${line}"]`)?.scrollIntoView?.({ block: 'center', behavior: 'auto' })
+  rawText.value?.scrollToLine(line)
 }
 
 // every click brings the block into view, also from the raw text and also a second time: the scroll is the click's own
@@ -969,7 +969,16 @@ watch(box, async () => {
               @jump="showBlock"
               @raw="showRaw"
             />
-            <pre v-else ref="rawText" class="raw" data-part="raw" :style="{ '--gutter': `${String(rawLines.length).length}ch` }"><span v-for="(line, at) in rawLines" :key="at" class="raw-line" :class="[{ marked: at + 1 === rawLine }, errorLines.get(at + 1)]" :data-line="at + 1" :data-error-line="errorLines.get(at + 1)">{{ at < rawLines.length - 1 ? `${line}\n` : line }}</span></pre>
+            <!-- the raw text numbered as the validator counts it, in the one numbered look (NumberedText) -->
+            <NumberedText
+              v-else
+              ref="rawText"
+              class="raw"
+              data-part="raw"
+              :text="analysisRaw ?? ''"
+              :marked="rawLine ? { first: rawLine, last: rawLine } : null"
+              :marks="errorLines"
+            />
           </template>
         </div>
       </div>
@@ -1388,64 +1397,7 @@ tr.recalled-source {
   color: var(--color-text-secondary);
 }
 
-/* each line of the raw text with its number in a gutter the selection leaves out; a long line wraps under its own text */
-.raw-line {
-  display: block;
-  padding-left: calc(var(--gutter) + var(--space-sm));
-  text-indent: calc(-1 * (var(--gutter) + var(--space-sm)));
-}
-
-.raw-line::before {
-  content: attr(data-line);
-  display: inline-block;
-  width: var(--gutter);
-  margin-right: var(--space-sm);
-  text-align: right;
-  text-indent: 0;
-  color: var(--color-text-secondary);
-  user-select: none;
-}
-
-/* the line an error names, marked as the block on show is */
-.raw-line.marked {
-  background-color: var(--color-bg-elevated);
-  box-shadow: inset 2px 0 0 var(--color-accent);
-}
-
-/* a validator's error in the raw text, as a compiler marks one: the block it names tinted, a bar in the error's role at the
-   gutter, the named line stronger and its number in the role too, so the mark survives greyscale by its bar and weight */
-.raw-line.error-block,
-.raw-line.error-named {
-  background-color: color-mix(in srgb, var(--color-error) 8%, transparent);
-  box-shadow: inset 3px 0 0 var(--color-error);
-}
-
-.raw-line.error-named {
-  background-color: color-mix(in srgb, var(--color-error) 18%, transparent);
-}
-
-.raw-line.error-named::before {
-  color: var(--color-error);
-  font-weight: bold;
-}
-
-/* an error a person has looked at: its block keeps a quiet bar, never the error's colour */
-.raw-line.error-looked {
-  box-shadow: inset 3px 0 0 var(--color-text-secondary);
-}
-
-/* the line a click asked for stays marked over an error's tint, so the jump is seen */
-.raw-line.marked.error-block,
-.raw-line.marked.error-named {
-  outline: 1px solid var(--color-accent);
-  outline-offset: -1px;
-}
-
-/* where the quoted text comes from: the route, in the words of the line above */
-.raw {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
+/* the raw text's numbered lines and their marks are the shared NumberedText's own (#12) */
 
 .no-reading,
 .as-served-off {

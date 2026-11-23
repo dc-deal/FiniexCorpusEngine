@@ -1079,3 +1079,24 @@ The record of how the diagnostics frontend came about, mistakes included.
   2,560 px, its width no more than the column's and no less than nine tenths of it, its centre within a pixel of the content's;
   shown failing first on the old build (1,240 px against a 676 px column). A blocked or refused page has a reading row (`read`),
   so the Analysis pane shows its image already; no full-size view, since none exists for an image anywhere in the view.
+- **A book's companion code** (#12, the operator's 3.a, 23 Nov). `code_works` builds a code work (`toc` joined with
+  `code_catalog(work, hits=CATALOG_HITS)` by page; `categories` the core's, the most first; each folder's count) and a file
+  (`open_page`, its record, its neighbours and their names) from the view's search service alone; the routes
+  `/api/{knowledge_base}/code/{work}` and `/files/{label:path}` answer 404 before building anything for a base this app does not
+  serve. Sources: `CatalogEntry` takes `code_language` and `companion_of`, a code entry leaves the unread rows, and `with_code`
+  folds a `CodePart` into the book's row, the book found by the key the search names it by through the shelf's row or the
+  export's `work` (the catalog's `companion_of` is a work key, a row's id a source id: the first test, with the source id,
+  listed the book twice); a book not listed keeps the code as a row of its own. Librarian: `code_catalog` after `search_works`
+  in `TOOL_ORDER`, `VIEW_ROUTE` takes `/code/` and `?lines=a-b`, `CodeCatalog` of `CatalogUnit`s, and `kind`, `code_language`
+  and `lines` on a hit and an opened page; `kind` itself came with the tool's schema. Frontend: the raw reading's numbered
+  `<pre>` became `NumberedText` (221.a, one look), its classes `numbered-text`, `numbered-line` and `data-mark`, the checks'
+  selectors moved with them; `CodeUnitTable` for the code work's folds and the catalog's answer, `CodeWorkView`, `CodePageView`,
+  `code_store`, `recordRoute` beside `editionRoute`; the routes `#/:kb(licensed)/code/:work` and `/:label`, the label one
+  encoded segment as the librarian's `view_url` gives it. `PagerLinks`' empty place stood 10 px lower than a box with a word (no
+  line of its own, centred in the row), in every pager; it takes a zero-width character now, found by the new check on a code
+  work's last file. The three new browser checks run over an invented code work the API is mocked with (the checks' server is
+  --public-only) and were shown failing: the pager on the old `PagerLinks`, the range scrolled to line 1, the Sources part
+  hidden. Python tests over the core's own service built from invented files and an invented catalog; the real EPUBs kept out of
+  the Sources test. Looked at on the real data in a throwaway container: the code folded under its book, every file with a
+  catalog entry, a file's range marked and in view, `code_catalog` on the Librarian page opening its files here; screenshots of
+  invented code only.

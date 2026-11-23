@@ -288,6 +288,14 @@ onMounted(() => {
                   :data-edition="edition.key"
                   :to="editionRoute(edition, line.work.knowledge_base)!"
                 >{{ edition.named }} kept</RouterLink><span v-else>{{ edition.named }} kept</span></template></span>
+                <!-- its companion code (#12), folded into its row as an edition is: a link to its folders and files -->
+                <RouterLink
+                  v-if="line.work.code"
+                  class="code-part"
+                  data-part="code"
+                  :data-code="line.work.code.key"
+                  :to="{ name: 'code-work', params: { kb: line.work.knowledge_base, work: line.work.code.key } }"
+                >{{ line.work.code.said }}</RouterLink>
                 <!-- a file that looks like another edition and is linked with none: a call to look, in the warning role -->
                 <span v-if="line.work.possible_edition" class="possible-edition" data-part="possible-edition">
                   <AppIcon name="status-unknown" /> {{ line.work.possible_edition }}
@@ -400,6 +408,17 @@ a.stand-in {
 .possible-edition {
   display: block;
   color: var(--color-text-secondary);
+}
+
+/* its companion code beneath its id, a link to its files (#12) */
+a.code-part {
+  display: block;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a.code-part:hover {
+  text-decoration: underline;
 }
 
 a.kept-edition {

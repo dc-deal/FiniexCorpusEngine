@@ -400,6 +400,121 @@
         }
       }
     },
+    "/api/{knowledge_base}/code/{work}": {
+      "get": {
+        "summary": "Code Work",
+        "description": "A book's companion code (#12): its folders and files, each file with the core's catalog entry, and the core's\ncount of its units by category.",
+        "operationId": "code_work",
+        "parameters": [
+          {
+            "name": "knowledge_base",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "free",
+                "licensed"
+              ],
+              "type": "string",
+              "title": "Knowledge Base"
+            }
+          },
+          {
+            "name": "work",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Work"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeWork"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/{knowledge_base}/code/{work}/files/{label}": {
+      "get": {
+        "summary": "Code File",
+        "description": "One file of a code work as the librarian serves it (#12): its text and lines, its catalog entry, its neighbours.",
+        "operationId": "code_file",
+        "parameters": [
+          {
+            "name": "knowledge_base",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "free",
+                "licensed"
+              ],
+              "type": "string",
+              "title": "Knowledge Base"
+            }
+          },
+          {
+            "name": "work",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Work"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodePage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/{knowledge_base}/works/{source_id}/pages": {
       "get": {
         "summary": "List Pages",
@@ -2290,6 +2405,80 @@
         ],
         "title": "CallRequest"
       },
+      "CatalogUnit": {
+        "properties": {
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "page": {
+            "type": "string",
+            "title": "Page"
+          },
+          "code_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Language"
+          },
+          "companion_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companion Of"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/CodeUnit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "work",
+          "page",
+          "unit"
+        ],
+        "title": "CatalogUnit",
+        "description": "One unit `code_catalog` lists (#12): its file, what the core's catalog says of it, and its file in this view."
+      },
+      "CategoryCount": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "units": {
+            "type": "integer",
+            "title": "Units"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "units"
+        ],
+        "title": "CategoryCount"
+      },
       "Cell": {
         "properties": {
           "segments": {
@@ -2613,6 +2802,548 @@
         ],
         "title": "ChunkRun",
         "description": "A run of a block's text in a chunk: whether another chunk of the page holds it too, so that it stands in both."
+      },
+      "CodeCatalog": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "type": "array",
+            "title": "Categories",
+            "default": []
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogUnit"
+            },
+            "type": "array",
+            "title": "Units",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "CodeCatalog"
+      },
+      "CodeFile": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeUnit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "name"
+        ],
+        "title": "CodeFile"
+      },
+      "CodeFolder": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/CodeFile"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "CodeFolder"
+      },
+      "CodeInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "default": {
+            "type": "string",
+            "title": "Default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "default"
+        ],
+        "title": "CodeInput"
+      },
+      "CodePage": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base"
+          },
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "code_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Language"
+          },
+          "companion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Companion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "route": {
+            "type": "string",
+            "title": "Route"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "lines": {
+            "$ref": "#/components/schemas/LineRange"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeUnit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          },
+          "previous_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Name"
+          },
+          "next_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Name"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "files": {
+            "type": "integer",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_base",
+          "work",
+          "title",
+          "route",
+          "label",
+          "name",
+          "text",
+          "lines",
+          "position",
+          "files"
+        ],
+        "title": "CodePage",
+        "description": "One file of a code work, as `open_page` serves it, with its catalog entry and its neighbours in the work's order."
+      },
+      "CodePart": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "code_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Language"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "said"
+        ],
+        "title": "CodePart",
+        "description": "A book's companion code (#12), folded into the book's row as a kept edition is into the served one (E1.a): its own\nwork in the search, its files opening in the code view."
+      },
+      "CodeUnit": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/CodeInput"
+            },
+            "type": "array",
+            "title": "Inputs",
+            "default": []
+          },
+          "source_named": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Named"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "summary_is": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Is"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CodeUnit",
+        "description": "What the core's catalog says of one file's unit (`code_catalog`)."
+      },
+      "CodeWork": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base"
+          },
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "code_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Language"
+          },
+          "companion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Companion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "route": {
+            "type": "string",
+            "title": "Route"
+          },
+          "files": {
+            "type": "integer",
+            "title": "Files"
+          },
+          "units": {
+            "type": "integer",
+            "title": "Units"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "type": "array",
+            "title": "Categories",
+            "default": []
+          },
+          "catalog_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Said"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/CodeFolder"
+            },
+            "type": "array",
+            "title": "Folders"
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_base",
+          "work",
+          "title",
+          "route",
+          "files",
+          "units",
+          "folders"
+        ],
+        "title": "CodeWork",
+        "description": "A code work's own page: its folders and files, each file with its catalog entry, and the core's count by category."
+      },
+      "Companion": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pages",
+                  "epub"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "title"
+        ],
+        "title": "Companion",
+        "description": "The book a code work accompanies, and where its record opens here (as an edition's does, E1.a)."
       },
       "Contents": {
         "properties": {
@@ -3912,6 +4643,38 @@
               }
             ],
             "title": "View"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "code_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Language"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5224,6 +5987,16 @@
               }
             ]
           },
+          "catalog": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodeCatalog"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "page": {
             "anyOf": [
               {
@@ -5452,6 +6225,24 @@
         ],
         "title": "LibrarianTool"
       },
+      "LineRange": {
+        "properties": {
+          "first": {
+            "type": "integer",
+            "title": "First"
+          },
+          "last": {
+            "type": "integer",
+            "title": "Last"
+          }
+        },
+        "type": "object",
+        "required": [
+          "first",
+          "last"
+        ],
+        "title": "LineRange"
+      },
       "Milestone": {
         "properties": {
           "at": {
@@ -5679,6 +6470,38 @@
               }
             ],
             "title": "View"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "code_language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Language"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10220,6 +11043,16 @@
               }
             ],
             "title": "Possible Edition"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CodePart"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

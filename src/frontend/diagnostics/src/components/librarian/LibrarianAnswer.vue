@@ -5,6 +5,8 @@ import FoldSection from '@/components/base/FoldSection.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
 import LabelledLines from '@/components/base/LabelledLines.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
+import NumberedText from '@/components/base/NumberedText.vue'
+import CodeUnitTable, { type UnitRow } from '@/components/CodeUnitTable.vue'
 import ContentsTree from '@/components/librarian/ContentsTree.vue'
 import HitCards from '@/components/librarian/HitCards.vue'
 import LibrarianWorks from '@/components/librarian/LibrarianWorks.vue'
@@ -16,7 +18,8 @@ import type { LibrarianCall } from '@/types/api/librarian_types'
  * One call's answer as the librarian gave it (L1.a): a head line of its state, how many it found, the server's own words,
  * relevance against its floor in the warning role where it lies below, how long the call took and whether a model ran;
  * the plan the router made, where it ran; then the tool's own parts, hits as cards, works as a table, contents as a tree,
- * a page as its text, an image with what it is; and the answer as it came, one click away, always.
+ * the code catalog's units as the code work's page lists them (#12), a page as its text (a code file numbered), an image with
+ * what it is; and the answer as it came, one click away, always.
  */
 const props = defineProps<{
   call: LibrarianCall
@@ -28,6 +31,9 @@ const stateIcon = computed<IconName>(() => (head.value.state === 'found' ? 'stat
 // a duration as a person reads it: milliseconds under a second
 const took = computed(() => (head.value.seconds < 1 ? `${Math.round(head.value.seconds * 1000)} ms` : `${head.value.seconds.toFixed(1)} s`))
 const raw = computed(() => JSON.stringify(props.call.answer, null, 2))
+// each unit the catalog lists, opening its file here where the server links it
+const catalogRows = computed<UnitRow[]>(() => (props.call.catalog?.units ?? []).map(one => ({
+  key: `${one.work}|${one.page}`, name: one.unit.name, unit: one.unit, to: one.view ?? null })))
 </script>
 
 <template>
@@ -52,6 +58,13 @@ const raw = computed(() => JSON.stringify(props.call.answer, null, 2))
     <HitCards v-if="call.hits?.length" :hits="call.hits" />
     <LibrarianWorks v-else-if="call.works || call.found_works?.length" :works="call.works" :found="call.found_works" />
     <ContentsTree v-else-if="call.contents?.entries.length" :contents="call.contents" />
+    <!-- the code catalog's units (#12), in the code work page's own rows, the server's count by category above them -->
+    <div v-else-if="call.catalog" class="catalog" data-part="catalog">
+      <p v-if="call.catalog.categories.length" class="secondary" data-part="catalog-categories">
+        <span v-for="one in call.catalog.categories" :key="one.category" class="category">{{ one.category }} {{ one.units }}</span>
+      </p>
+      <CodeUnitTable :rows="catalogRows" />
+    </div>
     <div v-else-if="call.page" class="opened-page" data-part="opened-page">
       <p class="page-head">
         <KnowledgeBaseMark v-if="knowledgeBaseOf(call.page.knowledge_base)" :kb="knowledgeBaseOf(call.page.knowledge_base)!" />
@@ -62,8 +75,9 @@ const raw = computed(() => JSON.stringify(props.call.answer, null, 2))
         <RouterLink v-if="call.page.view" :to="call.page.view" data-part="page-view">in the page view</RouterLink>
       </p>
       <p class="secondary">{{ [call.page.route, call.page.licence].filter(Boolean).join(' · ') }}</p>
-      <!-- the page word for word, as a client receives it: text, never Markdown -->
-      <pre class="page-text" data-part="page-text">{{ call.page.text }}</pre>
+      <!-- the page word for word, as a client receives it: text, never Markdown; a code file numbered, as its page is (#12) -->
+      <NumberedText v-if="call.page.kind === 'code'" class="page-text" data-part="page-text" :text="call.page.text ?? ''" />
+      <pre v-else class="page-text" data-part="page-text">{{ call.page.text }}</pre>
     </div>
     <figure v-else-if="call.image" class="sent-image" data-part="sent-image">
       <img :src="call.image.src" :alt="`${call.image.page_said ?? 'the page'} as the librarian sent it`">
@@ -103,6 +117,12 @@ const raw = computed(() => JSON.stringify(props.call.answer, null, 2))
 .state.quiet,
 .secondary {
   color: var(--color-text-secondary);
+}
+
+.catalog > p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
 }
 
 .state.error {

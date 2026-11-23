@@ -84,11 +84,13 @@ def test_each_tool_s_form_comes_from_its_input_schema_and_the_view_keeps_the_rou
 
 def test_the_tools_stand_in_the_server_s_staggered_order_and_a_new_one_after_them():
     listed = [a_tool(name) for name in ('page_image', 'a_new_tool', 'search', 'works', 'toc', 'semantic_search', 'open_page',
-                                        'search_works')]
+                                        'code_catalog', 'search_works')]
     assert [tool.name for tool in librarian.in_order(listed)] == [*librarian.TOOL_ORDER, 'a_new_tool']
-    # the two search tools by the view's names, every other by its own (the standing rule)
+    # the two search tools by the view's names, every other by its own (the standing rule); the code catalog after the works
+    # it lists (#12)
     assert [librarian.tool_of(tool).label for tool in librarian.in_order(listed)] == [
-        'works', 'search_works', 'search (BM25)', 'semantic (hybrid)', 'toc', 'open_page', 'page_image', 'a_new_tool']
+        'works', 'search_works', 'code_catalog', 'search (BM25)', 'semantic (hybrid)', 'toc', 'open_page', 'page_image',
+        'a_new_tool']
 
 
 def test_a_line_on_cost_and_time_comes_from_the_description_s_own_words():

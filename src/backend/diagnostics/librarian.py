@@ -22,10 +22,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.diagnostics import work_editions
+from backend.diagnostics import code_works, work_editions
 
-# the staggered order the server's instructions give (25b9fd3): from cheap and exact to costly and broad, then reading
-TOOL_ORDER = ('works', 'search_works', 'search', 'semantic_search', 'toc', 'open_page', 'page_image')
+# the staggered order the server's instructions give (25b9fd3): from cheap and exact to costly and broad, then reading; the
+# code catalog after the works it lists (#12, the server's instructions: the code part after `works` and its search tools)
+TOOL_ORDER = ('works', 'search_works', 'code_catalog', 'search', 'semantic_search', 'toc', 'open_page', 'page_image')
 # the two search tools as the view names them (the standing rule, dcd, 16 Nov): "search (BM25)" and "semantic (hybrid)"; their
 # code names stay what a client calls, beside them in the tab's head, and in the address
 LABELS = {'search': 'search (BM25)', 'semantic_search': 'semantic (hybrid)'}
@@ -41,7 +42,8 @@ COST_WORDS = (r'\blocal\b', r'\bno model\b', r'\bmilliseconds\b', r'\bfree\b(?! 
               r'\ba paid API\b', r'\ba fraction of a cent\b')
 IMAGE_TYPES = ('image/png', 'image/jpeg')
 SENT_IMAGE = 'sent_image'  # the core's key for a call's image block (`mcp_client.SENT_IMAGE`)
-VIEW_ROUTE = re.compile(r'^/(free|licensed)/(sources|html|epub)/[^?#\s]+$')
+# a page, a section, an article, or a code file with the lines a hit names (#12: `?lines=12-31`)
+VIEW_ROUTE = re.compile(r'^/(free|licensed)/(sources|html|epub|code)/[^?#\s]+(\?lines=\d+-\d+)?$')
 SWITCHED_OFF = 'The Librarian page calls nothing here: the app was started with --no-librarian.'
 DOWN_AGAIN_SECONDS = 5.0  # a librarian found down is asked again no sooner, so a page's retries do not pile up sessions
 
@@ -128,6 +130,9 @@ class HitCard(BaseModel):
     licence: str | None = None
     terms_missing: list[str] = []
     view: str | None = None  # the page in this view, from the hit's `view_url`
+    kind: str | None = None  # 'text' or 'code' (#12); a code hit names its language and lines
+    code_language: str | None = None
+    lines: code_works.LineRange | None = None
 
 
 class WorkRow(BaseModel):
@@ -189,6 +194,26 @@ class OpenedPage(BaseModel):
     licence: str | None = None
     text: str | None = None
     view: str | None = None
+    kind: str | None = None  # 'code' for a source file (#12), drawn numbered
+    code_language: str | None = None
+    lines: code_works.LineRange | None = None
+
+
+class CatalogUnit(BaseModel):
+    """One unit `code_catalog` lists (#12): its file, what the core's catalog says of it, and its file in this view."""
+
+    work: str
+    page: str  # its file's label
+    code_language: str | None = None
+    companion_of: str | None = None
+    view: str | None = None
+    unit: code_works.CodeUnit
+
+
+class CodeCatalog(BaseModel):
+    total: int = 0
+    categories: list[code_works.CategoryCount] = []  # the server's own count, the most first
+    units: list[CatalogUnit] = []
 
 
 class SentImage(BaseModel):
@@ -215,6 +240,7 @@ class LibrarianCall(BaseModel):
     works: list[WorkRow] | None = None
     found_works: list[FoundWork] | None = None
     contents: Contents | None = None
+    catalog: CodeCatalog | None = None
     page: OpenedPage | None = None
     image: SentImage | None = None
     plan: RouterPlan | None = None
@@ -300,7 +326,7 @@ def head_of(tool: str, answer: Any, seconds: float) -> CallHead:
         return CallHead(seconds=seconds)
     listed = answer.get('result') if tool == 'works' else None
     state = answer.get('state') or ('found' if isinstance(listed, list) else None)
-    counts = {'hits': ('hit', 'hits'), 'works': ('work', 'works'), 'entries': ('entry', 'entries')}
+    counts = {'hits': ('hit', 'hits'), 'works': ('work', 'works'), 'entries': ('entry', 'entries'), 'units': ('unit', 'units')}
     count = next((counted(len(answer[key]), *words) for key, words in counts.items() if isinstance(answer.get(key), list)
                   and state == 'found'), None)
     if isinstance(listed, list):
@@ -331,8 +357,28 @@ def hits_of(answer: dict) -> list[HitCard] | None:
                     edition_said=work_editions.words(hit.get('edition'), hit.get('year')), page=label_of(hit.get('page')),
                     page_said=page_said(hit.get('page')), section=hit.get('section'), score=hit.get('score'),
                     snippet=hit.get('snippet'), text=hit.get('text'), route=hit.get('route'), licence=hit.get('licence'),
-                    terms_missing=list(hit.get('terms_missing') or []), view=view_of(hit.get('view_url')))
+                    terms_missing=list(hit.get('terms_missing') or []), view=view_of(hit.get('view_url')),
+                    kind=hit.get('kind'), code_language=hit.get('code_language'), lines=lines_of(hit.get('lines')))
             for at, hit in enumerate((one for one in hits if isinstance(one, dict)), 1)]
+
+
+def lines_of(lines: Any) -> code_works.LineRange | None:
+    """A code page's lines as the server gives them, `{first, last}`; None where it gives none."""
+    if isinstance(lines, dict) and isinstance(lines.get('first'), int) and isinstance(lines.get('last'), int):
+        return code_works.LineRange(first=lines['first'], last=lines['last'])
+    return None
+
+
+def catalog_of(answer: dict) -> CodeCatalog:
+    """`code_catalog`'s answer: its units, each as the code work's page shows it, and its count by category."""
+    counts = sorted(((str(key), value) for key, value in (answer.get('categories') or {}).items() if isinstance(value, int)),
+                    key=lambda pair: (-pair[1], pair[0]))
+    return CodeCatalog(total=int(answer.get('total') or 0),
+                       categories=[code_works.CategoryCount(category=category, units=count) for category, count in counts],
+                       units=[CatalogUnit(work=str(unit.get('work')), page=str(unit.get('page')),
+                                          code_language=unit.get('code_language'), companion_of=unit.get('companion_of'),
+                                          view=view_of(unit.get('view_url')), unit=code_works.unit_of(unit))
+                              for unit in answer.get('units') or [] if isinstance(unit, dict) and unit.get('page')])
 
 
 def works_of(listed: list) -> list[WorkRow]:
@@ -384,6 +430,8 @@ def shaped(tool: str, arguments: dict, answer: Any, seconds: float) -> Librarian
         call.works = works_of(answer['result'])
     elif tool == 'search_works' and isinstance(answer.get('works'), list):
         call.found_works = found_works_of(answer['works'])
+    elif tool == 'code_catalog' and isinstance(answer.get('units'), list):
+        call.catalog = catalog_of(answer)
     elif tool == 'toc' and isinstance(answer.get('entries'), list):
         call.contents = Contents(work=answer.get('work'), title=answer.get('title'), source=answer.get('source'),
                                  left_out=answer.get('left_out') or 0,
@@ -396,7 +444,8 @@ def shaped(tool: str, arguments: dict, answer: Any, seconds: float) -> Librarian
                                knowledge_base=answer.get('knowledge_base'), page=label_of(answer.get('page')),
                                page_said=page_said(answer.get('page')), section=answer.get('section'),
                                route=answer.get('route'), licence=answer.get('licence'), text=answer.get('text'),
-                               view=view_of(answer.get('view_url')))
+                               view=view_of(answer.get('view_url')), kind=answer.get('kind'),
+                               code_language=answer.get('code_language'), lines=lines_of(answer.get('lines')))
     elif tool == 'page_image':
         call.image = image_of(answer)
     else:

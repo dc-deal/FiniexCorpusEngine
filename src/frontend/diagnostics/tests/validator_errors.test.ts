@@ -86,13 +86,13 @@ describe('the page view\'s errors and its numbered raw text (228.a)', () => {
     await flushPromises()
     const raw = view.find('pre.raw')
     expect(raw.element.textContent).toBe(RAW)
-    expect(raw.findAll('.raw-line').map(line => line.attributes('data-line'))).toEqual(['1', '2', '3', '4', '5', '6'])
-    expect(raw.find('.raw-line.marked').attributes('data-line')).toBe('3')
-    expect(raw.find('.raw-line.marked').text()).toBe('---')
+    expect(raw.findAll('.numbered-line').map(line => line.attributes('data-line'))).toEqual(['1', '2', '3', '4', '5', '6'])
+    expect(raw.find('.numbered-line.marked').attributes('data-line')).toBe('3')
+    expect(raw.find('.numbered-line.marked').text()).toBe('---')
     // the mark goes when the text is chosen anew
     await view.findAll('.mode button').find(button => button.text() === 'readable')!.trigger('click')
     await view.findAll('.mode button').find(button => button.text() === 'raw')!.trigger('click')
-    expect(view.find('pre.raw .raw-line.marked').exists()).toBe(false)
+    expect(view.find('pre.raw .numbered-line.marked').exists()).toBe(false)
   })
 
   it('marks an error\'s block in the raw text as a compiler does, the named line strongest, a looked-at one quietly', async () => {
@@ -105,7 +105,7 @@ describe('the page view\'s errors and its numbered raw text (228.a)', () => {
     const view = mountView()
     await flushPromises()
     await view.findAll('.mode button').find(button => button.text() === 'raw')!.trigger('click')
-    const marks = () => view.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? '')
+    const marks = () => view.findAll('pre.raw .numbered-line').map(line => line.attributes('data-mark') ?? '')
     // line 3 named alone; the block b01 from its opening fence (4) to its closing one (6), the named line strongest
     expect(marks()).toEqual(['', '', 'error-named', 'error-named', 'error-block', 'error-block'])
     expect(view.find('pre.raw').element.textContent).toBe(RAW)
@@ -118,7 +118,7 @@ describe('the page view\'s errors and its numbered raw text (228.a)', () => {
     const looked = mountView()
     await flushPromises()
     await looked.findAll('.mode button').find(button => button.text() === 'raw')!.trigger('click')
-    expect(looked.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? ''))
+    expect(looked.findAll('pre.raw .numbered-line').map(line => line.attributes('data-mark') ?? ''))
       .toEqual(['', '', '', 'error-looked', 'error-looked', 'error-looked'])
   })
 
@@ -133,9 +133,9 @@ describe('the page view\'s errors and its numbered raw text (228.a)', () => {
     await flushPromises()
     await view.find('[data-part="parse-errors"] li [data-part="show-raw"]').trigger('click')
     await flushPromises()
-    expect(view.findAll('pre.raw .raw-line').map(line => line.attributes('data-error-line') ?? ''))
+    expect(view.findAll('pre.raw .numbered-line').map(line => line.attributes('data-mark') ?? ''))
       .toEqual(['', '', '', 'error-block', 'error-named', 'error-block'])
     // "show raw" opens the text at the fault's own line
-    expect(view.find('pre.raw .raw-line.marked').attributes('data-line')).toBe('5')
+    expect(view.find('pre.raw .numbered-line.marked').attributes('data-line')).toBe('5')
   })
 })

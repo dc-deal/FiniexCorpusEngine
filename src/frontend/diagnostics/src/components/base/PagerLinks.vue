@@ -78,10 +78,15 @@ withDefaults(defineProps<{
   outline-offset: 2px;
 }
 
-/* where there is no neighbour, its place stays, quiet */
+/* where there is no neighbour, its place stays, quiet, and as tall as a box with a word: an empty box had no line and stood
+   10px lower, centred in the row (found by #12's check on a code work's last file) */
 .pager-link.empty {
   border-style: dashed;
   border-color: var(--color-row-rule);
+}
+
+.pager-link.empty::before {
+  content: '\200b';
 }
 
 .pager-label {
