@@ -126,9 +126,10 @@ def test_the_agent_gets_the_knowledge_turn_the_calculations_and_every_server_too
     assert tools['open_page'].return_direct and tools['search_knowledge_base'].return_direct
     assert not tools['position_size'].return_direct  # the agent adds its one sentence after a calculation
     turn = tools['search_knowledge_base'].func('where is a good pizza place?')[1]
-    # the chat asks for the diagnostics: its trace and each hit's citation, which a client's compact answer leaves out (#14)
+    # the chat asks for the diagnostics: its trace and each hit's citation, which a client's compact answer leaves out (#14);
+    # and for every passage, not a client's one hit per page (#15)
     assert client.calls == [('semantic_search', {'question': 'where is a good pizza place?', 'hits': CONFIG['retrieval']['k'],
-                                                 'diagnostics': True})]
+                                                 'diagnostics': True, 'per_page': False})]
     assert turn['behaviour'] == 'decline_off_topic' and turn['retrieval'] == 'mcp semantic_search'
 
 

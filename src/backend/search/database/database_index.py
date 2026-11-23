@@ -16,7 +16,7 @@ CONNECT_TIMEOUT_SECONDS = 5  # a database that is down is noticed at once, so th
 PAGE_COLUMNS = ('id, work, knowledge_base, label, line, line_end, path, pdf, printed, section, route, reading_key, '
                 'searchable, text, index_text')
 WORK_COLUMNS = ('key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for, pages, code_language, '
-                'companion_of, language')
+                'companion_of, language, kept_because')
 
 
 def generation(connection: psycopg.Connection) -> int:
@@ -30,10 +30,10 @@ def load(connection: psycopg.Connection, work_type) -> tuple[dict[int, page_inde
         current = generation(connection)
         works = {}
         for (key, base, title, licence, route, subject, view_id, edition, year, kept_for, pages, code_language,
-             companion_of, language) in connection.execute(f'SELECT {WORK_COLUMNS} FROM works ORDER BY key'):
+             companion_of, language, kept_because) in connection.execute(f'SELECT {WORK_COLUMNS} FROM works ORDER BY key'):
             works[key] = work_type(key, title, base, licence, route, pages, subject=subject, view_id=view_id,
                                    edition=edition, year=year, kept_for=kept_for, code_language=code_language,
-                                   companion_of=companion_of, language=language)
+                                   companion_of=companion_of, language=language, kept_because=kept_because)
         pages = {}
         for (page_id, work, base, label, line, line_end, path, pdf, printed, section, route, reading_key, searchable, text,
              index_text) in connection.execute(f'SELECT {PAGE_COLUMNS} FROM pages ORDER BY id'):

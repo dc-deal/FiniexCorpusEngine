@@ -94,7 +94,9 @@ def build_tools(config: dict, *, client, generator_chain, prices) -> list:
     """
 
     def searcher(question: str, hits: int) -> dict:
-        return client.call('semantic_search', {'question': question, 'hits': hits, 'diagnostics': True})  # its trace and citations (#14)
+        # its trace and citations (#14), and every passage, as its phase 6 numbers were measured (#15: a client's default is
+        # one hit per page)
+        return client.call('semantic_search', {'question': question, 'hits': hits, 'diagnostics': True, 'per_page': False})
 
     @tool(response_format='content_and_artifact', return_direct=True)
     def search_knowledge_base(question: str) -> tuple[str, dict]:

@@ -60,7 +60,9 @@ def served_pages(bases: dict) -> tuple[list[page_index.Page], dict]:
     missing = sorted(key for key, work in works.items() if not getattr(work, 'language', None))
     if missing:
         raise SystemExit(f'no language for {missing}: every work names it in its catalog (#11); nothing written')
-    return pages, works
+    from backend.search import search_server
+
+    return search_server.without_contents(pages), works  # a table of contents opens but is not ranked (#15)
 
 
 def no_nul(value):
@@ -84,12 +86,12 @@ def copy_rows(connection: psycopg.Connection, pages: list[page_index.Page], work
     index's generation is raised, so a running librarian loads it again. Returns the count of postings."""
     with connection.cursor() as cursor:
         with cursor.copy('COPY works (key, knowledge_base, title, licence, route, subject, view_id, edition, year, kept_for, '
-                         'pages, code_language, companion_of, language) FROM STDIN') as copy:
+                         'pages, code_language, companion_of, language, kept_because) FROM STDIN') as copy:
             for work in works.values():
                 copy.write_row((work.key, work.knowledge_base, no_nul(work.title), work.licence, work.route,
                                 no_nul(work.subject), work.view_id, work.edition, work.year, work.kept_for, work.pages,
                                 getattr(work, 'code_language', None), getattr(work, 'companion_of', None),
-                                getattr(work, 'language', None)))
+                                getattr(work, 'language', None), no_nul(getattr(work, 'kept_because', None))))
         postings = 0
         with cursor.copy('COPY pages (id, work, knowledge_base, label, line, line_end, path, pdf, printed, section, route, '
                          'reading_key, searchable, text, index_text, length, ordinal) FROM STDIN') as copy:

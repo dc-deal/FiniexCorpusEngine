@@ -17,6 +17,8 @@ word-for-word check of its quotes stay with the client: that is answering, not r
     service.search('how is the amortization of a bond discount computed?', hits=10)
 """
 
+import math
+
 from backend.ingestion.chunking import count_tokens
 from backend.search import page_index, query_routing
 
@@ -96,10 +98,13 @@ class SemanticSearch:
             self._private_keywords = retrieval.licensed_keyword_index()
 
     def search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-               keywords: list[str] | None = None, route: bool = True, only: dict | None = None, corpus: str = 'all') -> dict:
+               keywords: list[str] | None = None, route: bool = True, only: dict | None = None, corpus: str = 'all',
+               per_page: bool = False) -> dict:
         """Route the question and search for it; a decline searches nothing and says so. `only`: a metadata filter on both
         indexes' chunks (#12: a code work's chunks by their route). `corpus`: 'free' or 'licensed' searches that base alone,
-        'all' both, merged by similarity (#14).
+        'all' both, merged by similarity (#14). `per_page`: one hit per page, the page's best passage, with the count of its
+        other passages among the candidates (`more_on_page`, #15); PER_PAGE_WIDENING times the candidates are fetched so
+        about `hits` pages come back. The chat keeps every passage: its phase 6 numbers were measured on them.
 
         The caller may translate the question itself (decision 279.a): a calling session is a model already. With any of
         `search_query`, `concept_query` or `keywords` the router is not asked and nothing is declined. Without them the router
@@ -138,7 +143,8 @@ class SemanticSearch:
             return {**answer, 'state': 'declined'}
         settings = self._config['retrieval']
         trace: dict = {}
-        chain = dict(k=max(1, hits), use_shelf_filter=settings['shelf_filter'], use_concept_query=settings['concept_query'],
+        fetch = max(1, math.ceil(hits * PER_PAGE_WIDENING) if per_page else hits)
+        chain = dict(k=fetch, use_shelf_filter=settings['shelf_filter'], use_concept_query=settings['concept_query'],
                      use_keyword_search=settings['keyword_search'], bm25_on_keywords=settings['bm25_on_keywords'],
                      with_signal=True, demote_sections=frozenset(settings.get('demote_sections') or ()), only=only)
         lists, relevances, chains = [], [], 0
@@ -149,28 +155,59 @@ class SemanticSearch:
             chains += 1
         if self.private and corpus in ('all', 'licensed'):
             # The same chain over the private index. Both indexes embed with the same model, so their similarities compare,
-            # and the two lists are merged by similarity, each keeping its own order (#14, 23 Nov: merged by rank, a weak
-            # free hit stood above a strong licensed one in every call a client made). The free chain's trace stays as it was.
+            # and the lists are merged by each passage's own similarity (#14, 23 Nov: merged by rank, a weak free hit stood
+            # above a strong licensed one in every call a client made). The free chain's trace stays as it was.
             private_trace: dict = {}
-            private_chain = {**chain, 'k': max(1, hits) * 2} if self.kept else chain
+            private_chain = {**chain, 'k': fetch * 2} if self.kept else chain
             private, private_relevance = query_routing.search(plan, store=self._private_store,
                                                               keyword_index=self._private_keywords, trace=private_trace,
                                                               **private_chain)
             if self.kept:
-                private = [result for result in private if result['citation'].get('source_id') not in self.kept][:max(1, hits)]
+                private = [result for result in private if result['citation'].get('source_id') not in self.kept][:fetch]
             lists.append(private)
             relevances.append(private_relevance)
             chains += 1
             trace['licensed'] = private_trace
-        results = (lists[0] if len(lists) == 1 else merge_by_similarity(lists))[:max(1, hits)] if lists else []
+        # One base's list is ordered by similarity too (#15: a client found `corpus: "licensed"` still in the fused order,
+        # a keyword-only passage at rank 6 above one of 0.639 at rank 8)
+        merged = merge_by_similarity(lists)
+        more = {}
+        if per_page:
+            merged, more = by_page(merged)
+        results = merged[:max(1, hits)]
         relevance = max((value for value in relevances if value is not None), default=None)
         embedded = [plan.search_query, *([plan.concept_query] if settings['concept_query'] and plan.concept_query else [])]
         tokens = chains * sum(count_tokens(text) for text in embedded if text)
         usage['embedding'] = {'model': EMBEDDING_MODEL, 'tokens': tokens, 'usd': round(tokens * EMBEDDING_USD_PER_TOKEN, 8)}
         floor = settings['relevance_floor']
-        return {**answer, 'state': 'found' if results else 'nothing found', 'relevance': relevance,
+        return {**answer, 'corpus': corpus, 'state': 'found' if results else 'nothing found', 'relevance': relevance,
                 'below_floor': relevance is None or relevance < floor, 'relevance_floor': floor, 'search': trace,
-                'hits': [hit_of(result, question, self.sources) for result in results]}
+                **({'per_page': True} if per_page else {}),
+                'hits': [{**hit_of(result, question, self.sources),
+                          **({'more_on_page': more.get(result['chunk_id'], 0)} if per_page else {})} for result in results]}
+
+
+PER_PAGE_WIDENING = 1.5  # candidates per hit when folding by page: measured on 23 Nov (below)
+
+
+def by_page(results: list[dict]) -> tuple[list[dict], dict[str, int]]:
+    """The results with a page's later passages folded into its first (its best, as the list is ordered), and per kept
+    passage how many of its page's passages were folded in (#15: a client got one page three times in ten hits).
+
+    Measured on the 61 evaluation questions, the free base, the router kept out, the top 10: by passage as served (10
+    candidates), the expected source in 41 of 45, MRR 0.756, 8.6 distinct pages; by page from 15 candidates, 41 of 45,
+    MRR 0.754, 9.9 pages and more works; from 20 candidates, 40 of 45 (more candidates crowd the expected passage out)."""
+    kept, more, first = [], {}, {}
+    for result in results:
+        citation = result.get('citation') or {}
+        key = (citation.get('source_id'), page_of(citation, result['chunk_id'])['label'])
+        if key in first:
+            more[first[key]] += 1
+            continue
+        first[key] = result['chunk_id']
+        more[result['chunk_id']] = 0
+        kept.append(result)
+    return kept, more
 
 
 def merge_by_similarity(lists: list[list[dict]]) -> list[dict]:

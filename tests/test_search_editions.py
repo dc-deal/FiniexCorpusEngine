@@ -71,7 +71,8 @@ def two_editions(monkeypatch) -> tuple[list, dict]:
     from backend.ingestion import licensed_index
 
     monkeypatch.setattr(licensed_index, 'catalog_entries', lambda keys: {'old': {'edition': '2nd', 'year': 2005},
-                                                                         'new': {'edition': '3rd', 'year': 2010}})
+                                                                         'new': {'edition': '3rd', 'year': 2010,
+                                                                                 'title': 'A Book, Third Edition'}})
     pages = [Page('old', '1', 1, 'The Sharpe ratio of a strategy measured over years.', 'old.pdf', pdf='1', knowledge_base='licensed'),
              Page('new', 's1', 1, 'The Sharpe ratio of a strategy measured over months.', 'new.epub', knowledge_base='licensed')]
     works = {'old': search_server.Work('old', 'A Book', 'licensed', LICENCE, 'per page', pages=1),
@@ -89,6 +90,16 @@ def test_the_keyword_search_skips_a_kept_edition_which_still_opens_by_its_own_ke
     assert opened['state'] == 'found' and opened['kept_for'] == 'old' and opened['edition'] == '3rd'
     listed = {work['work']: work for work in service.list_works()}
     assert listed['new']['kept_for'] == 'old' and listed['new']['pages'] == 0 and listed['old']['kept_editions'] == ['new']
+    # #15: a kept edition says why the other is served, and a work is named by its catalog's title, not its key
+    assert listed['new']['kept_because'] == 'the newer one has its formulas as pictures'
+    assert (listed['new']['title'], listed['old']['title']) == ('A Book, Third Edition', 'A Book')
+
+
+def test_a_reason_is_given_without_the_decision_number_in_front():
+    families = editions.link({}, ['old', 'new'], serves='old', why='E3.a: the formulas are pictures', today=TODAY)
+    families = editions.link(families, ['a', 'b'], serves='a', why='22.a (left to line 1, 22 Nov): the scan has its numbers',
+                             today=TODAY)
+    assert editions.reasons(families) == {'new': 'the formulas are pictures', 'b': 'the scan has its numbers'}
 
 
 def test_a_kept_edition_keeps_its_place_route_and_text_so_its_chunks_are_not_embedded_again(monkeypatch):

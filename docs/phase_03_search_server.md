@@ -366,3 +366,71 @@ So the server's instructions say: a quote is in the work's language, `search` re
 `semantic_search` reaches it from another one too, at a lower similarity. Not now: translating queries for the keyword
 search, and the README's "English only", which changes when the first work in another language is taken in. Laws and other
 official texts enter only in an official English version; the corpus never quotes its own translation as a source's words.
+
+**A client's second check (issue #15, 23 Nov 2026).** The testing IDE ran its check again after #14: 61 calls over every
+tool, no error, and one real knowledge request. The small round:
+
+- **One base ordered by similarity too.** With `corpus` set to one base, `semantic_search` still gave that base's fused
+  list, which is not ordered by similarity; now one base is merged as two are. Measured on the 61 evaluation questions, the
+  free base alone (the evaluation's expected sources are free works), the router kept out, the top 10:
+
+  | order | expected source in the top 10 (of 45) | MRR | expected source at rank 1 | pairs the wrong way round (by more than 0.05) | top three's mean similarity |
+  |---|---:|---:|---:|---:|---:|
+  | fused, by rank (as before) | 41 | 0.732 | 29 | 38 | 0.412 |
+  | each passage at its own similarity (now) | 41 | 0.756 | 31 | 0 | 0.503 |
+
+  The answer names the `corpus` it searched. The plan's `shelf` is the router's subject shelf (trading and finance, or
+  software architecture), not the knowledge base.
+- **Works named by their titles.** A licensed work took the name of its file, so about half the works were named by their
+  key; the catalog's title is taken now. A kept edition says why the other one is served (`kept_because`, migration 007),
+  and `works(brief=true)` gives what a client plans a search with: key, title, base, kind, language and subject sentence.
+- **The index generation in every answer** (`index_generation`), and the app's version with its commit in the server's
+  `initialize` (`0.1.0+<commit>`), so a client ties a run to an index and sees that the server changed.
+- **`code_catalog` with a name query** takes the units holding every word of it, in their names or their sentence; only
+  where none does, the units holding some, and `match` says which.
+- **`toc`** keeps a work's contents until the index reloads, where a large PDF's bookmarks were read again on every call;
+  `under` by title takes the shallowest entry holding it and names the others (`other_matches`).
+- **Smaller ones:**
+  - every tool parameter has its own description, and a closed set of values is a fixed list the client sees;
+  - a semantic hit whose chunk has no recorded route names its page's;
+  - a legacy page names its printed number where its own text carries it as a bold line of its own, in a work where such
+    lines stand at least ten times, nearly all at one distance from the PDF page; nothing is inferred for the others.
+
+The measured round, each change against the probes the client named and the 61 evaluation questions:
+
+- **A second coverage signal beside the floor.** The floor parts off-topic questions; a question from a neighbouring field
+  passes it on meaning alone (the client's question on one exchange's order-book checksum: 0.559 against 0.495, no hit
+  answering it). Each hit now names the caller's `keywords_found`, and the answer `keywords_covered`: how many of the
+  plan's keywords any hit holds, a keyword held where its words stand in that order. Measured with the frozen plans of
+  phase 6, the free base, 10 hits:
+
+  | signal | covered questions flagged (of 43) | questions the books do not hold, flagged (of 7) |
+  |---|---:|---:|
+  | below the floor | 0 | 3 |
+  | a third of the keywords or less | 9 (5 of them held only in part) | 6 |
+
+  It is information for the caller, not a gate: the floor stays, and neither signal decides alone.
+- **Split ligatures joined for the ranking.** A text layer that drew a ligature as a glyph of its own often put a space
+  after it ("signifi cance", "fi rst", "diff erent"), on about 3 % of the ranked pages. The ranking's words join
+  them again (`page_index.joined_ligatures`); the quoted text and the embedded chunks stay as stored. After "fi" and "fl"
+  the 45 commonest splits were all ligatures; after "ff" nearly all were whole words ("off the"), so "ff" is joined after a
+  few stems only. The client's query on statistical significance in a work whose heading reads "Signifi cance" missed the
+  word on every hit before and on none after.
+- **A table of contents opens but is not ranked**, as an index page already is: a contents heading over title lines, or
+  most lines ending in a page number, in a work's front pages alone (its first 30, or 8 %): 0.5 % of
+  the ranked pages. Two spot checks of 24 shaped the rule (a list of releases by year, a data table and a slide's grid were
+  caught, so a year, a row of more than two cells and a one-letter roman number no longer count as a page number); a third
+  of 24 found 22 contents pages and two others, which still open (a table of returns, a title page with its chapter list).
+  The client's anchor, a section's own title, came second behind the contents page and now comes first.
+- **One hit per page** for a client: `semantic_search` folds a page's later passages into its best one and counts them
+  (`more_on_page`), fetching one and a half times the candidates so about `hits` pages come back. The chat keeps every
+  passage, as its phase 6 numbers were measured. Measured on the 61 questions, free base, top 10:
+
+  | hits | expected source in the top 10 (of 45) | MRR | distinct pages | distinct works |
+  |---|---:|---:|---:|---:|
+  | by passage, 10 candidates (as served before) | 41 | 0.756 | 8.6 | 3.5 |
+  | by page, 15 candidates (now) | 41 | 0.754 | 9.9 | 3.7 |
+  | by page, 20 candidates | 40 | 0.750 | 10.0 | 3.5 |
+
+The gate held through all three imports: 177 probes with the same pages and scores in the port and the database, 165
+reached, 150 at rank 1, before and after.

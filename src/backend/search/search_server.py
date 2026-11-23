@@ -23,6 +23,7 @@ with the other filtered out (decision 71.a, which replaced fusing two indexes). 
 
 import bisect
 import dataclasses
+import functools
 import json
 import os
 import re
@@ -33,9 +34,11 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Annotated, Literal
 from urllib.parse import quote
 
 import pymupdf
+from pydantic import Field
 
 from backend.configuration import data_paths
 from backend.conversion.store.reading_store import REPO
@@ -91,6 +94,7 @@ class Work:
     edition: str | None = None
     year: int | None = None
     kept_for: str | None = None  # a kept edition (E1.a): the key of the edition its work serves; the searches skip it
+    kept_because: str | None = None  # a kept edition: why the other edition is served, as the editions list says (#15)
     code_language: str | None = None  # a code work's programming language (#12); None for a work of text
     language: str | None = None  # the language of the work's text, ISO 639-1, from its catalog (#11); an import needs it
     companion_of: str | None = None  # the work a code work accompanies, by its key (#12)
@@ -446,7 +450,32 @@ def legacy_by_work(keys: dict[str, str], marks: list[str], only: set[str] | None
     for key, offset in legacy_offsets().items():
         if key in legacy:
             legacy[key] = numbered(legacy[key], offset)
-    return legacy
+    return {key: printed_in_text(pages) for key, pages in legacy.items()}
+
+
+BOLD_NUMBER = re.compile(r'^\s*\*\*(\d{1,4})\*\*\s*$')
+PRINTED_AT_LEAST, PRINTED_AGREE = 10, 0.95
+
+
+def printed_in_text(pages: list[page_index.Page]) -> list[page_index.Page]:
+    """A legacy page's printed number where its own text carries it as a bold line near its top or bottom ("**17**"), and
+    only in a work where such lines stand at least PRINTED_AT_LEAST times, at least PRINTED_AGREE of them at one distance
+    from the PDF page: there the line is the page's number, not a bold figure in its text (#15: the number stood in the text,
+    `printed` was null). A page without the line gets none; nothing is inferred."""
+    found = {}
+    for at, page in enumerate(pages):
+        lines = [line for line in page.text.splitlines() if line.strip()]
+        number = next((int(match.group(1)) for line in lines[:3] + lines[-3:] if (match := BOLD_NUMBER.match(line))), None)
+        if number is not None and page.pdf and str(page.pdf).isdigit() and not page.printed:
+            found[at] = number
+    offsets = [int(pages[at].pdf) - number for at, number in found.items()]
+    if len(offsets) < PRINTED_AT_LEAST:
+        return pages
+    main = max(set(offsets), key=offsets.count)
+    if offsets.count(main) < PRINTED_AGREE * len(offsets):
+        return pages
+    return [dataclasses.replace(page, printed=str(found[at])) if at in found and int(page.pdf) - found[at] == main else page
+            for at, page in enumerate(pages)]
 
 
 def legacy_fallback_pages() -> dict[str, set[int]]:
@@ -540,7 +569,7 @@ def licensed_pages(only: set[str] | None = None) -> tuple[list[page_index.Page],
 
 def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str], families: dict[str, dict] | None = None
                   ) -> tuple[list[page_index.Page], dict]:
-    """Each licensed work's edition and year from the local catalog, and a kept edition's pages out of the keyword index (E1.a,
+    """Each licensed work's title, edition and year from the local catalog, and a kept edition's pages out of the keyword index (E1.a,
     the operator, 20 Nov): one edition of a work is served, the others kept. A kept edition's pages stay openable by its own key
     and keep their text, place and route, so its chunks in the private index stay as they are (their fingerprint holds no
     ranking flag) and a switch embeds nothing again."""
@@ -551,6 +580,9 @@ def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str
     for key, entry in entries.items():
         if key in works:
             works[key].edition, works[key].year = entry.get('edition'), entry.get('year')
+            # the catalog's title, not the file's name the work was assembled under (#15: about half the works were
+            # named by their key)
+            works[key].title = entry.get('title') or works[key].title
             works[key].language = entry.get('language')  # #11: every licensed work's catalog entry names it
     # a legacy work whose source is gone is catalogued by its stand-in's file (126.a): the same work, so the same language,
     # though not its edition or year, since the stand-in's pages differ
@@ -559,16 +591,49 @@ def with_editions(pages: list[page_index.Page], works: dict, keys: dict[str, str
         if work.language is None and suffix:
             stand_in = entries.get(f'{keys.get(key, key)}{suffix}')
             work.language = stand_in.get('language') if stand_in else None
+            if stand_in and stand_in.get('title') and work.title in (key, keys.get(key)):
+                work.title = stand_in['title']
     # the list names an edition by its file's stem, the catalog's id; a legacy work is keyed by its citation key (found by
     # line 2, 20 Nov: the served lecture's key is its legacy key), so a stem is turned into the key the server uses
     work_key = {slug: key for key, slug in keys.items()}.get
     kept = {work_key(key, key): work_key(served, served) for key, served in editions.kept(families).items()}
+    reasons = editions.reasons(families)
     for key, served in kept.items():
         if key in works:
             works[key].kept_for, works[key].pages = served, 0
+            works[key].kept_because = reasons.get(keys.get(key, key)) or reasons.get(key)
     if kept:
         pages = [dataclasses.replace(page, searchable=False) if page.work in kept else page for page in pages]
     return pages, works
+
+
+def without_contents(pages: list[page_index.Page]) -> list[page_index.Page]:
+    """`page_index.without_contents` for every index this server or an import builds; a code file is never asked."""
+    return page_index.without_contents(pages, exempt=lambda page: page.route == code_pages.CODE_ROUTE)
+
+
+def catalog_words(text: str) -> list[str]:
+    """The words a catalog query and a unit are matched by: the search's tokens with a plural's "s" dropped, so "bridge
+    load" finds "Bridge Loads" (#15); "ss" stays ("Stress")."""
+    return [word[:-1] if len(word) > 3 and word.endswith('s') and not word.endswith('ss') else word
+            for word in page_index.tokenize(text)]
+
+
+def keywords_held(found: dict) -> None:
+    """Which of the plan's keywords each hit's text holds (`keywords_found`), and how many of them any hit holds
+    (`keywords_covered`): a second coverage signal beside the relevance floor (#15). A question from a neighbouring field
+    passes the floor on meaning alone (a client's question on one exchange's order-book checksum: 0.559 against 0.495, no
+    hit answering it); its terms of art are on none of the hits. A keyword is held where its words stand in that order."""
+    keywords = [keyword for keyword in (found.get('plan') or {}).get('keywords') or [] if page_index.tokenize(keyword)]
+    if not keywords or not found.get('hits'):
+        return
+    covered = set()
+    for hit in found['hits']:
+        words = f" {' '.join(page_index.tokenize(hit.get('text') or ''))} "
+        hit['keywords_found'] = [keyword for keyword in keywords if f" {' '.join(page_index.tokenize(keyword))} " in words]
+        covered.update(hit['keywords_found'])
+    found['keywords_covered'] = {'found': len(covered), 'of': len(keywords),
+                                 'missing': [keyword for keyword in keywords if keyword not in covered]}
 
 
 def free_sources() -> dict[str, dict]:
@@ -630,6 +695,7 @@ class SearchService:
         for knowledge_base, (base_pages, works) in sources.items():
             self.works.update(works)
             pages += [page if page.knowledge_base else dataclasses.replace(page, knowledge_base=knowledge_base) for page in base_pages]
+        pages = without_contents(pages)  # a work's table of contents opens but is not ranked (#15), as the import does
         self.index = page_index.PageIndex([page for page in pages if page.searchable])  # the ranking's statistics as before
         self.by_page = {(page.work, page.page): page for page in pages}  # open_page opens every page with text
         self.pdf_labelled = {page.work for page in pages if page.pdf}  # works whose page labels are their PDF's pages
@@ -638,6 +704,7 @@ class SearchService:
         self.database_url: str | None = None  # set where the index is read from the database (issue #10, part C)
         self.generation: int | None = None
         self._reload = threading.Lock()
+        self._contents_cache: dict[str, tuple[str, list[dict]]] = {}  # a work's contents, until the index reloads (#15)
 
     @classmethod
     def from_database(cls, url: str, **options) -> 'SearchService':
@@ -664,6 +731,7 @@ class SearchService:
         self.pdf_labelled = {page.work for page in pages.values() if page.pdf}
         self.bases = sorted({page.knowledge_base for page in pages.values()})
         self.generation = generation
+        self._contents_cache = {}
         self.start_seconds = time.perf_counter() - started
         if isinstance(previous, database_index.DatabaseIndex):
             previous.close()
@@ -799,7 +867,7 @@ class SearchService:
 
     def semantic_search(self, question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
                         keywords: list[str] | None = None, route: bool = True, kind: str | None = None,
-                        corpus: str = 'all', diagnostics: bool = True) -> dict:
+                        corpus: str = 'all', diagnostics: bool = True, per_page: bool = False) -> dict:
         """The chat's retrieval chain (decision 98.c): route, then search by meaning and by keywords; over the free index, and
         the private one where this server gives the private base out and its index was built (#8), the two merged by
         similarity (#14). `corpus` searches one base alone. Without `diagnostics` the answer is compact (#14): no `search`
@@ -842,7 +910,8 @@ class SearchService:
                                       **{name: value for name, value in given.items() if value},
                                       **({} if route else {'route': False}),
                                       **({'only': {'route': code_pages.CODE_ROUTE}} if kind == 'code' else {}),
-                                      **({} if corpus == 'all' else {'corpus': corpus}))
+                                      **({} if corpus == 'all' else {'corpus': corpus}),
+                                      **({'per_page': True} if per_page else {}))
         kept_hits = []
         for hit in found.get('hits') or []:
             work = self.works.get(hit.get('work'))
@@ -851,12 +920,16 @@ class SearchService:
             hit['view_url'] = self.view_of(hit.get('work'), (hit.get('page') or {}).get('label'), (hit.get('page') or {}).get('pdf'))
             hit['edition'], hit['year'] = (work.edition, work.year) if work else (None, None)
             if work is not None:
-                hit.update(self._about(work, self.by_page.get((work.key, str((hit.get('page') or {}).get('label'))))))
+                page = self.by_page.get((work.key, str((hit.get('page') or {}).get('label'))))
+                hit.update(self._about(work, page))
+                # a chunk built before its route was recorded (an HTML section) names its page's route, else its work's (#15)
+                hit['route'] = hit.get('route') or (page.route if page is not None else work.route)
             kept_hits.append(hit)
         if kind is not None:
             found['hits'] = kept_hits[:hits]
             if not found['hits'] and found.get('state') == 'found':
                 found['state'] = 'nothing found'
+        keywords_held(found)
         if not diagnostics:  # compact (#14): the candidate lists and the hit's repeated fields left out
             found.pop('search', None)
             for hit in found.get('hits') or []:
@@ -882,20 +955,25 @@ class SearchService:
         records = [record for record in self._catalog_units() if record['work'] in self.works
                    and (unit is None or record['unit'] == unit) and (category is None or record['category'] == category)
                    and (work is None or record['work'] == work)]
+        match = None
         if query:
-            asked, phrase = set(page_index.tokenize(query)), ' '.join(page_index.tokenize(query))
+            asked, phrase = set(catalog_words(query)), ' '.join(catalog_words(query))
             scored = []
             for record in records:
-                names = [' '.join(page_index.tokenize(name)) for name in [record['name'], *record.get('aliases', [])]]
-                named = set(page_index.tokenize(' '.join(names)))
-                said = set(page_index.tokenize(f"{record['summary']} {record['category']}"))
+                names = [' '.join(catalog_words(name)) for name in [record['name'], *record.get('aliases', [])]]
+                named = set(catalog_words(' '.join(names)))
+                said = set(catalog_words(f"{record['summary']} {record['category']}"))
                 # the query's words in a name weigh most; the query whole as a name, or inside one, more still, so
                 # "adaptive moving average" finds the unit of that name before every unit whose name only shares a word
                 score = (3 * len(asked & named) + len(asked & said) + 12 * (phrase in names)
                          + 6 * any(phrase in name for name in names))
                 if score:
-                    scored.append((score, record))
-            records = [record for _, record in sorted(scored, key=lambda pair: (-pair[0], pair[1]['name'].lower()))]
+                    scored.append((score, asked <= named | said, record))
+            # a unit holds every word of the query, in its names or its sentence; only where none does, the units that hold
+            # some, said so (#15: a two-word name query answered most of the catalog, the few units it meant among them)
+            whole = [item for item in scored if item[1]]
+            match = 'every word' if whole or not scored else 'some words'
+            records = [record for _, _, record in sorted(whole or scored, key=lambda item: (-item[0], item[2]['name'].lower()))]
         else:
             records.sort(key=lambda record: (record['work'], record['unit'] or '', record['name'].lower()))
         counts: dict[str, int] = {}
@@ -908,7 +986,8 @@ class SearchService:
                                                             'summary_is', 'inputs', 'source_named', 'lines')}
                          | {'code_language': meta.code_language, 'companion_of': meta.companion_of, 'language': meta.language,
                             'view_url': self.view_of(record['work'], record['page'], None)})
-        return {'state': 'found' if units else 'nothing found', 'total': len(records), 'categories': counts, 'units': units}
+        return {'state': 'found' if units else 'nothing found', 'total': len(records), **({'match': match} if match else {}),
+                'categories': counts, 'units': units}
 
     def _catalog_units(self) -> list[dict]:
         """The catalog's records, read again only when its file changed."""
@@ -921,10 +1000,11 @@ class SearchService:
             self._catalog_stamp = stamp
         return self._catalog
 
-    def list_works(self, corpus: str = 'all', kind: str | None = None) -> list[dict]:
+    def list_works(self, corpus: str = 'all', kind: str | None = None, brief: bool = False) -> list[dict]:
         """Every work the server knows, or those of one knowledge base or one kind (#14); a kept edition (E1.a) names the
-        edition its work serves and its own page count (`pages_kept`: its pages open by its key, but the searches skip
-        them, so `pages` is 0), the served one its kept ones."""
+        edition its work serves, why (`kept_because`, #15) and its own page count (`pages_kept`: its pages open by its key,
+        but the searches skip them, so `pages` is 0), the served one its kept ones. `brief`: key, title, base, kind,
+        language and subject sentence alone (#15)."""
         kept_by: dict[str, list[str]] = {}
         for work in self.works.values():
             if work.kept_for:
@@ -936,10 +1016,18 @@ class SearchService:
                     kept_pages[key] = kept_pages.get(key, 0) + 1
         chosen = [work for work in self.works.values() if (corpus == 'all' or work.knowledge_base == corpus)
                   and (kind is None or work.kind == kind)]
+        if brief:
+            # the shelf as titles (#15: the whole of it was over 100,000 characters); the subject sentences are half
+            # of it, measured on 23 Nov, so they stay with the whole list and with `search_works`
+            return [{'work': work.key, 'title': work.title, 'edition': work.edition, 'year': work.year,
+                     'knowledge_base': work.knowledge_base, 'kind': work.kind, 'language': work.language,
+                     **({'kept_for': work.kept_for} if work.kept_for else {})}
+                    for work in sorted(chosen, key=lambda work: work.key)]
         return [{'work': work.key, 'title': work.title, 'edition': work.edition, 'year': work.year,
                  'knowledge_base': work.knowledge_base, 'licence': work.licence, 'route': work.route, 'pages': work.pages,
                  'subject': work.subject, **self._about(work),
-                 **({'kept_for': work.kept_for, 'pages_kept': kept_pages.get(work.key, 0)} if work.kept_for else {}),
+                 **({'kept_for': work.kept_for, 'pages_kept': kept_pages.get(work.key, 0),
+                     'kept_because': work.kept_because} if work.kept_for else {}),
                  **({'kept_editions': sorted(kept_by[work.key])} if work.key in kept_by else {})}
                 for work in sorted(chosen, key=lambda work: work.key)]
 
@@ -992,11 +1080,18 @@ class SearchService:
         meta = self.works[work]
         if not entries:
             return {'state': 'nothing found', 'work': work, 'title': meta.title, 'why': 'no bookmarks and no headings', 'entries': []}
-        top = 0
+        top, candidates = 0, []
         if under is not None:  # one entry and what lies under it, its depth counted from it (#14)
             found = next((at for at, entry in enumerate(entries) if entry.get('page') == under), None)
             if found is None:
-                found = next((at for at, entry in enumerate(entries) if entry['title'].lower() == under.lower()), None)
+                # by title: every entry whose title is it or holds it, the shallowest taken and the others named (#15: "Risk
+                # chapter's title took a subsection of that name in a preface, not the chapter)
+                asked = ' '.join(under.lower().split())
+                matching = [at for at, entry in enumerate(entries) if asked in entry['title'].lower()]
+                if matching:
+                    found = min(matching, key=lambda at: (entries[at]['level'], entries[at]['title'].lower() != asked, at))
+                    candidates = [{key: entries[at].get(key) for key in ('title', 'page', 'level')} for at in matching
+                                  if at != found] if len(matching) > 1 else []
             if found is None:
                 return {'state': 'nothing found', 'work': work, 'title': meta.title, 'under': under,
                         'why': 'no entry with that page label or title', 'entries': []}
@@ -1006,10 +1101,19 @@ class SearchService:
         kept = [entry for entry in entries if entry['level'] - top <= depth]
         return {'state': 'found', 'work': work, 'title': meta.title, 'knowledge_base': meta.knowledge_base,
                 'language': meta.language, 'source': source,
-                'depth': depth, **({'under': under} if under is not None else {}), 'entries': kept,
+                'depth': depth, **({'under': under} if under is not None else {}),
+                **({'other_matches': candidates} if candidates else {}), 'entries': kept,
                 'left_out': len(entries) - len(kept)}
 
     def _contents(self, work: str) -> tuple[str, list[dict]]:
+        """A work's contents, kept until the index's generation moves (#15: a PDF's bookmarks were read again on every call,
+        1.5 to 2.4 s for a large book)."""
+        if work not in self._contents_cache:
+            self._contents_cache[work] = self._read_contents(work)
+        source, entries = self._contents_cache[work]
+        return source, [dict(entry) for entry in entries]
+
+    def _read_contents(self, work: str) -> tuple[str, list[dict]]:
         own = [page for (key, _), page in self.by_page.items() if key == work]
         if self.works[work].kind == 'code':  # a code work's folders and files (#12), each file opening its page
             return 'code folders', code_pages.contents(own)
@@ -1065,7 +1169,9 @@ INSTRUCTIONS = (
     'and strategies and finds one by name, `search` and `semantic_search` take `kind` "code" or "text", and `open_page` opens '
     'a file whole with its lines. Licensed code is read and cited, never copied into another codebase. Every answer that '
     'names a work names its `language` (ISO 639-1): a quote is in that language; `search` reaches a work only in its own '
-    'language, `semantic_search` reaches it from another one too, at a lower similarity.')
+    'language, `semantic_search` reaches it from another one too, at a lower similarity. Every answer names the '
+    '`index_generation` it was read from, so two runs are known to have read one index; the server\'s version names its '
+    'release: after a new one, connect again for the new tool descriptions.')
 
 
 CALL_LOG = data_paths.LOGS / 'search_server.jsonl'  # git-ignored: one line per tool call, never a page's text
@@ -1221,12 +1327,26 @@ def knowledge_bases(public_only: bool = False) -> dict:
     return bases
 
 
+@functools.lru_cache(maxsize=1)
+def server_version() -> str:
+    """The app's version and its commit, as `initialize` names it (#15): a client sees that the server it reached has
+    changed, and reconnects for the new tool descriptions. The index's generation moves without a restart, so it goes with
+    every answer instead (`index_generation`)."""
+    import importlib.metadata
+
+    from backend.conversion.store import pipeline_db
+
+    code = pipeline_db.code_version()
+    return (f"{importlib.metadata.version('finiex-corpus-engine')}+{(code['code_commit'] or 'unknown')[:7]}"
+            f"{'' if code['code_clean'] else '.dirty'}")
+
+
 def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
     from mcp.server import MCPServer
     from mcp.server.mcpserver import Context
     from mcp.server.mcpserver.utilities.types import Image
 
-    server = MCPServer('corpus-search', instructions=INSTRUCTIONS)
+    server = MCPServer('corpus-search', instructions=INSTRUCTIONS, version=server_version())
     seen, seen_lock = set(), threading.Lock()  # the clients this server has shown a line for (decision 99.a)
 
     def logged(tool: str, ctx, call, **asked):
@@ -1244,122 +1364,165 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
         started = time.perf_counter()
         service.refresh()  # read from the database: a written change is served on the next call (issue #10)
         result = call()
+        if isinstance(result, dict) and service.generation is not None:
+            # the index this answer was read from (#15): two runs of a client are tied to one index, or told apart
+            result = {**result, 'index_generation': service.generation}
         log_call(tool, result, time.perf_counter() - started, log_path, caller, **asked)
         return result
 
+    from backend.ingestion.code_catalog import CATEGORIES
+
+    # Every parameter with its own description and, where its values are a closed set, that set (#15: a client found all of
+    # it in the tool's text only, and `corpus` without its values); the SDK refuses any other value before a tool runs.
+    Corpus = Annotated[Literal['all', 'free', 'licensed'], Field(
+        description='Which knowledge base: "all" (both), "free" (openly licensed works) or "licensed" (bought works).')]
+    Kind = Annotated[Literal['text', 'code'] | None, Field(
+        description='"code" for a book\'s companion source files only, "text" for prose only; without it both.')]
+    WorkKey = Annotated[str, Field(description='One work key, as `works` lists it.')]
+    PageLabel = Annotated[str, Field(
+        description='A page label as a hit gives it: a PDF page ("212"), an EPUB or HTML section ("s12"), a code file\'s path.')]
+
     @server.tool()
-    def search(query: str, corpus: str = 'all', hits: int = 6, work: str | None = None, kind: str | None = None, *,
-               ctx: Context) -> dict:
+    def search(query: Annotated[str, Field(description='Words to find on a page: terms, names, numbers, a formula\'s symbols.')],
+               corpus: Corpus = 'all',
+               hits: Annotated[int, Field(description='How many pages, 1 to 50, best first.')] = 6,
+               work: Annotated[str | None, Field(description='One work key from `works`, to search inside it alone.')] = None,
+               kind: Kind = None, *, ctx: Context) -> dict:
         """Search the books by keywords (BM25 over pages): local, no model, milliseconds, free. Best for exact terms, names,
-        numbers and a formula's symbols; for a question in plain words use `semantic_search`. Returns up to `hits` pages
-        (1 to 50), best first, each with its knowledge base, work, edition and year, page (label, PDF page where known, printed
+        numbers and a formula's symbols; for a question in plain words use `semantic_search`. Returns up to `hits` pages,
+        best first, each with its knowledge base, work, edition and year, page (label, PDF page where known, printed
         number), section, file and lines, a snippet, licence and the route that made its text, `kind` ("text" or "code"), and
         `view_url`, a link to show a person the page in the diagnostics view (image, reading, checks); or state "nothing
         found". The score ranks this call's hits only. A page under 200 characters, mostly digits or a table is left out of
-        the ranking but opens with `open_page`; a code page never is. corpus: "all", "free" or "licensed". work: one key
-        from `works`. kind: "code" for source files only (a book's companion code: a hit then names its `code_language`, the
-        work it accompanies and its lines), "text" for prose only; without it both. Licensed code is read and cited, never
-        copied into another codebase."""
+        the ranking but opens with `open_page`; a code page never is. A code hit names its `code_language`, the work it
+        accompanies and its lines. Licensed code is read and cited, never copied into another codebase. Every answer names
+        the `index_generation` it was read from."""
         return logged('search', ctx, lambda: service.search(query, corpus, hits, work, kind), query=query, corpus=corpus,
                       hits=hits, work=work, kind=kind)
 
     @server.tool()
-    def open_page(work: str, page: str, printed: bool = False, *, ctx: Context) -> dict:
+    def open_page(work: WorkKey, page: PageLabel,
+                  printed: Annotated[bool, Field(
+                      description='true: `page` is the number printed on the page, as an index entry or a "see p. 291" '
+                                  'gives it.')] = False, *, ctx: Context) -> dict:
         """One page in full, by work key and page label as a search hit gives them: local and free, the text exactly as stored
-        and served, never rewritten. With printed=true, `page` is the number
-        printed on the page, as an index entry or a "see p. 291" in the text gives it; the answer names both numbers. `view_url`
-        links the page in the diagnostics view, for a person to check it against its image. A code page is a whole source
-        file, its label the file's path in its work, with `lines` (first and last, counted from 1) for a citation. Sizes: a
-        PDF page is a few thousand characters; an EPUB or HTML page (`s12`) is a whole section and can run to tens of
-        thousands. `view_url` is null where the view has no page to show: a legacy text with neither a reading nor an
-        image."""
+        and served, never rewritten. With printed=true the answer names both numbers. `view_url` links the page in the
+        diagnostics view, for a person to check it against its image. A code page is a whole source file, its label the
+        file's path in its work, with `lines` (first and last, counted from 1) for a citation. Sizes: a PDF page is a few
+        thousand characters; an EPUB or HTML page (`s12`) is a whole section and can run to tens of thousands. `view_url` is
+        null where the view has no page to show: a legacy text with neither a reading nor an image."""
         return logged('open_page', ctx, lambda: service.open_page(work, page, printed), work=work, page=page, printed=printed)
 
     @server.tool()
-    def works(corpus: str = 'all', kind: str | None = None, *, ctx: Context) -> list[dict] | dict:
+    def works(corpus: Corpus = 'all', kind: Kind = None,
+              brief: Annotated[bool, Field(
+                  description='true: each work\'s key, title, edition and year, base, kind and language alone, about a '
+                              'third of the size; the subject sentences come with the whole list and with '
+                              '`search_works`.')] = False, *, ctx: Context) -> list[dict] | dict:
         """Every work the server knows, local and free: key, title, edition and year, knowledge base, licence, route, how
-        many pages are searchable, and one sentence on what the work is for. Where a work is held in more than one edition,
-        one is searched and the others are kept: a kept edition names the edition searched (`kept_for`) and its own page
-        count (`pages_kept`), and still opens by its own key. `kind` is "text" or "code"; a code work (a book's companion
-        source files) names its `code_language` and the work it accompanies (`companion_of`). The whole shelf is about
-        90,000 characters: corpus ("all", "free", "licensed") and kind ("text", "code") narrow it."""
+        many pages are searchable, its language, and one sentence on what the work is for. Where a work is held in more than
+        one edition, one is searched and the others are kept: a kept edition names the edition searched (`kept_for`), why
+        (`kept_because`) and its own page count (`pages_kept`), and still opens by its own key. A code work (a book's
+        companion source files) names its `code_language` and the work it accompanies (`companion_of`). The whole shelf is
+        about 110,000 characters; `brief` gives about 38,000, and corpus and kind narrow it."""
         if corpus not in CORPORA or kind not in KINDS:
             return {'state': 'error', 'error': f'corpus is one of {list(CORPORA)}; kind is "text", "code" or none'}
-        return logged('works', ctx, lambda: service.list_works(corpus, kind), corpus=corpus, kind=kind)
+        return logged('works', ctx, lambda: service.list_works(corpus, kind, brief), corpus=corpus, kind=kind, brief=brief)
 
     @server.tool()
-    def code_catalog(query: str | None = None, unit: str | None = None, category: str | None = None, work: str | None = None,
-                     hits: int = 50, *, ctx: Context) -> dict:
+    def code_catalog(query: Annotated[str | None, Field(
+                         description='Words to find a unit by, its name first ("Bollinger", "adaptive average"); a unit '
+                                     'must hold every word. Without it every unit, by work and kind.')] = None,
+                     unit: Annotated[Literal['function', 'indicator', 'strategy'] | None, Field(
+                         description='The kind of unit.')] = None,
+                     category: Annotated[Literal[CATEGORIES] | None, Field(description='One category.')] = None,
+                     work: Annotated[str | None, Field(description='One code work\'s key, as `works` lists it.')] = None,
+                     hits: Annotated[int, Field(description='How many units, 1 to 400.')] = 50, *, ctx: Context) -> dict:
         """Which indicators, functions and strategies the corpus holds as code, as `works` lists its books: local, no model,
         milliseconds, free. Each unit names its work and file (the page label `open_page` takes), its name and the other
-        names it goes by, its kind (`unit`: "function", "indicator" or "strategy"), a category, the inputs its code
-        declares, the source its opening comment names, its lines, `view_url`, and one sentence on what it computes or
-        trades. That sentence is derived by a model (`summary_is`), never the source's words: cite the code itself.
-        query: words to find a unit by, its name first ("Bollinger", "adaptive average"); without it every unit, by work
-        and kind. unit, category, work: filters. category is one of trend, momentum, mean reversion, breakout, volatility,
-        volume, pattern, cycle, seasonality, spread and arbitrage, risk and money management, statistics, utility. hits: 1
-        to 400. `categories` counts the matching units per category. Licensed code is read and cited, never copied into
-        another codebase."""
+        names it goes by, its kind, a category, the inputs its code declares, the source its opening comment names, its
+        lines, `view_url`, and one sentence on what it computes or trades. That sentence is derived by a model
+        (`summary_is`), never the source's words: cite the code itself. With a query, `match` says whether the units hold
+        "every word" of it or, where none does, "some words". `categories` counts the matching units per category.
+        Licensed code is read and cited, never copied into another codebase."""
         return logged('code_catalog', ctx, lambda: service.code_catalog(query, unit, category, work, hits), query=query,
                       unit=unit, category=category, work=work, hits=hits)
 
     @server.tool()
-    def search_works(query: str, corpus: str = 'all', hits: int = 10, *, ctx: Context) -> dict:
+    def search_works(query: Annotated[str, Field(description='The subject, in a few words.')], corpus: Corpus = 'all',
+                     hits: Annotated[int, Field(description='How many works, 1 to 50, best first.')] = 10, *,
+                     ctx: Context) -> dict:
         """Which works hold a subject: do we own a book about X? Local, no model, milliseconds, free. The same keyword ranking
-        as `search`, summed per work over
-        its best five pages, so a work about the subject outranks one strong page elsewhere (a glossary). Returns up to `hits`
-        works (1 to 50), each with its key, title, the sentence on what it is for, knowledge base, licence, score, how many
-        pages hold a query word and how many hold every one, and its best three sections with their pages; or state
-        "nothing found". `pages_with_every_term` 0 means no page holds all the words, which is an answer too. corpus:
-        "all", "free" or "licensed"."""
+        as `search`, summed per work over its best five pages, so a work about the subject outranks one strong page
+        elsewhere (a glossary). Returns up to `hits` works, each with its key, title, the sentence on what it is for,
+        knowledge base, licence, score, how many pages hold a query word and how many hold every one, and its best three
+        sections with their pages; or state "nothing found". `pages_with_every_term` 0 means no page holds all the words,
+        which is an answer too."""
         return logged('search_works', ctx, lambda: service.search_works(query, corpus, hits), query=query, corpus=corpus,
                       hits=hits)
 
     @server.tool()
-    def toc(work: str, depth: int = 2, under: str | None = None, *, ctx: Context) -> dict:
+    def toc(work: WorkKey,
+            depth: Annotated[int, Field(description='1 to 6: deeper entries are counted in `left_out`, not sent.')] = 2,
+            under: Annotated[str | None, Field(
+                description='An entry\'s page label or title, to descend into that entry alone, its depth counted from it. '
+                            'A title matches every entry that holds it; the shallowest is taken and the others are named '
+                            'in `other_matches`.')] = None, *, ctx: Context) -> dict:
         """A work's table of contents, local and free, to descend into before reading a page: its PDF's bookmarks, else the
-        headings of
-        its text, each with the page label `open_page` takes, and where they come from. depth 1 to 6 (default 2): deeper
-        entries are counted in `left_out`, not sent. work: one key from `works`. under: an entry's page label or title, to
-        descend into that entry alone, its depth counted from it."""
+        headings of its text, each with the page label `open_page` takes, and where they come from."""
         return logged('toc', ctx, lambda: service.toc(work, depth, under), work=work, depth=depth, under=under)
 
     @server.tool()
-    def semantic_search(question: str, hits: int = 10, search_query: str | None = None, concept_query: str | None = None,
-                        keywords: list[str] | None = None, router: bool = True, kind: str | None = None,
-                        corpus: str = 'all', diagnostics: bool = False, *, ctx: Context) -> dict:
+    def semantic_search(question: Annotated[str, Field(description='The question in plain words, as asked.')],
+                        hits: Annotated[int, Field(description='How many passages, 1 to 50.')] = 10,
+                        search_query: Annotated[str | None, Field(
+                            description='The question as a short standalone English search query in the words textbooks '
+                                        'use.')] = None,
+                        concept_query: Annotated[str | None, Field(
+                            description='A step back to the underlying concept, as a textbook would name it.')] = None,
+                        keywords: Annotated[list[str] | None, Field(
+                            description='Two to five terms of art, for the keyword half of the search.')] = None,
+                        router: Annotated[bool, Field(
+                            description='false keeps the server\'s language model out of this call, even without a '
+                                        'translation of your own.')] = True,
+                        kind: Kind = None, corpus: Corpus = 'all',
+                        diagnostics: Annotated[bool, Field(
+                            description='true adds every candidate list of both bases and each hit\'s `citation` and '
+                                        '`snippet`, several times the size.')] = False,
+                        per_page: Annotated[bool, Field(
+                            description='true (the default): one hit per page, its best passage, with `more_on_page` '
+                                        'counting its other passages; false: every passage, as the chat takes them.')] = True,
+                        *, ctx: Context) -> dict:
         """Search by meaning and by keywords at once, the way the chat does, over every knowledge base this server gives out
-        (the licensed one beside the free one where it is given out, the two fused by rank). About two seconds; the question is
-        embedded through a paid API (a fraction of a cent). Translate the question yourself for the best results and to spare
-        a language model call: `search_query`, the question as a short standalone English search query in the words textbooks
-        use; `concept_query`, a step back to the underlying concept as a textbook would name it; `keywords`, two to five terms
-        of art. Without them the server's router, a language model, translates where it is switched on, else the question
-        searches as it stands; `router` false keeps the language model out of this call even without a translation, so the
-        question searches as it stands. The passages closest in meaning and the best keyword matches are fused by rank. Returns up to
-        `hits` passages (1 to 50), each a chunk of about 1,000 characters with its full text, its knowledge base, work, edition
-        and year, page and section, licence and route, its score, and `view_url`, a link to the page in the diagnostics view;
-        or state "declined", "nothing found" or "error". `relevance` is the best similarity of meaning found; `below_floor`
-        true means it lies under the floor that parts covered questions from uncovered ones, so the books likely say nothing
-        on this: say so rather than answer from the passages. Use it for a question in plain words; use `search` for exact
-        terms. kind: "code" for passages of source files only, "text" for prose only; without it both, so an article and its
-        code example come back side by side. corpus: "all" (both bases, merged by similarity, since both are embedded with
-        the same model), "free" or "licensed". The answer is compact, about 1,500 characters a hit (each hit's full text
-        about 1,000): `diagnostics` true adds every candidate list of both bases and each hit's `citation` and `snippet`,
-        several times the size. `usage` names the router's tokens and the question's embedding (tokens and USD), so a
-        session can total what it spent."""
+        (the licensed one beside the free one where it is given out). About two seconds; the question is embedded through a
+        paid API (a fraction of a cent). Translate the question yourself for the best results and to spare a language model
+        call (`search_query`, `concept_query`, `keywords`). Without them the server's router, a language model, translates
+        where it is switched on, else the question searches as it stands. The passages closest in meaning and the best
+        keyword matches are gathered, then ordered by their similarity of meaning, both bases alike (they are embedded with
+        the same model); a passage only the keyword search found follows the rest. Returns up to `hits` passages, each a
+        chunk of about 1,000 characters with its full text, its knowledge base, work, edition and year, page and section,
+        licence and route, its score, and `view_url`, a link to the page in the diagnostics view; or state "declined",
+        "nothing found" or "error". `relevance` is the best similarity of meaning found; `below_floor` true means it lies
+        under the floor that parts covered questions from uncovered ones, so the books likely say nothing on this: say so
+        rather than answer from the passages. The floor parts an off-topic question, not one from a neighbouring field: each
+        hit names the `keywords_found` of yours it holds, and `keywords_covered` how many of them any hit holds; under a
+        third or less, the books held the subject in part or not at all for 11 of 15 measured questions, among them 6 of
+        the 7 they did not hold. Use it for a question in plain words; use `search` for exact terms. Without
+        `kind` an article and its code example come back side by side. The answer is compact, about 1,500 characters a
+        hit. `usage` names the router's tokens and the question's embedding (tokens and USD), so a session can total what
+        it spent; `index_generation` names the index it was read from."""
         return logged('semantic_search', ctx,
                       lambda: service.semantic_search(question, hits, search_query, concept_query, keywords, route=router,
-                                                      kind=kind, corpus=corpus, diagnostics=diagnostics),
-                      query=question, hits=hits, kind=kind, corpus=corpus)
+                                                      kind=kind, corpus=corpus, diagnostics=diagnostics, per_page=per_page),
+                      query=question, hits=hits, kind=kind, corpus=corpus, per_page=per_page)
 
     @server.tool()
-    def page_image(work: str, page: str, *, ctx: Context) -> list[dict | Image]:
+    def page_image(work: WorkKey, page: PageLabel, *, ctx: Context) -> list[dict | Image]:
         """A page's image, on request only: when a page's text is not enough to check a quote. Local and free here, but an
-        image weighs on the caller's own context. A scanned page comes with its
-        own embedded pixels, never upscaled (a JPEG2000 or fax image as a PNG of the same pixels); a born-digital page as a
-        150 dpi render. The first block says which, with the stored format, pixels, dpi and bytes, so a poor scan can be told
-        apart before its image is read; or why there is no image (no source, no PDF page, held back). Same work key and page
-        label as a search hit."""
+        image weighs on the caller's own context. A scanned page comes with its own embedded pixels, never upscaled (a
+        JPEG2000 or fax image as a PNG of the same pixels); a born-digital page as a 150 dpi render. The first block says
+        which, with the stored format, pixels, dpi and bytes, so a poor scan can be told apart before its image is read; or
+        why there is no image (no source, no PDF page, held back)."""
         result = logged('page_image', ctx, lambda: service.page_image(work, page), work=work, page=page)
         if result.get('state') != 'found':
             return [result]

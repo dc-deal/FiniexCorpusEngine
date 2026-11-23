@@ -137,3 +137,31 @@ def test_the_ranking_says_why_it_leaves_a_page_out():
     assert page_index.structural_why('Short.').startswith('too short')
     assert page_index.structural_why('1 2 3 4 5 6 7 8 9 10 ' * 30 + 'index') == 'mostly figures'
     assert page_index.is_structural('') and page_index.is_structural('Short.')
+
+
+def test_a_split_ligature_is_joined_for_the_ranking_and_the_quoted_text_stays_as_stored():
+    # #15: "Measuring the Signifi cance" stood on the page, and "significance" was missing from it for the ranking
+    assert page_index.joined_ligatures('Signifi cance, the fi rst profi t, a diff erent eff ect, an off er, infl ation') == \
+        'Significance, the first profit, a different effect, an offer, inflation'
+    # whole words around "ff" stay apart: they are the common case there
+    assert page_index.joined_ligatures('off the record, the payoff is high, the cut off error, staff of five') == \
+        'off the record, the payoff is high, the cut off error, staff of five'
+    page = page_index.Page('w', '1', 1, f'Measuring the Signifi cance of a Result. {PROSE}', 'w.md')
+    ranked = page_index.PageIndex([page])
+    assert ranked.search('measuring significance', 1) and page.text.startswith('Measuring the Signifi cance')
+    assert page_index.coverage(page.words, 'measuring significance')[1] == []
+
+
+def test_a_table_of_contents_in_a_work_s_front_opens_but_is_not_ranked():
+    # #15: a contents page without its page numbers came first for the title of the section it lists
+    titles = '\n'.join(['Contents', 'xiii', 'Loads on a Span', 'Wind and Water', 'CHAPTER 9 Bridge Loads',
+                        'Cables', 'Inspecting a Bridge after a Storm', 'Repairs'])
+    numbered = '\n'.join(f'Chapter {n} A Title of Some Length {10 * n}' for n in range(1, 9))
+    assert page_index.contents_why(titles) == 'a table of contents' == page_index.contents_why(numbered)
+    assert page_index.contents_why(PROSE) is None
+    pages = [page_index.Page('w', str(n), 1, PROSE, 'w.md') for n in range(1, 41)]
+    pages[2] = page_index.Page('w', '3', 1, titles, 'w.md')
+    pages[35] = page_index.Page('w', '36', 1, numbered, 'w.md')  # past the front: an exercise's answers, a table
+    kept = page_index.without_contents(pages)
+    assert [page.page for page in kept if not page.searchable] == ['3'] and kept[2].text == titles
+    assert all(page.searchable for page in page_index.without_contents(pages, exempt=lambda page: page.page == '3'))

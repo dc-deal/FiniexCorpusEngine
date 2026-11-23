@@ -69,6 +69,63 @@ def structural_why(text: str) -> str | None:
     return None
 
 
+# A table of contents whose page numbers are not in its text, or are but stand beside long titles, passes the rules above
+# and outranked the page it points to (#15: a book's contents page came first for the title of its own section, and was a
+# work's best section in `search_works`). It is told by its shape, in a work's front pages alone, where every such page
+# was found when measured on 23 Nov; further in, the same shape is an exercise's answers or a table.
+CONTENTS_HEADING = re.compile(r'^\W*(table of contents|contents|brief contents|detailed contents|contents in brief|'
+                              r'contents at a glance)\W*$', re.IGNORECASE)
+# the number at a line's end, or in the last cell of a reading's Markdown table row ("|Chapter Four. Bridges|69|"); a
+# front matter's numbers are lower-case roman of two letters or more ("in C", a slide's "| x |" are no page); a year is no
+# page either (a list of releases); a table row of more than two cells is data, not a title and its page (spot checks of
+# 23 Nov)
+ENDS_IN_PAGE = re.compile(r'[A-Za-z].*?[\s.·…|*]+(\d{1,4}|[ivxlc]{2,7})[\s*|]*$')
+YEAR = re.compile(r'(19|20)\d\d')
+FRONT_PAGES, FRONT_SHARE = 30, 0.08  # a work's front: its first 30 pages, or its first 8 % where that is more
+
+
+def ends_in_page(line: str) -> bool:
+    if line.startswith('|') and line.strip('|').count('|') > 1:
+        return False
+    match = ENDS_IN_PAGE.search(line)
+    return match is not None and not YEAR.fullmatch(match.group(1))
+
+
+def contents_why(text: str) -> str | None:
+    """'a table of contents' for a page shaped as one: a contents heading in its first lines over title lines (short, not
+    ending as a sentence ends), or most of its lines ending in a page number; None otherwise. Asked of a work's front
+    pages alone (`without_contents`)."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 6:
+        return None
+    titles = sum(1 for line in lines if len(line) <= 80 and not line.endswith(('.', ',', ';', ':')))
+    if any(CONTENTS_HEADING.match(line) for line in lines[:3]) and titles >= 0.7 * len(lines):
+        return 'a table of contents'
+    numbered = sum(1 for line in lines if ends_in_page(line))
+    if numbered >= 6 and numbered >= 0.5 * len(lines):
+        return 'a table of contents'
+    return None
+
+
+def without_contents(pages: list['Page'], exempt=lambda page: False) -> list['Page']:
+    """The pages with a work's table of contents left out of the ranking, as `is_structural` leaves an index out: it still
+    opens. Pages are taken in their work's order, as every source assembles them; an `exempt` page is never asked (a code
+    file, whose lines end in numbers for other reasons)."""
+    import dataclasses
+
+    counts = collections.Counter(page.work for page in pages)
+    seen: collections.Counter = collections.Counter()
+    out = []
+    for page in pages:
+        place = seen[page.work]
+        seen[page.work] += 1
+        front = place < max(FRONT_PAGES, FRONT_SHARE * counts[page.work])
+        if front and page.searchable and not exempt(page) and contents_why(page.words):
+            page = dataclasses.replace(page, searchable=False)
+        out.append(page)
+    return out
+
+
 def back_index_start(text: str) -> int | None:
     """Where a book's back index begins, so its entries stop competing with its prose; None where it has none."""
     for head in ANY_HEADING.finditer(text):
@@ -102,7 +159,23 @@ class Page:
 
     @property
     def words(self) -> str:
-        return self.text if self.index_text is None else self.index_text
+        return joined_ligatures(self.text if self.index_text is None else self.index_text)
+
+
+# A text layer that drew a ligature as its own glyph often put a space after it: "signifi cance", "fi rst", "profi t", "diff
+# erent" (#15: about 3 % of the ranked pages; "significance" was missing on the page headed with it). The ranking's
+# words join them again; the text a hit quotes stays as stored, and so does every embedded chunk. Measured 23 Nov on the
+# index: the 45 commonest splits after "fi" and "fl" are all ligatures; after "ff" nearly all are whole words ("off the",
+# "payoff is"), so "ff" is joined only after the few stems a ligature splits ("diff erent", "eff ect", "suff er") and "off"
+# only before the endings of "offer" and "office".
+FI_FL_SPLIT = re.compile(r'\b([A-Za-z]*[Ff][il]) (?=[a-z])')
+FF_SPLIT = re.compile(r'\b((?:[Dd]i|[Ee]|[Ss]u|[Aa]|[Cc]o)ff) (?=[a-z])')
+OFF_SPLIT = re.compile(r'\b([Oo]ff) (?=(?:er|ers|ered|ering|erings|ice|ices|icial|icially|icer|icers)\b)')
+
+
+def joined_ligatures(text: str) -> str:
+    """The text with a ligature's split joined again, for the ranking's words alone."""
+    return OFF_SPLIT.sub(r'\1', FF_SPLIT.sub(r'\1', FI_FL_SPLIT.sub(r'\1', text)))
 
 
 LATEX_COMMAND = re.compile(r'\\[A-Za-z]+')

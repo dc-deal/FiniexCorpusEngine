@@ -187,3 +187,10 @@ def test_a_call_may_keep_the_router_out_whatever_the_configuration_says(monkeypa
     answer = searching(plan()).search('what does the sharpe ratio measure?', route=False)
     assert answer['plan']['translated_by'] == 'nobody: the caller asked for none'
     assert answer['plan']['search_query'] == 'what does the sharpe ratio measure?' and answer['usage']['router']['model'] is None
+
+
+def test_one_hit_per_page_is_asked_for_and_says_so():
+    # #15: a client's default; the chat keeps every passage
+    answer = searching(plan()).search('what does the sharpe ratio measure?', per_page=True)
+    assert answer['per_page'] is True and answer['hits'][0]['more_on_page'] == 0
+    assert 'more_on_page' not in searching(plan()).search('what does the sharpe ratio measure?')['hits'][0]

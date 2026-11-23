@@ -32,6 +32,7 @@ PAGES = [page('alpha', '1', 'momentum oscillator overbought oversold'),
          page('gamma', '1', 'momentum oscillator overbought oversold'),  # the same words as alpha 1: a tie
          page('gamma', '2', 'momentum index page', searchable=False)]
 WORKS = {'alpha': work('alpha'), 'beta': work('beta', 'licensed'), 'gamma': work('gamma', language='de')}  # #11: carried
+WORKS['gamma'].kept_because = 'the other edition has its formulas as text'  # #15: carried too
 
 
 @pytest.fixture
@@ -232,6 +233,7 @@ def test_every_work_keeps_its_language_through_the_database(index, scratch_datab
     assert {work['work']: work['language'] for work in database.list_works()} == {'alpha': 'en', 'beta': 'en', 'gamma': 'de'}
     assert database.search('momentum oscillator')['hits'][0]['language'] in ('en', 'de')
     assert database.open_page('gamma', '1')['language'] == 'de'
+    assert database.works['gamma'].kept_because == 'the other edition has its formulas as text'
 
 
 def test_an_import_refuses_a_work_without_its_language():

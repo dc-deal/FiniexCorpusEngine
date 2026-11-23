@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 import pytest
 
@@ -71,8 +72,10 @@ def test_both_searches_take_1_to_50_hits_and_refuse_the_rest_before_any_work(tmp
     server = search_server.build_server(served, tmp_path / 'calls.jsonl')
     result = asyncio.run(server.call_tool('search', {'query': 'circuit breaker', 'hits': 500}))
     assert json.loads(result.content[0].text)['state'] == 'error'
-    described = {tool.name: tool.description for tool in asyncio.run(server.list_tools())}
-    assert all(f'(1 to {search_server.MAX_HITS})' in described[name] for name in ('search', 'semantic_search'))
+    # the bound stands on the parameter itself (#15), where a client's schema shows it
+    hits_said = {tool.name: tool.input_schema['properties']['hits']['description'] for tool in asyncio.run(server.list_tools())
+                 if 'hits' in tool.input_schema['properties']}
+    assert all(f'1 to {search_server.MAX_HITS}' in hits_said[name] for name in ('search', 'semantic_search'))
 
 
 def test_the_corpus_and_the_work_filter_one_shared_ranking():
@@ -751,7 +754,10 @@ def test_the_mcp_tool_answers_compact_by_default():
     tool = {tool.name: tool for tool in asyncio.run(server.list_tools())}['semantic_search']
     assert tool.input_schema['properties']['diagnostics']['default'] is False
     assert tool.input_schema['properties']['corpus']['default'] == 'all'
-    assert 'merged by similarity' in tool.description and 'about 1,500 characters a hit' in tool.description
+    assert tool.input_schema['properties']['corpus']['enum'] == ['all', 'free', 'licensed']  # #15: the values on the parameter
+    said = ' '.join(tool.description.split())
+    assert 'ordered by their similarity of meaning' in said and 'about 1,500 characters a hit' in said
+    assert 'fused by rank' not in said  # #15: the description's first sentence still said so
     assert inspect.signature(search_server.SearchService.semantic_search).parameters['diagnostics'].default is True
 
 
@@ -780,3 +786,104 @@ def test_every_answer_that_names_a_work_names_its_language():
     assert served.search_works('fast average')['works'][0]['language'] in ('en', None)
     assert served.toc('book_code')['language'] is None  # the invented code work names none here
     assert 'language' in search_server.INSTRUCTIONS and 'lower similarity' in search_server.INSTRUCTIONS
+
+
+def test_a_name_query_in_the_code_catalog_takes_the_units_holding_every_word(tmp_path, monkeypatch):
+    # #15: a two-word name query answered most of the catalog, the few units it meant among them
+    from backend.ingestion import code_catalog
+
+    def unit(page, name, summary):
+        return {'work': 'book_code', 'page': page, 'name': name, 'unit': 'indicator', 'category': 'volatility',
+                'aliases': [], 'summary': summary, 'summary_is': 'derived', 'inputs': [], 'source_named': None, 'lines': {}}
+
+    units = {'a': unit('Indicators/Fast Average (I).txt', 'Spike Marker', 'Marks a day whose price range is a spike.'),
+             'b': unit('Strategies/Breakout (S).txt', 'Price Band', 'The highest and lowest price of n days.'),
+             'c': unit('Indicators/Fast Average (I).txt', 'Intraday Spikes', 'Large intraday price moves.')}  # a plural
+    path = tmp_path / 'code_catalog.json'
+    path.write_text(json.dumps({'units': units}), encoding='utf-8')
+    monkeypatch.setattr(code_catalog, 'CATALOG', path)
+    served = code_service()
+    found = served.code_catalog('price spike')
+    assert [unit['name'] for unit in found['units']] == ['Spike Marker', 'Intraday Spikes'] and found['match'] == 'every word'
+    partial = served.code_catalog('price volume')  # no unit holds both: those holding some, said so
+    assert partial['match'] == 'some words' and {unit['name'] for unit in partial['units']} == {
+        'Spike Marker', 'Price Band', 'Intraday Spikes'}
+    assert 'match' not in served.code_catalog()
+
+
+def test_a_contents_by_title_takes_the_shallowest_entry_and_names_the_others_and_is_read_once(monkeypatch):
+    # #15: a chapter's title took a subsection of that name in a preface; the bookmarks were read on every call
+    served, read = code_service(), []
+    entries = [{'level': 1, 'title': 'Preface', 'page': '5'}, {'level': 2, 'title': 'Bridge Loads', 'page': '7'},
+               {'level': 1, 'title': 'CHAPTER 9 Bridge Loads', 'page': '40'}, {'level': 2, 'title': 'Cables', 'page': '41'},
+               {'level': 1, 'title': 'CHAPTER 24 Testing', 'page': '60'}]
+    monkeypatch.setattr(served, '_read_contents', lambda work: read.append(work) or ('pdf bookmarks', entries))
+    under = served.toc('book', under='bridge loads')
+    assert [entry['title'] for entry in under['entries']] == ['CHAPTER 9 Bridge Loads', 'Cables']
+    assert under['other_matches'] == [{'title': 'Bridge Loads', 'page': '7', 'level': 2}]
+    assert 'other_matches' not in served.toc('book', under='40') and served.toc('book', depth=1)['left_out'] == 2
+    assert read == ['book']  # kept until the index reloads
+
+
+def test_works_brief_gives_what_a_search_is_planned_with():
+    served = code_service()
+    served.works['book_code'].kept_for, served.works['book_code'].kept_because = 'book', 'a reason'
+    brief = {work['work']: work for work in served.list_works(brief=True)}
+    assert set(brief['book']) == {'work', 'title', 'edition', 'year', 'knowledge_base', 'kind', 'language'}
+    assert brief['book_code']['kept_for'] == 'book' and brief['book']['language'] == 'en'
+    assert {work['work']: work for work in served.list_works()}['book_code']['kept_because'] == 'a reason'
+
+
+def test_every_answer_names_the_index_generation_it_was_read_from_and_the_server_its_version(tmp_path):
+    # #15: a client could not tie two runs to one index
+    served = code_service()
+    server = search_server.build_server(served, tmp_path / 'calls.jsonl')
+    answer = json.loads(asyncio.run(server.call_tool('search', {'query': 'fast average'})).content[0].text)
+    assert 'index_generation' not in answer  # built from files: no generation to name
+    served.generation = 7
+    answer = json.loads(asyncio.run(server.call_tool('search', {'query': 'fast average'})).content[0].text)
+    assert answer['index_generation'] == 7
+    assert re.fullmatch(r'\d+\.\d+\.\d+\+(\w{7}|unknown)(\.dirty)?', server._lowlevel_server.version)
+
+
+def test_a_legacy_page_names_the_printed_number_its_text_carries_where_the_work_agrees():
+    # #15: "**17**" stood in the text and `printed` was null
+    def legacy(pdf, top):
+        return page('w', pdf, f'{top}\n\nSome text of a page in a book, long enough to stand as one.', 'w.md', pdf=pdf)
+
+    agreeing = [legacy(str(n), f'**{n - 18}**') for n in range(30, 42)] + [legacy('42', 'A heading')]
+    named = search_server.printed_in_text(agreeing)
+    assert [p.printed for p in named[:2]] == ['12', '13'] and named[-1].printed is None
+    few = search_server.printed_in_text(agreeing[:5])  # too few lines to tell a page number from a bold figure
+    assert all(p.printed is None for p in few)
+    scattered = [legacy(str(n), f'**{n * 3}**') for n in range(30, 42)]  # no one distance: bold figures, not page numbers
+    assert all(p.printed is None for p in search_server.printed_in_text(scattered))
+
+
+def test_a_semantic_hit_without_a_route_names_its_page_s():
+    served = code_service()
+
+    class Semantic:
+        def search(self, question, hits, **options):
+            return {'state': 'found', 'hits': [{'work': 'book', 'page': {'label': '40'}, 'route': None}]}
+
+    served._semantic = Semantic()
+    assert served.semantic_search('a fast average', hits=1)['hits'][0]['route'] == 'text layer: the page has no reading'
+
+
+def test_each_semantic_hit_names_the_keywords_it_holds_and_the_answer_how_many_any_hit_holds():
+    # #15: a neighbouring field's question passed the floor on meaning alone; its terms of art were on no hit
+    served = code_service()
+
+    class Semantic:
+        def search(self, question, hits, **options):
+            return {'state': 'found', 'plan': {'keywords': ['order book', 'checksum', 'WebSocket', '-']},
+                    'hits': [{'work': 'book', 'page': {'label': '40'}, 'text': 'An order book holds the resting orders.'},
+                             {'work': 'book', 'page': {'label': '40'}, 'text': 'The book of orders, and a check sum.'}]}
+
+    served._semantic = Semantic()
+    answer = served.semantic_search('how does the checksum work?', hits=2)
+    assert [hit['keywords_found'] for hit in answer['hits']] == [['order book'], []]  # words in their order, never apart
+    assert answer['keywords_covered'] == {'found': 1, 'of': 3, 'missing': ['checksum', 'WebSocket']}
+    served._semantic.search = lambda question, hits, **options: {'state': 'found', 'plan': {'keywords': []}, 'hits': []}
+    assert 'keywords_covered' not in served.semantic_search('x', hits=1)

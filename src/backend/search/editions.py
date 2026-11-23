@@ -45,6 +45,14 @@ def kept(families: dict[str, dict] | None = None) -> dict[str, str]:
     return {key: family['serves'] for family in families.values() for key in family['editions'] if key != family['serves']}
 
 
+def reasons(families: dict[str, dict] | None = None) -> dict[str, str]:
+    """A kept edition's key -> why its family serves the other edition, as the list says it, without the decision's number
+    in front ("E3.a: …"), which a client cannot look up (#15: a client took a served older edition for a slip)."""
+    families = load() if families is None else families
+    return {key: re.sub(r'^[A-Z]?\d+(\.[a-z])?(\s*\([^)]*\))?:\s*', '', family.get('why') or '')
+            for family in families.values() for key in family['editions'] if key != family['serves'] and family.get('why')}
+
+
 def family_of(key: str, families: dict[str, dict]) -> str | None:
     """The family an edition belongs to, by the family's key; None for a work with one edition."""
     return next((name for name, family in families.items() if key in family['editions']), None)
