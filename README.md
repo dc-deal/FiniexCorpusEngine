@@ -212,10 +212,14 @@ The tests that need data say so with a marker (`corpus`, `readings`) and skip wh
 suite green. Reading pages again needs an Anthropic key and spends money; every command that spends shows its estimate first
 and stops at a spending cap.
 
-**The embeddings** come from OpenAI's `text-embedding-3-small`, through OpenRouter (`OPENROUTER_API_KEY`) or from OpenAI
-directly (`CORPUS_OPENAI_API_KEY`, a project key allowed that one model), as `embeddings.provider` in
-`configs/app_config.json` says. Both routes return the same vectors (cosine 1.0, measured), so the index stays when the
-route changes; it records its model and refuses to open with another.
+**The embeddings** come from OpenAI's `text-embedding-3-small`, directly from OpenAI (`CORPUS_OPENAI_API_KEY`, a project
+key allowed that one model) or through OpenRouter (`OPENROUTER_API_KEY`), as `embeddings.provider` in
+`configs/app_config.json` says (OpenAI since 23 Nov 2026). Both routes return the same vectors (cosine 1.0, measured), so
+the index stays when the route changes; it records its model and refuses to open with another.
+
+**The chat's models** (the agent, the router and the generator) each name their provider in the same file: Anthropic's
+`claude-haiku-5-5` since 23 Nov 2026 (`ANTHROPIC_API_KEY`), OpenRouter's models before it (`OPENROUTER_API_KEY`). A
+running server takes a change when it restarts.
 
 **The RAGAS report** runs in an environment of its own, since RAGAS 0.4.3 needs older `openai` and `langchain` packages than
 the app:

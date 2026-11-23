@@ -1,7 +1,7 @@
 {
   "_about": [
     "The app's runtime settings, read by app_config.load(). Introduced in phase 4 (decided 2026-09-28), when the chat model arrived and settings got a second consumer.",
-    "agent, router and generator each name their provider (decision 287.b): openrouter, the course's key, until about 23 Nov 2026; then anthropic with claude-haiku-5-5 and reasoning_effort null, from the API credit, until it expires on 10 Dec 2026. A running server takes the change when it restarts.",
+    "agent, router and generator each name their provider (decision 287.b): openrouter, the course's key, until 23 Nov 2026; since then anthropic with claude-haiku-5-5 and reasoning_effort null, from the API credit, until it expires on 10 Dec 2026 (issue #3). A running server takes the change when it restarts.",
     "Not here, on purpose: the embedding model and the chunk size. Changing either means re-embedding the corpus, so they belong to the index (src/backend/providers/openrouter_client.py, src/backend/ingestion/chunking.py), not to the settings.",
     "agent is the front desk that picks a tool (phase 7): a fast model without reasoning, because it only chooses a tool and fills its arguments; the knowledge answers are written by the generator. generator is the model that writes the answer (phase 6), the course's gpt-5-mini; answer holds the input limit and the disclaimer (the operator, 2026-09-29).",
     "router, retrieval.shelf_filter and retrieval.multi_query are chosen by measurement: docs/phase_04_query_translation_and_routing.md. Measured 2026-09-29: as the router, gpt-5-mini beat gpt-4.1-mini on behaviour and retrieval (the embedding model is not a setting here and was the same in every run); the shelf filter and multi-query each lowered section recall@5, so both are off. Second round, 2026-09-30: the step-back concept_query raised recall@5 by 0.04 in the same run, so it is on; reasoning effort minimal lost 2 behaviour points and 0.09 recall@5, so low stays. Phase 5, 2026-09-30: BM25 next to vector search raised recall@5 by 0.04 in the same run, so keyword_search is on; relevance_floor is the best cosine similarity of the vector search for the router's queries below which the answer is \"nothing found\", set at the midpoint between the one question the corpus cannot answer (q24, at most 0.485) and the lowest covered question (0.504). It is a hint for the answer step, not a hard stop: in a later run q24 rose to 0.517, above it, so the two do not separate in every run (1 of 6). Follow-up: BM25 on the router's keywords instead of the sentences raised recall@5 from 0.43 to 0.48 in the same run, so bm25_on_keywords is on. Phase 6, 2026-10-01: k = 10 against k = 5, same routing plans: verified quotes from an expected section 8 -> 12 of 18, an expected section among the passages 12 -> 17 of 18, behaviour 18 -> 19 with q24 corrected (k = 10 gives its honest partial answer on delta), so k is 10.",
@@ -17,8 +17,8 @@
     "logs": "logs"
   },
   "embeddings": {
-    "_comment": "Where the vectors are fetched (decision 278.a): openrouter (the course's key, until about 23 Nov 2026) or openai (OpenAI direct, the project key CORPUS_OPENAI_API_KEY in .env). Both serve text-embedding-3-small and return the same vectors (cosine 1.0, measured 2026-10-29), so the index stays when the route changes; a running server takes the change when it restarts.",
-    "provider": "openrouter"
+    "_comment": "Where the vectors are fetched (decision 278.a): openai (OpenAI direct, the project key CORPUS_OPENAI_API_KEY in .env), since 23 Nov 2026 (issue #3); before it openrouter, the course's key. Both serve text-embedding-3-small and return the same vectors (cosine 1.0, measured 2026-10-29), so the index stays when the route changes; a running server takes the change when it restarts.",
+    "provider": "openai"
   },
   "correction": {
     "_comment": "The model that proposes how one block of a reading should read, from the page image and a judge's finding (the operator's W2.a, 21 Nov 2026); a person records the proposal or not, and it never enters the reading. Its instructions are the active version of the role correction in src/backend/conversion/prompt_versions.json. Only anthropic is built, since the request carries the page image; a page a provider's filter blocked or a reader refused, and a file held back from providers, are never sent.",
@@ -35,22 +35,22 @@
     "librarian_reads": "memory"
   },
   "router": {
-    "provider": "openrouter",
+    "provider": "anthropic",
     "enabled": true,
-    "model": "openai/gpt-5-mini",
-    "reasoning_effort": "low",
+    "model": "claude-haiku-5-5",
+    "reasoning_effort": null,
     "max_tokens": 2000
   },
   "agent": {
-    "provider": "openrouter",
-    "model": "openai/gpt-4.1-mini",
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
     "reasoning_effort": null,
     "max_tokens": 1500
   },
   "generator": {
-    "provider": "openrouter",
-    "model": "openai/gpt-5-mini",
-    "reasoning_effort": "low",
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "reasoning_effort": null,
     "max_tokens": 6000
   },
   "answer": {

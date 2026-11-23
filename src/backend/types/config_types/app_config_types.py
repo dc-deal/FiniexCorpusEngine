@@ -28,7 +28,7 @@ class ChatProvider(str, Enum):
 class EmbeddingsConfig(StrictConfigModel):
     """Where the embeddings are fetched; the model itself is fixed with the index, not here."""
 
-    provider: EmbeddingProvider = EmbeddingProvider.OPENROUTER
+    provider: EmbeddingProvider = EmbeddingProvider.OPENAI  # since 23 Nov 2026 (issue #3), when the course key ended
 
 
 class PathsConfig(StrictConfigModel):

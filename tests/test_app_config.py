@@ -3,7 +3,8 @@ from backend.chat import app_config
 
 def test_the_settings_name_a_router_model_and_the_retrieval_switches():
     config = app_config.load()
-    assert '/' in config['router']['model']  # an OpenRouter id: provider/model
+    # since 23 Nov 2026 (issue #3) Anthropic's model, named bare; an OpenRouter id names its maker (provider/model)
+    assert config['router']['provider'] == 'anthropic' and '/' not in config['router']['model']
     assert config['router']['reasoning_effort'] in (None, 'minimal', 'low', 'medium', 'high')
     assert config['router']['max_tokens'] >= 1000  # a low budget is the content-null trap
     assert isinstance(config['retrieval']['shelf_filter'], bool)

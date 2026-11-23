@@ -15,8 +15,9 @@ def use_route(monkeypatch, route: str) -> None:
     monkeypatch.setattr(ConfigFileLoader, '_config', config)
 
 
-def test_the_tracked_route_is_openrouter_until_the_course_key_ends():
-    assert embedding_route.provider() is EmbeddingProvider.OPENROUTER
+def test_the_tracked_route_is_openai_direct_since_the_course_key_ended():
+    # issue #3, 23 Nov 2026: the same model and the same vectors, so the index stays
+    assert embedding_route.provider() is EmbeddingProvider.OPENAI
 
 
 def test_each_route_hands_out_its_own_client_for_the_same_model(monkeypatch):

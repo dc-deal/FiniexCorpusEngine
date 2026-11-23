@@ -88,7 +88,7 @@ def test_an_answer_shows_only_verbatim_quotes_with_rendered_citations_and_the_di
     reworded = Quote(passage=1, text='The Sharpe ratio is return divided by risk.')
     wrong_number = Quote(passage=7, text='It divides the excess return by the standard deviation of returns.')
     result = turn(plan(), answer(quotes=[*answer().quotes, reworded, wrong_number]),
-                  prices={'openai/gpt-5-mini': {'input': 0.25, 'output': 2.0}})
+                  prices={app_config.load()['generator']['model']: {'input': 0.25, 'output': 2.0}})
     assert result['behaviour'] == 'answer'
     assert [q['text'] for q in result['quotes']] == ['It divides the excess return by the standard deviation of returns.']
     assert result['quotes_dropped'] == 2
