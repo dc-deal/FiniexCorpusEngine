@@ -208,13 +208,13 @@ def outlines_of(base: KnowledgeBase, store, works: list[dict], rows: list[dict])
         own = [row for row in rows if row['file'] == work['file']]
         key = outline_key(pdf, own)
         quoted = quoted_path(store, work['file'])
-        if key not in cache or not quoted.exists() or json.loads(quoted.read_text(encoding='utf-8')).get('key') != key:
+        held = json.loads(quoted.read_text(encoding='utf-8')) if quoted.exists() else {}
+        if key not in cache or held.get('key') != key or 'printed' not in held:
             text = pdf_sections.read_pdf(pdf, served_pages(work['file'], own, base.export))
             outline = pdf_sections.outline_of(text.outline_toc, text.pages, fold_headings=text.toc_source == 'readings')
             cache[key] = {'units': [asdict(unit) for unit in outline.units],
                           'page_units': {str(page): units for page, units in sorted(outline.page_units.items())}}
-            store.write_report(f'{QUOTED}/{Path(work["file"]).stem}.json',
-                               {'key': key, 'file': work['file'], 'pages': {str(number): page for number, page in enumerate(text.pages, 1)}})
+            store.write_report(f'{QUOTED}/{Path(work["file"]).stem}.json', quoted_record(key, work['file'], text))
         found[work['file']] = kept[key] = cache[key]
     store.write_report(OUTLINES, kept)  # today's outlines only, so the file never keeps a stale one
     return found
@@ -222,6 +222,23 @@ def outlines_of(base: KnowledgeBase, store, works: list[dict], rows: list[dict])
 
 def quoted_path(store, file_name: str) -> Path:
     return store.path('reports', QUOTED, Path(file_name).stem + '.json')
+
+
+def quoted_record(key: str, file_name: str, text) -> dict:
+    """One PDF's quoted pages as the store keeps them, with the printed number the cleaner read from each page's running
+    head or foot (`pdf_sections.clean_pages`, checked against the document's dominant offset), so a page served from its
+    text layer names it too (a client's fourth check, 24 Nov: "printed is null although the running head carries 157")."""
+    return {'key': key, 'file': file_name, 'pages': {str(number): page for number, page in enumerate(text.pages, 1)},
+            'printed': {str(number): (None if value is None else str(value)) for number, value in enumerate(text.printed, 1)}}
+
+
+def quoted_printed(knowledge_base: str, file_name: str) -> dict[int, str | None]:
+    """PDF page -> the printed number its text layer carries, as `quoted_pages` keeps it; empty where nothing is kept."""
+    quoted_pages(knowledge_base, file_name)
+    path = quoted_path(open_store(BASES[knowledge_base].name), file_name)
+    if not path.exists():
+        return {}
+    return {int(number): value for number, value in json.loads(path.read_text(encoding='utf-8')).get('printed', {}).items()}
 
 
 def quoted_pages(knowledge_base: str, file_name: str) -> dict[int, str]:
@@ -235,13 +252,11 @@ def quoted_pages(knowledge_base: str, file_name: str) -> dict[int, str]:
     base = BASES[knowledge_base]
     store = open_store(base.name)
     path = quoted_path(store, file_name)
-    if not path.exists():
+    if not path.exists() or 'printed' not in json.loads(path.read_text(encoding='utf-8')):
         rows = [row for row in json.loads((base.export / 'index.json').read_text(encoding='utf-8'))['pages'] if row['file'] == file_name]
         pdf = base.pdfs / file_name
         text = pdf_sections.read_pdf(pdf, served_pages(file_name, rows, base.export))
-        store.write_report(f'{QUOTED}/{Path(file_name).stem}.json',
-                           {'key': outline_key(pdf, rows), 'file': file_name,
-                            'pages': {str(number): page for number, page in enumerate(text.pages, 1)}})
+        store.write_report(f'{QUOTED}/{Path(file_name).stem}.json', quoted_record(outline_key(pdf, rows), file_name, text))
     return {int(number): page for number, page in json.loads(path.read_text(encoding='utf-8'))['pages'].items()}
 
 

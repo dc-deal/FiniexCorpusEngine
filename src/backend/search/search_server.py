@@ -143,6 +143,17 @@ def export_rows_by_file(export: Path) -> dict[str, dict[int, dict]]:
     return rows
 
 
+def printed_in_layer(knowledge_base: str, file_name: str) -> dict[int, str | None]:
+    """PDF page -> the printed number the cleaner read from the page's text layer (`reading_export.quoted_printed`); empty
+    where the store keeps none (a test's invented file, a machine without an export)."""
+    from backend.conversion.store import reading_export
+
+    try:
+        return reading_export.quoted_printed(knowledge_base, file_name)
+    except (OSError, KeyError, ValueError):
+        return {}
+
+
 def pdf_work_pages(key: str, pdf: Path, rows: dict[int, dict], quoted: dict[int, str], export: Path, knowledge_base: str,
                    marks: list[str] = ()) -> list[page_index.Page]:
     """Every page of one PDF with the text the chat quotes for it (decision 93.a): its served reading, else its text layer
@@ -153,14 +164,16 @@ def pdf_work_pages(key: str, pdf: Path, rows: dict[int, dict], quoted: dict[int,
     pages, section = [], None
     with pymupdf.open(pdf) as document:
         count = document.page_count
+    layer_printed = printed_in_layer(knowledge_base, pdf.name)
     for number in range(1, count + 1):
-        row, printed, reading_key = rows.get(number), None, None
+        # a reading names the printed number it saw on the page image; else the text layer's running head or foot does
+        row, printed, reading_key = rows.get(number), layer_printed.get(number), None
         why = text_layer_why(row)
         parsed = None
         if row and row.get('text_file'):
             # The export judged the class under today's validator; here the reading is only read
             parsed = parse((export / row['text_file']).read_text(encoding='utf-8'), row['form'])
-            printed = printed_of(parsed)
+            printed = printed_of(parsed) or printed
         start_section = section
         if parsed is not None:
             titles = headings_of(parsed)
@@ -1080,8 +1093,9 @@ class SearchService:
             return {'state': 'error', 'error': f'depth must be 1 to 6; got {depth}', 'entries': []}
         source, entries = self._contents(work)
         meta = self.works[work]
-        if not entries:
-            return {'state': 'nothing found', 'work': work, 'title': meta.title, 'why': 'no bookmarks and no headings', 'entries': []}
+        if not entries:  # a state of its own (a client's fourth check, 24 Nov: "nothing found" read as a failed search)
+            return {'state': 'no outline', 'work': work, 'title': meta.title,
+                    'why': 'the work has neither bookmarks nor headings its pages name', 'entries': []}
         top, candidates = 0, []
         if under is not None:  # one entry and what lies under it, its depth counted from it (#14)
             found = next((at for at, entry in enumerate(entries) if entry.get('page') == under), None)
@@ -1476,7 +1490,8 @@ def build_server(service: SearchService, log_path: Path | None = CALL_LOG):
                             'A title matches every entry that holds it; the shallowest is taken and the others are named '
                             'in `other_matches`.')] = None, *, ctx: Context) -> dict:
         """A work's table of contents, local and free, to descend into before reading a page: its PDF's bookmarks, else the
-        headings of its text, each with the page label `open_page` takes, and where they come from."""
+        headings of its text, each with the page label `open_page` takes, and where they come from; state "no outline" for a
+        work that has neither (search its pages instead)."""
         return logged('toc', ctx, lambda: service.toc(work, depth, under), work=work, depth=depth, under=under)
 
     @server.tool()

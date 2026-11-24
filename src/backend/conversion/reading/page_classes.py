@@ -225,12 +225,21 @@ def estimate(args) -> None:
     from backend.conversion.store.reading_store import open_store
 
     store, rows = open_store('licensed'), []
+    # --files: measure only these PDFs and keep every other file's stored rows (24 Nov: a new book's intake, where measuring
+    # every PDF again takes two hours)
+    names = set(getattr(args, 'files', None) or [])
     for path in sorted(reading_cells.LICENSED_ARCHIVE.glob('*.pdf')):
-        if not reading_cells.may_send(path.name):
+        if not reading_cells.may_send(path.name) or (names and path.name not in names and path.stem not in names):
             continue
         with pymupdf.open(path) as document:
             furniture = repeated_images(document)
             rows += [{'file': path.name, 'pdf_page': page.number + 1, 'signals': measure(page, furniture)} for page in document]
+    if names:
+        if not rows:
+            raise SystemExit(f'--files: {sorted(names)} not among the sendable licensed PDFs; nothing written')
+        measured = {row['file'] for row in rows}
+        stored = json.loads(store.path('reports', 'page_classes_licensed_rows.json').read_text(encoding='utf-8'))['rows']
+        rows = [row for row in stored if row['file'] not in measured] + rows
     store.write_report('page_classes_licensed_rows.json', {'rows': rows})
     scans = sum(1 for row in rows if row['signals']['text_chars'] < TEXT_LAYER_CHARS)
     print(f'{len(rows)} sendable pages, {scans} scans (own route)')
@@ -330,6 +339,8 @@ def main() -> None:
     commands.add_parser('tune').set_defaults(run=tune)
     estimate_parser = commands.add_parser('estimate')
     estimate_parser.add_argument('--usd-per-page', type=float, default=0.0163)  # Sonnet, Markdown, batch: the mini pilot
+    estimate_parser.add_argument('--files', nargs='+', metavar='NAME',
+                                 help='measure only these PDFs (file name or stem) and keep the stored rows of the others')
     estimate_parser.set_defaults(run=estimate)
     plan_parser = commands.add_parser('sample-plan')
     plan_parser.add_argument('--size', type=int, default=SAMPLE_SIZE)

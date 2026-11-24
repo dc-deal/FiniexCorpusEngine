@@ -235,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
             # work's key, so the work was never written again and its kept edition stayed ranked)
             print('not written, since the librarian serves no work by that key now: '
                   f'{sorted(set(args.works) - served_keys(set(args.works)))}; a catalog id is not always the index key')
+        warm_up()
         return 0
     started = time.perf_counter()
     bases = search_server.knowledge_bases()
@@ -245,10 +246,34 @@ def main(argv: list[str] | None = None) -> int:
         print(f'imported in {time.perf_counter() - started:.0f} s: {imported.works} works, {imported.pages} pages '
               f'({imported.ranked} ranked), {imported.postings:,} postings, chunks {imported.chunks}', flush=True)
     if args.no_gate:
+        warm_up()
         return 0
     report = index_gate.run(url, served_pages(bases)[0], chroma_stores())
     print(json.dumps(report['summary'], indent=1))
+    warm_up()
     return 0 if report['summary']['passed'] else 1
+
+
+WARM_UP = (('works', {'brief': True}), ('search', {'query': 'volatility', 'hits': 1}),
+           ('semantic_search', {'question': 'volatility', 'search_query': 'volatility', 'hits': 1}))
+
+
+def warm_up(server=None) -> None:
+    """One call of the running librarian's three most used tools once an import is through, so it loads the new
+    generation and the database's caches warm before a client's first call does (a client's fourth check, 24 Nov: the
+    first semantic_search after the night's imports took 9.6 s, 2.6 s before). The semantic one embeds a word, a fraction
+    of a cent. A librarian that does not answer is no error: it loads the generation on its next call anyway."""
+    from backend.chat import mcp_client
+
+    started = time.perf_counter()
+    try:
+        client = mcp_client.SearchClient(server if server is not None else mcp_client.http_server(), client_name='index-import')
+        for tool, arguments in WARM_UP:
+            client.call(tool, arguments)
+    except Exception as error:  # noqa: BLE001 - a warm-up never fails an import
+        print(f'warm-up skipped: {type(error).__name__}', flush=True)
+        return
+    print(f'librarian warmed in {time.perf_counter() - started:.1f} s', flush=True)
 
 
 if __name__ == '__main__':

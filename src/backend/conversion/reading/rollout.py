@@ -15,6 +15,7 @@ classes, its difficulty and its round, in `rollout/plan.json` beside the rounds.
     python -m backend.conversion.reading.rollout resplit          # the stored order in today's round sizes; a sent round never changes
     python -m backend.conversion.reading.rollout append           # new works as rounds after the last; no round file changes
     python -m backend.conversion.reading.rollout append --files X # only the new work X (file name or stem); the others wait
+    python -m backend.conversion.reading.rollout append --files X --pages 168-199  # only those PDF pages of X, its chapter
     python -m backend.conversion.reading.rollout gates --round 1  # the four gates of a round, from its check report and manifests
 """
 
@@ -139,6 +140,30 @@ def appended(stored: dict, pages: list[dict]) -> tuple[list[dict], dict[int, str
     return rounds, files
 
 
+def rows_to_plan(rows: list[dict], order: list[dict], chosen: set[str] | None, pages: str | None) -> list[dict]:
+    """The measured pages an append plans. Without `pages`, the works no round holds yet (all of them, or those `chosen`
+    names). With `pages` ("FROM-TO", PDF pages), that range of the one work `chosen` names, less any page a round holds
+    already, so a long book is read where a client needs it first (24 Nov: a chapter of a 630-page book, where its whole
+    reading would pass the spend cap); its later ranges are appended the same way."""
+    planned_pages = {(page['file'], page['pdf_page']) for page in order}
+    if pages is None:
+        planned = {file for file, _ in planned_pages}
+        if chosen is not None and chosen & planned:
+            raise SystemExit(f'--files: {sorted(chosen & planned)} in a round already; nothing written')
+        return [row for row in rows if row['file'] not in planned and (chosen is None or row['file'] in chosen)]
+    if chosen is None or len(chosen) != 1:
+        raise SystemExit('--pages takes one work, named by --files; nothing written')
+    first, _, last = pages.partition('-')
+    if not (first.isdigit() and last.isdigit() and int(first) <= int(last)):
+        raise SystemExit(f'--pages is FROM-TO in PDF pages, not {pages!r}; nothing written')
+    (file,) = chosen
+    found = [row for row in rows if row['file'] == file and int(first) <= row['pdf_page'] <= int(last)
+             and (file, row['pdf_page']) not in planned_pages]
+    if not found:
+        raise SystemExit(f'--pages {pages}: no page of {file} left to plan there; nothing written')
+    return found
+
+
 def append(args=None) -> dict:
     """Plan the works no round holds yet, as rounds after the last one, every existing round file unchanged: the intake of a new
     work (2026-11-08), the same cascade as `plan`. `plan` itself cuts every round anew and would rewrite the sent ones."""
@@ -148,12 +173,9 @@ def append(args=None) -> dict:
     store = open_store('licensed')
     rows = json.loads(store.path('reports', 'page_classes_licensed_rows.json').read_text(encoding='utf-8'))['rows']
     stored = json.loads((FOLDER / 'plan.json').read_text(encoding='utf-8'))
-    planned = {page['file'] for page in stored['order']}
     chosen = page_classes.files_named(rows, getattr(args, 'files', None))  # only these new works, where named (22 Nov)
-    if chosen is not None and chosen & planned:
-        raise SystemExit(f'--files: {sorted(chosen & planned)} in a round already; nothing written')
-    new_rows = [row for row in rows if reading_cells.may_send(row['file']) and row['file'] not in planned
-                and (chosen is None or row['file'] in chosen)]
+    new_rows = rows_to_plan([row for row in rows if reading_cells.may_send(row['file'])], stored['order'], chosen,
+                            getattr(args, 'pages', None))
     checks = [record for record in store.readings() if record.get('kind') == 'classcheck']
     checked = {(record['file'], record['pdf_page']) for record in checks}
     haiku = {(record['file'], record['pdf_page']): record['answer']['classes'] for record in checks if record.get('answer')}
@@ -282,6 +304,8 @@ def main() -> None:
     append_parser = commands.add_parser('append')
     append_parser.add_argument('--files', nargs='+', metavar='NAME',
                                help='plan only these new works, each by its file name or stem; default every new work')
+    append_parser.add_argument('--pages', metavar='FROM-TO',
+                               help='with one work in --files: only these PDF pages of it, less any a round holds already')
     append_parser.set_defaults(run=append)
     gates_parser = commands.add_parser('gates')
     gates_parser.add_argument('--round', type=int, required=True)

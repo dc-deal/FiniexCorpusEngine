@@ -434,3 +434,22 @@ The measured round, each change against the probes the client named and the 61 e
 
 The gate held through all three imports: 177 probes with the same pages and scores in the port and the database, 165
 reached, 150 at rank 1, before and after.
+
+**A client's fourth check (24 Nov 2026).** The testing IDE ran its check against generation 34. Its event-study request
+now scored 100 of 100, its crash-module ranking moved with the works taken in for it, and the formula pages read for it
+were usable as text. What it found is taken up here:
+
+- **A printed number for a page served from its text layer.** The cleaner that cuts the chat's sections already reads each
+  page's printed number from its running head or foot, held against the document's dominant offset
+  (`pdf_sections.clean_pages`). That number now goes with the page's quoted text (`reading_export.quoted_record`), so the
+  page names it where no reading does. A reading's own number still comes first. On the client's example, a long book
+  served from its text layer, nearly every page now names its number.
+- **A work without an outline says so:** `toc` answers state `no outline`, not `nothing found`, which a client read as a
+  failed search.
+- **The librarian warmed after an import:** `index_import` ends by calling the running librarian's three most used tools
+  once (`works`, `search`, `semantic_search`). The librarian then loads the new generation, and the database's caches are
+  warm before a client's first call. The client had measured 9.6 s for its first `semantic_search` after the night's
+  imports. A librarian that does not answer is no error.
+- **A chapter read before its book:** `rollout append --files X --pages FROM-TO` plans one range of one work, less any page a
+  round holds already. A client needed a chapter's equations, and reading the whole book would pass the spend cap.
+  `page_classes estimate --files X` measures one new work without measuring every PDF again.

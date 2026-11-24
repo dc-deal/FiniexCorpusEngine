@@ -106,3 +106,39 @@ def test_a_cascade_plan_named_by_its_files_plans_only_their_text_only_pages_and_
     with pytest.raises(SystemExit, match='nothing written'):
         page_classes.sample_plan(SimpleNamespace(plan='cascade', size=200, files=['no_such_paper']))
     assert store.reports == {}
+
+
+def test_estimate_with_files_measures_those_alone_and_keeps_every_other_file_s_rows(tmp_path, monkeypatch):
+    # 24 Nov: a new book's intake, where measuring every PDF again takes two hours
+    import argparse
+
+    from backend.conversion.reading import reading_cells
+    from backend.conversion.store import reading_store
+
+    for name in ('new.pdf', 'old.pdf'):
+        document = pymupdf.open()
+        document.new_page().insert_text((72, 72), 'An invented page of prose for the measure. ' * 5)
+        document.save(tmp_path / name)
+
+    class Store:
+        def path(self, *parts):
+            return tmp_path.joinpath(*parts)
+
+        def write_report(self, name, data):
+            (tmp_path / 'reports').mkdir(exist_ok=True)
+            (tmp_path / 'reports' / name).write_text(json.dumps(data), encoding='utf-8')
+
+    monkeypatch.setattr(reading_cells, 'LICENSED_ARCHIVE', tmp_path)
+    monkeypatch.setattr(reading_cells, 'may_send', lambda name: True)
+    monkeypatch.setattr(reading_store, 'open_store', lambda name: Store())
+    page_classes.estimate(argparse.Namespace(files=None, usd_per_page=0.01))  # every file, as before
+    report = tmp_path / 'reports' / 'page_classes_licensed_rows.json'
+    rows = json.loads(report.read_text(encoding='utf-8'))['rows']
+    for row in rows:
+        row['signals']['marked'] = row['file']  # a stored row that a new measure would not carry
+    report.write_text(json.dumps({'rows': rows}), encoding='utf-8')
+    page_classes.estimate(argparse.Namespace(files=['new'], usd_per_page=0.01))
+    rows = {row['file']: row for row in json.loads(report.read_text(encoding='utf-8'))['rows']}
+    assert rows['old.pdf']['signals']['marked'] == 'old.pdf' and 'marked' not in rows['new.pdf']['signals']
+    with pytest.raises(SystemExit, match='not among'):
+        page_classes.estimate(argparse.Namespace(files=['absent'], usd_per_page=0.01))

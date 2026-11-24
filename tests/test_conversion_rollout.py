@@ -216,3 +216,23 @@ def test_an_append_named_by_an_unknown_held_or_planned_file_writes_nothing(tmp_p
     with pytest.raises(SystemExit, match=refusal):
         rollout.append(SimpleNamespace(files=names))
     assert (tmp_path / 'plan.json').read_bytes() == plan_before and not (tmp_path / 'round_05.json').exists()
+
+
+def test_an_append_takes_a_page_range_of_one_work_and_leaves_its_other_pages_for_later():
+    # 24 Nov: a chapter of a long book read first, where its whole reading would pass the spend cap
+    from backend.conversion.reading import rollout
+
+    rows = [{'file': 'book.pdf', 'pdf_page': n} for n in range(1, 11)] + [{'file': 'other.pdf', 'pdf_page': 1}]
+    order = [{'file': 'book.pdf', 'pdf_page': 4}]  # one page of the range is in a round already
+    planned = rollout.rows_to_plan(rows, order, {'book.pdf'}, '3-6')
+    assert [row['pdf_page'] for row in planned] == [3, 5, 6]
+    with pytest.raises(SystemExit, match='one work'):
+        rollout.rows_to_plan(rows, order, None, '3-6')
+    with pytest.raises(SystemExit, match='FROM-TO'):
+        rollout.rows_to_plan(rows, order, {'book.pdf'}, '6-3')
+    with pytest.raises(SystemExit, match='no page'):
+        rollout.rows_to_plan(rows, order, {'book.pdf'}, '4-4')
+    # without a range, as before: a work a round holds any page of is not a new work
+    assert [row['file'] for row in rollout.rows_to_plan(rows, order, None, None)] == ['other.pdf']
+    with pytest.raises(SystemExit, match='in a round already'):
+        rollout.rows_to_plan(rows, order, {'book.pdf'}, None)

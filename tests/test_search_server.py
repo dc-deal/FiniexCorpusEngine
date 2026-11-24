@@ -786,6 +786,10 @@ def test_a_contents_descends_into_one_entry():
     under = served.toc('book_code', depth=1, under='Strategies')
     assert under['under'] == 'Strategies' and [entry['title'] for entry in under['entries']] == ['Strategies', 'Breakout (S)']
     assert served.toc('book_code', under='Nowhere')['state'] == 'nothing found'
+    # a work with neither bookmarks nor headings says so in a state of its own (a client's fourth check, 24 Nov)
+    plain = search_server.SearchService({'free': ([page('plain', '1', PROSE * 3, 'plain.md', knowledge_base='free')],
+                                                  {'plain': search_server.Work('plain', 'Plain', 'free', 'CC BY', 'per page', 1)})})
+    assert plain.toc('plain')['state'] == 'no outline'
 
 
 def test_every_answer_that_names_a_work_names_its_language():

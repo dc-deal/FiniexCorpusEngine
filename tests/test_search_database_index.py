@@ -242,3 +242,29 @@ def test_an_import_refuses_a_work_without_its_language():
     nameless = Work('x', 'X', 'free', 'CC BY', 'per page', 1)
     with pytest.raises(SystemExit, match='no language for'):
         index_import.served_pages({'free': ([page('x', '1', 'momentum')], {'x': nameless})})
+
+
+def test_an_import_warms_the_running_librarian_and_never_fails_for_it(monkeypatch, capsys):
+    # a client's fourth check, 24 Nov: the first semantic_search after the night's imports took 9.6 s
+    from backend.chat import mcp_client
+
+    calls = []
+
+    class Client:
+        def __init__(self, server, client_name):
+            calls.append(('start', client_name))
+
+        def call(self, tool, arguments):
+            calls.append((tool, arguments))
+
+    monkeypatch.setattr(mcp_client, 'SearchClient', Client)
+    index_import.warm_up(server=object())
+    assert [call[0] for call in calls] == ['start', 'works', 'search', 'semantic_search']
+    assert 'librarian warmed' in capsys.readouterr().out
+
+    def down(server, client_name):
+        raise ConnectionError('no librarian')
+
+    monkeypatch.setattr(mcp_client, 'SearchClient', down)
+    index_import.warm_up(server=object())  # no error: the librarian loads the generation on its next call anyway
+    assert 'warm-up skipped: ConnectionError' in capsys.readouterr().out
