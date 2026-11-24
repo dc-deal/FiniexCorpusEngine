@@ -332,15 +332,14 @@ def numbered(pages: list[page_index.Page], offset: int) -> list[page_index.Page]
 
 def new_licensed_pdfs(keys: dict[str, str]) -> dict[str, Path]:
     """Work key -> PDF for the licensed PDFs without legacy Markdown: the new works (decision 125.a), keyed by their file's stem.
-    A file the provenance list holds back is left out, and so is the stand-in of a work whose legacy text stands: two copies
-    of one book would compete for every hit."""
-    from backend.conversion.reading import reading_cells
-
+    The stand-in of a work whose legacy text stands is left out: two copies of one book would compete for every hit. A file
+    the provenance list holds back is served from its text layer as any other (the operator's 1.a, 24 Nov 2026: held means
+    never sent to a provider, not off the shelf; its marks are stripped from the text): no reading of it is made, its page
+    images are refused (`image_sources`) and its pages are not embedded again (`licensed_index`)."""
     slugs = set(keys.values())
     suffix, _ = stand_in_rule()
     return {pdf.stem: pdf for pdf in sorted(LICENSED_ARCHIVE.glob('*.pdf'))
-            if pdf.stem not in slugs and reading_cells.may_send(pdf.name)
-            and not (suffix and pdf.stem.endswith(suffix) and pdf.stem.removesuffix(suffix) in slugs)}
+            if pdf.stem not in slugs and not (suffix and pdf.stem.endswith(suffix) and pdf.stem.removesuffix(suffix) in slugs)}
 
 
 def with_readings(legacy: list[page_index.Page], readings: list[page_index.Page]) -> list[page_index.Page]:
@@ -685,7 +684,10 @@ def image_sources() -> dict[str, dict]:
                 sources[key] = {'refused': 'held back by the provenance list: never sent to a provider'}
             else:
                 sources[key] = {'pdf': pdf}
-    sources.update({key: {'pdf': pdf} for key, pdf in new_licensed_pdfs(legacy_keys()).items()})  # sendable by construction
+    # a held new PDF is served from its text layer, but its page image goes to no caller's model (1.a, 24 Nov)
+    sources.update({key: ({'pdf': pdf} if reading_cells.may_send(pdf.name)
+                          else {'refused': 'held back by the provenance list: never sent to a provider'})
+                    for key, pdf in new_licensed_pdfs(legacy_keys()).items()})
     sources.update({key: {'pdf': pdf} for key, pdf in stand_ins(legacy_keys()).items()})
     sources.update({key: {'refused': 'no PDF page: an HTML source has sections, not pages'} for key in licensed_html()})
     return sources

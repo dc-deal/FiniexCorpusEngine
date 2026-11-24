@@ -197,7 +197,9 @@ def licensed_rows(pages: list, works: dict) -> list[dict]:
     for key in sorted(works):
         served = by_work.get(key, [])
         if key in new or key in standing_in:
-            out.append(file_row(key, (new.get(key) or standing_in[key]).name, served))
+            file = (new.get(key) or standing_in[key]).name
+            # a held new PDF is served from its text layer and still says it is held (the operator's 1.a, 24 Nov)
+            out.append(file_row(key, file, served, held=None if reading_cells.may_send(file) else HELD))
             continue
         if getattr(works[key], 'code_language', None):  # a code work (#12): its files, each served as it is, none read
             row = row_of('licensed', key, works[key].title, key, None, 'code', len(served), None, {}, served, {},

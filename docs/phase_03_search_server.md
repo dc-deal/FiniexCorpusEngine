@@ -453,3 +453,7 @@ were usable as text. What it found is taken up here:
 - **A chapter read before its book:** `rollout append --files X --pages FROM-TO` plans one range of one work, less any page a
   round holds already. A client needed a chapter's equations, and reading the whole book would pass the spend cap.
   `page_classes estimate --files X` measures one new work without measuring every PDF again.
+- **A held file stays on the shelf.** A file the provenance list holds back (`send: false`, a download site's mark that
+  could not be removed) is served from its text layer like any other, with its marks stripped from the text. It is still
+  never sent to a provider: no reading of it is made, `page_image` refuses its pages, and its pages are not embedded again.
+  Until now such a PDF left the shelf altogether.

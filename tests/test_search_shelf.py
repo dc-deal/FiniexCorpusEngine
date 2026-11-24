@@ -76,7 +76,9 @@ def test_a_new_work_and_a_held_file_are_on_the_shelf_too(tmp_path, monkeypatch):
     rows = licensed_shelf(tmp_path, monkeypatch)
     assert rows['new_doc']['served']['by_route'] == {'text layer': 2} and rows['new_doc']['read'] == 0
     assert rows['new_doc']['planned'] is None and rows['new_doc']['share_passed'] is None
-    assert rows['held.pdf']['held'] == shelf.HELD and rows['held.pdf']['served']['pages'] == 0
+    # the operator's 1.a, 24 Nov: a held file is served from its text layer and still says it is held
+    held = next(row for key, row in rows.items() if key in ('held', 'held.pdf'))
+    assert held['held'] == shelf.HELD and held['served']['pages'] == 1
 
 
 def test_the_totals_carry_their_shares_and_a_milestone_keeps_each_base_apart(tmp_path, monkeypatch):

@@ -489,15 +489,19 @@ def test_a_legacy_text_without_pdf_page_numbers_and_a_stand_in_beside_its_legacy
     assert works['key-c'].route == 'legacy markdown' and 'book_b__alt' not in works
 
 
-def test_a_new_licensed_work_is_served_from_its_readings_and_text_layer_and_a_held_file_never(tmp_path, monkeypatch):
+def test_a_new_licensed_work_is_served_from_its_readings_and_text_layer_and_a_held_file_without_its_images(tmp_path,
+                                                                                                         monkeypatch):
     a_licensed_shelf(tmp_path, monkeypatch)
     pages, works = search_server.licensed_pages()
     new = [page for page in pages if page.work == 'new_doc']
     assert [(page.page, page.pdf, page.route) for page in new] == [('1', '1', search_server.TEXT_LAYER_WHY['unread']),
                                                                     ('2', '2', search_server.TEXT_LAYER_WHY['unread'])]
     assert new[0].path == 'archive/new_doc.pdf#page=1' and new[0].knowledge_base == 'licensed'
-    assert works['new_doc'].licence == search_server.LICENSED_LICENCE and 'held' not in works
+    assert works['new_doc'].licence == search_server.LICENSED_LICENCE
     assert search_server.image_sources()['new_doc'] == {'pdf': tmp_path / 'archive' / 'new_doc.pdf'}
+    # the operator's 1.a, 24 Nov: a held file is served from its text layer, never sent to a provider as an image
+    assert 'held' in works and search_server.image_sources()['held'] == {
+        'refused': 'held back by the provenance list: never sent to a provider'}
 
 
 def test_a_measured_offset_names_an_unnumbered_legacy_text_by_its_pdf_pages_so_its_readings_take_their_place(tmp_path, monkeypatch):
