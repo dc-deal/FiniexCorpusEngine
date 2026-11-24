@@ -337,20 +337,47 @@ def history() -> dict:
                  "base's figures, apart", 'rows': []}
 
 
+def served_works(shelf: dict) -> list[str]:
+    """The works a knowledge base's shelf serves at least one page of, by key."""
+    return sorted(row['work'] for row in shelf.get('works') or [] if row.get('work') and (row.get('served') or {}).get('pages'))
+
+
 def milestone_row(shelves: dict[str, dict], name: str, at: str | None = None) -> dict:
-    """One milestone: its date, its name, and per knowledge base its shelf's totals that the history keeps."""
+    """One milestone: its date, its name, and per knowledge base its shelf's totals that the history keeps and the works it
+    serves, so the next milestone can name the works that left or joined (the operator, 24 Nov 2026: a work that left the
+    shelf went unnoticed for a night)."""
     return {'at': at or datetime.now(UTC).date().isoformat(), 'milestone': name,
-            'bases': {base: {field: shelf['totals'].get(field) for field in HISTORY_FIELDS} for base, shelf in shelves.items()}}
+            'bases': {base: {**{field: shelf['totals'].get(field) for field in HISTORY_FIELDS},
+                             'served_works': served_works(shelf)} for base, shelf in shelves.items()}}
 
 
-def add_milestone(shelves: dict[str, dict], name: str) -> Path:
-    """Append one milestone to the corpus's history; earlier rows stay as they are."""
+def shelf_changes(before: dict | None, after: dict) -> dict[str, dict[str, list[str]]]:
+    """Per knowledge base, the works that left the shelf and those that joined it between two milestones; empty where the
+    earlier milestone kept no list of works (those before 24 Nov 2026)."""
+    changes = {}
+    for base, now in after['bases'].items():
+        then = ((before or {}).get('bases') or {}).get(base) or {}
+        if 'served_works' not in then:
+            continue
+        left = sorted(set(then['served_works']) - set(now['served_works']))
+        joined = sorted(set(now['served_works']) - set(then['served_works']))
+        if left or joined:
+            changes[base] = {'left': left, 'joined': joined}
+    return changes
+
+
+def add_milestone(shelves: dict[str, dict], name: str) -> tuple[Path, dict]:
+    """Append one milestone to the corpus's history, earlier rows as they are; and what changed on the shelf since the last
+    one that kept its works."""
     kept = history()
-    kept['rows'].append(milestone_row(shelves, name))
+    row = milestone_row(shelves, name)
+    before = next((earlier for earlier in reversed(kept['rows'])
+                   if any('served_works' in values for values in (earlier.get('bases') or {}).values())), None)
+    kept['rows'].append(row)
     path = data_paths.SHELF_HISTORY
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(kept, indent=1, ensure_ascii=False) + '\n', encoding='utf-8')
-    return path
+    return path, shelf_changes(before, row)
 
 
 def main() -> None:
@@ -363,7 +390,13 @@ def main() -> None:
     for path in write(shelves):
         print(f'written {path}')
     if args.milestone:
-        print(f'milestone written into {add_milestone(shelves, args.milestone)}')
+        path, changes = add_milestone(shelves, args.milestone)
+        print(f'milestone written into {path}')
+        for base, change in changes.items():
+            if change['left']:  # said apart, never inside a summary (the operator, 24 Nov 2026)
+                print(f"LEFT THE SHELF ({base}): {', '.join(change['left'])}")
+            if change['joined']:
+                print(f"joined the shelf ({base}): {', '.join(change['joined'])}")
     for name, shelf in shelves.items():
         print(f"{name}: {json.dumps(shelf['totals'])}")
 

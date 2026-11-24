@@ -95,7 +95,22 @@ def test_the_totals_carry_their_shares_and_a_milestone_keeps_each_base_apart(tmp
     kept = shelf.history()['rows']
     assert [row['milestone'] for row in kept] == ['a test', 'another']
     assert kept[0]['bases']['free']['share_passed'] == 0.9 and kept[0]['bases']['licensed']['passed'] == total['passed']
-    assert set(kept[0]['bases']['free']) == set(shelf.HISTORY_FIELDS)
+    assert set(kept[0]['bases']['free']) == {*shelf.HISTORY_FIELDS, 'served_works'}
+
+
+def test_a_milestone_names_the_works_that_left_or_joined_the_shelf_since_the_last(tmp_path, monkeypatch):
+    # the operator, 24 Nov 2026: a work that left the shelf went unnoticed for a night
+    from backend.configuration import data_paths
+
+    monkeypatch.setattr(data_paths, 'SHELF_HISTORY', tmp_path / 'history.json')
+
+    def shelves(*keys):
+        rows = [{'work': key, 'served': {'pages': 3}} for key in keys] + [{'work': None, 'served': {'pages': 0}}]
+        return {'licensed': {'totals': {}, 'works': rows}}
+
+    assert shelf.add_milestone(shelves('a', 'b'), 'first')[1] == {}  # nothing to compare with
+    assert shelf.add_milestone(shelves('a', 'c'), 'second')[1] == {'licensed': {'left': ['b'], 'joined': ['c']}}
+    assert shelf.add_milestone(shelves('a', 'c'), 'third')[1] == {}
 
 
 def test_a_shelf_reason_is_by_construction_the_route_the_export_wrote_for_that_page():
