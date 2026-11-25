@@ -21,6 +21,7 @@ Prints ids, counts and classes, never page text.
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from collections import Counter
@@ -269,12 +270,30 @@ def read_in_session(row: dict) -> bool:
     return any(attempt.get('mode') == 'session' for attempt in row.get('attempts') or [])
 
 
+def image_sha(image: page_render.PageImage) -> str:
+    return hashlib.sha256(image.png).hexdigest()
+
+
+def read_from_another_image(record: dict, pdf_page) -> bool:
+    """Whether a session reading read another image than its page gives today. Only a file whose page images were changed
+    in place is rendered to tell (`reading_cells.images_changed_in_place`, the operator's 2.a, 25 Nov 2026: a download mark
+    covered in the pixels); every other page keeps the image it was read from, and rendering every read page on each call
+    would cost minutes. The render is deterministic: measured on 25 Nov on a scan, every reading of a page the cover left
+    alone matched today's render, and the stamped page's did not."""
+    if not reading_cells.images_changed_in_place(record['file']):
+        return False
+    return image_sha(page_render.render(pdf_page, RESOLUTION)) != record.get('image_sha256')
+
+
 def entry_for(cell: reading_cells.Cell, page: dict, image: page_render.PageImage, mirror: str, store,
-              retry_of: dict | None = None) -> dict:
+              retry_of: dict | None = None, replaces: dict | None = None) -> dict:
     """One direct reading's request. A retry of a malformed attempt is a new attempt with the format check's own messages as
-    a hint in the user turn, as a batch's format retry has (113.a), so it gets a new key and the attempt before stays."""
+    a hint in the user turn, as a batch's format retry has (113.a), so it gets a new key and the attempt before stays. A page
+    whose image changed since its latest reading is read again as a new attempt, without a hint, naming the reading it
+    replaces (2.a)."""
     hint = vision_batches.format_hint(vision_batches.stage_one_errors(retry_of, store)) if retry_of else None
-    attempt = retry_of['attempt'] + 1 if retry_of else 0
+    before = retry_of or replaces
+    attempt = before['attempt'] + 1 if before else 0
     system_sha = store.put_prompt(reader_requests.system_prompt(FORM))
     user_sha = store.put_prompt(vision_batches.reader_turn(page, image, hint))
     image_sha = store.put_input(image.png, '.png')
@@ -286,7 +305,11 @@ def entry_for(cell: reading_cells.Cell, page: dict, image: page_render.PageImage
             'retry_of': retry_of['reading_key'] if retry_of else None,
             'max_tokens': cell.max_tokens, 'image_sha256': image_sha, 'image_size': [image.width, image.height],
             'system_sha256': system_sha, 'user_sha256': user_sha, 'mode': MODE, 'adapter': ADAPTER, 'provider': PROVIDER,
-            'deviation': DIRECT_DEVIATION}
+            'deviation': DIRECT_DEVIATION, **({REPLACES: replaces['reading_key']} if replaces else {})}
+
+
+REPLACES = 'replaces'  # the reading a page read again from its changed image stands in for (2.a)
+IMAGE_CHANGED = 'read from an image the page no longer has'
 
 
 def prepare(args) -> list[str]:
@@ -321,10 +344,13 @@ def prepare(args) -> list[str]:
             session_records[mirror] = session_readings(store)
         own = session_records[mirror].get((page['file'], page['pdf_page']), [])
         latest = max(own, key=lambda record: record.get('attempt', 0)) if own else None
-        if latest is not None and not (args.retry_malformed and vision_batches.current_class(latest, store) == 'malformed'):
+        replaced = latest is not None and read_from_another_image(latest, pdf_page)
+        if latest is not None and not replaced \
+                and not (args.retry_malformed and vision_batches.current_class(latest, store) == 'malformed'):
             continue  # read already; a malformed attempt is retried only on request, and only once more each time
         image = page_render.render(pdf_page, RESOLUTION)
-        entry = entry_for(cell, page, image, mirror, store, retry_of=latest)
+        entry = entry_for(cell, page, image, mirror, store, retry_of=None if replaced else latest,
+                          replaces=latest if replaced else None)
         if store.reading(entry['reading_key']) is not None:
             continue
         folder = session_folder(args.knowledge_base) / (f"{page['work']}__p{page['pdf_page']:04d}"
@@ -379,7 +405,7 @@ def layout_lines(pdf_page, image: page_render.PageImage) -> str:
 
 def record_for(entry: dict, text: str) -> tuple[dict, str]:
     """The stored record of one direct reading: stage 1 decides its class, as for any reading; it costs no API money."""
-    record = {name: entry.get(name) for name in vision_batches.RECORD_FIELDS}
+    record = {name: entry.get(name) for name in (*vision_batches.RECORD_FIELDS, REPLACES) if name in entry or name != REPLACES}
     result_class, checked = vision_batches.check_reading(entry, text, 'end_turn')
     record.update(kind='reading', adapter=ADAPTER, provider=PROVIDER, deviation=entry['deviation'],
                   stored_at=vision_batches.now(), sdk='claude-code session', result_type='succeeded', error_type=None,
@@ -394,7 +420,7 @@ BLOCKED_FILE = 'blocked.json'  # {"error_message": the API's words, "request_id"
 def blocked_record(entry: dict, said: dict) -> dict:
     """The record of a page the provider's filter blocked while a session's agent read it, in the shape of a batch's blocked
     result (`vision_batches.is_block`), so the export and every check treat it alike. It costs no API money."""
-    record = {name: entry.get(name) for name in vision_batches.RECORD_FIELDS}
+    record = {name: entry.get(name) for name in (*vision_batches.RECORD_FIELDS, REPLACES) if name in entry or name != REPLACES}
     record.update(kind='reading', adapter=ADAPTER, provider=PROVIDER, deviation=entry['deviation'],
                   stored_at=vision_batches.now(), sdk='claude-code session', result_type='errored',
                   error_type='invalid_request_error', error_message=said['error_message'][:vision_batches.ERROR_MESSAGE_CHARS],
@@ -445,11 +471,15 @@ def choose(args) -> dict:
     states = reading_export.check_states(target, (name,))
     current = pipeline_db.chosen(args.knowledge_base)
     skipped = set(getattr(args, 'skip_file', None) or [])  # line 1's 1.a, 23 Nov: a file whose page images still carry a mark
+    documents = vision_batches.Documents()
     outcome = Counter()
     for record in check_run.latest_per_page(vision_batches.readings_of([name], target)):
         state = (states.get(record['reading_key']) or {}).get('state')
         if record['file'] in skipped:
             outcome['not chosen: skipped by name'] += 1
+        elif reading_cells.images_changed_in_place(record['file']) \
+                and read_from_another_image(record, documents.page(record['file'], record['pdf_page'])[1]):
+            outcome[f'not chosen: {IMAGE_CHANGED}'] += 1  # 2.a: read again from the image it has today
         elif state not in PASSED:
             outcome[f'not chosen: {state or "not checked"}'] += 1
         elif (current.get((record['file'], record['pdf_page'])) or {}).get('reading_key') == record['reading_key']:

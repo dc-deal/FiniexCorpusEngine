@@ -165,6 +165,14 @@ first such work and were closed with tests: the export listed only pages a defau
 session stood in no export (`reading_export.with_session_pages`), and the shelf planned only the rollout's pages, so the work
 counted as read against nothing planned.
 
+**A page whose image changed is read again (25 November).** A download mark can sit in a scan's pixels, where removing it from
+the text layer does not reach; it is then covered white in a copy that replaces the file under the same name, and the
+provenance list records the step (`image_destamped`). A reading made before read the old image and may hold the mark. For such
+a file, `prepare` renders each page already read and compares it with the image its latest session reading stored: where they
+differ, the page is read again as a new attempt, without a hint, naming the reading it replaces; `choose` never chooses a
+reading made from an image the page no longer has. The render is deterministic: on one scan, every reading of a page the cover
+left alone matched today's render, and the stamped page's did not.
+
 **One new work's intake by name (22 November).** `rollout append`, which plans every sendable PDF no round holds yet, and the
 cascade's `page_classes sample-plan` take `--files NAME …`, so one new work is read through the API while the others that wait
 for another route stay unplanned, and a name that is unknown, held back or already in a round writes nothing.

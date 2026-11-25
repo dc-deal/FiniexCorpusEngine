@@ -209,12 +209,13 @@ def outlines_of(base: KnowledgeBase, store, works: list[dict], rows: list[dict])
         key = outline_key(pdf, own)
         quoted = quoted_path(store, work['file'])
         held = json.loads(quoted.read_text(encoding='utf-8')) if quoted.exists() else {}
-        if key not in cache or held.get('key') != key or 'printed' not in held:
+        sha256 = manifest_sha256(base, work['file'])
+        if key not in cache or held.get('key') != key or stale(held, sha256):
             text = pdf_sections.read_pdf(pdf, served_pages(work['file'], own, base.export))
             outline = pdf_sections.outline_of(text.outline_toc, text.pages, fold_headings=text.toc_source == 'readings')
             cache[key] = {'units': [asdict(unit) for unit in outline.units],
                           'page_units': {str(page): units for page, units in sorted(outline.page_units.items())}}
-            store.write_report(f'{QUOTED}/{Path(work["file"]).stem}.json', quoted_record(key, work['file'], text))
+            store.write_report(f'{QUOTED}/{Path(work["file"]).stem}.json', quoted_record(key, work['file'], text, sha256))
         found[work['file']] = kept[key] = cache[key]
     store.write_report(OUTLINES, kept)  # today's outlines only, so the file never keeps a stale one
     return found
@@ -224,12 +225,31 @@ def quoted_path(store, file_name: str) -> Path:
     return store.path('reports', QUOTED, Path(file_name).stem + '.json')
 
 
-def quoted_record(key: str, file_name: str, text) -> dict:
+def manifest_sha256(base: KnowledgeBase, file_name: str) -> str | None:
+    """The sha256 the base's manifest beside its PDFs gives the file (the free one keys it by its repository path): the
+    file's declared identity, rewritten with every intake and every destamp. None where no manifest names it."""
+    path = base.pdfs / '_manifest.json'
+    if not path.exists():
+        return None
+    files = json.loads(path.read_text(encoding='utf-8')).get('files') or {}
+    entry = next((entry for name, entry in files.items() if name == file_name or name.rsplit('/', 1)[-1] == file_name), {})
+    return entry.get('sha256')
+
+
+def quoted_record(key: str, file_name: str, text, sha256: str | None = None) -> dict:
     """One PDF's quoted pages as the store keeps them, with the printed number the cleaner read from each page's running
     head or foot (`pdf_sections.clean_pages`, checked against the document's dominant offset), so a page served from its
-    text layer names it too (a client's fourth check, 24 Nov: "printed is null although the running head carries 157")."""
-    return {'key': key, 'file': file_name, 'pages': {str(number): page for number, page in enumerate(text.pages, 1)},
+    text layer names it too (a client's fourth check, 24 Nov: "printed is null although the running head carries 157"),
+    and the sha256 its manifest gave the PDF, so a file replaced in place is cut again (25 Nov 2026: a destamped copy)."""
+    return {'key': key, 'file': file_name, 'sha256': sha256,
+            'pages': {str(number): page for number, page in enumerate(text.pages, 1)},
             'printed': {str(number): (None if value is None else str(value)) for number, value in enumerate(text.printed, 1)}}
+
+
+def stale(held: dict, sha256: str | None) -> bool:
+    """A kept record no longer to be served: written before the printed numbers were kept, or for other bytes than the
+    manifest now names."""
+    return 'printed' not in held or held.get('sha256') != sha256
 
 
 def quoted_printed(knowledge_base: str, file_name: str) -> dict[int, str | None]:
@@ -252,11 +272,13 @@ def quoted_pages(knowledge_base: str, file_name: str) -> dict[int, str]:
     base = BASES[knowledge_base]
     store = open_store(base.name)
     path = quoted_path(store, file_name)
-    if not path.exists() or 'printed' not in json.loads(path.read_text(encoding='utf-8')):
+    sha256 = manifest_sha256(base, file_name)
+    if not path.exists() or stale(json.loads(path.read_text(encoding='utf-8')), sha256):
         rows = [row for row in json.loads((base.export / 'index.json').read_text(encoding='utf-8'))['pages'] if row['file'] == file_name]
         pdf = base.pdfs / file_name
         text = pdf_sections.read_pdf(pdf, served_pages(file_name, rows, base.export))
-        store.write_report(f'{QUOTED}/{Path(file_name).stem}.json', quoted_record(outline_key(pdf, rows), file_name, text))
+        store.write_report(f'{QUOTED}/{Path(file_name).stem}.json',
+                           quoted_record(outline_key(pdf, rows), file_name, text, sha256))
     return {int(number): page for number, page in json.loads(path.read_text(encoding='utf-8'))['pages'].items()}
 
 
@@ -365,6 +387,8 @@ def purpose_of(record: dict) -> str:
     if str(record.get('cell') or '').startswith('REPLAY'):
         return 'read again by a replay'
     if record.get('deviation') == DIRECT_DEVIATION:  # 280.a
+        if record.get('replaces'):  # 2.a, 25 Nov 2026
+            return 'direct reading in a Claude Code session, read again: its page image changed'
         return 'direct reading in a Claude Code session' + (', a format retry' if record.get('attempt') else '')
     if record.get('deviation'):
         return 'second reader'

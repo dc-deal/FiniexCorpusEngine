@@ -85,6 +85,40 @@ def test_a_work_carries_its_own_outline_and_each_page_the_units_on_it_computed_o
     assert reading_export.export(base, store)['works'][0]['outline'] == work['outline']
 
 
+def test_a_pdf_replaced_in_place_is_quoted_anew_once_its_manifest_names_the_new_bytes(licensed, monkeypatch):
+    # 25 Nov 2026: a work without a chosen reading is quoted from this cache only; a destamped copy kept the old text
+    base, store = licensed
+    monkeypatch.setitem(reading_export.BASES, 'licensed', base)
+    monkeypatch.setattr(reading_export, 'open_store', lambda name: store)
+    base.export.mkdir(parents=True)
+    (base.export / 'index.json').write_text(json.dumps({'pages': []}), encoding='utf-8')
+    pdf, manifest = base.pdfs / 'w_book.pdf', base.pdfs / '_manifest.json'
+
+    def a_file(words: str) -> None:
+        document = pymupdf.open()
+        document.new_page().insert_text((72, 72), words)
+        pdf.parent.mkdir(parents=True, exist_ok=True)
+        document.save(pdf)
+
+    def named(sha256: str) -> None:
+        manifest.write_text(json.dumps({'files': {'w_book.pdf': {'sha256': sha256}}}), encoding='utf-8')
+
+    a_file('A stamped sentence of the book.')
+    named('1' * 64)
+    assert 'stamped' in reading_export.quoted_pages('licensed', 'w_book.pdf')[1]
+    a_file('A clean sentence of the book.')
+    assert 'stamped' in reading_export.quoted_pages('licensed', 'w_book.pdf')[1]  # the manifest still names the old bytes
+    named('2' * 64)
+    assert 'clean' in reading_export.quoted_pages('licensed', 'w_book.pdf')[1]
+    assert json.loads(reading_export.quoted_path(store, 'w_book.pdf').read_text(encoding='utf-8'))['sha256'] == '2' * 64
+    free = dataclasses.replace(base, pdfs=base.pdfs / 'raw')
+    (free.pdfs).mkdir()
+    (free.pdfs / '_manifest.json').write_text(json.dumps({'files': {'corpus/raw/w_book.pdf': {'sha256': '3' * 64}}}),
+                                              encoding='utf-8')
+    assert reading_export.manifest_sha256(free, 'w_book.pdf') == '3' * 64  # the free manifest keys a file by its path
+    assert reading_export.manifest_sha256(free, 'other.pdf') is None
+
+
 def test_only_the_tracked_export_carries_the_licences_readme(licensed, tmp_path):
     base, store = licensed
     reading_export.export(base, store)

@@ -158,6 +158,52 @@ def test_choose_skips_every_reading_of_a_file_it_is_told_to_skip(monkeypatch):
     assert chosen == ['marked.pdf', 'clean.pdf']
 
 
+def test_a_page_whose_image_changed_in_place_is_read_again_and_its_old_reading_never_chosen(tmp_path, monkeypatch):
+    # the operator's 2.a (25 Nov 2026): a stamp covered in a scan's pixels; the reading made before had transcribed it
+    import pymupdf
+    from types import SimpleNamespace
+
+    from backend.conversion.checks import check_run
+    from backend.conversion.reading import page_render
+    from backend.conversion.store import pipeline_db, reading_store
+
+    document = pymupdf.open()
+    document.new_page().insert_text((72, 72), 'A line of the book, and a stamp beside it.')
+    monkeypatch.setattr(direct_reader.reading_cells, 'images_changed_in_place', lambda name: name == 'destamped.pdf')
+    before = direct_reader.image_sha(page_render.render(document[0], direct_reader.RESOLUTION))
+    old = {'file': 'destamped.pdf', 'pdf_page': 1, 'reading_key': 'k_old', 'attempt': 0, 'image_sha256': before}
+    assert not direct_reader.read_from_another_image(old, document[0])
+    document[0].draw_rect(pymupdf.Rect(60, 60, 300, 80), color=(1, 1, 1), fill=(1, 1, 1))  # the stamp covered white
+    assert direct_reader.read_from_another_image(old, document[0])
+    assert not direct_reader.read_from_another_image({**old, 'file': 'other.pdf'}, document[0])  # never rendered to tell
+
+    store = reading_store.Store(tmp_path / 'vision')
+    cell = SimpleNamespace(name='LIC-DIRECT-OPUS', model='claude-opus-5-5', max_tokens=16000)
+    page = {**LISTED_PAGE, 'id': 'destamped:p0001', 'file': 'destamped.pdf', 'pdf_page': 1, 'work': 'destamped'}
+    image = page_render.render(document[0], direct_reader.RESOLUTION)
+    entry = direct_reader.entry_for(cell, page, image, 'licensed', store, replaces=old)
+    assert (entry['attempt'], entry['retry_of'], entry['replaces']) == (1, None, 'k_old')
+    assert 'format check' not in store.get_prompt(entry['user_sha256'])  # read again without a hint
+    record, _ = direct_reader.record_for(entry, '::: {#b01 .paragraph bbox="10 50 900 120"}\nA line.\n:::')
+    assert record['replaces'] == 'k_old' and reading_export.purpose_of(record).endswith('its page image changed')
+    plain = direct_reader.entry_for(cell, page, image, 'licensed', store)
+    assert direct_reader.REPLACES not in plain and direct_reader.REPLACES not in direct_reader.record_for(plain, 'x')[0]
+
+    records = [old, {'file': 'clean.pdf', 'pdf_page': 1, 'reading_key': 'k_clean', 'attempt': 0}]
+    for item in records:
+        item.update(model='claude-opus-5-5', deviation=DIRECT_DEVIATION)
+    chosen = []
+    monkeypatch.setattr(direct_reader, 'open_store', lambda name: None)
+    monkeypatch.setattr(direct_reader.vision_batches, 'readings_of', lambda cells, store: records)
+    monkeypatch.setattr(direct_reader.vision_batches, 'Documents', lambda: SimpleNamespace(page=lambda file, number: ('licensed', document[0])))
+    monkeypatch.setattr(check_run, 'latest_per_page', lambda readings: readings)
+    monkeypatch.setattr(reading_export, 'check_states', lambda store, cells: {'k_old': {'state': 'ok'}, 'k_clean': {'state': 'ok'}})
+    monkeypatch.setattr(pipeline_db, 'chosen', lambda base: {})
+    monkeypatch.setattr(pipeline_db, 'choose', lambda base, file, page, key, why: chosen.append(key))
+    outcome = direct_reader.choose(SimpleNamespace(knowledge_base='licensed'))
+    assert chosen == ['k_clean'] and outcome == {'chosen': 1, f'not chosen: {direct_reader.IMAGE_CHANGED}': 1}
+
+
 def test_a_whole_work_keeps_the_pages_the_session_read_and_leaves_out_those_another_reader_read(tmp_path, monkeypatch):
     # found 19 Nov: the page list written anew after the night dropped every read page, and with them the work's readings
     # from the cell, so the next export would have lost the whole work

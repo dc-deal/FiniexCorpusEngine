@@ -227,6 +227,13 @@ def may_send(file_name: str) -> bool:
     return files.get(file_name, {}).get('send', True)
 
 
+def images_changed_in_place(file_name: str) -> bool:
+    """True for a file whose page images were changed under the same name (`image_destamped` in the provenance list: a
+    mark covered in the pixels, the operator's 2.a, 25 Nov 2026), so a reading made before may have read another image."""
+    files = json.loads(PROVENANCE.read_text(encoding='utf-8'))['files'] if PROVENANCE.exists() else {}
+    return bool(files.get(file_name, {}).get('image_destamped'))
+
+
 def source_of(file_name: str) -> tuple[str, Path]:
     """The mirror and the path of a source PDF: the free corpus if it is there, else the licensed archive."""
     free = FREE_ARCHIVE / file_name

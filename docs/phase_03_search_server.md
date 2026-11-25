@@ -457,3 +457,7 @@ were usable as text. What it found is taken up here:
   could not be removed) is served from its text layer like any other, with its marks stripped from the text. It is still
   never sent to a provider: no reading of it is made, `page_image` refuses its pages, and its pages are not embedded again.
   Until now such a PDF left the shelf altogether.
+- **A file replaced in place is quoted anew.** When a mark is removed from a file's page images, the cleaned copy replaces
+  the file under the same name. The text the librarian quotes for a PDF is kept per file with the sha256 its manifest gives
+  the file, and is cut again as soon as the manifest names other bytes. Before, a PDF without a chosen reading kept the text
+  cut from its old bytes.
