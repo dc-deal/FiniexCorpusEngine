@@ -82,3 +82,5 @@ coverage/
 
 # Editor settings
 .vscode/
+# The operator's VS Code workspace names local folders beside this repository (untracked since 26 Nov 2026)
+*.code-workspace

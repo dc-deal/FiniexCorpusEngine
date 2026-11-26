@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ROOT_FILES = {'.dockerignore', '.env.example', '.gitignore', 'Dockerfile', 'FiniexCorpusEngine.code-workspace', 'LICENSE',
+ROOT_FILES = {'.dockerignore', '.env.example', '.gitignore', 'Dockerfile', 'LICENSE',
               'NOTICE.md', 'README.md', 'docker-compose.yml',
               'pyproject.toml', 'pytest.ini', 'requirements.txt', 'requirements-eval.txt'}
 
