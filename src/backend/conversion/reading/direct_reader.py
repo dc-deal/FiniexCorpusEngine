@@ -309,6 +309,7 @@ def entry_for(cell: reading_cells.Cell, page: dict, image: page_render.PageImage
 
 
 REPLACES = 'replaces'  # the reading a page read again from its changed image stands in for (2.a)
+AGENT_PROMPT = 'agent_prompt'  # the prompt the session's agent read the page under (#17, 22.a), written by `night_run batch`
 IMAGE_CHANGED = 'read from an image the page no longer has'
 
 
@@ -410,7 +411,8 @@ def record_for(entry: dict, text: str) -> tuple[dict, str]:
     record.update(kind='reading', adapter=ADAPTER, provider=PROVIDER, deviation=entry['deviation'],
                   stored_at=vision_batches.now(), sdk='claude-code session', result_type='succeeded', error_type=None,
                   error_message=None, stop_reason='end_turn', usage={}, cost_usd=0.0, result_class=result_class,
-                  text_sha256=reader_requests.sha256_text(text), text_chars=len(text), contract=checked)
+                  text_sha256=reader_requests.sha256_text(text), text_chars=len(text), contract=checked,
+                  **({AGENT_PROMPT: entry[AGENT_PROMPT]} if entry.get(AGENT_PROMPT) else {}))
     return record, text
 
 

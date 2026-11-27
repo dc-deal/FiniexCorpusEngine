@@ -91,6 +91,36 @@ def test_two_models_readings_of_one_page_get_judge_folders_of_their_own():
     assert session_judge.folder_name({'work': 'w', 'pdf_page': 3}) == 'w__p0003'
 
 
+def test_a_night_batch_hands_its_agent_a_rendered_prompt_and_each_page_names_it(tmp_path, monkeypatch):
+    from backend.conversion.reading import direct_reader, night_run
+
+    session = tmp_path / 'session'
+    for name in ('w__p0001', 'w__p0002'):
+        (session / name).mkdir(parents=True)
+        (session / name / 'entry.json').write_text(json.dumps({'reading_key': name}), encoding='utf-8')
+    monkeypatch.setattr(direct_reader, 'session_folder', lambda base: session)
+    store = reading_store.Store(tmp_path / 'vision')
+    listed = tmp_path / 'run_batches' / 'batch_03.json'
+    listed.parent.mkdir()
+    path = night_run.reader_agent_prompt('licensed', listed, ['w__p0001', 'w__p0002'], store, notes='These are scans.')
+    text = path.read_text(encoding='utf-8')
+    assert path.name == 'batch_03.prompt.md' and str(listed) in text and str(session) in text
+    assert night_run.LICENSED_NOTE in text and 'These are scans.' in text
+    entry = json.loads((session / 'w__p0002' / 'entry.json').read_text(encoding='utf-8'))
+    assert entry['agent_prompt']['version'] == 'reader-agent/1' and store.get_prompt(entry['agent_prompt']['sha256']) == text
+    free = night_run.reader_agent_prompt('free', listed, ['w__p0001'], store)
+    assert night_run.LICENSED_NOTE not in free.read_text(encoding='utf-8')
+
+
+def test_a_session_reading_keeps_the_agent_prompt_its_page_named(monkeypatch):
+    from backend.conversion.reading import direct_reader, vision_batches
+
+    monkeypatch.setattr(vision_batches, 'check_reading', lambda entry, text, stop: ('ok', None))
+    entry = {'deviation': 'direct', 'agent_prompt': {'version': 'reader-agent/1', 'sha256': 'a' * 64, 'details': {}}}
+    assert direct_reader.record_for(entry, 'x')[0]['agent_prompt']['version'] == 'reader-agent/1'
+    assert 'agent_prompt' not in direct_reader.record_for({'deviation': 'direct'}, 'x')[0]
+
+
 def test_a_session_verdict_keeps_the_agent_prompt_its_request_named(monkeypatch):
     monkeypatch.setattr(page_judge, 'check_answer', lambda entry, text, stop: ('ok', {'verdict': 'ok'}))
     entry = {'request_key': 'r', 'agent_prompt': {'version': 'judge-agent/1', 'sha256': 'a' * 64, 'details': {}}}

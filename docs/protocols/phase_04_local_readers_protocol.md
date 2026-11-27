@@ -65,3 +65,6 @@ The record of how this phase came about, mistakes included.
   nights' prompts did not match. Each agent's own transcript names the prompt it was started with and every folder it
   wrote into. Taken from there, 2,293 of the 2,322 session readings and all 1,334 session verdicts are tied to the exact
   prompt that made them. 29 readings and 57 calibration verdicts point at the entry without text.
+- **The reader agents too:** `night_run batch` now writes each batch's agent prompt from `reader-agent/1` beside the
+  batch file (`batch_NN.prompt.md`); every page of the batch names it, and the reading stored from it keeps it. A
+  licensed run's note is added by code, a run's own note with `--notes`.

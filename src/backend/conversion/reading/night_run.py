@@ -121,9 +121,37 @@ def batch(args) -> list[str]:
         free = free_folders()
     chosen = free[:args.size]
     folder.mkdir(parents=True, exist_ok=True)
-    batch_file(base, args.run, args.number).write_text(json.dumps(chosen, indent=1) + '\n', encoding='utf-8')
-    print(f"batch {args.number}: {len(chosen)} folders{f', {chosen[0]} .. {chosen[-1]}' if chosen else ''}")
+    listed = batch_file(base, args.run, args.number)
+    listed.write_text(json.dumps(chosen, indent=1) + '\n', encoding='utf-8')
+    prompt = reader_agent_prompt(base, listed, chosen, open_store(base), getattr(args, 'notes', None) or '')
+    print(f"batch {args.number}: {len(chosen)} folders{f', {chosen[0]} .. {chosen[-1]}' if chosen else ''}; "
+          f"the agent's prompt ({READER_AGENT}): {prompt}")
     return chosen
+
+
+READER_AGENT = 'reader-agent/1'  # the reader agent's prompt, rendered by code (#17, 22.a)
+LICENSED_NOTE = ("This is a licensed book: never put page text into your answer or into any file but the folders' "
+                 '`reading.md`.')
+
+
+def reader_agent_prompt(base: str, listed: Path, folders: list[str], store, notes: str = '') -> Path:
+    """The batch's reader agent prompt from `reader-agent/1`, written beside the batch file for the session to hand to the
+    agent verbatim; kept in the store, and named in every page's request, so the reading it makes names it. A licensed base
+    adds its note; a run's own note comes after it."""
+    from backend.conversion.reading import agent_prompts
+
+    noted = '\n'.join(note for note in ((LICENSED_NOTE if base == 'licensed' else ''), notes.strip()) if note)
+    text, recorded = agent_prompts.kept(store, READER_AGENT, batch_file=str(listed),
+                                        session_folder=str(direct_reader.session_folder(base)),
+                                        python=str(agent_prompts.PYTHON), notes=noted)
+    path = listed.with_suffix('.prompt.md')
+    path.write_text(text, encoding='utf-8', newline='\n')
+    for name in folders:
+        entry_path = direct_reader.session_folder(base) / name / 'entry.json'
+        entry = json.loads(entry_path.read_text(encoding='utf-8'))
+        entry[direct_reader.AGENT_PROMPT] = {**recorded, 'file': path.name}
+        entry_path.write_text(json.dumps(entry, indent=1) + '\n', encoding='utf-8')
+    return path
 
 
 def store(args) -> dict:
@@ -207,6 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument('--number', type=int, required=name == 'batch')
         if name == 'batch':
             command.add_argument('--size', type=int, default=25)
+            command.add_argument('--notes', help="a note for this batch's agent, recorded with its prompt (reader-agent/1)")
         if name == 'log':
             command.add_argument('--judge-chunk', type=int)
             command.add_argument('--tokens', type=int, required=True)
