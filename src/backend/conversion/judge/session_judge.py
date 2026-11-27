@@ -227,7 +227,9 @@ def again(args) -> list[str]:
         folder = write_folder(root, entry, store, again=1)
         if folder is not None:
             made.append(str(folder))
-    print(f'{args.work}: {len(made)} folders of requests the API judge answered, in {root}')
+    prompts = agent_prompts(root, [Path(folder) for folder in made], store, f'again_{args.work}')
+    print(f'{args.work}: {len(made)} folders of requests the API judge answered, in {root}; '
+          f"{len(prompts)} agent prompts ({AGENT_VERSION}): {', '.join(path.name for path in prompts)}")
     return made
 
 
@@ -327,7 +329,9 @@ def calibrate(args) -> list[str]:
     plan, store, root = calibration_plan(), open_store('free'), session_root('free') / CALIBRATION
     write_instructions(root, page_judge.active_version())
     made = [str(folder) for entry in plan['entries'] if (folder := write_folder(root, entry, store, calibration=True)) is not None]
-    print(f"calibration: {len(made)} folders of {len(plan['entries'])} in {root}")
+    prompts = agent_prompts(root, [Path(folder) for folder in made], store, 'calibration')
+    print(f"calibration: {len(made)} folders of {len(plan['entries'])} in {root}; "
+          f"{len(prompts)} agent prompts ({AGENT_VERSION}): {', '.join(path.name for path in prompts)}")
     return made
 
 
