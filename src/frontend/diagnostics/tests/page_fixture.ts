@@ -1,4 +1,4 @@
-import type { Check, FormReading, IssueList, OutlineUnit, PageDetail, PageForm, PageRow, ReadingBlock, WorkPages } from '@/types/api/page_types'
+import type { Check, FormReading, IssueList, OutlineUnit, PageDetail, PageForm, PageRow, ReadingBlock, ShownVerdicts, WorkPages } from '@/types/api/page_types'
 import type { PageLadder } from '@/types/api/ladder_types'
 
 /** Pages as the API serves them, from a free paper, so they may stand in a tracked file. */
@@ -206,7 +206,7 @@ export function anIssueList(): IssueList {
 }
 
 type FormVerdict = FormReading['verdicts'][number]
-type VerdictRow = PageForm['verdicts'][number]
+type VerdictRow = ShownVerdicts['rows'][number]
 
 /** A verdict on a reading as the form's row says it (#18): a judge's that counts and found nothing, unless told otherwise. */
 export function aFormVerdict(overrides: Partial<FormVerdict> = {}): FormVerdict {
@@ -222,18 +222,22 @@ export function aFormReading(overrides: Partial<FormReading> = {}): FormReading 
     promotable: false, recall: null, verdicts: [aFormVerdict()], hover: [{ label: 'reading key', value: 'k1' }], ...overrides }
 }
 
-/** A verdict on the page as the Verdicts tab says it (#18). */
+/** A verdict as the Verdicts tab shows it (#18, decision 26): the served reading's standing judgement, unless told otherwise. */
 export function aVerdictRow(overrides: Partial<VerdictRow> = {}): VerdictRow {
   return { kind: 'judge', kind_said: 'judge', standing: true, standing_said: 'standing', time: '2026-11-05T08:29:30+00:00',
-    verdict: 'ok', state: 'ok', reason: null, about: 'the page', in_lab: false, answered: null, who: 'machine',
+    verdict: 'ok', state: 'ok', reason: null, about: 'the page', recall: 'k1:judge/1:0', answered: null, who: 'machine',
     who_said: 'judge/1 · an-invented-judge', hover: [], ...overrides }
+}
+
+/** The verdicts as shown (decision 26): on the served reading, unless told otherwise; the count is the rows'. */
+export function shownVerdicts(rows: VerdictRow[] = [aVerdictRow()], overrides: Partial<ShownVerdicts> = {}): ShownVerdicts {
+  return { said: 'as shown: the verdicts on the served reading', recalled: false, count: rows.length, rows, ...overrides }
 }
 
 /** A page's form (#18): one reading shown with its judge's verdict, no Lab, the verdict in the Verdicts tab. */
 export function aPageForm(overrides: Partial<PageForm> = {}): PageForm {
   const readings = overrides.readings ?? [aFormReading()]
   const lab = overrides.lab ?? []
-  const verdicts = overrides.verdicts ?? [aVerdictRow()]
-  return { shown_judgement: 'j1', readings_count: readings.length, lab_count: lab.length, verdicts_count: verdicts.length,
-    ...overrides, readings, lab, verdicts }
+  const verdicts = overrides.verdicts ?? shownVerdicts()
+  return { shown_judgement: 'j1', readings_count: readings.length, lab_count: lab.length, ...overrides, readings, lab, verdicts }
 }

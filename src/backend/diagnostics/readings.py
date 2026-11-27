@@ -1005,6 +1005,8 @@ class Recalled(BaseModel):
     why_not: str | None = None
     page_findings: list[Finding] = []  # its findings that name no block of that reading
     image_size: list[int] | None  # the image that reading was read from, which its block frames are placed on
+    # the Verdicts tab while it is shown (decision 26): the verdicts that apply now to the recalled reading
+    verdicts: page_form.ShownVerdicts | None = None
 
 
 READING_KEY = re.compile(r'^[0-9a-f]{16,128}$')
@@ -2016,4 +2018,5 @@ class Readings:
                         said=said, reading=reading, raw=text,
                         why_not=None if text is not None else
                         f"reading {number}'s text is not on this machine: only the reading a page shows is exported",
-                        page_findings=[finding for finding in findings if finding.block not in placed], image_size=size)
+                        page_findings=[finding for finding in findings if finding.block not in placed], image_size=size,
+                        verdicts=page_form.shown_verdicts(attempts_of(row) or [], people, reading_key, number))

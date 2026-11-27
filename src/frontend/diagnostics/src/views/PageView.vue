@@ -367,13 +367,6 @@ watch(box, async () => {
           <h1 class="view-title">
             PDF page {{ shown.pdf_page }}<span v-if="shown.printed_label" class="printed"> · printed {{ shown.printed_label }}</span>
           </h1>
-          <!-- a recalled judgement (181.a) says so in the top row, in the overlay colour, its glyph and words with it, and the
-               way back beside it -->
-          <p v-if="recallId" class="recall-chip" data-part="recall-chip">
-            <AppIcon name="recalled" />
-            <span>Recalled: {{ recalled ? recalled.said : recallError ? 'a judgement this page does not have' : 'a judgement' }}</span>
-            <RouterLink :to="standing" class="show-standing" data-part="show-standing">Show standing</RouterLink>
-          </p>
           <AppButton v-if="verdictsTaken" size="compact" :active="verdictTarget !== null && panelMode === 'verdict'" data-part="give-verdict" @click="openVerdict('')">
             Give a verdict
           </AppButton>
@@ -588,7 +581,14 @@ watch(box, async () => {
         <FoldSection v-else label="Details" plain><template #title><span class="none">none</span></template></FoldSection>
         </RecordRows>
         <!-- the page's readings and verdicts in one form (#18): Readings, Lab and Verdicts, each with its count -->
-        <PageForm v-if="shown.form" :form="shown.form" :recall-id="recallId" :recall-to="recallLink" @block="showBlock" />
+        <PageForm
+          v-if="shown.form"
+          :form="shown.form"
+          :recall-id="recallId"
+          :recall-to="recallLink"
+          :recalled-verdicts="recallId ? recalled?.verdicts ?? null : null"
+          @block="showBlock"
+        />
       </template>
     </RecordZone>
 
@@ -599,11 +599,17 @@ watch(box, async () => {
     <!-- the analysis (181.a): the original beside its reading, under its own heading, the one part that takes the wide
          container (183); framed as an overlay while a judgement is recalled -->
     <AnalysisSection v-if="shown && !detailError && shown.read" ref="analysis" :overlay="!!recallId">
+      <!-- the way back from a recall (27.a): at the head line's start, before words whose length varies, so it stays under
+           the pointer from one recall to the next -->
+      <template v-if="recallId" #lead>
+        <RouterLink :to="standing" class="show-standing" data-part="show-standing">Show standing</RouterLink>
+      </template>
       <template #hint>
         <span v-if="!recallId" class="analysis-hint">the image the reader received, beside its reading</span>
-        <!-- while a judgement is recalled the analysis says so in its own heading too, the overlay's glyph and words -->
+        <!-- while a judgement is recalled the analysis says so in its own heading, the overlay's glyph and words -->
         <span v-else class="analysis-recalled" data-part="analysis-recalled">
-          <AppIcon name="recalled" /> recalled, not the standing view: {{ recalled?.said ?? 'a judgement' }}
+          <AppIcon name="recalled" /> recalled, not the standing view:
+          {{ recalled ? recalled.said : recallError ? 'a judgement this page does not have' : 'a judgement' }}
         </span>
       </template>
       <ApiFailure v-if="recallId && recallError" :error="recallError" @retry="store.loadRecall(kb, work, page, recallId)" />
@@ -891,7 +897,6 @@ watch(box, async () => {
 
 /* the original and its reading side by side, each scrolling in a pane of the same height; on a narrow screen one above the other */
 /* a recalled judgement (181.a): the overlay's role, the annotation colour, always dashed, its glyph and words with it */
-.recall-chip,
 .analysis-recalled {
   display: inline-flex;
   align-items: center;
@@ -899,15 +904,11 @@ watch(box, async () => {
   color: var(--color-annotation);
 }
 
-.recall-chip {
-  border: 1px dashed var(--color-annotation);
-  border-radius: 4px;
-  padding: 0 var(--space-sm);
-}
-
+/* the way back, a link at the analysis head line's start, at the line's weight for a link (27.a) */
 .show-standing {
   color: var(--color-accent);
-  margin-left: var(--space-sm);
+  font-weight: normal;
+  white-space: nowrap;
 }
 
 .analysis-recalled {

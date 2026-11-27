@@ -1145,3 +1145,12 @@ The record of how the diagnostics frontend came about, mistakes included.
   browser run found two more: the prompts check counted no tab for the versions without text (now it does), and the runs table
   ran 35 px past its box at 800 px, not from #18 but from today's data: a free run's command held a work's key of 62
   characters with no place to break, so `.command` takes `overflow-wrap: anywhere` in the runs view and in the overview.
+- **Decisions 26 and 27.a** (27 Nov). `page_form.shown_verdicts` (with `judgement_standing_for`, `judge_row`, `person_row`)
+  replaces `verdict_rows`; `ShownVerdicts` (said, recalled, count, rows) is `PageForm.verdicts` and `Recalled.verdicts`.
+  `VerdictRow` loses `in_lab` (the caption names the reading) and gains `recall`, and its `standing_said` reads standing,
+  replaced or not counted. On the served reading a person's standing is the core's; on a recalled one it is the latest per
+  block over that reading's own verdicts (the core's rule, #17), since the export's `standing` is relative to the served
+  reading. `AnalysisSection` gains a `lead` slot for the way back; the page head's recall chip and its CSS went. What went
+  wrong: the new browser check first measured the way back while the recall was still loading, the heading's words the
+  placeholder in every round, so the way back held its place for no reason; it now waits for the recall's own words and
+  counts that they varied.

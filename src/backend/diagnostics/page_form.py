@@ -4,8 +4,12 @@ or a person's; a reading in the pipeline or in the Lab, the difference one flag 
 
 - **Readings and Lab, one row per reading:** time · model · cost · version (linked to its prompt) · result · show; a row
   folds open to its verdicts in the same columns: time · model · cost · version · verdict · show, a person's a row too.
-- **Verdicts: every verdict on the page, a judge's and a person's, in time order:** standing · time · verdict · reason ·
-  about · the judgement it answered · person or machine. The standing one is marked, the others are history.
+- **Verdicts: the verdicts as shown** (decision 26, the operator: earlier ones hidden, since "a whole list can come together
+  when real people judge and type in every verdict bit by bit"): only those that apply now to the reading the analysis
+  shows, the served reading's, or after a recall the recalled reading's (`Recalled.verdicts`): its standing judgement (its
+  latest counting one; a Lab reading's latest, not counted) and the person's verdicts on it not archived by a reset, in time
+  order: standing · time · verdict · reason · about · the judgement it answered · person or machine. A person's verdict a
+  later one on the same block replaced still applies and says so. The rest stays a click away: show on its reading's row.
 
 Every word and count a row shows is said here, so the view computes nothing; the keys and a reading's own bookkeeping (its
 reading key, the reader's attempt, its cell, a judgement's key) stand in a row's hover, never in a column. Built from the
@@ -91,22 +95,34 @@ class AnsweredJudgement(BaseModel):
 
 
 class VerdictRow(BaseModel):
-    """One verdict on the page, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine."""
+    """One verdict as shown, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine."""
 
     kind: Literal['judge', 'person']
     kind_said: Kind
     standing: bool
-    standing_said: Literal['standing', 'history']
+    # "standing"; "replaced" for a person's verdict a later one on the same block replaced; "not counted" for a Lab reading's
+    # judgement, which stands for that reading but never counts
+    standing_said: Literal['standing', 'replaced', 'not counted']
     time: str | None = None
     verdict: str  # the short word: "ok", "bad", "accept", "reject", "note"
     state: Literal['ok', 'issue', 'note']
     reason: str | None = None  # the short label: a person's reason ("false alarm"), a judge's findings ("2 issues")
     about: str  # "the page", or the block it names
-    in_lab: bool = False  # on a reading of the Lab
+    recall: str | None = None  # a judge's: its `?judgement=`, so the row the page shows can be framed as such (27.a)
     answered: AnsweredJudgement | None = None
     who: Literal['person', 'review', 'machine']
     who_said: str  # "a person", "an automated review", "judge/1 · claude-sonnet-5-5"
     hover: list[HoverRow] = []
+
+
+class ShownVerdicts(BaseModel):
+    """The Verdicts tab's rows (decision 26): the verdicts that apply now to the reading the analysis shows, what that
+    reading is said in a caption above them, and their count, the tab's."""
+
+    said: str  # "as shown: the verdicts on the served reading", "as shown: the verdicts on reading 7 (recalled)"
+    recalled: bool = False  # on a recalled reading: the tab is framed as the analysis is
+    count: int
+    rows: list[VerdictRow]
 
 
 class PageForm(BaseModel):
@@ -114,10 +130,9 @@ class PageForm(BaseModel):
     shown_judgement: str | None = None
     readings_count: int
     lab_count: int
-    verdicts_count: int
     readings: list[FormReading]
     lab: list[FormReading]
-    verdicts: list[VerdictRow]
+    verdicts: ShownVerdicts  # in the standing view: the served reading's
 
 
 def counted(count: int, word: str, words: str | None = None) -> str:
@@ -282,39 +297,69 @@ def reading_row(attempt: Any, people: list[Any], chosen: Any = None) -> FormRead
                        hover=reading_hover(attempt, chosen))
 
 
-def verdict_rows(attempts: list[Any], people: list[Any]) -> list[VerdictRow]:
-    rows: list[VerdictRow] = []
-    for attempt in attempts:
-        for judgement in attempt.judgements or []:
-            said = findings_said(judgement)
-            issues = len(standing_findings(judgement))
-            rows.append(VerdictRow(kind='judge', kind_said='judge', standing=bool(judgement.standing),
-                                   standing_said='standing' if judgement.standing else 'history', time=judgement.stored_at,
-                                   verdict=judgement.verdict or judgement.outcome or 'judged', state=judge_state(judgement),
-                                   reason=counted(issues, 'finding') if issues else None, about='the page',
-                                   in_lab=bool(attempt.prototype), who='machine',
-                                   who_said=' · '.join(part for part in (judgement.version, judgement.model) if part) or 'a judge',
-                                   hover=[HoverRow(label='reading key', value=attempt.reading_key), *judge_hover(judgement),
-                                          *([HoverRow(label='all findings', value=said)] if said else [])]))
-    in_lab = {attempt.reading_key for attempt in attempts if attempt.prototype}
-    for person in people:
-        who, said = who_of(person)
-        answered = person.answers
-        rows.append(VerdictRow(kind='person', kind_said=who, standing=bool(person.standing),
-                               standing_said='standing' if person.standing else 'history', time=person.given_at,
-                               verdict=person.verdict, state=person_state(person), reason=person_reason(person),
-                               about=person.block or 'the page', in_lab=person.reading_key in in_lab,
-                               answered=AnsweredJudgement(version=answered.version, model=answered.model,
-                                                          stored_at=answered.stored_at, derived=bool(person.answers_derived))
-                               if answered else None,
-                               who=who, who_said=said, hover=person_hover(person)))
+def in_lab(attempt: Any) -> bool:
+    return bool(attempt.prototype) and not getattr(attempt, 'promoted', None)
+
+
+def judgement_standing_for(attempt: Any) -> Any:
+    """The judgement that stands for a reading (decision 26): the core's standing one on the served reading, else its
+    latest counting one; on a Lab reading, whose judgements never count, its latest. None where none judged it."""
+    judgements = sorted(attempt.judgements or [], key=lambda one: one.stored_at or '')
+    if in_lab(attempt):
+        return judgements[-1] if judgements else None
+    standing = [judgement for judgement in judgements if judgement.standing]
+    counting = [judgement for judgement in judgements if judgement.counts]
+    return (standing or counting or [None])[-1]
+
+
+def judge_row(attempt: Any, judgement: Any) -> VerdictRow:
+    said = findings_said(judgement)
+    issues = len(standing_findings(judgement))
+    lab = in_lab(attempt)
+    return VerdictRow(kind='judge', kind_said='judge', standing=not lab, standing_said='not counted' if lab else 'standing',
+                      time=judgement.stored_at, verdict=judgement.verdict or judgement.outcome or 'judged',
+                      state=judge_state(judgement), reason=counted(issues, 'finding') if issues else None, about='the page',
+                      recall=judgement.recall, who='machine',
+                      who_said=' · '.join(part for part in (judgement.version, judgement.model) if part) or 'a judge',
+                      hover=[HoverRow(label='reading key', value=attempt.reading_key), *judge_hover(judgement),
+                             *([HoverRow(label='all findings', value=said)] if said else [])])
+
+
+def person_row(person: Any, standing: bool) -> VerdictRow:
+    who, said = who_of(person)
+    answered = person.answers
+    return VerdictRow(kind='person', kind_said=who, standing=standing, standing_said='standing' if standing else 'replaced',
+                      time=person.given_at, verdict=person.verdict, state=person_state(person), reason=person_reason(person),
+                      about=person.block or 'the page',
+                      answered=AnsweredJudgement(version=answered.version, model=answered.model, stored_at=answered.stored_at,
+                                                 derived=bool(person.answers_derived)) if answered else None,
+                      who=who, who_said=said, hover=person_hover(person))
+
+
+def shown_verdicts(attempts: list[Any], people: list[Any], reading_key: str | None, number: int | None = None) -> ShownVerdicts:
+    """The verdicts as shown (decision 26): on the reading the analysis shows, the served one, or the recalled one where its
+    number is given, only those that apply now: the judgement that stands for it and the person's verdicts on it that a
+    reset did not archive, in time order. On the served reading a person's verdict stands as the core says; on a recalled
+    one the latest per block stands, the core's rule (#17) over that reading's own verdicts."""
+    attempt = next((one for one in attempts if one.reading_key == reading_key), None)
+    said = (f'as shown: the verdicts on reading {number} (recalled)' if number is not None
+            else 'as shown: the verdicts on the served reading')
+    if attempt is None:
+        return ShownVerdicts(said='as shown: no reading is served, so no verdict applies', count=0, rows=[])
+    judgement = judgement_standing_for(attempt)
+    rows = [judge_row(attempt, judgement)] if judgement is not None else []
+    applying = sorted((person for person in people if person.applies and not person.archived
+                       and person.reading_key in (reading_key, None)), key=lambda one: one.given_at or '')
+    latest = {person.block: at for at, person in enumerate(applying)}
+    rows += [person_row(person, bool(person.standing) if number is None else latest[person.block] == at)
+             for at, person in enumerate(applying)]
     rows.sort(key=lambda one: one.time or '')
-    return rows
+    return ShownVerdicts(said=said, recalled=number is not None, count=len(rows), rows=rows)
 
 
 def form_of(attempts: list[Any] | None, people: list[Any], chosen: Any = None) -> PageForm | None:
     """A read page's form: its pipeline readings (the one shown first, the earlier ones newest first), the Lab's readings
-    (newest first) and every verdict in time order; None for a page no reader has read."""
+    (newest first) and the verdicts on the served reading as shown; None for a page no reader has read."""
     if attempts is None:
         return None
     pipeline = [attempt for attempt in attempts if not attempt.prototype or getattr(attempt, 'promoted', None)]
@@ -323,9 +368,8 @@ def form_of(attempts: list[Any] | None, people: list[Any], chosen: Any = None) -
                  key=lambda one: one.stored_at or '', reverse=True)
     readings = [reading_row(attempt, people, chosen) for attempt in pipeline]
     tried = [reading_row(attempt, people) for attempt in lab]
-    verdicts = verdict_rows(attempts, people)
     served = next((attempt for attempt in attempts if attempt.shown), None)
     standing = [judgement for judgement in (served.judgements or [] if served else []) if judgement.standing]
     return PageForm(shown_judgement=standing[-1].judgement_key if standing else None,
-                    readings_count=len(readings), lab_count=len(tried), verdicts_count=len(verdicts), readings=readings,
-                    lab=tried, verdicts=verdicts)
+                    readings_count=len(readings), lab_count=len(tried), readings=readings, lab=tried,
+                    verdicts=shown_verdicts(attempts, people, served.reading_key if served else None))

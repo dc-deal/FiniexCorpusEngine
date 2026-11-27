@@ -2080,3 +2080,23 @@ and back), and two new ones, each ending on its own failing case: the tabs and a
 within a pixel (the picked tab made wider, a moment, and the check sees the next one move), and the greyed show keeps an active
 show's box and column and shows its card (hidden, a moment, and the check finds no box). 409 unit tests, 97 checks
 in the browser (2 skipped on today's data), 1,774 Python tests.
+
+**The verdicts as shown, and the way back at the analysis (decisions 26 and 27.a, 27 Nov).** The Verdicts tab held every
+verdict on the page, a list that grows long once people judge page by page. It now holds only the verdicts that apply now
+to the reading the analysis shows: in the standing view the served reading's, after a recall the recalled reading's, which
+the recall serves itself (`Recalled.verdicts`). They are the judgement that stands for that reading (its latest counting
+one; a Lab reading's latest, said "not counted") and the person's verdicts on it that no reset archived. Older, prototype
+and asked-again judgements, archived verdicts and those on other readings stay beneath their reading in Readings or the
+Lab, a show away. A caption above the table says which reading ("as shown: the verdicts on the served reading", "as shown:
+the verdicts on reading 1 (recalled)"); while recalled, the tab and its table are framed, dashed, as the analysis is, and
+the tab's count is the shown list's. The Standing column stays, since it still tells something on real pages: a person's
+verdict that a later one on the same block replaced says "replaced" (finance p. 5, b12), a Lab judgement "not counted". The
+way back from a recall, "Show standing", moved from the page head into the analysis's head line, at its start, before the
+words that vary from recall to recall, so it stays under the pointer; the head's chip went; the row a recall shows is framed
+in whichever tab holds it. **Measured:** Python tests of the verdicts as shown (the served reading's standing judgement, a
+replaced and an archived person's verdict, another reading's left out, a recalled earlier reading's latest counting
+judgement, a Lab reading's "not counted"); unit tests of the caption, the frames and the recalled list; a browser check that
+recalls every judgement worth a show on finance p. 5 and its other reading, twice over, and holds the way back within a
+pixel, the one framed row the recalled one and the Verdicts tab equal to the recall's own JSON, ending on its two failing
+cases (the way back set after the words, a moment, moves; a framed row taken out is found missing). 410 unit tests,
+98 checks in the browser (2 skipped on today's data), 1,777 Python tests.

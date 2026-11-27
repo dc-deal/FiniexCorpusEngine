@@ -45,5 +45,6 @@ export type IssueList = Schemas['IssueList']
 export type IssueRow = Schemas['IssueRow']
 /** A page's readings and verdicts in one form (#18): Readings, Lab and Verdicts, every word and count served. */
 export type PageForm = Schemas['PageForm']
+export type ShownVerdicts = Schemas['ShownVerdicts']
 /** One reading in the form's Readings or Lab tab. */
 export type FormReading = Schemas['FormReading']

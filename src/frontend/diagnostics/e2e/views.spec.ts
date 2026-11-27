@@ -229,8 +229,14 @@ type FormVerdictJson = { kind: string, kind_said: string, version: string | null
   recall: string | null, show_why_not: string | null, block: string | null, rules: { rule: string | null }[] }
 type FormReadingJson = { key: string, kind_said: string, version: string | null, result_said: string, shown: boolean, test_reading: boolean,
   recall: string | null, verdicts: FormVerdictJson[], hover: { label: string, value: string }[] }
-type FormJson = { readings_count: number, lab_count: number, verdicts_count: number, readings: FormReadingJson[], lab: FormReadingJson[],
-  verdicts: { kind_said: string, standing: boolean }[] }
+// the verdicts as shown (decision 26): the served reading's on the page, a recalled one's on its recall
+type ShownJson = { said: string, recalled: boolean, count: number, rows: { kind_said: string, standing: boolean, recall: string | null }[] }
+type FormJson = { readings_count: number, lab_count: number, readings: FormReadingJson[], lab: FormReadingJson[], verdicts: ShownJson }
+
+async function recallOf(request: APIRequestContext, work: string, pdfPage: number, recall: string): Promise<{ said: string, verdicts: ShownJson }> {
+  return await (await request.get(`/api/free/works/${work}/pages/${pdfPage}/recall`, { params: { judgement: recall } })).json() as
+    { said: string, verdicts: ShownJson }
+}
 
 async function formOf(request: APIRequestContext, work: string, pdfPage: number): Promise<FormJson> {
   return (await (await request.get(`/api/free/works/${work}/pages/${pdfPage}`)).json() as { form: FormJson }).form
@@ -1393,7 +1399,8 @@ test('a judgement from the page\'s form is shown on the page as it judged, marke
   const judge2 = shown.verdicts.find(one => one.version === 'judge/2' && !one.show_why_not)!
   expect(judge2.recall).toBeTruthy()
   const recalled = async (on: boolean) => {
-    await expect(page.locator('[data-part="recall-chip"]')).toHaveCount(on ? 1 : 0)
+    await expect(page.locator('[data-part="analysis"] h2 [data-part="show-standing"]')).toHaveCount(on ? 1 : 0)
+    await expect(page.locator('[data-part="recall-chip"]')).toHaveCount(0)
     await expect(page.locator('[data-part="analysis"][data-overlay="yes"]')).toHaveCount(on ? 1 : 0)
     if (on) {
       const frame = await page.locator('[data-part="analysis"]').evaluate(element => getComputedStyle(element).outlineStyle)
@@ -1410,7 +1417,7 @@ test('a judgement from the page\'s form is shown on the page as it judged, marke
   await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${judge2.recall}`)
   await settled(page)
   await recalled(true)
-  await expect(page.locator('[data-part="recall-chip"]')).toContainText('Recalled: judge/2 (prototype) on reading')
+  await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('recalled, not the standing view: judge/2 (prototype) on reading')
   // the row it came from framed, dashed, saying it is on the page
   const source = page.locator('[data-part="page-form"] tr.recalled-source')
   await expect(source).toHaveCount(1)
@@ -1427,7 +1434,7 @@ test('a judgement from the page\'s form is shown on the page as it judged, marke
     await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${other.recall}`)
     await settled(page)
     await recalled(true)
-    await expect(page.locator('[data-part="recall-chip"]')).toContainText('read by the pipeline')
+    await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('read by the pipeline')
     await expect(page.locator('[data-part="analysis"] .block-findings [data-finding]')).toHaveCount(0)
   }
   // and back: the standing view, unmarked
@@ -1640,18 +1647,19 @@ test('a page lists its judgements beneath their readings in its form, and its de
   await settled(page)
   const form = page.locator('[data-part="page-form"]')
   await expect(form.locator('[role="tab"]')).toHaveText([`Readings ${detail.form.readings_count}`, `Lab ${detail.form.lab_count}`,
-    `Verdicts ${detail.form.verdicts_count}`])
+    `Verdicts ${detail.form.verdicts.count}`])
   // every reading folded open: each verdict once, beneath its reading, its kind and its verdict the API's
   for (const mark of await form.locator('[data-part="fold-reading"][aria-expanded="false"]:not([disabled])').all()) await mark.click()
   await expect(form.locator('tr.verdict-row')).toHaveCount(verdicts.length)
   await expect(form.locator('tr.verdict-row > td:first-child [data-kind]')).toHaveText(verdicts.map(one => one.kind_said))
   await expect(form.locator('tr.verdict-row .result')).toHaveText(verdicts.map(one => one.verdict_said))
   await page.screenshot({ path: `${SHOTS}/page_judgements.png` })
-  // the Verdicts tab: every verdict on the page, the standing ones marked
+  // the Verdicts tab: the verdicts as shown, on the served reading (decision 26), its caption the API's, the standing marked
   await form.locator('[data-tab="verdicts"]').click()
-  await expect(form.locator('tr[data-verdict-row]')).toHaveCount(detail.form.verdicts_count)
+  await expect(form.locator('[data-part="verdicts-said"]')).toHaveText(detail.form.verdicts.said)
+  await expect(form.locator('tr[data-verdict-row]')).toHaveCount(detail.form.verdicts.count)
   expect(await form.locator('tr[data-verdict-row]').evaluateAll(rows => rows.map(row => row.getAttribute('data-standing'))))
-    .toEqual(detail.form.verdicts.map(one => String(one.standing)))
+    .toEqual(detail.form.verdicts.rows.map(one => String(one.standing)))
   await page.screenshot({ path: `${SHOTS}/page_verdicts.png` })
   await page.locator('[data-label="Check"] > summary .fold-label').click()
   for (const stage of ['1', '2', '3', 'person']) await expect(page.locator(`[data-stage="${stage}"]`)).toBeVisible()
@@ -2425,7 +2433,7 @@ test('a reading read beside the pipeline stands in the Lab, never among the read
   await expect(row.locator('.result')).toHaveText(lab.result_said)
   await row.locator('[data-part="show-reading"]').click()
   await settled(page)
-  await expect(page.locator('[data-part="recall-chip"]')).toContainText(`(${lab.test_reading ? 'test reading' : 'prototype'}), never served`)
+  await expect(page.locator('[data-part="analysis-recalled"]')).toContainText(`(${lab.test_reading ? 'test reading' : 'prototype'}), never served`)
   // the Lab stays open on the reading shown, its row framed
   await expect(form.locator('[data-tab="lab"]')).toHaveAttribute('aria-selected', 'true')
   await expect(form.locator(`tbody[data-reading="${lab.key}"] tr.reading-row.recalled-source`)).toHaveCount(1)
@@ -2463,6 +2471,78 @@ test('a page\'s form keeps its tabs and its folds under the pointer, tab after t
   await tab('lab').click()
   const moved = await boxes()
   expect(moved[2]!.x - at[2]!.x).toBeGreaterThan(1)
+})
+
+// 27.a (the operator): the way back from a recall stands at the start of the analysis's head line, before the words whose length
+// varies, so it stays under the pointer from one recall to the next; and 26: while recalled, the Verdicts tab holds the recall's
+// own verdicts, the tab framed as the analysis is, and the row shown is framed in whichever tab holds it
+test('the way back from a recall stays under the pointer, recall after recall, and the row framed is the one shown (26, 27.a)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const shown = form.readings.find(reading => reading.shown)!
+  const other = form.readings.find(reading => !reading.shown && reading.recall)
+  const judgements = shown.verdicts.filter(verdict => verdict.recall && !verdict.show_why_not)
+  test.skip(judgements.length < 2 || !other, 'finance p. 5 holds no two judgements to recall and no other reading today')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const back = page.locator('[data-part="analysis"] h2 [data-part="show-standing"]')
+  // in the document's own coordinates: a recall link clicked above may scroll the window
+  const placeOf = () => back.evaluate(element => {
+    const box = element.getBoundingClientRect()
+    return { x: box.x + window.scrollX, y: box.y + window.scrollY, width: box.width, height: box.height }
+  })
+  const recalls: { recall: string, click: () => Promise<void> }[] = [
+    ...judgements.map(verdict => ({ recall: verdict.recall!, click: () => page.locator(
+      `[data-part="page-form"] tbody[data-reading="${shown.key}"] tr.verdict-row:has(a.version:text-is("${verdict.version}")) [data-part="recall"]`).first().click() })),
+    { recall: other!.recall!, click: () => page.locator(`[data-part="page-form"] tbody[data-reading="${other!.key}"] [data-part="show-reading"]`).click() },
+  ]
+  let at: Box | null = null
+  const said = new Set<string>()
+  for (const one of [...recalls, ...recalls]) {
+    const api = await recallOf(request, FINANCE, 5, one.recall)
+    await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
+    await one.click()
+    await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${one.recall}`)
+    await settled(page)
+    // measured once the recall's own words stand beside it, not while it loads
+    await expect(page.locator('[data-part="analysis-recalled"]')).toHaveText(`recalled, not the standing view: ${api.said}`)
+    said.add(api.said)
+    const now = await placeOf()
+    if (at) inPlace(now, at, `the way back after ${one.recall}`)
+    else at = now
+    // the row shown framed, dashed, and no other: in Readings, the row its show was clicked on
+    const framed = page.locator('[data-part="page-form"] tr.recalled-source')
+    await expect(framed).toHaveCount(1)
+    await expect(framed.locator('[data-part="recalled-here"]')).toHaveCount(1)
+    expect(await framed.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('dashed')
+    // the Verdicts tab: the recall's own verdicts, its caption and count the API's, the tab and its table framed
+    const tab = page.locator('[data-part="page-form"] [data-tab="verdicts"]')
+    await expect(tab).toHaveText(`Verdicts ${api.verdicts.count}`)
+    await expect(tab).toHaveAttribute('data-overlay', 'yes')
+    await tab.click()
+    await expect(page.locator('[data-part="verdicts-said"]')).toHaveText(api.verdicts.said)
+    await expect(page.locator('tr[data-verdict-row]')).toHaveCount(api.verdicts.count)
+    expect(await page.locator('[data-part="verdicts-panel"]').evaluate(element => getComputedStyle(element).outlineStyle)).toBe('dashed')
+    // a verdict row framed only where it is the judgement shown
+    await expect(page.locator('tr[data-verdict-row].recalled-source')).toHaveCount(api.verdicts.rows.filter(row => row.recall === one.recall).length)
+  }
+  // the words beside it varied from recall to recall, so the way back held its place for a reason
+  expect(said.size).toBeGreaterThan(1)
+  await page.screenshot({ path: `${SHOTS}/page_recalled_verdicts.png` })
+  // and the check sees a way back that moves: set after the words, a moment
+  await page.addStyleTag({ content: '[data-part="analysis"] h2::after { display: none !important; } [data-part="show-standing"] { order: 3; }' })
+  const places = []
+  for (const one of recalls) {
+    const api = await recallOf(request, FINANCE, 5, one.recall)
+    await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
+    await one.click()
+    await expect(page.locator('[data-part="analysis-recalled"]')).toHaveText(`recalled, not the standing view: ${api.said}`)
+    places.push((await placeOf()).x)
+  }
+  expect(Math.max(...places) - Math.min(...places)).toBeGreaterThan(1)
+  // and a framed row gone, a moment: the check finds none
+  await page.locator('[data-part="page-form"] tr.recalled-source').evaluate(element => element.classList.remove('recalled-source'))
+  await expect(page.locator('[data-part="page-form"] tr.recalled-source')).toHaveCount(0)
 })
 
 // decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change

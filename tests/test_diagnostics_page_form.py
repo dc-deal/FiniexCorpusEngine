@@ -51,7 +51,7 @@ def test_a_page_s_form_holds_its_readings_its_lab_and_every_verdict_each_counted
     test = an_attempt('k3', number=3, reader_version='page/1', prototype=True, test_reading=True, model='an-invented-local-model',
                       mode='local', class_now='malformed', stored_at='2026-11-27T11:28:58+00:00', cost_usd=0.0)
     form = page_form.form_of([served, prototype, test], [a_person()])
-    assert (form.readings_count, form.lab_count, form.verdicts_count) == (1, 2, 3)
+    assert (form.readings_count, form.lab_count, form.verdicts.count) == (1, 2, 2)
     assert form.shown_judgement == 'j1'
     reading = form.readings[0]
     # the row says its kind, its result in words, and folds open to its verdicts, a person's among them, in time order
@@ -65,11 +65,48 @@ def test_a_page_s_form_holds_its_readings_its_lab_and_every_verdict_each_counted
     assert [(one.key, one.result_said, one.test_reading, one.promotable) for one in form.lab] == [
         ('k3', 'malformed', True, True), ('k2', 'ok', False, False)]
     assert form.lab[1].verdicts[0].version_said == 'prototype' and form.lab[0].recall == 'k3'
-    # every verdict in time order, the standing one marked, a person's with the judgement it answered
-    assert [(row.kind_said, row.standing_said, row.about, row.in_lab) for row in form.verdicts] == [
-        ('judge', 'standing', 'the page', False), ('judge', 'history', 'the page', True), ('person', 'standing', 'the page', False)]
-    assert (form.verdicts[2].answered.version, form.verdicts[2].reason, form.verdicts[2].who_said) == (
-        'judge/1', 'false alarm', 'a person')
+    # the verdicts as shown (decision 26): the served reading's alone, in time order, a person's with the judgement it answered;
+    # the Lab's judgement stays beneath its reading
+    shown = form.verdicts
+    assert (shown.said, shown.recalled) == ('as shown: the verdicts on the served reading', False)
+    assert [(row.kind_said, row.standing_said, row.about, row.recall) for row in shown.rows] == [
+        ('judge', 'standing', 'the page', 'k1:judge/1:0'), ('person', 'standing', 'the page', None)]
+    assert (shown.rows[1].answered.version, shown.rows[1].reason, shown.rows[1].who_said) == ('judge/1', 'false alarm', 'a person')
+
+
+def test_the_verdicts_as_shown_hold_what_applies_now_to_the_reading_the_analysis_shows():
+    earlier = an_attempt('k0', stored_at='2026-11-01T09:00:00+00:00', judgements=[
+        a_judgement(standing=False, recall='k0:judge/1:0', stored_at='2026-11-01T10:00:00+00:00'),
+        a_judgement(version='judge/2', standing=False, recall='k0:judge/2:0', stored_at='2026-11-02T10:00:00+00:00')])
+    served = an_attempt('k1', number=2, shown=True, judgements=[
+        a_judgement(),
+        a_judgement(counts=False, standing=False, again=1, recall='k1:judge/1:1', stored_at='2026-11-06T08:00:00+00:00'),
+        a_judgement(version='judge/3', version_state='prototype', counts=False, standing=False, recall='k1:judge/3:0',
+                    stored_at='2026-11-07T08:00:00+00:00')])
+    lab = an_attempt('k2', number=3, reader_version='page/2', prototype=True, judgements=[
+        a_judgement(version='judge/4', counts=False, standing=False, recall='k2:judge/4:0', stored_at='2026-11-11T08:00:00+00:00'),
+        a_judgement(version='judge/4', counts=False, standing=False, recall='k2:judge/4:1', again=1,
+                    stored_at='2026-11-12T08:00:00+00:00')])
+    people = [a_person(block='b03', standing=False, given_at='2026-11-10T09:00:00+00:00'),
+              a_person(block='b03', given_at='2026-11-12T09:00:00+00:00'),
+              a_person(given_at='2026-11-09T09:00:00+00:00', standing=False, archived=True),
+              a_person(reading_key='k0', applies=False, standing=False, given_at='2026-11-03T09:00:00+00:00')]
+    attempts = [earlier, served, lab]
+    # on the served reading: its standing judgement, never one asked again or a prototype's; a person's verdicts on it, the
+    # one a later verdict on the same block replaced said so; an archived one and one on another reading left out
+    shown = page_form.form_of(attempts, people).verdicts
+    assert [(row.kind_said, row.about, row.standing_said, row.recall) for row in shown.rows] == [
+        ('judge', 'the page', 'standing', 'k1:judge/1:0'), ('person', 'b03', 'replaced', None), ('person', 'b03', 'standing', None)]
+    assert shown.count == 3
+    # an earlier reading recalled: its latest counting judgement, and its own verdicts, as the recall passes them (applying)
+    recalled = page_form.shown_verdicts(attempts, [a_person(reading_key='k0', given_at='2026-11-03T09:00:00+00:00')], 'k0', 1)
+    assert (recalled.said, recalled.recalled, recalled.count) == ('as shown: the verdicts on reading 1 (recalled)', True, 2)
+    assert [(row.recall, row.standing_said) for row in recalled.rows] == [('k0:judge/2:0', 'standing'), (None, 'standing')]
+    # a Lab reading recalled: its latest judgement, which stands for it but never counts
+    tried = page_form.shown_verdicts(attempts, [], 'k2', 3)
+    assert [(row.recall, row.standing, row.standing_said) for row in tried.rows] == [('k2:judge/4:1', False, 'not counted')]
+    # a page with no served reading says so
+    assert page_form.shown_verdicts(attempts, people, None).said == 'as shown: no reading is served, so no verdict applies'
 
 
 def test_a_judgement_s_findings_set_its_result_and_its_show_and_an_ok_with_minor_ones_stays_an_ok():

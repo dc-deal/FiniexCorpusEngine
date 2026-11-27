@@ -2652,14 +2652,11 @@ export interface components {
             readings_count: number;
             /** Lab Count */
             lab_count: number;
-            /** Verdicts Count */
-            verdicts_count: number;
             /** Readings */
             readings: components["schemas"]["FormReading"][];
             /** Lab */
             lab: components["schemas"]["FormReading"][];
-            /** Verdicts */
-            verdicts: components["schemas"]["VerdictRow"][];
+            verdicts: components["schemas"]["ShownVerdicts"];
         };
         /** PageImage */
         PageImage: {
@@ -3265,6 +3262,7 @@ export interface components {
             page_findings: components["schemas"]["Finding"][];
             /** Image Size */
             image_size: number[] | null;
+            verdicts?: components["schemas"]["ShownVerdicts"] | null;
         };
         /**
          * RouteLevel
@@ -3633,6 +3631,24 @@ export interface components {
             has_pages: boolean;
         };
         /**
+         * ShownVerdicts
+         * @description The Verdicts tab's rows (decision 26): the verdicts that apply now to the reading the analysis shows, what that
+         *     reading is said in a caption above them, and their count, the tab's.
+         */
+        ShownVerdicts: {
+            /** Said */
+            said: string;
+            /**
+             * Recalled
+             * @default false
+             */
+            recalled: boolean;
+            /** Count */
+            count: number;
+            /** Rows */
+            rows: components["schemas"]["VerdictRow"][];
+        };
+        /**
          * Splitter
          * @description How the index cuts a section into chunks, as `chunking.splitting_config` gives it: the view's legend of the overlap
          *     says from it why a chunk repeats the end of the one before.
@@ -3948,7 +3964,7 @@ export interface components {
         };
         /**
          * VerdictRow
-         * @description One verdict on the page, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine.
+         * @description One verdict as shown, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine.
          */
         VerdictRow: {
             /**
@@ -3967,7 +3983,7 @@ export interface components {
              * Standing Said
              * @enum {string}
              */
-            standing_said: "standing" | "history";
+            standing_said: "standing" | "replaced" | "not counted";
             /** Time */
             time?: string | null;
             /** Verdict */
@@ -3981,11 +3997,8 @@ export interface components {
             reason?: string | null;
             /** About */
             about: string;
-            /**
-             * In Lab
-             * @default false
-             */
-            in_lab: boolean;
+            /** Recall */
+            recall?: string | null;
             answered?: components["schemas"]["AnsweredJudgement"] | null;
             /**
              * Who

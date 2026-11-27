@@ -9,34 +9,40 @@ import HumanTime from '@/components/base/HumanTime.vue'
 import ReaderRuleList from '@/components/ReaderRuleList.vue'
 import { readingCost } from '@/cost_format'
 import type { IconName } from '@/icon_registry'
-import type { PageForm } from '@/types/api/page_types'
+import type { PageForm, ShownVerdicts } from '@/types/api/page_types'
 
 /**
  * A page's readings and verdicts in one form (issue #18, the operator's design): three tabs, Readings, Lab and Verdicts, each
  * with its count. Readings and Lab show one row per reading, time · model · cost · version · result · show, and a row folds
- * open to its verdicts in the same columns, a judge's and a person's alike; Verdicts shows every verdict on the page in time
- * order, the standing one marked by a glyph and a word, the others history, quieter. The pattern is always the same: a
+ * open to its verdicts in the same columns, a judge's and a person's alike; Verdicts shows the verdicts as shown (decision 26):
+ * those that apply now to the reading the analysis shows, the served one's from the page, a recalled one's from the recall,
+ * a caption saying which, and the tab and its table framed as the analysis is while recalled. The pattern is always the same: a
  * reading, then its verdicts; in the pipeline or in the Lab, the difference one flag. Each row says what it is in front, a
  * glyph and a word, the API's (the operator, 27 Nov: by indentation alone a reading and a judge were hard to tell apart);
  * the verdicts stay indented beneath their reading. Every word and count is the API's; the
  * keys and a reading's own bookkeeping stand in a row's card under the pointer, never in a column. The tabs are the
- * prompts view's own (one look, 221.a), and a tab click moves no control.
+ * prompts view's own (one look, 221.a), and a tab click moves no control. The row the page shows while recalled is framed,
+ * dashed, in whichever tab holds it (27.a).
  */
 const props = defineProps<{
   form: PageForm
   // the judgement shown on the page, and the address that shows another (181.a)
   recallId: string | null
   recallTo: (recall: string) => RouteLocationRaw
+  // the Verdicts tab while a reading or a judgement is recalled: the recall's own, the verdicts on the recalled reading
+  recalledVerdicts?: ShownVerdicts | null
 }>()
 
 const emit = defineEmits<{ block: [id: string] }>()
 
 type Tab = 'readings' | 'lab' | 'verdicts'
+// the verdicts as shown (decision 26): the recall's while one is shown, else the served reading's
+const verdicts = computed(() => props.recalledVerdicts ?? props.form.verdicts)
 const picked = ref<Tab>('readings')
 const tabs = computed(() => [
   { key: 'readings' as const, label: 'Readings', count: props.form.readings_count },
   { key: 'lab' as const, label: 'Lab', count: props.form.lab_count },
-  { key: 'verdicts' as const, label: 'Verdicts', count: props.form.verdicts_count },
+  { key: 'verdicts' as const, label: 'Verdicts', count: verdicts.value.count },
 ])
 const holdsRecall = (rows: PageForm['readings']) => rows.some(reading => reading.recall === props.recallId
   || reading.verdicts.some(verdict => verdict.recall === props.recallId))
@@ -78,6 +84,8 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
         :aria-selected="picked === one.key ? 'true' : 'false'"
         :marked="picked === one.key"
         :data-tab="one.key"
+        :class="{ overlay: one.key === 'verdicts' && verdicts.recalled }"
+        :data-overlay="one.key === 'verdicts' && verdicts.recalled ? 'yes' : null"
         @click="picked = one.key"
       >
         {{ one.label }} <span class="tab-count">{{ one.count }}</span>
@@ -181,9 +189,12 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
       </tbody>
     </DataTable>
 
-    <!-- Verdicts: every verdict on the page in time order, the standing one marked, the others history -->
+    <!-- Verdicts: the verdicts as shown, on the reading the analysis shows, its caption saying which (decision 26) -->
+    <div v-else class="verdicts-panel" :class="{ overlay: verdicts.recalled }" data-part="verdicts-panel">
+    <p class="verdicts-said" :class="{ recalled: verdicts.recalled }" data-part="verdicts-said">
+      <AppIcon v-if="verdicts.recalled" name="recalled" /> {{ verdicts.said }}
+    </p>
     <DataTable
-      v-else
       role="tabpanel"
       table-class="form-verdicts ruled"
       :columns="[{ width: '7.5rem' }, { width: '8rem' }, { width: '10rem' }, { width: '7rem' }, { width: '11rem' }, { width: '11rem' }, {},
@@ -205,14 +216,21 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
         </tr>
       </template>
       <tbody>
-        <tr v-if="!form.verdicts.length"><td colspan="8" class="none">none</td></tr>
-        <tr v-for="(row, at) in form.verdicts" :key="at" class="verdict-line" :class="{ history: !row.standing }" :data-verdict-row="at" :data-standing="row.standing ? 'true' : 'false'">
+        <tr v-if="!verdicts.rows.length"><td colspan="8" class="none">none</td></tr>
+        <tr
+          v-for="(row, at) in verdicts.rows"
+          :key="at"
+          class="verdict-line"
+          :class="{ history: !row.standing, 'recalled-source': row.recall && row.recall === recallId }"
+          :data-verdict-row="at"
+          :data-standing="row.standing ? 'true' : 'false'"
+        >
           <td><span class="kind" :data-kind="row.kind_said"><AppIcon :name="KIND_ICON[row.kind_said]" /> {{ row.kind_said }}</span></td>
-          <td><span class="standing-mark" :data-standing-said="row.standing_said">{{ row.standing ? '● standing' : '○ history' }}</span></td>
+          <td><span class="standing-mark" :data-standing-said="row.standing_said">{{ row.standing ? '●' : '○' }} {{ row.standing_said }}</span></td>
           <td><HoverCard :title="row.kind === 'judge' ? 'Judgement' : 'Verdict'" :rows="row.hover"><HumanTime v-if="row.time" :at="row.time" /><span v-else>no time</span></HoverCard></td>
           <td class="result" :class="row.state" :data-result="row.state"><AppIcon :name="ICON[row.state]" /> {{ row.verdict }}</td>
           <td>{{ row.reason ?? '' }}</td>
-          <td>{{ row.about }}<span v-if="row.in_lab" class="secondary"> · Lab</span></td>
+          <td>{{ row.about }}</td>
           <td>
             <template v-if="row.answered">
               {{ [row.answered.version, row.answered.model].filter(Boolean).join(' · ') }}
@@ -224,6 +242,7 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
         </tr>
       </tbody>
     </DataTable>
+    </div>
   </section>
 </template>
 
@@ -326,7 +345,27 @@ tr.recalled-source {
   white-space: nowrap;
 }
 
-/* the verdicts no longer standing are history: quieter, still readable */
+/* the verdicts as shown say which reading they are on; while it is recalled, in the overlay's role with its glyph, and
+   the tab and its table framed, dashed, as the analysis is (decision 26) */
+.verdicts-said {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.verdicts-said.recalled {
+  color: var(--color-annotation);
+}
+
+.verdicts-panel.overlay,
+.tabs .overlay {
+  outline: 2px dashed var(--color-annotation);
+  outline-offset: 2px;
+}
+
+/* a verdict no longer standing (a person's a later one replaced, a Lab judgement never counted): quieter, still readable */
 .verdict-line.history {
   color: var(--color-text-secondary);
 }

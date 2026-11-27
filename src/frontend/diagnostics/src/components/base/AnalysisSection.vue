@@ -3,7 +3,8 @@
  * The analysis of a view, its original beside its reading or its chunks (decisions 181.a, 183): the one part that takes
  * the wide container, under its own heading, told by its form, a rule through the middle (`── Analysis ──`), never by a
  * size of its own. Where the view shows something other than the standing state (`overlay`, a recalled judgement), the
- * region it acts on is framed, dashed, in the annotation role; the words that say so stand in the heading's hint.
+ * region it acts on is framed, dashed, in the annotation role; the words that say so stand in the heading's hint, and the
+ * way back at the head line's start (`lead`, 27.a), before any words whose length varies, so it stays under the pointer.
  */
 defineProps<{
   overlay?: boolean
@@ -13,6 +14,7 @@ defineProps<{
 <template>
   <section class="analysis" :class="{ overlay }" data-zone="analysis" data-part="analysis" :data-overlay="overlay ? 'yes' : null">
     <h2 class="analysis-title">
+      <slot name="lead" />
       <span class="analysis-word">Analysis</span>
       <slot name="hint" />
     </h2>

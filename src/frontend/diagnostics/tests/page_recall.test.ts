@@ -5,7 +5,7 @@ import { getPage, getRecall } from '@/api/api_client'
 import { router } from '@/router'
 import PageView from '@/views/PageView.vue'
 import type { Judgement, PageDetail, Recalled } from '@/types/api/page_types'
-import { KELLY, aBlock, aFormReading, aFormVerdict, aPageDetail, aPageForm } from './page_fixture'
+import { KELLY, aBlock, aFormReading, aFormVerdict, aPageDetail, aPageForm, aVerdictRow, shownVerdicts } from './page_fixture'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
@@ -44,7 +44,8 @@ function aPage(): PageDetail {
 function aRecall(): Recalled {
   return { recall: PROTOTYPE, reading_key: KEY, reading_number: 1, version: 'judge/3', version_state: 'prototype', again: 0,
     counts: false, said: 'judge/3 (prototype) on reading 1, never served', raw: 'the reading as stored', image_size: [1000, 1400],
-    reading: { front: {}, errors: [], warnings: [], error_places: [], blocks: [aBlock({ id: 'b01', findings: [VOID] })] }, page_findings: [] }
+    reading: { front: {}, errors: [], warnings: [], error_places: [], blocks: [aBlock({ id: 'b01', findings: [VOID] })] }, page_findings: [],
+    verdicts: shownVerdicts([aVerdictRow({ recall: `${KEY}:judge/1:0` })], { said: 'as shown: the verdicts on reading 1 (recalled)', recalled: true }) }
 }
 
 function mountView() {
@@ -62,7 +63,7 @@ describe('PageView, a judgement recalled on the page (181.a)', () => {
   it('shows a judgement on the page from its row, marked as not the standing view, and goes back', async () => {
     const view = mountView()
     await flushPromises()
-    expect(view.find('[data-part="recall-chip"]').exists()).toBe(false)
+    expect(view.find('[data-part="show-standing"]').exists()).toBe(false)
     expect(view.find('[data-part="analysis"]').classes()).not.toContain('overlay')
     // a judgement row whose findings change what the page shows offers it; one that found nothing is greyed, saying why
     expect(view.findAll('[data-part="page-form"] [data-part="recall"]')).toHaveLength(1)
@@ -71,10 +72,16 @@ describe('PageView, a judgement recalled on the page (181.a)', () => {
     await flushPromises()
     expect(router.currentRoute.value.query.judgement).toBe(PROTOTYPE)
     expect(getRecall).toHaveBeenCalledWith('free', KELLY, 4, PROTOTYPE)
-    // the top row's chip, the analysis framed and saying so, the row it came from marked, its findings on the blocks
-    expect(view.find('[data-part="recall-chip"]').text()).toContain('Recalled: judge/3 (prototype) on reading 1, never served')
+    // the analysis framed and saying so in its head line, the way back at the line's start (27.a), no chip in the page's head;
+    // the row it came from marked, its findings on the blocks
+    expect(view.find('[data-part="recall-chip"]').exists()).toBe(false)
     expect(view.find('[data-part="analysis"]').classes()).toContain('overlay')
-    expect(view.find('[data-part="analysis-recalled"]').text()).toContain('recalled, not the standing view')
+    const head = view.find('[data-part="analysis"] h2')
+    expect(head.element.firstElementChild!.getAttribute('data-part')).toBe('show-standing')
+    expect(view.find('[data-part="analysis-recalled"]').text()).toBe('recalled, not the standing view: judge/3 (prototype) on reading 1, never served')
+    // the Verdicts tab holds the recall's own verdicts, framed
+    expect(view.find('[data-tab="verdicts"]').text()).toBe('Verdicts 1')
+    expect(view.find('[data-tab="verdicts"]').attributes('data-overlay')).toBe('yes')
     expect(view.find('[data-part="page-form"] [data-part="recalled-here"]').exists()).toBe(true)
     expect(view.find('[data-block="b01"] [data-voice="code"]').exists()).toBe(true)
     // the quoted text is the standing view's: no choice of it while a judgement is recalled
@@ -82,8 +89,9 @@ describe('PageView, a judgement recalled on the page (181.a)', () => {
     await view.find('[data-part="show-standing"]').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query.judgement).toBeUndefined()
-    expect(view.find('[data-part="recall-chip"]').exists()).toBe(false)
+    expect(view.find('[data-part="show-standing"]').exists()).toBe(false)
     expect(view.find('[data-part="analysis"]').classes()).not.toContain('overlay')
+    expect(view.find('[data-tab="verdicts"]').attributes('data-overlay')).toBeUndefined()
   })
 
   it('says so where the recalled reading\'s text is not on this machine', async () => {
@@ -93,6 +101,6 @@ describe('PageView, a judgement recalled on the page (181.a)', () => {
     const view = mountView()
     await flushPromises()
     expect(view.find('[data-part="recall-missing"]').text()).toContain('not on this machine')
-    expect(view.find('[data-part="recall-chip"]').exists()).toBe(true)
+    expect(view.find('[data-part="show-standing"]').exists()).toBe(true)
   })
 })

@@ -7915,10 +7915,6 @@
             "type": "integer",
             "title": "Lab Count"
           },
-          "verdicts_count": {
-            "type": "integer",
-            "title": "Verdicts Count"
-          },
           "readings": {
             "items": {
               "$ref": "#/components/schemas/FormReading"
@@ -7934,18 +7930,13 @@
             "title": "Lab"
           },
           "verdicts": {
-            "items": {
-              "$ref": "#/components/schemas/VerdictRow"
-            },
-            "type": "array",
-            "title": "Verdicts"
+            "$ref": "#/components/schemas/ShownVerdicts"
           }
         },
         "type": "object",
         "required": [
           "readings_count",
           "lab_count",
-          "verdicts_count",
           "readings",
           "lab",
           "verdicts"
@@ -9852,6 +9843,16 @@
               }
             ],
             "title": "Image Size"
+          },
+          "verdicts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShownVerdicts"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10986,6 +10987,38 @@
         ],
         "title": "ShelfRow"
       },
+      "ShownVerdicts": {
+        "properties": {
+          "said": {
+            "type": "string",
+            "title": "Said"
+          },
+          "recalled": {
+            "type": "boolean",
+            "title": "Recalled",
+            "default": false
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "said",
+          "count",
+          "rows"
+        ],
+        "title": "ShownVerdicts",
+        "description": "The Verdicts tab's rows (decision 26): the verdicts that apply now to the reading the analysis shows, what that\nreading is said in a caption above them, and their count, the tab's."
+      },
       "Splitter": {
         "properties": {
           "splitter": {
@@ -11901,7 +11934,8 @@
             "type": "string",
             "enum": [
               "standing",
-              "history"
+              "replaced",
+              "not counted"
             ],
             "title": "Standing Said"
           },
@@ -11944,10 +11978,16 @@
             "type": "string",
             "title": "About"
           },
-          "in_lab": {
-            "type": "boolean",
-            "title": "In Lab",
-            "default": false
+          "recall": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
           },
           "answered": {
             "anyOf": [
@@ -11994,7 +12034,7 @@
           "who_said"
         ],
         "title": "VerdictRow",
-        "description": "One verdict on the page, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine."
+        "description": "One verdict as shown, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine."
       },
       "WaitingVerdict": {
         "properties": {
