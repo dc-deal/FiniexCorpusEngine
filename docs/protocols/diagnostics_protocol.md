@@ -1201,3 +1201,15 @@ The record of how the diagnostics frontend came about, mistakes included.
   browser checks clicked reading 1's show, greyed now: the recall check reaches that reading by its address instead,
   which a recall keeps; the way back's check takes every active way in, a judge's on reading 1 among them, its fold
   opened first; the Lab reading check takes only a reading whose show is active.
+- **Decision 43.a** (27 Nov). `PageView.showBlock` scrolls the analysis into view (`block: 'start'`, as the recall does),
+  then the block in its column (`scrollToBlock`), then the frame in the image pane (`boxIntoPane`, now its own function and
+  called on every click, not only on a new frame), and sets `flashing` for 900 ms. The attribute `data-flash` is taken
+  away, a layout forced (`offsetWidth`) and set again, so a second click restarts the animation. `ReadingBlocks` takes
+  `flash`. The keyframes `block-flash` are a box-shadow in the accent (scoped by the build, so the check matches the
+  name's start); with reduced motion the frame's `outline-width` is 4 px and the reading's edge 5 px for the moment. The
+  browser check was written first and red on the build before. Its first measure, the analysis's top within 40 px, could
+  not hold on finance p. 5, where the page ends 91 px short of the analysis for show as for a block link. It now accepts
+  the window as far as the page goes. The full run then found the older check of the head's findings line asserting the
+  window still (the rule of 4 Nov); 43.a names every `data-jump`, so that check now asserts the window at the analysis,
+  marked → now. The same full run had one Python test red for a moment, a section of the private search index (the
+  ladder's keyword rung), green on its rerun and in the full rerun: the index on this machine was being written.

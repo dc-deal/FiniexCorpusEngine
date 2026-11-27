@@ -220,13 +220,13 @@ describe('PageView', () => {
     expect(view.find('[data-block="b02"]').classes()).toContain('highlighted')
   })
 
-  it('brings the block into view on every click of the pointer, from the raw text as well', async () => {
+  it('brings the analysis and the block into view on every click of the pointer, from the raw text as well, the block flashing (43.a)', async () => {
     // jsdom lays nothing out and scrolls nothing: record which element is asked to come into view
     const scrolled: string[] = []
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       configurable: true,
       value(this: Element) {
-        scrolled.push(this.id)
+        scrolled.push(this.id || this.getAttribute('data-part') || '')
       },
     })
     try {
@@ -239,9 +239,13 @@ describe('PageView', () => {
       await view.findAll('.mode button')[1].trigger('click')
       await view.find('.found-at button').trigger('click')
       await flushPromises()
+      // the block's frame in the reading answers the click (43.a), and does again on the second
+      expect(view.find('[data-block="b02"]').attributes('data-flash')).toBe('yes')
       await view.find('.found-at button').trigger('click')
       await flushPromises()
-      expect(scrolled).toEqual(['block-b02', 'block-b02'])
+      expect(view.find('[data-block="b02"]').attributes('data-flash')).toBe('yes')
+      // each click: the window to the analysis, as show does, then the block in its column
+      expect(scrolled).toEqual(['analysis', 'block-b02', 'analysis', 'block-b02'])
     } finally {
       Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
     }

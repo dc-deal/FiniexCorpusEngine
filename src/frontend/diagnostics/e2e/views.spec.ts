@@ -2728,6 +2728,61 @@ test('a reading has one active way in: its show greyed for a judge with findings
   expect(await bothGrey()).toEqual([earlier!.key])
 })
 
+// 43.a (the operator on finance p. 5: b12 clicked "did nothing": it was framed and at the reading's top already, and the window
+// stood still): a click on a block link always answers where it is seen. The window goes to the analysis, as show does; the
+// block stands in view in the reading and in the image; and its frame flashes once, in the accent, again on a second click,
+// moving nothing. The link stays where it is in the page. Shown failing first on the build before: the window stood still
+test('a click on a block link brings the analysis, the block in both panes, and a flash of its frame, every time (43.a)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const served = form.readings.find(reading => reading.shown)!
+  const person = served.verdicts.find(verdict => verdict.kind === 'person' && verdict.block === 'b12')
+  test.skip(!person, 'finance p. 5 holds no person\'s verdict on b12 today')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const link = page.locator(`[data-part="page-form"] tbody[data-reading="${served.key}"] tr.verdict-row [data-jump="b12"]`).first()
+  const inPage = () => link.evaluate(element => {
+    const box = element.getBoundingClientRect()
+    return { x: box.x + window.scrollX, y: box.y + window.scrollY, width: box.width, height: box.height }
+  })
+  const before = await inPage()
+  const box = page.locator('[data-part="analysis"] .block-box[data-box="b12"]')
+  const block = page.locator('[data-part="analysis"] .reading [data-block="b12"]')
+  for (const time of [1, 2]) {
+    await link.scrollIntoViewIfNeeded()
+    await link.click()
+    // the window at the analysis, as show brings it: its top at the window's top, or the window as far down as the page goes
+    // (on finance p. 5 the page ends 91 px short of that, for show as for this), and b12 in both panes
+    const atAnalysis = () => page.locator('[data-part="analysis"]').evaluate(element => {
+      const top = element.getBoundingClientRect().top
+      const end = document.documentElement.scrollHeight - window.innerHeight
+      return top >= -2 && (top <= 2 || window.scrollY >= end - 1)
+    })
+    await expect.poll(atAnalysis, { message: `the window stood still on click ${time}` }).toBe(true)
+    await expect(box).toBeInViewport()
+    await expect(block).toBeInViewport()
+    // the frame flashes, and goes quiet again
+    await expect(box).toHaveAttribute('data-flash', 'yes')
+    await expect(block).toHaveAttribute('data-flash', 'yes')
+    await expect(box).not.toHaveAttribute('data-flash', 'yes', { timeout: 3000 })
+    inPlace(await inPage(), before, `the block link after click ${time}`)
+  }
+  // in the accent's role, never the overlay's pink, by a shadow that moves nothing
+  await link.scrollIntoViewIfNeeded()
+  await link.click()
+  // the flash's own animation (its name scoped by the build), on a frame that is not the overlay's
+  expect(await box.evaluate(element => getComputedStyle(element).animationName)).toMatch(/^block-flash/)
+  await expect(box).not.toHaveClass(/recalled/)
+  await page.screenshot({ path: `${SHOTS}/page_block_flash.png` })
+  // with reduced motion: the same answer without movement, a thicker frame for a moment
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(box).not.toHaveAttribute('data-flash', 'yes', { timeout: 3000 })
+  await link.scrollIntoViewIfNeeded()
+  await link.click()
+  await expect(box).toHaveAttribute('data-flash', 'yes')
+  expect(await box.evaluate(element => [getComputedStyle(element).animationName, getComputedStyle(element).outlineWidth])).toEqual(['none', '4px'])
+})
+
 // decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change
 // nothing keeps its place and its box in the column, greyed and disabled, and the card under the pointer says why in the API's words
 test('a show that would change nothing keeps its box, greyed, its card saying why (decision 25)', async ({ page, request }) => {
@@ -3219,16 +3274,20 @@ test('a finding of the judge stands beneath the block it names, and the line abo
   await expect(block).toHaveClass(/highlighted/)
   // marked is not enough: the reader has to see it without searching, from its start: its top in the window. A share of the
   // block stood for that before the page's record grew to labelled lines (184); a tall block below them shows its start,
-  // not half of itself, and the window must not move
+  // not half of itself
   const startInView = async () => {
     const box = (await block.boundingBox())!
     expect(box.y).toBeGreaterThanOrEqual(-1)
     expect(box.y).toBeLessThan(page.viewportSize()!.height - 40)
   }
   await startInView()
-  // and only the reading's column scrolls: the window stays, so the line and the pointer above stay in sight
-  expect(await page.evaluate(() => window.scrollY)).toBe(0)
-  await expect(page.locator('.summary')).toBeInViewport()
+  // → now (43.a): every block link takes the window to the analysis, as show does, so the head's line no longer stays in
+  // sight (its rule of 4 Nov, "only the reading's column scrolls", reversed); the analysis stands at the window's top, or the
+  // window as far down as the page goes
+  expect(await page.locator('[data-part="analysis"]').evaluate(element => {
+    const top = element.getBoundingClientRect().top
+    return top >= -2 && (top <= 2 || window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 1)
+  })).toBe(true)
   // a pixel of slack: the scroll lands the top on a subpixel (measured -0.22 px)
   expect((await block.boundingBox())!.y).toBeGreaterThanOrEqual(-1)
   await page.screenshot({ path: `${SHOTS}/page_finding.png` })
@@ -3243,7 +3302,11 @@ test('a finding of the judge stands beneath the block it names, and the line abo
   await page.locator('.found-at button', { hasText: named!.id }).click()
   await expect(block).toBeInViewport()
   await startInView()
-  expect(await page.evaluate(() => window.scrollY)).toBe(0)
+  // and the window at the analysis again (43.a)
+  expect(await page.locator('[data-part="analysis"]').evaluate(element => {
+    const top = element.getBoundingClientRect().top
+    return top >= -2 && (top <= 2 || window.scrollY >= document.documentElement.scrollHeight - window.innerHeight - 1)
+  })).toBe(true)
 })
 
 type IssueRow = { knowledge_base: string, source_id: string, pdf_page: number, route: string, from_fallback: boolean,

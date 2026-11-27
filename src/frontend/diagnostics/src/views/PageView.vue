@@ -258,14 +258,29 @@ async function showRaw(line: number): Promise<void> {
   rawText.value?.scrollToLine(line)
 }
 
-// every click brings the block into view, also from the raw text and also a second time: the scroll is the click's own
+// every click brings the block into view, also from the raw text and also a second time: the scroll is the click's own.
+// 43.a (the operator on finance p. 5, b12 "did nothing": it was framed and at the reading's top already): the click always
+// answers where it is seen. The window goes to the analysis, as show does; the block stands in view in the reading and in
+// the image; and its frame flashes once (`flashing`, `data-flash`), again on every click, a shadow that moves nothing.
+const FLASH_MS = 900
+const flashing = ref(false)
+let flashEnd: ReturnType<typeof setTimeout> | undefined
 async function showBlock(id: string): Promise<void> {
   mode.value = 'readable'
   asServed.value = false
   highlight.value = id
+  flashing.value = false
   await nextTick()
+  ;(analysis.value?.$el as HTMLElement | undefined)?.scrollIntoView?.({ block: 'start' })
   readingBlocks.value?.scrollToBlock(id)
+  boxIntoPane()
+  // the attribute gone and come again after a layout, so the animation starts anew on a second click
+  void boxElement.value?.offsetWidth
+  flashing.value = true
+  clearTimeout(flashEnd)
+  flashEnd = setTimeout(() => { flashing.value = false }, FLASH_MS)
 }
+onBeforeUnmount(() => clearTimeout(flashEnd))
 
 /**
  * The frame of the block on show: the one under the pointer, else the one chosen. Its box is the reader's claim in pixels
@@ -326,11 +341,9 @@ onBeforeUnmount(() => {
 watch(pane, () => nextTick(measurePane))
 
 // A frame outside the visible part of the original brings it into view: only the original's own pane scrolls, never the
-// window, so the reading under the pointer stays where it is.
-watch(box, async () => {
-  await nextTick()
-  measurePane()
-  await nextTick()
+// window, so the reading under the pointer stays where it is. Asked for by a new frame, and by every block link's click,
+// which may name the frame that stands already (43.a).
+function boxIntoPane(): void {
   const frame = pane.value
   const element = boxElement.value
   if (!frame || !element) return
@@ -338,6 +351,12 @@ watch(box, async () => {
   if (top < frame.scrollTop || top + element.offsetHeight > frame.scrollTop + frame.clientHeight) {
     frame.scrollTo?.({ top: Math.max(0, top - frame.clientHeight / 4) })
   }
+}
+watch(box, async () => {
+  await nextTick()
+  measurePane()
+  await nextTick()
+  boxIntoPane()
 })
 </script>
 
@@ -627,7 +646,15 @@ watch(box, async () => {
                 :height="shown.image.height ?? undefined"
                 :alt="`PDF page ${shown.pdf_page} as the reader received it`"
               >
-              <div v-if="box" ref="boxElement" class="block-box" :class="{ described: box.described, recalled: recallId }" :style="box.style" :data-box="box.id">
+              <div
+                v-if="box"
+                ref="boxElement"
+                class="block-box"
+                :class="{ described: box.described, recalled: recallId }"
+                :style="box.style"
+                :data-box="box.id"
+                :data-flash="flashing && box.id === highlight ? 'yes' : null"
+              >
                 <span class="block-box-label">{{ box.label }}</span>
               </div>
             </div>
@@ -678,6 +705,7 @@ watch(box, async () => {
               ref="readingBlocks"
               :blocks="analysisReading.blocks"
               :highlight="highlight"
+              :flash="flashing"
               :errors="analysisReading.error_places ?? []"
               :verdicts="verdictsTaken"
               :verdict-block="verdictTarget || null"
@@ -967,6 +995,30 @@ watch(box, async () => {
   outline: 2px solid var(--color-accent);
   background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
   pointer-events: none;
+}
+
+/* a block link's click answers on the frame (43.a): a ring that swells and goes, in the accent's role, a shadow that moves
+   nothing; with reduced motion the frame thickens for the moment instead, with no movement */
+@keyframes block-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  35% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+}
+
+.block-box[data-flash] {
+  animation: block-flash 700ms ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block-box[data-flash] {
+    animation: none;
+    outline-width: 4px;
+  }
 }
 
 /* a block framed for another that has no box of its own: dashed, as the derived block's frame is borrowed, not placed */

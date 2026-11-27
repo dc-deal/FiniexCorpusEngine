@@ -2174,3 +2174,20 @@ browser check on finance p. 5 that opens every reading in Readings and in the La
 reading 1's show greyed with its card, "● served" as the mark and the tabs in place. It ends on its failing case: the
 judge's way in taken out, a moment, and the check names the reading left with none. 418 unit tests, 101 checks in
 the browser (2 skipped on today's data), 1,782 Python tests.
+
+**A block link always answers (decision 43.a, 27 Nov).** On finance p. 5 the operator clicked b12 in a person's row and
+saw nothing happen: b12 was framed already and stood at the reading's top, and the window stood still. A click on a block
+link, in the form, in the head's findings or on a validator's error, now always answers where it is seen:
+- the window goes to the analysis, as show does (the operator had praised that scroll); on finance p. 5 the page ends 91 px
+  short of the analysis's top, for show as for this;
+- the block stands in view in the reading and in the image, its image pane scrolled to the frame even where that frame
+  stood already;
+- its frame flashes once, a ring in the accent's role that swells and goes, again on every click, and so does its edge in
+  the reading. It is a shadow, so it moves nothing. With reduced motion, the frame thickens for the moment instead.
+This reverses the rule of 4 Nov for the head's findings line, whose jumps scrolled the reading's column alone so the line
+stayed in sight: they take the window to the analysis now, as every block link does.
+**Measured:** a unit test of both scrolls and the flash on each of two clicks. A browser check on finance p. 5, shown
+failing first on the build before ("the window stood still", the analysis 520 px down), clicks b12 in the person's row
+twice and finds each time: the window at the analysis; b12 in view in both panes; the flash come and gone; the link where
+it stood in the page; and with reduced motion no animation but a 4 px frame. 418 unit tests, 102 checks in the
+browser (2 skipped on today's data), 1,782 Python tests.

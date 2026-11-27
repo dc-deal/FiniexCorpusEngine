@@ -28,13 +28,15 @@ import { counted } from '@/counted'
 const props = withDefaults(defineProps<{
   blocks: ReadingBlock[]
   highlight?: string | null
+  // the block on show flashes for a moment, a block link's click answering where it is seen (43.a)
+  flash?: boolean
   // the validator's errors on the reading, parted by the API; each stands on the block it names
   errors?: ReadingError[]
   // a person's verdict is taken here (V1.a): a ⚖ at each block opens the verdict panel on it, always shown on a block with a
   // finding and on the pointer or the keyboard's focus otherwise; the block the open panel is about is outlined
   verdicts?: boolean
   verdictBlock?: string | null
-}>(), { highlight: null, errors: () => [], verdicts: false, verdictBlock: null })
+}>(), { highlight: null, flash: false, errors: () => [], verdicts: false, verdictBlock: null })
 
 function errorsOn(block: ReadingBlock): ReadingError[] {
   return props.errors.filter(error => error.block === block.id)
@@ -182,6 +184,7 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
       :class="[block.group, { highlighted: block.id === highlight, 'has-findings': block.findings.length > 0,
                               'verdict-about': block.id === verdictBlock }]"
       :data-block="block.id"
+      :data-flash="flash && block.id === highlight ? 'yes' : undefined"
       @mouseenter="emit('hover', block.id)"
       @mouseleave="emit('hover', null)"
     >
@@ -318,6 +321,30 @@ function scrollingColumn(element: HTMLElement): HTMLElement | null {
 .block.highlighted {
   box-shadow: inset 2px 0 0 var(--color-accent);
   background-color: var(--color-bg-elevated);
+}
+
+/* a block link's click answers on it too (43.a): its edge swells and goes, a shadow that moves nothing; with reduced motion
+   the edge stands thicker for the moment instead */
+@keyframes block-flash {
+  0%,
+  100% {
+    box-shadow: inset 2px 0 0 var(--color-accent);
+  }
+
+  35% {
+    box-shadow: inset 6px 0 0 var(--color-accent), 0 0 0 2px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+}
+
+.block.highlighted[data-flash] {
+  animation: block-flash 700ms ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block.highlighted[data-flash] {
+    animation: none;
+    box-shadow: inset 5px 0 0 var(--color-accent);
+  }
 }
 
 .block-findings {
