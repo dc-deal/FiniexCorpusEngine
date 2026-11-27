@@ -117,6 +117,12 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* a word longer than the column, such as a work's key, breaks where it must rather than widening the table (27 Nov: a free
+   work's key of 62 characters ran the table 35 px past its box at 800 px) */
+.command {
+  overflow-wrap: anywhere;
+}
+
 .when,
 .run-rows .cost,
 .run-note,

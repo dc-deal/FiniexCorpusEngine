@@ -45,8 +45,18 @@ class PromptFile(BaseModel):
     diff: list[DiffLine] | None
 
 
+class PromptOrigin(BaseModel):
+    """Who wrote a version and when, where it came from and how that is known (#18, the registry's `origin`)."""
+
+    author_kind: str | None = None  # model, person or vendor; None where nobody knows
+    author: str | None = None
+    written_on: str | None = None
+    source: str | None = None
+    evidence: str | None = None
+
+
 class PromptVersion(BaseModel):
-    role: str  # reader, judge or classcheck
+    role: str  # reader, judge, classcheck, correction, reader-agent, judge-agent
     version: str
     title: str | None = None
     model: str | None = None  # the model the version is given to
@@ -54,7 +64,8 @@ class PromptVersion(BaseModel):
     frozen_on: str | None
     why: str | None
     previous: str | None  # the version before it in its role
-    files: list[PromptFile]
+    files: list[PromptFile]  # [] for a version whose text nobody holds (a vendor's package, an agent's unknown prompt)
+    origin: PromptOrigin | None = None
 
 
 class PromptPart(BaseModel):
@@ -111,7 +122,12 @@ def earlier_file(before: dict | None, at: int, part: str | None) -> str | None:
 
 def prompt_list() -> PromptList:
     """Every version in the registry's order, each file with its part, its text, its sha256 now and frozen, and its change
-    from the version before it in its role; and the parts, the view's tabs."""
+    from the version before it in its role, and its origin as the core gives it (`page_judge.prompt_origins`: the registry's,
+    this machine's own laid over it, so a clone says "kept on this machine" where this machine names the author); and the
+    parts, the view's tabs."""
+    from backend.conversion.judge import page_judge
+
+    origins = page_judge.prompt_origins()
     registry = json.loads(VERSIONS.read_text(encoding='utf-8'))
     frozen = json.loads(FROZEN.read_text(encoding='utf-8')).get('sha256', {})
     listed: list[PromptVersion] = []
@@ -129,7 +145,8 @@ def prompt_list() -> PromptList:
                                     diff=diff_of((CONVERSION / earlier).read_text(encoding='utf-8'), text) if earlier else None))
         listed.append(PromptVersion(role=entry['role'], version=entry['version'], title=entry.get('title'),
                                     model=entry.get('model'), state=entry['state'], frozen_on=entry.get('frozen_on'),
-                                    why=entry.get('why'), previous=before['version'] if before else None, files=files))
+                                    why=entry.get('why'), previous=before['version'] if before else None, files=files,
+                                    origin=PromptOrigin(**origins[entry['version']]) if origins.get(entry['version']) else None))
         last_of[entry['role']] = entry
     parts = [part_of(key, says) for key, says in (registry.get('parts') or {}).items()]
     return PromptList(about=registry.get('about'), parts=parts, versions=listed)

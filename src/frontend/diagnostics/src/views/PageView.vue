@@ -15,20 +15,19 @@ import LabelledLines from '@/components/base/LabelledLines.vue'
 import { isDecided } from '@/listed_state'
 import LoadingLine from '@/components/base/LoadingLine.vue'
 import CategoryMark from '@/components/CategoryMark.vue'
-import DataTable from '@/components/base/DataTable.vue'
 import FindingList from '@/components/FindingList.vue'
 import IntegrityMark from '@/components/IntegrityMark.vue'
 import KnowledgeBaseMark from '@/components/KnowledgeBaseMark.vue'
 import PageJump from '@/components/PageJump.vue'
 import PageLadderLines from '@/components/PageLadderLines.vue'
 import UnreadPage from '@/components/UnreadPage.vue'
+import PageForm from '@/components/PageForm.vue'
 import NumberedText from '@/components/base/NumberedText.vue'
 import PagerLinks from '@/components/base/PagerLinks.vue'
 import RecordRows from '@/components/base/RecordRows.vue'
 import RecordZone from '@/components/base/RecordZone.vue'
 import PersonStanding from '@/components/PersonStanding.vue'
 import PersonVerdictList from '@/components/PersonVerdictList.vue'
-import ReaderRuleList from '@/components/ReaderRuleList.vue'
 import VerdictPanel from '@/components/VerdictPanel.vue'
 import ChunkGroups from '@/components/reading/ChunkGroups.vue'
 import ReadingBlocks from '@/components/reading/ReadingBlocks.vue'
@@ -41,9 +40,8 @@ import { useVerdictStore, type RecordedVerdict } from '@/stores/verdict_store'
 import { durationWords } from '@/export_clock'
 import { useViewName } from '@/view_name'
 import { lookedSaid, verdictBy } from '@/person_words'
-import { readingCost, usd } from '@/cost_format'
-import { counted, noun } from '@/counted'
-import type { Attempt, Judgement, PersonVerdict } from '@/types/api/page_types'
+import { readingCost } from '@/cost_format'
+import { counted } from '@/counted'
 import type { KnowledgeBase } from '@/types/api/source_types'
 
 /**
@@ -78,10 +76,23 @@ const readingBlocks = ref<InstanceType<typeof ReadingBlocks> | null>(null)
 // turns where a change would be lost
 const verdictTarget = ref<string | null>(null)
 const verdictPanel = ref<InstanceType<typeof VerdictPanel> | null>(null)
+// the same panel gives a verdict or promotes a Lab reading (#18)
+const panelMode = ref<'verdict' | 'promote'>('verdict')
 function openVerdict(target: string): void {
+  panelMode.value = 'verdict'
   if (verdictTarget.value === null || !verdictPanel.value) verdictTarget.value = target
   else verdictPanel.value.retarget(target)
 }
+function openPromote(): void {
+  panelMode.value = 'promote'
+  if (verdictTarget.value === null) verdictTarget.value = ''
+}
+// the Lab readings the core promotes, as the API marks them
+const promotable = computed(() => shown.value?.form?.lab.filter(reading => reading.promotable) ?? [])
+// the judgement the page shows the person: the recalled one, else the served reading's standing one (#17)
+const answersJudgement = computed(() => (recallId.value
+  ? (shown.value?.attempts ?? []).flatMap(attempt => attempt.judgements).find(judgement => judgement.recall === recallId.value)?.judgement_key
+  : shown.value?.form?.shown_judgement) ?? null)
 const analysis = ref<InstanceType<typeof AnalysisSection> | null>(null)
 const address = useRoute()
 
@@ -129,7 +140,8 @@ async function verdictRecorded(given: RecordedVerdict): Promise<void> {
   const { kb, work, page } = props
   verdictStore.recordedNow(given.export)
   void store.reloadPage(kb, work, page)
-  const text = `Verdict recorded · ${given.block || 'the page'} · ${given.verdict} — the index rebuild may take ${durationWords(given.export.expected_seconds)}`
+  const what = given.verdict === 'promote' ? 'Promotion recorded · a Lab reading is the page\'s' : `Verdict recorded · ${given.block || 'the page'} · ${given.verdict}`
+  const text = `${what} — the index rebuild may take ${durationWords(given.export.expected_seconds)}`
   const id = toasts.show({ text, detail: `the ${kb} export runs in the background: follow it at the hourglass in the header` })
   const error = await verdictStore.followExport(kb, given.export.finished)
   if (!error) toasts.update(id, { detail: 'served from now on' })
@@ -179,12 +191,6 @@ watch(shown, page => {
 const routeSaid = computed(() => (shown.value
   ? [shown.value.route_level, shown.value.route_source, ...(shown.value.route_reader ?? [])].filter(Boolean).join(' · ') || shown.value.route
   : ''))
-// the reading shown among the page's readings, by the numbers the API gives them: "reading 2 of 2"
-const readingOf = computed(() => {
-  const attempts = shown.value?.attempts ?? []
-  const current = attempts.find(attempt => attempt.shown)
-  return current ? `reading ${current.number} of ${attempts.length}` : ''
-})
 // A page opens on its first finding (decision 186, the operator: "can already be focused right on entry"): the block
 // the address names (`?focus=b05`, as the Issues' links carry it), else the API's first in reading order, framed on the
 // image and brought into view in the reading's own pane, so the record above it never moves. A page without one opens at
@@ -214,127 +220,6 @@ const personDecides = computed(() => isDecided(shown.value?.listed_state)
   || shown.value?.person?.standing === 'accepted' || shown.value?.person?.standing === 'rejected')
 // in the Check line (H1.a): a person's verdict that decides before the check's state, any other after it
 const personFirst = computed(() => personDecides.value && !!shown.value?.person)
-// What the pipeline did stands in the Reading History; what was tried beside it stands in the Lab below, labelled, never
-// served, nothing deleted (decision 150.a, the operator: "save everything, but keep it apart"): a prototype's judgement, and a judge asked
-// again. Read from the export's own fields, `counts`, `again` and `version_state`; a judgement that counts is never the Lab's.
-function inLab(judgement: Judgement): boolean {
-  return !judgement.counts && (judgement.again > 0 || judgement.version_state === 'prototype')
-}
-
-// each keeps its place in the export's list as its name, the one that counts first, the rest by date
-interface Listed {
-  judgement: Judgement
-  at: number
-}
-
-function byDate(a: Listed, b: Listed): number {
-  return (a.judgement.stored_at ?? '').localeCompare(b.judgement.stored_at ?? '')
-}
-
-function pipelineJudgements(judgements: Judgement[]): Listed[] {
-  const listed = judgements.map((judgement, at) => ({ judgement, at })).filter(one => !inLab(one.judgement))
-  return [...listed.filter(one => one.judgement.counts), ...listed.filter(one => !one.judgement.counts).sort(byDate)]
-}
-
-// the readings the pipeline bought: the one shown first, the earlier ones below it, newest first (the operator, 2026-11-10). A reading
-// a reader prototype made (210.a, the API's `prototype`) is never the pipeline's: it stands in the Lab, never in the history
-const pipelineAttempts = computed(() => (shown.value?.attempts ?? []).filter(attempt => !attempt.prototype))
-const attemptsInOrder = computed(() => {
-  const attempts = pipelineAttempts.value
-  return [...attempts.filter(attempt => attempt.shown), ...attempts.filter(attempt => !attempt.shown).reverse()]
-})
-const prototypeReadings = computed(() => (shown.value?.attempts ?? []).filter(attempt => attempt.prototype))
-
-// every judgement tried beside the pipeline, by the reading it judged, in the history's order of readings; then every
-// judgement of a reader prototype's reading, which is the Lab's whole
-const lab = computed(() => [
-  ...attemptsInOrder.value.flatMap(attempt => attempt.judgements
-    .map((judgement, at) => ({ judgement, at }))
-    .filter(one => inLab(one.judgement))
-    .sort(byDate)
-    .map(one => ({ ...one, attempt }))),
-  ...prototypeReadings.value.flatMap(attempt => attempt.judgements
-    .map((judgement, at) => ({ judgement, at }))
-    .sort(byDate)
-    .map(one => ({ ...one, attempt }))),
-])
-// a reader prototype's reading no judge has judged yet: its own row, so the Lab still names it
-const unjudgedPrototypes = computed(() => prototypeReadings.value.filter(attempt => !attempt.judgements.length))
-
-// a Lab row's reading in words: "reading 2, shown here", and for a reader prototype's "reading 3, page/2 (prototype), never
-// served", as line 1 names it (210.a)
-function labReadingOf(attempt: Attempt): string {
-  const kept = attempt.prototype ? `, ${attempt.reader_version ?? 'a reader'} (prototype), never served` : ''
-  return `reading ${attempt.number}${attempt.shown ? ', shown here' : ''}${kept}`
-}
-
-// what the history and the Lab hold, in their fold's title: "2 readings · shown: reading 2 · 1 judgement counts"
-const historySaid = computed(() => {
-  const attempts = pipelineAttempts.value
-  const current = attempts.find(attempt => attempt.shown)
-  const counting = attempts.flatMap(attempt => attempt.judgements).filter(judgement => judgement.counts).length
-  return [counted(attempts.length, 'reading'), current ? `shown: reading ${current.number}` : '',
-    counting ? `${counted(counting, 'judgement')} ${noun(counting, 'counts', 'count')}` : ''].filter(Boolean).join(' · ')
-})
-// "1 reading and 4 judgements tried beside the pipeline, never served"
-const labSaid = computed(() => `${[prototypeReadings.value.length ? counted(prototypeReadings.value.length, 'reading') : '',
-  lab.value.length ? counted(lab.value.length, 'judgement') : ''].filter(Boolean).join(' and ')} tried beside the pipeline, never served`)
-
-// the fold that holds the recalled judgement's row stands open, so the row it came from can be seen
-const recallInLab = computed(() => lab.value.some(one => one.judgement.recall === recallId.value))
-const historyHoldsRecall = computed(() => attemptsInOrder.value.some(attempt => holdsRecall(attempt.judgements)))
-function holdsRecall(judgements: Judgement[]): boolean {
-  return judgements.some(judgement => judgement.recall === recallId.value && !inLab(judgement))
-}
-
-// a page's readings over time, how a page healed and how its judges differed (147.a): a row of the record on every page
-// (H1.a), so a page with one reading names it too, and a page no reader has read says none
-const history = computed(() => attemptsInOrder.value)
-
-// a person's verdicts on one reading, beneath its judgements
-function peopleOf(readingKey: string): PersonVerdict[] {
-  return (shown.value?.human ?? []).filter(person => person.reading_key === readingKey)
-}
-
-// a pipeline judgement's role in one word: the one that counts, or one that does not
-function roleOf(judgement: Judgement): { word: string, part: string } {
-  return judgement.counts ? { word: 'counts', part: 'counts' } : { word: 'not counted', part: 'uncounted' }
-}
-
-// a Lab judgement's kind in one word: a judge asked again, or a prototype's
-function labKindOf(judgement: Judgement): { word: string, part: string } {
-  if (judgement.again) return { word: 'asked again', part: 'again' }
-  // on a reader prototype's reading even a judge that counts elsewhere counts for nothing here
-  return judgement.version_state === 'prototype' ? { word: 'prototype', part: 'prototype' } : { word: 'not counted', part: 'uncounted' }
-}
-
-// a folded reading's judgements in one line: "1 judgement: judge/1 counts · 3 in the Lab"
-function judgementsWord(judgements: Judgement[]): string {
-  const kept = judgements.filter(judgement => !inLab(judgement))
-  const tried = judgements.length - kept.length
-  const counting = kept.filter(judgement => judgement.counts).map(judgement => `${judgement.version ?? 'judge'} counts`)
-  const others = kept.length - counting.length
-  const head = kept.length
-    ? `${counted(kept.length, 'judgement')}: ${[...counting, others ? `${others} not counted` : ''].filter(Boolean).join(' · ')}`
-    : ''
-  return [head, tried ? `${tried} in the Lab` : ''].filter(Boolean).join(' · ')
-}
-
-// a judgement's findings in a few words: how many, the severity of those that stand, and how many the core found void, so a
-// row shows a minor finding under an ok verdict without opening the page (line 1's check-along on finance p. 94):
-// "1 finding: minor", "2 findings: 1 major, 1 minor", "1 finding: void"
-function findingsWord(judgement: Judgement): string {
-  const all = judgement.findings.length
-  if (all === 0) return 'no findings'
-  const standing = judgement.findings.filter(finding => !finding.void)
-  const nothing = all - standing.length
-  const severities = [...new Set(standing.map(finding => finding.severity ?? 'unrated'))]
-    .map(severity => ({ severity, count: standing.filter(finding => (finding.severity ?? 'unrated') === severity).length }))
-  const parts = [...severities.map(one => (all === 1 ? one.severity : `${one.count} ${one.severity}`)),
-    nothing ? (all === 1 ? 'void' : `${nothing} void`) : '']
-  return `${counted(all, 'finding')}: ${parts.filter(Boolean).join(', ')}`
-}
-
 // stage 2's figures as a reader says them: a share to three places
 function share(value: number | null | undefined): string {
   return typeof value === 'number' ? value.toFixed(3) : '?'
@@ -489,8 +374,11 @@ watch(box, async () => {
             <span>Recalled: {{ recalled ? recalled.said : recallError ? 'a judgement this page does not have' : 'a judgement' }}</span>
             <RouterLink :to="standing" class="show-standing" data-part="show-standing">Show standing</RouterLink>
           </p>
-          <AppButton v-if="verdictsTaken" size="compact" :active="verdictTarget !== null" data-part="give-verdict" @click="openVerdict('')">
+          <AppButton v-if="verdictsTaken" size="compact" :active="verdictTarget !== null && panelMode === 'verdict'" data-part="give-verdict" @click="openVerdict('')">
             Give a verdict
+          </AppButton>
+          <AppButton v-if="verdictsTaken && promotable.length" size="compact" :active="verdictTarget !== null && panelMode === 'promote'" data-part="promote" @click="openPromote">
+            Promote a Lab reading
           </AppButton>
         </header>
 
@@ -605,7 +493,6 @@ watch(box, async () => {
           <FoldSection label="Reading" plain>
             <template #title>
               <span v-if="shown.read" class="row-line" data-part="reading-line">
-                <span v-if="readingOf" class="reading-part">{{ readingOf }}</span>
                 <span v-if="shown.category && shown.category !== 'content'" class="reading-part" data-part="category">
                   <CategoryMark :category="shown.category" :said="shown.category_said" :kind="shown.page_kind" />
                 </span>
@@ -662,187 +549,6 @@ watch(box, async () => {
           <PageLadderLines v-if="shown.ladder" :ladder="shown.ladder" label="Coverage" />
           <FoldSection v-else label="Coverage" plain><template #title><span class="none">none</span></template></FoldSection>
 
-        <!-- every reading bought for the page (the operator, 2026-11-10: "retries should fold open"): the one shown here first and
-             open, the earlier ones below it, newest first, folded to one line each. Opened, a reading's pipeline judgements
-             stand in one table, the one that counts first, and a person's verdicts beneath; what was tried beside the
-             pipeline stands in the Lab below (150.a). The others' text stays in the private store, so they stand by their record -->
-        <!-- a fold, folded by default and kept as the reader leaves it (decision 183), its title saying what it holds -->
-        <FoldSection v-if="shown.read && history.length" class="history" remember="page.history" :open="historyHoldsRecall" label="Reading History"
-                     :title="historySaid">
-          <!-- the readings' lines keep their columns and scroll in their own box on a narrow screen (159.a) -->
-          <div class="readings ruled scroll-x">
-            <!-- each reading a fold (179), its line a grid in the fold's title, so its columns align from one reading to the next -->
-            <FoldSection
-              v-for="attempt in history"
-              :key="attempt.reading_key"
-              class="reading-entry"
-              :class="{ current: attempt.shown }"
-              :open="attempt.shown || holdsRecall(attempt.judgements)"
-              :data-reading="attempt.reading_key"
-            >
-              <template #title>
-                <span class="reading-line">
-                  <span class="reading-number">reading {{ attempt.number }}</span>
-                  <span class="purpose" data-part="purpose">{{ attempt.purpose ?? '' }}</span>
-                  <span>{{ attempt.model }}</span>
-                  <span class="secondary">{{ attempt.mode ?? '' }}</span>
-                  <span class="secondary">{{ attempt.class_now }}</span>
-                  <!-- what the check made of this reading; the verdict only where the state does not already say it -->
-                  <span class="attempt-check">
-                    <template v-if="attempt.check">
-                      <StateMark :state="attempt.check.state" />
-                      <span v-if="attempt.check.verdict && attempt.check.state !== 'ok'" class="verdict"> · judged {{ attempt.check.verdict }}</span>
-                      <span v-if="attempt.check.came_from" class="verdict"> · {{ attempt.check.came_from }}</span>
-                    </template>
-                    <span v-else class="not-checked">not checked</span>
-                  </span>
-                  <span class="secondary"><HumanTime :at="attempt.stored_at" /></span>
-                  <!-- the line's last column holds the rest, so nothing falls into a row of its own under the marker -->
-                  <span class="reading-tail">
-                    <span v-if="attempt.shown" class="shown-here">shown here</span>
-                    <span class="judgements-word" data-part="judgements">{{ judgementsWord(attempt.judgements) }}</span>
-                    <IntegrityMark v-if="attempt.shown && readingChanged" :state="shown.integrity" />
-                    <span v-if="attempt.deviation" class="deviation">{{ attempt.deviation }}</span>
-                  </span>
-                </span>
-              </template>
-              <div class="reading-body">
-                <!-- the reader's own count and cell stand here, folded: the line numbers the page's readings across readers -->
-                <p class="secondary" data-part="reader-attempt">
-                  {{ [`the reader's attempt ${attempt.attempt}`, attempt.cell ? `cell ${attempt.cell}` : '',
-                      attempt.retry_of_number ? `re-read of reading ${attempt.retry_of_number}` : '',
-                      readingCost(attempt.cost_usd ?? null)].filter(Boolean).join(' · ') }}
-                </p>
-                <p class="hash secondary">reading key {{ attempt.reading_key }}</p>
-                <!-- why the reading stands as it does (the operator, 18 Nov: "reading 2 · malformed · issue" said what, not why):
-                     the check's reasons in the core's words, and the validator's own messages where the reading failed its
-                     format check, which say it also where no check ran on the reading, as on one its format retry replaced -->
-                <LabelledLines v-if="attempt.check?.reasons.length || attempt.format_errors.length" class="attempt-why" data-part="attempt-why">
-                  <LabelledLine v-if="attempt.check?.reasons.length" label="Why">
-                    <span data-part="attempt-reasons">{{ attempt.check.reasons.join(' · ') }}</span>
-                  </LabelledLine>
-                  <LabelledLine v-if="attempt.format_errors.length" label="Format check">
-                    <ul class="format-errors">
-                      <li v-for="(error, at) in attempt.format_errors" :key="at" data-part="format-error">
-                        <AppIcon name="status-error" /> {{ error }}
-                      </li>
-                    </ul>
-                  </LabelledLine>
-                </LabelledLines>
-                <!-- its pipeline judgements in aligned columns (147.a): the one that counts first, then the rest by date; the role
-                     a column of its own, so the eye can run down it; what does not count recedes -->
-                <DataTable v-if="pipelineJudgements(attempt.judgements).length" table-class="judgements ruled">
-                  <template #head>
-                    <tr>
-                      <th>Version</th>
-                      <th>Role</th>
-                      <th>Verdict → outcome</th>
-                      <th>The judge's own</th>
-                      <th>Findings</th>
-                      <th>Model · mode</th>
-                      <th class="number">USD</th>
-                      <th>Stored</th>
-                      <th />
-                    </tr>
-                  </template>
-                  <tbody>
-                    <tr
-                      v-for="{ judgement, at } in pipelineJudgements(attempt.judgements)"
-                      :key="at"
-                      class="judgement"
-                      :class="{ uncounted: !judgement.counts, 'recalled-source': judgement.recall === recallId }"
-                      :data-judgement="`${attempt.number}/${at}`"
-                    >
-                      <td>
-                        <RouterLink v-if="judgement.version" class="judge-version" :to="{ name: 'prompts', query: { version: judgement.version } }">
-                          {{ judgement.version }}
-                        </RouterLink>
-                        <span v-else class="judge-version">judge</span>
-                      </td>
-                      <td><span class="badge" :data-part="roleOf(judgement).part">{{ roleOf(judgement).word }}</span></td>
-                      <td class="judgement-verdict">{{ judgement.verdict }} → {{ judgement.outcome }}</td>
-                      <td class="secondary">{{ judgement.judge_outcome && judgement.judge_outcome !== judgement.outcome ? judgement.judge_outcome : '' }}</td>
-                      <td class="judgement-findings">{{ findingsWord(judgement) }}</td>
-                      <td class="secondary">{{ [judgement.model, judgement.mode].filter(Boolean).join(' · ') }}</td>
-                      <td class="secondary number">{{ typeof judgement.cost_usd === 'number' ? usd(judgement.cost_usd) : '' }}</td>
-                      <td class="secondary"><HumanTime :at="judgement.stored_at" /></td>
-                      <td class="recall-cell">
-                        <span v-if="judgement.recall === recallId" class="recall-current" data-part="recalled-here"><AppIcon name="recalled" /> on the page</span>
-                        <RouterLink v-else-if="judgement.recall" :to="recallLink(judgement.recall)" class="recall-link" data-part="recall">show on the page</RouterLink>
-                      </td>
-                    </tr>
-                  </tbody>
-                </DataTable>
-                <p v-else class="secondary">{{ attempt.judgements.length ? 'judged in the Lab alone' : 'no judge has judged this reading' }}</p>
-                <PersonVerdictList v-if="peopleOf(attempt.reading_key).length" class="reading-people" :people="peopleOf(attempt.reading_key)" names-blocks />
-              </div>
-            </FoldSection>
-          </div>
-          <p v-if="shown.chosen" class="chosen">
-            Chosen <HumanTime :at="shown.chosen.chosen_at" /> by run {{ shown.chosen.run_id }}: {{ shown.chosen.why }}
-          </p>
-        </FoldSection>
-        <FoldSection v-else label="Reading History" plain><template #title><span class="none">none</span></template></FoldSection>
-
-        <!-- the Lab (150.a): what was tried beside the pipeline on this page, kept and labelled, never served: a prototype's
-             judgement, a judge asked again, and a reader prototype's reading with its judgements (210.a). Folded, since the
-             history above is what the page went through -->
-        <!-- the count set apart from the name, so "Lab 3" never reads as a numbering (179) -->
-        <FoldSection v-if="lab.length || unjudgedPrototypes.length" class="lab" remember="page.lab" :open="recallInLab" label="Lab" :title="labSaid">
-          <DataTable table-class="judgements ruled">
-            <template #head>
-              <tr>
-                <th>Reading</th>
-                <th>Version</th>
-                <th>Kind</th>
-                <th>Verdict → outcome</th>
-                <th>The judge's own</th>
-                <th>Findings</th>
-                <th>Model · mode</th>
-                <th class="number">USD</th>
-                <th>Stored</th>
-                <th />
-              </tr>
-            </template>
-            <tbody>
-              <template v-for="{ judgement, at, attempt } in lab" :key="`${attempt.reading_key}/${at}`">
-              <tr
-                class="judgement lab-judgement"
-                :class="{ 'recalled-source': judgement.recall === recallId }"
-                :data-judgement="`${attempt.number}/${at}`"
-              >
-                <td class="secondary" :data-reader="attempt.prototype ? attempt.reader_version : null">{{ labReadingOf(attempt) }}</td>
-                <td>
-                  <RouterLink v-if="judgement.version" class="judge-version" :to="{ name: 'prompts', query: { version: judgement.version } }">
-                    {{ judgement.version }}
-                  </RouterLink>
-                  <span v-else class="judge-version">judge</span>
-                </td>
-                <td><span class="badge" :data-part="labKindOf(judgement).part">{{ labKindOf(judgement).word }}</span></td>
-                <td>{{ judgement.verdict }} → {{ judgement.outcome }}</td>
-                <td class="secondary">{{ judgement.judge_outcome && judgement.judge_outcome !== judgement.outcome ? judgement.judge_outcome : '' }}</td>
-                <td>{{ findingsWord(judgement) }}</td>
-                <td class="secondary">{{ [judgement.model, judgement.mode].filter(Boolean).join(' · ') }}</td>
-                <td class="secondary number">{{ typeof judgement.cost_usd === 'number' ? usd(judgement.cost_usd) : '' }}</td>
-                <td class="secondary"><HumanTime :at="judgement.stored_at" /></td>
-                <td class="recall-cell">
-                  <span v-if="judgement.recall === recallId" class="recall-current" data-part="recalled-here"><AppIcon name="recalled" /> on the page</span>
-                  <RouterLink v-else-if="judgement.recall" :to="recallLink(judgement.recall)" class="recall-link" data-part="recall">show on the page</RouterLink>
-                </td>
-              </tr>
-              <!-- the rules a judge proposed for the reader (202.a), right beneath the judgement that proposed them, read-only -->
-              <tr v-if="judgement.reader_rules?.length" class="lab-rules" :data-rules="`${attempt.number}/${at}`">
-                <td colspan="10"><ReaderRuleList :rules="judgement.reader_rules" /></td>
-              </tr>
-              </template>
-              <tr v-for="attempt in unjudgedPrototypes" :key="attempt.reading_key" class="lab-reading" :data-reading="attempt.reading_key">
-                <td class="secondary" :data-reader="attempt.reader_version">{{ labReadingOf(attempt) }}</td>
-                <td colspan="9" class="secondary">no judge has judged this reading</td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </FoldSection>
-        <FoldSection v-else label="Lab" plain><template #title><span class="none">none</span></template></FoldSection>
 
         <!-- the reading's trace: its line the model, the contract and when it was stored -->
         <FoldSection v-if="shown.trace" class="details" :open="settings.pageDetailsOpen" label="Details" @toggle="settingsStore.setPageDetailsOpen">
@@ -881,6 +587,8 @@ watch(box, async () => {
         </FoldSection>
         <FoldSection v-else label="Details" plain><template #title><span class="none">none</span></template></FoldSection>
         </RecordRows>
+        <!-- the page's readings and verdicts in one form (#18): Readings, Lab and Verdicts, each with its count -->
+        <PageForm v-if="shown.form" :form="shown.form" :recall-id="recallId" :recall-to="recallLink" @block="showBlock" />
       </template>
     </RecordZone>
 
@@ -992,6 +700,9 @@ watch(box, async () => {
       :work="work"
       :form="verdictStore.form"
       :target="verdictTarget"
+      :mode="panelMode"
+      :lab-readings="promotable"
+      :answers-judgement="answersJudgement"
       @close="verdictTarget = null"
       @recorded="verdictRecorded"
       @target="verdictTarget = $event"
@@ -1154,45 +865,6 @@ watch(box, async () => {
 }
 
 
-/* a reading folded to one line, the fold's mark before it: its fields in columns that align from one reading to the
-   next; what it was, in the core's words, wraps in its column rather than widening the line */
-.reading-line {
-  display: grid;
-  grid-template-columns: 5rem 15rem minmax(9rem, max-content) 5rem 5rem minmax(10rem, max-content) 7.5rem minmax(0, 1fr);
-  align-items: baseline;
-  gap: 0 var(--space-md);
-  padding: 2px 0;
-}
-
-/* the reading this page shows stands in full ink; the others recede */
-.reading-entry {
-  color: var(--color-text-secondary);
-}
-
-.reading-entry.current {
-  color: var(--color-text-primary);
-}
-
-.reading-body {
-  margin-bottom: var(--space-xs);
-}
-
-.reading-tail {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--space-md);
-}
-
-.chosen {
-  margin-top: 2px;
-}
-
-.reading-people {
-  margin-top: 2px;
-}
-
-/* the Lab: below the history and apart from it, folded to one line that says what it holds */
-
 /* the pipeline's state where a person's accept or reject decides: the whole line recedes, the check's reasons with the
    mark; a changed reading file keeps its error role below, since that is not history */
 .overruled :deep(.reasons) {
@@ -1204,32 +876,7 @@ watch(box, async () => {
   color: var(--color-error);
 }
 
-.attempt-check {
-  white-space: nowrap;
-}
-
-.verdict,
-.not-checked,
 .secondary {
-  color: var(--color-text-secondary);
-}
-
-.badge {
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: 0 var(--space-xs);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-/* the judgement that counts reads first and in full ink; the rest recede, kept in sight */
-.judgement:not(.uncounted) .badge {
-  color: var(--color-text-primary);
-}
-
-tr.judgement.uncounted .judge-version,
-tr.judgement.uncounted .judgement-verdict,
-tr.judgement.uncounted .judgement-findings {
   color: var(--color-text-secondary);
 }
 
@@ -1238,7 +885,6 @@ tr.judgement.uncounted .judgement-findings {
   margin-top: 2px;
 }
 
-
 .hash {
   word-break: break-all;
 }
@@ -1246,8 +892,7 @@ tr.judgement.uncounted .judgement-findings {
 /* the original and its reading side by side, each scrolling in a pane of the same height; on a narrow screen one above the other */
 /* a recalled judgement (181.a): the overlay's role, the annotation colour, always dashed, its glyph and words with it */
 .recall-chip,
-.analysis-recalled,
-.recall-current {
+.analysis-recalled {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
@@ -1268,19 +913,6 @@ tr.judgement.uncounted .judgement-findings {
 .analysis-recalled {
   font-weight: normal;
   margin-left: var(--space-sm);
-}
-
-tr.recalled-source {
-  outline: 1px dashed var(--color-annotation);
-  outline-offset: -1px;
-}
-
-.recall-cell {
-  white-space: nowrap;
-}
-
-.recall-link {
-  color: var(--color-accent);
 }
 
 .analysis-hint {
@@ -1372,9 +1004,8 @@ tr.recalled-source {
   margin-bottom: var(--space-sm);
 }
 
-/* a validator's error has one look (221.a), above the reading and in the Reading History alike */
-.parse-errors,
-.format-errors {
+/* a validator's error has one look (221.a), above the reading */
+.parse-errors {
   list-style: none;
   color: var(--color-error);
 }
@@ -1383,8 +1014,7 @@ tr.recalled-source {
   margin-bottom: var(--space-sm);
 }
 
-.parse-errors li,
-.format-errors li {
+.parse-errors li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;

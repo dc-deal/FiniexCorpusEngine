@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { getPage, getRecall, getVerdictForm, giveVerdict, previewTable, proposeCorrection } from '@/api/api_client'
+import { getPage, getRecall, getVerdictForm, giveVerdict, previewTable, promoteReading, proposeCorrection } from '@/api/api_client'
 import { ApiError } from '@/api/api_error'
 import { router } from '@/router'
 import VerdictPanel from '@/components/VerdictPanel.vue'
@@ -10,7 +10,7 @@ import { useToastStore } from '@/stores/toast_store'
 import { canSend, correctionOffered, needsNote, payloadOf, prefillOf, type VerdictDraft } from '@/verdict_rules'
 import type { PersonVerdict } from '@/types/api/page_types'
 import type { Proposal, VerdictForm } from '@/types/api/verdict_types'
-import { aBlock, aPageDetail, KELLY } from './page_fixture'
+import { aBlock, aFormReading, aPageDetail, KELLY } from './page_fixture'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
@@ -19,6 +19,7 @@ vi.mock('@/api/api_client', async importOriginal => ({
   getVerdictForm: vi.fn(),
   giveVerdict: vi.fn(),
   previewTable: vi.fn(),
+  promoteReading: vi.fn(),
   proposeCorrection: vi.fn(),
 }))
 
@@ -97,7 +98,10 @@ describe('the verdict\'s rules (213.b, 224.b)', () => {
   it('sends a correction only with a block and only where it was changed; empty fields as none', () => {
     const sent = (draft: VerdictDraft) => payloadOf(draft, GRID, 'free', KELLY, 4)
     expect(sent(aDraft({ correction: GRID }))).toEqual({ knowledge_base: 'free', work: KELLY, pdf_page: 4, verdict: 'reject',
-      reason: 'reading_wrong', block: 'b02', note: null, correction: null, judge_assessment: null })
+      reason: 'reading_wrong', block: 'b02', note: null, correction: null, judge_assessment: null, answers_judgement: null })
+    // the judgement the page showed the person goes with the verdict, which answers it (#17)
+    expect(payloadOf(aDraft({ correction: GRID }), GRID, 'free', KELLY, 4, 'an-invented-judgement-key').answers_judgement)
+      .toBe('an-invented-judgement-key')
     const changed = '<table><tr><th>p</th><td>0.65</td></tr></table>'
     expect(sent(aDraft({ correction: changed, note: ' read 0.65 ', judgeAssessment: 'right' }))).toMatchObject({
       correction: changed, note: 'read 0.65', judge_assessment: 'right' })
@@ -212,7 +216,7 @@ describe('the verdict panel (213.b, V1.a)', () => {
     await panel.find('[data-part="send"]').trigger('click')
     await flushPromises()
     expect(giveVerdict).toHaveBeenCalledWith({ knowledge_base: 'free', work: KELLY, pdf_page: 4, verdict: 'reject', reason: 'reading_wrong',
-      block: 'b02', note: null, correction: changed, judge_assessment: null })
+      block: 'b02', note: null, correction: changed, judge_assessment: null, answers_judgement: null })
     expect(panel.emitted('recorded')).toEqual([[{ block: 'b02', verdict: 'reject', export: exported }]])
     // nothing lost, so nothing asked; the panel's own line says nothing, the page's toast does
     expect(panel.find('[data-part="panel-ask"]').exists()).toBe(false)
@@ -231,6 +235,36 @@ describe('the verdict panel (213.b, V1.a)', () => {
     expect(said.text()).toBe('the reason other needs a note')
     expect(said.classes()).toContain('failed')
     expect(panel.emitted('recorded')).toBeUndefined()
+  })
+
+  it('promotes a Lab reading in its own mode: one the core promotes, a reason of its list, a note where the reason asks one (#18)', async () => {
+    const exported = { knowledge_base: 'free' as const, running: true, pending: false, finished: 3, last_error: null, last_finished_at: null, waiting: [] }
+    vi.mocked(promoteReading).mockResolvedValue({ reading_key: 'k3', export: exported })
+    const form = aForm({ promote_reasons: [{ value: 'better', label: 'it reads the page better', short: 'better' },
+      { value: 'other', label: 'another reason, said in the note', short: 'other' }] })
+    const lab = [aFormReading({ key: 'k3', shown: false, model: 'an-invented-reader', version: 'page/1', result_said: 'no judge', promotable: true })]
+    const panel = mount(VerdictPanel, { props: { page: aPage(), knowledgeBase: 'free', work: KELLY, form, target: '', mode: 'promote', labReadings: lab },
+      attachTo: document.body })
+    // the promotion's own body, not a verdict's
+    expect(panel.find('[data-part="promote-body"]').exists()).toBe(true)
+    expect(panel.find('[data-part="send"]').exists()).toBe(false)
+    expect(panel.findAll('[data-part="promote-reading"] option').map(option => option.text()))
+      .toEqual(['choose a Lab reading', 'an-invented-reader · page/1 · no judge'])
+    expect(panel.findAll('[data-part="promote-reason"] option').map(option => option.text()))
+      .toEqual(['choose a reason', 'better — it reads the page better', 'other — another reason, said in the note'])
+    const held = () => panel.find('[data-part="send-promotion"]').attributes('disabled')
+    expect(held()).toBeDefined()
+    await panel.find('[data-part="promote-reading"]').setValue('k3')
+    await panel.find('[data-part="promote-reason"]').setValue('other')
+    expect(panel.find('[data-part="promote-note-needed"]').exists()).toBe(true)
+    expect(held()).toBeDefined()
+    await panel.find('[data-part="promote-note"]').setValue('  its tables hold  ')
+    expect(held()).toBeUndefined()
+    await panel.find('[data-part="send-promotion"]').trigger('click')
+    await flushPromises()
+    expect(promoteReading).toHaveBeenCalledWith({ knowledge_base: 'free', work: KELLY, pdf_page: 4, reading_key: 'k3', reason: 'other',
+      note: 'its tables hold' })
+    expect(panel.emitted('recorded')).toEqual([[{ block: '', verdict: 'promote', export: exported }]])
   })
 
   it('fills the whole verdict with AI, every field still the person\'s, beside what the image shows and the words changed; records nothing', async () => {

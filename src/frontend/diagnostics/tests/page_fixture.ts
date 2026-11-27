@@ -1,4 +1,4 @@
-import type { Check, IssueList, OutlineUnit, PageDetail, PageRow, ReadingBlock, WorkPages } from '@/types/api/page_types'
+import type { Check, FormReading, IssueList, OutlineUnit, PageDetail, PageForm, PageRow, ReadingBlock, WorkPages } from '@/types/api/page_types'
 import type { PageLadder } from '@/types/api/ladder_types'
 
 /** Pages as the API serves them, from a free paper, so they may stand in a tracked file. */
@@ -203,4 +203,37 @@ export function anIssueList(): IssueList {
       },
     ],
   }
+}
+
+type FormVerdict = FormReading['verdicts'][number]
+type VerdictRow = PageForm['verdicts'][number]
+
+/** A verdict on a reading as the form's row says it (#18): a judge's that counts and found nothing, unless told otherwise. */
+export function aFormVerdict(overrides: Partial<FormVerdict> = {}): FormVerdict {
+  return { kind: 'judge', kind_said: 'judge', time: '2026-11-05T08:29:30+00:00', model: 'an-invented-judge', cost_usd: 0.0075,
+    version: 'judge/1', version_said: 'counts', verdict_said: 'ok', state: 'ok', standing: true, recall: 'k1:judge/1:0',
+    show_why_not: 'no difference: this judgement found nothing; use show on its reading', block: null, rules: [], hover: [], ...overrides }
+}
+
+/** A reading as the form's row says it (#18): the one shown, read and judged ok, unless told otherwise. */
+export function aFormReading(overrides: Partial<FormReading> = {}): FormReading {
+  return { kind_said: 'reading', key: 'k1', time: '2026-11-02T14:46:20+00:00', model: 'an-invented-reader', cost_usd: 0.016,
+    version: 'page/1', result_state: 'ok', result_said: 'ok', shown: true, test_reading: false, promoted_said: null,
+    promotable: false, recall: null, verdicts: [aFormVerdict()], hover: [{ label: 'reading key', value: 'k1' }], ...overrides }
+}
+
+/** A verdict on the page as the Verdicts tab says it (#18). */
+export function aVerdictRow(overrides: Partial<VerdictRow> = {}): VerdictRow {
+  return { kind: 'judge', kind_said: 'judge', standing: true, standing_said: 'standing', time: '2026-11-05T08:29:30+00:00',
+    verdict: 'ok', state: 'ok', reason: null, about: 'the page', in_lab: false, answered: null, who: 'machine',
+    who_said: 'judge/1 · an-invented-judge', hover: [], ...overrides }
+}
+
+/** A page's form (#18): one reading shown with its judge's verdict, no Lab, the verdict in the Verdicts tab. */
+export function aPageForm(overrides: Partial<PageForm> = {}): PageForm {
+  const readings = overrides.readings ?? [aFormReading()]
+  const lab = overrides.lab ?? []
+  const verdicts = overrides.verdicts ?? [aVerdictRow()]
+  return { shown_judgement: 'j1', readings_count: readings.length, lab_count: lab.length, verdicts_count: verdicts.length,
+    ...overrides, readings, lab, verdicts }
 }

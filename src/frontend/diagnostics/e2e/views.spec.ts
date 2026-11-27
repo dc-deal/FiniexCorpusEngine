@@ -222,7 +222,19 @@ test('a page a person settled counts in its own bucket, folds apart in the Issue
 })
 
 // the record's rows, always these in this order (H1.a)
-const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', 'Reading History:', 'Lab:', 'Details:']
+const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', 'Details:']
+
+// a page's form as the API serves it (#18): the view's readings, Lab and verdicts are held to it, word for word
+type FormVerdictJson = { kind: string, kind_said: string, version: string | null, version_said: string | null, verdict_said: string,
+  recall: string | null, show_why_not: string | null, block: string | null, rules: { rule: string | null }[] }
+type FormReadingJson = { key: string, kind_said: string, version: string | null, result_said: string, shown: boolean, test_reading: boolean,
+  recall: string | null, verdicts: FormVerdictJson[], hover: { label: string, value: string }[] }
+type FormJson = { readings_count: number, lab_count: number, verdicts_count: number, readings: FormReadingJson[], lab: FormReadingJson[],
+  verdicts: { kind_said: string, standing: boolean }[] }
+
+async function formOf(request: APIRequestContext, work: string, pdfPage: number): Promise<FormJson> {
+  return (await (await request.get(`/api/free/works/${work}/pages/${pdfPage}`)).json() as { form: FormJson }).form
+}
 
 // 219.a (the operator: "the detail page turned out well. Here I would carry the same line through"): a work's head reads as a page's
 // does, its labels in a column as wide, so neither its labels nor its values move from a work to one of its pages
@@ -706,8 +718,8 @@ test('the record\'s rows stand in one order and in one place on a read and an un
   expect(unread).toEqual(read)
   await expect(page.locator('[data-label="Reading"] .fold-title')).toHaveText('none')
   await page.locator('[data-part="page-facts"]').screenshot({ path: `${SHOTS}/page_rows_unread.png` })
-  // and the check sees a row gone where one goes: the Lab's row taken out, a moment
-  await page.addStyleTag({ content: '[data-part="page-facts"] > [data-label="Lab"] { display: none !important; }' })
+  // and the check sees a row gone where one goes: the Route's row taken out, a moment
+  await page.addStyleTag({ content: '[data-part="page-facts"] > [data-label="Route"] { display: none !important; }' })
   expect(await rows()).not.toEqual(read)
 })
 
@@ -1186,19 +1198,11 @@ test('a wide screen holds every view to one centred column, and a view of two pa
   await page.screenshot({ path: `${SHOTS}/wide_page.png` })
 })
 
-// decision 183: on a phone the two panes stack, the image above the reading; the Reading History opens folded and stays as
-// the reader leaves it; and the knowledge base's badge stands centred on its line (179)
-test('a page stacks its panes on a phone, opens its history folded and keeps it opened, and centres its badge', async ({ page }) => {
+// decision 183: on a phone the two panes stack, the image above the reading, the page's form scrolling in its own box (159.a);
+// and the knowledge base's badge stands centred on its line (179)
+test('a page stacks its panes on a phone, its form scrolling in its own box, and centres its badge', async ({ page }) => {
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
-  const history = page.locator('details.history')
-  await expect(history).not.toHaveAttribute('open')
-  await history.locator('> summary').click()
-  // the fold's toggle is said after the click returns: the reload waits until the choice is kept
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('settings.v1') ?? '')).toContain('"page.history":true')
-  await page.reload()
-  await settled(page)
-  await expect(page.locator('details.history')).toHaveAttribute('open', '')
   // the badge's middle on the trail's text middle
   const middle = (selector: string) => page.locator(selector).first().evaluate(element => {
     const box = element.getBoundingClientRect()
@@ -1209,6 +1213,7 @@ test('a page stacks its panes on a phone, opens its history folded and keeps it 
   const image = (await page.locator('[data-zone="analysis"] figure.original').boundingBox())!
   const reading = (await page.locator('[data-zone="analysis"] .reading').boundingBox())!
   expect(reading.y).toBeGreaterThanOrEqual(image.y + image.height - 1)
+  await expect(page.locator('[data-part="page-form"] [data-panel="readings"]')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)).toBe(false)
 })
 
@@ -1255,12 +1260,12 @@ test('every fold sets its content one indent step right of its title, and folds 
   }
   expect(off).toEqual([])
   expect(looked).toBeGreaterThan(5)
-  // and the check sees a fold whose content stands at its title, as the Lab's once did
+  // and the check sees a fold whose content stands at its title, as the Lab's once did: the details' fold, a moment
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
-  await page.locator('details.lab').evaluate(element => { (element as HTMLDetailsElement).open = true })
-  await page.addStyleTag({ content: 'details.lab > .fold-body { padding-left: 0 !important; }' })
-  expect((await foldsOffStep(page)).join(' ')).toContain('lab')
+  await page.locator('details.details').evaluate(element => { (element as HTMLDetailsElement).open = true })
+  await page.addStyleTag({ content: 'details.details > .fold-body { padding-left: 0 !important; }' })
+  expect((await foldsOffStep(page)).join(' ')).toMatch(/details[^:]*: content at -?\d+ px from its title/)
 })
 
 // 159.a: at a phone's width no view scrolls sideways; a table or a grid wider than the window scrolls in its own box
@@ -1380,15 +1385,13 @@ test('the frame takes its name from the app config, names the page on show, and 
 })
 
 // 181.a (the operator on finance p. 5: "you see what the old judge looked like, applied to the page"): any judgement is shown on the
-// page as it judged, the view marked as not the standing one (the annotation role, dashed, its glyph and words), and back
-test('a judgement from the Lab is shown on the page as it judged, marked as recalled, and the standing view comes back', async ({ page, request }) => {
-  type Judgement = { version: string | null, again: number, recall: string, findings: { block: string | null, void: boolean }[] }
-  const detail = await (await request.get(`/api/free/works/${FINANCE}/pages/5`)).json() as { attempts: { shown: boolean, judgements: Judgement[] }[] }
-  const judgements = detail.attempts.find(attempt => attempt.shown)!.judgements
-  const judge3 = judgements.find(one => one.version === 'judge/3' && !one.again)!
-  const judge2 = judgements.find(one => one.version === 'judge/2' && !one.again)!
-  expect(judge3.findings).toHaveLength(0)
-  expect(judge2.findings.find(one => one.block === 'b12')?.void).toBe(true)
+// page as it judged, the view marked as not the standing one (the annotation role, dashed, its glyph and words), and back; since
+// #18 from its row in the page's form, beneath the reading it judged, and a reading other than the one shown by its own show
+test('a judgement from the page\'s form is shown on the page as it judged, marked as recalled, and the standing view comes back', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const shown = form.readings.find(reading => reading.shown)!
+  const judge2 = shown.verdicts.find(one => one.version === 'judge/2' && !one.show_why_not)!
+  expect(judge2.recall).toBeTruthy()
   const recalled = async (on: boolean) => {
     await expect(page.locator('[data-part="recall-chip"]')).toHaveCount(on ? 1 : 0)
     await expect(page.locator('[data-part="analysis"][data-overlay="yes"]')).toHaveCount(on ? 1 : 0)
@@ -1400,24 +1403,33 @@ test('a judgement from the Lab is shown on the page as it judged, marked as reca
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
   await recalled(false)
-  await page.locator('.lab > summary').click()
-  // judge/3, a prototype that found nothing: no finding stands on any block
-  await page.locator('.lab tr.judgement:has(.judge-version:text-is("judge/3")) [data-part="recall"]').first().click()
+  // judge/2, a prototype: its void finding on b12, in the three voices, the code's ruling among them
+  await page.locator(`[data-part="page-form"] tbody[data-reading="${shown.key}"] tr.verdict-row:has(a.version:text-is("judge/2")) [data-part="recall"]`)
+    .first().click()
   // the address names it, so it can be sent: the router keeps its colons and its slash as they are
-  await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${judge3.recall}`)
+  await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${judge2.recall}`)
   await settled(page)
   await recalled(true)
-  await expect(page.locator('[data-part="recall-chip"]')).toContainText('Recalled: judge/3 (prototype) on reading')
-  await expect(page.locator('.lab tr.recalled-source')).toHaveCount(1)
-  await expect(page.locator('[data-part="analysis"] .block-findings [data-finding]')).toHaveCount(0)
-  // judge/2: its void finding on b12, in the three voices, the code's ruling among them
-  await page.locator('.lab tr.judgement:has(.judge-version:text-is("judge/2")) [data-part="recall"]').first().click()
-  await settled(page)
-  await recalled(true)
+  await expect(page.locator('[data-part="recall-chip"]')).toContainText('Recalled: judge/2 (prototype) on reading')
+  // the row it came from framed, dashed, saying it is on the page
+  const source = page.locator('[data-part="page-form"] tr.recalled-source')
+  await expect(source).toHaveCount(1)
+  await expect(source.locator('[data-part="recalled-here"]')).toHaveText('on the page')
+  expect(await source.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('dashed')
   await expect(page.locator('[data-part="analysis"] [data-block="b12"] [data-voice="code"]')).toHaveCount(1)
   await page.locator('[data-part="analysis"] [data-block="b12"]').hover()
   await expect(page.locator('.block-box.recalled')).toHaveCount(1)
   await page.screenshot({ path: `${SHOTS}/page_recalled.png` })
+  // another reading shown alone by its own show: no judge's findings on its blocks
+  const other = form.readings.find(reading => !reading.shown && reading.recall)
+  if (other) {
+    await page.locator(`[data-part="page-form"] tbody[data-reading="${other.key}"] [data-part="show-reading"]`).click()
+    await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${other.recall}`)
+    await settled(page)
+    await recalled(true)
+    await expect(page.locator('[data-part="recall-chip"]')).toContainText('read by the pipeline')
+    await expect(page.locator('[data-part="analysis"] .block-findings [data-finding]')).toHaveCount(0)
+  }
   // and back: the standing view, unmarked
   await page.locator('[data-part="show-standing"]').click()
   await settled(page)
@@ -1426,7 +1438,7 @@ test('a judgement from the Lab is shown on the page as it judged, marked as reca
 })
 
 // 181.a (the operator on finance p. 5): the analysis, the original beside its reading, stands under a heading and a rule of its own,
-// below the history, the Lab and the details, so it no longer runs on from them
+// below the record and the page's form (#18), so it no longer runs on from them
 test('a page sets its analysis apart under a heading and a rule, below everything that is said of the page', async ({ page }) => {
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
@@ -1438,7 +1450,7 @@ test('a page sets its analysis apart under a heading and a rule, below everythin
   await expect(analysis.locator('figure.original')).toHaveCount(1)
   await expect(analysis.locator('.reading')).toHaveCount(1)
   const top = (await analysis.boundingBox())!.y
-  for (const above of ['.history', 'details.details']) {
+  for (const above of ['[data-part="page-form"]', 'details.details']) {
     const box = await page.locator(above).first().boundingBox()
     if (box) expect(box.y + box.height).toBeLessThanOrEqual(top + 1)
   }
@@ -1615,28 +1627,34 @@ test('the details\' judge stage says why, the verdict and the judge each on a na
   }
 })
 
-// 146.a, 147.a, 150.a: the review's showcase page lists every judgement, the pipeline's in its Reading History and what was
-// tried beside it in the Lab, a void finding named as code's; its details give the three stages one by one, then a person
-test('a page parts its judgements into the Reading History and the Lab, and its details give the three stages, then a person', async ({ page, request }) => {
-  const FINANCE = 'openstax_principles_of_finance_2e'
+// 146.a, 147.a, 150.a, #18: the review's showcase page lists every judgement in its form, beneath the reading it judged, each
+// saying its kind and its verdict in the API's words, a person's beside the judges'; a void finding named as code's; its
+// details give the three stages one by one, then a person
+test('a page lists its judgements beneath their readings in its form, and its details give the three stages, then a person', async ({ page, request }) => {
   const detail = await (await request.get(`/api/free/works/${FINANCE}/pages/5`)).json() as {
-    attempts: { judgements: { version_state: string | null, counts: boolean, again: number }[] }[] | null
-    check: { verdict: { findings: { void: boolean }[] } | null }
+    form: FormJson, check: { verdict: { findings: { void: boolean }[] } | null }
   }
-  const judgements = (detail.attempts ?? []).flatMap(attempt => attempt.judgements)
-  test.skip(judgements.length < 2, 'the export holds no page judged more than once')
-  const tried = judgements.filter(j => !j.counts && (j.again > 0 || j.version_state === 'prototype'))
+  const verdicts = detail.form.readings.flatMap(reading => reading.verdicts)
+  test.skip(verdicts.length < 2, 'the export holds no page judged more than once')
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
-  await expect(page.locator('details.history > summary')).toContainText('Reading History:')
-  // every judgement once: the pipeline's under its reading, a folded reading's too, the rest in the Lab
-  await expect(page.locator('.history tr.judgement')).toHaveCount(judgements.length - tried.length)
-  await expect(page.locator('.lab tr.judgement')).toHaveCount(tried.length)
-  await expect(page.locator('.history [data-part="prototype"], .history [data-part="again"]')).toHaveCount(0)
-  if (tried.length) await page.locator('.lab > summary').click()
+  const form = page.locator('[data-part="page-form"]')
+  await expect(form.locator('[role="tab"]')).toHaveText([`Readings ${detail.form.readings_count}`, `Lab ${detail.form.lab_count}`,
+    `Verdicts ${detail.form.verdicts_count}`])
+  // every reading folded open: each verdict once, beneath its reading, its kind and its verdict the API's
+  for (const mark of await form.locator('[data-part="fold-reading"][aria-expanded="false"]:not([disabled])').all()) await mark.click()
+  await expect(form.locator('tr.verdict-row')).toHaveCount(verdicts.length)
+  await expect(form.locator('tr.verdict-row > td:first-child [data-kind]')).toHaveText(verdicts.map(one => one.kind_said))
+  await expect(form.locator('tr.verdict-row .result')).toHaveText(verdicts.map(one => one.verdict_said))
+  await page.screenshot({ path: `${SHOTS}/page_judgements.png` })
+  // the Verdicts tab: every verdict on the page, the standing ones marked
+  await form.locator('[data-tab="verdicts"]').click()
+  await expect(form.locator('tr[data-verdict-row]')).toHaveCount(detail.form.verdicts_count)
+  expect(await form.locator('tr[data-verdict-row]').evaluateAll(rows => rows.map(row => row.getAttribute('data-standing'))))
+    .toEqual(detail.form.verdicts.map(one => String(one.standing)))
+  await page.screenshot({ path: `${SHOTS}/page_verdicts.png` })
   await page.locator('[data-label="Check"] > summary .fold-label').click()
   for (const stage of ['1', '2', '3', 'person']) await expect(page.locator(`[data-stage="${stage}"]`)).toBeVisible()
-  await page.screenshot({ path: `${SHOTS}/page_judgements.png` })
   if (detail.check.verdict?.findings.some(finding => finding.void)) {
     await page.locator('.found-at button').first().click()
     const mark = page.locator('.blocks [data-part="void"]').first()
@@ -1676,7 +1694,9 @@ test('the prompts stand in a tab per part, a folded row per version, and a versi
   }
   await page.goto('/#/prompts')
   await settled(page)
-  await expect(page.locator('[data-tab]')).toHaveCount(parts.length)
+  // a version whose text nobody holds, or a file of no part, stands in a tab of its own (#18)
+  const apart = versions.filter(version => !version.files.length || version.files.some(file => !file.part))
+  await expect(page.locator('[data-tab]')).toHaveCount(parts.length + (apart.length ? 1 : 0))
   // every file of every version stands once, in the tab of its part, its state beside it
   for (const part of parts) {
     await page.locator(`[data-tab="${part.key}"]`).click()
@@ -1684,6 +1704,14 @@ test('the prompts stand in a tab per part, a folded row per version, and a versi
     await expect(page.locator('tbody.version')).toHaveCount(mine.length)
     for (const version of mine) {
       await expect(page.locator(`tbody[data-version="${version.version}"] [data-part="state"]`)).toHaveText(version.state)
+    }
+  }
+  // the versions without text in that tab, each saying so where its hash would stand
+  const textless = versions.filter(version => !version.files.length)
+  if (textless.length) {
+    await page.locator('[data-tab="other"]').click()
+    for (const version of textless) {
+      await expect(page.locator(`tbody[data-version="${version.version}"] [data-part="no-text"]`)).toHaveText('no text')
     }
   }
   // a version whose change replaced words in a line: one rewritten whole (page/2 beside page/1) has added and removed lines,
@@ -1836,30 +1864,29 @@ test('an address from before the knowledge base was part of it still opens its p
   await expect(page.locator('.original img')).toBeVisible()
 })
 
-test('a page that was read again lists its readings, the one shown marked and why it was chosen', async ({ page, request }) => {
-  // The export lists attempts once line 1 refreshes it; until then an invented history over a real free page shows the view.
-  const real = await (await request.get(`/api/free/works/${KELLY}/pages/7`)).json() as { trace: { reading_key: string, model: string } }
-  // shaped as the API sends a reading since 147.a: every one carries its judgements, here none
-  const first = { reading_key: '0123456789abcdef', number: 1, purpose: 'first reading', model: real.trace.model, mode: 'batch',
-    attempt: 0, class_now: 'malformed', stored_at: '2026-11-02T14:48:03+00:00', deviation: null, judgements: [], shown: false,
-    cost_usd: 0.0157879, format_errors: ['block b03 (line 22): in=b00 points to no block on this page'], check: null }
-  const second = { ...first, reading_key: real.trace.reading_key, number: 2, purpose: 'read again by a replay', mode: 'standard',
-    attempt: 1, class_now: 'ok', stored_at: '2026-11-04T09:12:00+00:00', shown: true }
-  await page.route(`**/api/free/works/${KELLY}/pages/7`, async route => {
-    const response = await route.fetch()
-    await route.fulfill({ response, json: { ...await response.json(), attempts: [first, second],
-      chosen: { why: 're-read after the format retry', run_id: '7', chosen_at: '2026-11-04T09:13:00+00:00' } } })
-  })
-  await page.goto(`/#/free/sources/${KELLY}/page/7`)
+// #18: a page read more than once lists its readings in its form, the one shown marked, each a row of the API's words; what a
+// reading was (its key, its purpose, why it was chosen) stands in its card under the pointer, the API's rows, never in a column
+test('a page that was read again lists its readings, the one shown marked, its bookkeeping in each row\'s card', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  test.skip(form.readings.length < 2, 'the export holds no page read more than once')
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
-  await expect(page.locator('.history [data-reading]')).toHaveCount(2)
-  await expect(page.locator('.history .current')).toContainText('shown here')
-  await expect(page.locator('.history .chosen')).toContainText('re-read after the format retry')
-  // the first reading says why it is malformed, in the validator's words, though no check reached it (A.a, 18 Nov)
-  await expect(page.locator('.history [data-reading="0123456789abcdef"] [data-part="format-error"]'))
-    .toHaveText(first.format_errors)
-  await expect(page.locator('.history')).toBeInViewport()
-  await page.screenshot({ path: `${SHOTS}/page_history.png` })
+  const readings = page.locator('[data-part="page-form"] [data-panel="readings"] tbody[data-reading]')
+  expect(await readings.evaluateAll(bodies => bodies.map(body => body.getAttribute('data-reading')))).toEqual(form.readings.map(one => one.key))
+  await expect(readings.locator('.reading-row .result')).toHaveText(form.readings.map(one => one.result_said))
+  // the one shown marked by a glyph and a word, every other a show of its own
+  const shown = form.readings.find(one => one.shown)!
+  await expect(page.locator(`tbody[data-reading="${shown.key}"] [data-part="shown"]`)).toHaveText('● shown')
+  await expect(page.locator('[data-part="page-form"] [data-part="show-reading"]')).toHaveCount(form.readings.filter(one => !one.shown && one.recall).length)
+  // its card holds the API's rows, label for label and value for value
+  await page.locator(`tbody[data-reading="${shown.key}"] .reading-row .time-cell .hover-card-host`).focus()
+  const card = page.locator('[data-part="hover-card"]')
+  await expect(card.locator('.card-label')).toHaveText(shown.hover.map(row => row.label))
+  await expect(card.locator('.card-value')).toHaveText(shown.hover.map(row => row.value))
+  await page.screenshot({ path: `${SHOTS}/page_readings.png` })
+  // and the check sees a card that drops a row: its last taken out, a moment
+  await card.locator('.card-row').last().evaluate(element => element.remove())
+  expect(await card.locator('.card-label').allTextContents()).not.toEqual(shown.hover.map(row => row.label))
 })
 
 // 166.a (the operator): a page a person accepted still showed only the judge's "issue"; a person's standing verdict now stands beside
@@ -2341,63 +2368,138 @@ test('a recorded verdict closes the panel, says so in a toast, waits on its page
   await expect(toast).toHaveCount(0, { timeout: 4500 })
 })
 
-// 202.a: a judge's rules for the reader stand in the Lab beneath the judgement that proposed them, read-only, never applied;
-// the page is found at run time among those listed
-test('a judge\'s rules for the reader stand beneath its judgement in the Lab, never applied', async ({ page, request }) => {
-  type Rule = { kind: string, block: string | null, rule: string | null }
-  type Attempt = { number: number, judgements: { version: string | null, reader_rules: Rule[] | null }[] }
+// 202.a, #18: a judge's rules for the reader stand beneath the judgement that proposed them in the page's form, read-only, never
+// applied; the page is found at run time among those listed
+test('a judge\'s rules for the reader stand beneath its judgement in the page\'s form, never applied', async ({ page, request }) => {
   const issues = (await (await request.get('/api/issues')).json() as { rows: { source_id: string, pdf_page: number }[] }).rows
-  let found: { work: string, page: number, rules: Rule[] } | null = null
+  let found: { work: string, page: number, tab: 'readings' | 'lab', reading: FormReadingJson, rule: string } | null = null
   for (const row of issues) {
-    const detail = await (await request.get(`/api/free/works/${row.source_id}/pages/${row.pdf_page}`)).json() as { attempts: Attempt[] | null }
-    const judgement = detail.attempts?.flatMap(attempt => attempt.judgements).find(one => one.reader_rules?.length)
-    if (judgement) {
-      found = { work: row.source_id, page: row.pdf_page, rules: judgement.reader_rules! }
-      break
+    const form = await formOf(request, row.source_id, row.pdf_page)
+    for (const tab of ['readings', 'lab'] as const) {
+      const reading = form[tab].find(one => one.verdicts.some(verdict => verdict.rules.length))
+      if (reading && !found) {
+        found = { work: row.source_id, page: row.pdf_page, tab, reading, rule: reading.verdicts.find(verdict => verdict.rules.length)!.rules[0].rule! }
+      }
     }
+    if (found) break
   }
   test.skip(!found, 'no listed page holds a judge\'s rules for the reader today')
   await page.goto(`/#/free/sources/${found!.work}/page/${found!.page}`)
   await settled(page)
-  const lab = page.locator('details.lab')
-  if (await lab.getAttribute('open') === null) await lab.locator('summary').click()
-  const rules = lab.locator('[data-part="reader-rules"]').first()
+  const form = page.locator('[data-part="page-form"]')
+  await form.locator(`[data-tab="${found!.tab}"]`).click()
+  const body = form.locator(`tbody[data-reading="${found!.reading.key}"]`)
+  const mark = body.locator('[data-part="fold-reading"]')
+  if (await mark.getAttribute('aria-expanded') === 'false') await mark.click()
+  const rules = body.locator('[data-part="reader-rules"]').first()
   await expect(rules.locator('.part-label')).toHaveText('Proposals for the reader, never applied:')
-  await expect(rules.locator('.rule-text').first()).toHaveText(found!.rules[0].rule!)
-  // the row above it is the judgement that proposed them
-  const above = await rules.evaluate(element => element.closest('tr')!.previousElementSibling?.getAttribute('data-judgement'))
-  expect(above).toBeTruthy()
+  await expect(rules.locator('.rule-text').first()).toHaveText(found!.rule)
+  // the row above it is the verdict that proposed them, a judge's
+  const above = await rules.evaluate(element => element.closest('tr')!.previousElementSibling?.querySelector('[data-kind]')?.getAttribute('data-kind'))
+  expect(above).toBe('judge')
   await rules.scrollIntoViewIfNeeded()
   await page.screenshot({ path: `${SHOTS}/page_reader_rules.png` })
 })
 
-// 210.a: a reader prototype's reading (page/2) stands in the Lab beside the judge prototypes, never in the Reading History,
-// and shows on the page as its judge saw it; the page is found at run time among those listed
-test('a reader prototype\'s reading stands in the Lab, never in the history, and shows on the page', async ({ page, request }) => {
-  type Attempt = { reading_key: string, number: number, prototype: boolean | null, reader_version: string | null, judgements: { recall: string | null }[] }
+// 210.a, #18: a reading read beside the pipeline (a reader prototype's, a test reading) stands in the Lab, never among the
+// readings, and shows on the page by its own show; the page is found at run time among those listed
+test('a reading read beside the pipeline stands in the Lab, never among the readings, and shows on the page', async ({ page, request }) => {
   const issues = (await (await request.get('/api/issues')).json() as { rows: { source_id: string, pdf_page: number }[] }).rows
-  let found: { work: string, page: number, attempts: Attempt[] } | null = null
+  let found: { work: string, page: number, reading: FormReadingJson } | null = null
   for (const row of issues) {
-    const detail = await (await request.get(`/api/free/works/${row.source_id}/pages/${row.pdf_page}`)).json() as { attempts: Attempt[] | null }
-    if (detail.attempts?.some(attempt => attempt.prototype && attempt.judgements.length)) {
-      found = { work: row.source_id, page: row.pdf_page, attempts: detail.attempts }
+    const reading = (await formOf(request, row.source_id, row.pdf_page)).lab.find(one => one.recall)
+    if (reading) {
+      found = { work: row.source_id, page: row.pdf_page, reading }
       break
     }
   }
-  test.skip(!found, 'no listed page holds a reader prototype\'s judged reading today')
-  const prototype = found!.attempts.find(attempt => attempt.prototype && attempt.judgements.length)!
-  const pipeline = found!.attempts.filter(attempt => !attempt.prototype).length
+  test.skip(!found, 'no listed page holds a reading read beside the pipeline today')
+  const lab = found!.reading
   await page.goto(`/#/free/sources/${found!.work}/page/${found!.page}`)
   await settled(page)
-  await expect(page.locator('details.history > summary')).toContainText(`${pipeline} reading${pipeline === 1 ? '' : 's'}`)
-  await expect(page.locator(`details.history [data-reading="${prototype.reading_key}"]`)).toHaveCount(0)
-  const lab = page.locator('details.lab')
-  if (await lab.getAttribute('open') === null) await lab.locator('summary').click()
-  const cell = lab.locator(`[data-reader="${prototype.reader_version}"]`).first()
-  await expect(cell).toHaveText(`reading ${prototype.number}, ${prototype.reader_version} (prototype), never served`)
-  await cell.locator('xpath=ancestor::tr').locator('[data-part="recall"]').click()
-  await expect(page.locator('[data-part="recall-chip"]')).toContainText(`read by ${prototype.reader_version} (prototype), never served`)
-  await page.screenshot({ path: `${SHOTS}/page_reader_prototype.png` })
+  const form = page.locator('[data-part="page-form"]')
+  await expect(form.locator(`[data-panel="readings"] tbody[data-reading="${lab.key}"]`)).toHaveCount(0)
+  await form.locator('[data-tab="lab"]').click()
+  const row = form.locator(`[data-panel="lab"] tbody[data-reading="${lab.key}"] .reading-row`)
+  await expect(row.locator('[data-kind]')).toHaveText('reading')
+  await expect(row.locator('.result')).toHaveText(lab.result_said)
+  await row.locator('[data-part="show-reading"]').click()
+  await settled(page)
+  await expect(page.locator('[data-part="recall-chip"]')).toContainText(`(${lab.test_reading ? 'test reading' : 'prototype'}), never served`)
+  // the Lab stays open on the reading shown, its row framed
+  await expect(form.locator('[data-tab="lab"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(form.locator(`tbody[data-reading="${lab.key}"] tr.reading-row.recalled-source`)).toHaveCount(1)
+  await page.screenshot({ path: `${SHOTS}/page_lab_reading.png` })
+})
+
+// #18 (the operator, 10 Nov: "something like that must always be tested"): a page's form, its tabs and a reading's fold clicked
+// again and again, never moves a control: each tab's box and the fold's mark stay within a pixel of where they stood
+test('a page\'s form keeps its tabs and its folds under the pointer, tab after tab and fold after fold (#18)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const tabs = ['readings', 'lab', 'verdicts']
+  const tab = (name: string) => page.locator(`[data-part="page-form"] [data-tab="${name}"]`)
+  await tab('readings').scrollIntoViewIfNeeded()
+  const boxes = () => Promise.all(tabs.map(name => tab(name).boundingBox()))
+  const at = await boxes()
+  for (const name of ['lab', 'verdicts', 'readings', 'verdicts', 'lab', 'readings']) {
+    await tab(name).click()
+    const now = await boxes()
+    tabs.forEach((one, index) => inPlace(now[index], at[index], `the ${one} tab after ${name}`))
+  }
+  // a reading's fold mark, folded and opened again and again, stays where it is
+  const reading = form.readings.find(one => one.verdicts.length)!
+  const mark = page.locator(`[data-part="page-form"] tbody[data-reading="${reading.key}"] [data-part="fold-reading"]`)
+  const markAt = await mark.boundingBox()
+  for (let time = 1; time <= 4; time++) {
+    await mark.click()
+    inPlace(await mark.boundingBox(), markAt, `the fold's mark after click ${time}`)
+  }
+  await page.screenshot({ path: `${SHOTS}/page_form_tabs.png` })
+  // and the check sees a control that moves: the tab picked made wider, a moment
+  await page.addStyleTag({ content: '[data-part="page-form"] [role="tab"][aria-selected="true"] { padding-right: 3rem !important; }' })
+  await tab('lab').click()
+  const moved = await boxes()
+  expect(moved[2]!.x - at[2]!.x).toBeGreaterThan(1)
+})
+
+// decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change
+// nothing keeps its place and its box in the column, greyed and disabled, and the card under the pointer says why in the API's words
+test('a show that would change nothing keeps its box, greyed, its card saying why (decision 25)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const reading = form.readings.find(one => one.verdicts.some(verdict => verdict.show_why_not) && one.verdicts.some(verdict => verdict.recall && !verdict.show_why_not))
+  test.skip(!reading, 'no reading on the page holds a judgement that found nothing beside one that found something')
+  const why = reading!.verdicts.find(verdict => verdict.show_why_not)!.show_why_not!
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const body = page.locator(`[data-part="page-form"] tbody[data-reading="${reading!.key}"]`)
+  const mark = body.locator('[data-part="fold-reading"]')
+  if (await mark.getAttribute('aria-expanded') === 'false') await mark.click()
+  const off = body.locator('[data-part="show-off"]').first()
+  const button = off.locator('button')
+  const active = body.locator('[data-part="recall"]').first()
+  await expect(button).toBeDisabled()
+  await expect(button).toHaveText('show')
+  expect(await button.getAttribute('title')).toBeNull()
+  // its box where an active show stands, in the same column, as wide as its word
+  const box = (await button.boundingBox())!
+  const beside = (await active.boundingBox())!
+  expect(Math.abs(box.x - beside.x), 'the greyed show starts where an active one does').toBeLessThanOrEqual(1)
+  expect(Math.abs(box.width - beside.width), 'the greyed show is as wide as an active one').toBeLessThanOrEqual(2)
+  // greyed: another ink than an active show's
+  const ink = (element: Element) => getComputedStyle(element).color
+  expect(await button.evaluate(ink)).not.toBe(await active.evaluate(ink))
+  // the card waits for the pointer resting on it, then says why
+  await off.hover()
+  await expect(page.locator('[data-part="hover-card"] [data-row="why not"] .card-value')).toHaveText(why)
+  await page.screenshot({ path: `${SHOTS}/page_show_off.png` })
+  // and the check sees a show taken out of its place: hidden, a moment
+  await page.mouse.move(0, 0)
+  await page.addStyleTag({ content: '[data-part="show-off"] { display: none !important; }' })
+  expect(await button.boundingBox()).toBeNull()
 })
 
 // 184 (the operator on finance p. 5: "I would rather have this line with labels"): the page's record as labelled lines, each block of
@@ -2612,7 +2714,7 @@ test('a page that is not content says its category beside its state, and the lis
 // reading's number and words are the API's, the core's words for what a reading was (86efdb2); checked against its JSON
 test('a page not served says why in its Check line\'s words, and its readings stand numbered, each saying what it was', async ({ page, request }) => {
   const ACCOUNTING = 'openstax_principles_of_accounting_v1'
-  type Shown = { check_said: string | null, attempts: { number: number, purpose: string, attempt: number, shown: boolean, prototype: boolean | null }[] }
+  type Shown = { check_said: string | null, form: FormJson }
   const api = await (await request.get(`/api/free/works/${ACCOUNTING}/pages/524`)).json() as Shown
   expect(api.check_said).toMatch(/^not served: .+; the PDF's text layer is served instead$/)
   await page.goto(`/#/free/sources/${ACCOUNTING}/page/524`)
@@ -2620,14 +2722,14 @@ test('a page not served says why in its Check line\'s words, and its readings st
   // the sentence that stood above the record is the Check line's words now (H1.a)
   await expect(page.locator('[data-label="Check"] [data-part="check-said"]')).toHaveText(`· ${api.check_said!}`)
   await expect(page.locator('[data-part="said"]')).toHaveCount(0)
-  // the shown reading first, the others newest first, each by its number across readers and in the core's words; a reader
-  // prototype's reading stands in the Lab, not here (210.a)
-  const pipeline = api.attempts.filter(one => !one.prototype)
-  const inOrder = [...pipeline.filter(one => one.shown), ...pipeline.filter(one => !one.shown).reverse()]
-  await expect(page.locator('.history .reading-number')).toHaveText(inOrder.map(one => `reading ${one.number}`))
-  await expect(page.locator('.history [data-part="purpose"]')).toHaveText(inOrder.map(one => one.purpose))
-  // the reader's own count stands folded inside, not in the line
-  await expect(page.locator('.history .current [data-part="reader-attempt"]')).toContainText(`the reader's attempt ${inOrder[0].attempt}`)
+  // the readings in the API's order, its result in its words; what each was (its purpose, the reader's own count) stands in its
+  // card, not in the line (#18)
+  const readings = page.locator('[data-part="page-form"] [data-panel="readings"] tbody[data-reading]')
+  expect(await readings.evaluateAll(bodies => bodies.map(body => body.getAttribute('data-reading')))).toEqual(api.form.readings.map(one => one.key))
+  await expect(readings.locator('.reading-row .result')).toHaveText(api.form.readings.map(one => one.result_said))
+  const first = api.form.readings[0]
+  await readings.first().locator('.reading-row .time-cell .hover-card-host').focus()
+  await expect(page.locator('[data-part="hover-card"] .card-label')).toHaveText(first.hover.map(row => row.label))
   await page.screenshot({ path: `${SHOTS}/page_not_served.png` })
 })
 

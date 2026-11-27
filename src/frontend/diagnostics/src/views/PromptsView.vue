@@ -28,7 +28,7 @@ const route = useRoute()
 interface Row {
   key: string
   version: PromptVersion
-  file: PromptFile
+  file: PromptFile | null  // null for a version whose text nobody holds: it stands, saying "no text" (#18)
 }
 
 // what a file is when the registry names no part for it
@@ -39,7 +39,7 @@ const tabs = computed(() => {
   const list = prompts.value
   if (!list) return []
   const named = list.parts.map(part => ({ key: part.key, label: part.label, about: part.about }))
-  const unnamed = list.versions.some(version => version.files.some(file => !file.part))
+  const unnamed = list.versions.some(version => !version.files.length || version.files.some(file => !file.part))
   return unnamed ? [...named, { key: OTHER, label: 'Other', about: 'files the registry names no part for' }] : named
 })
 
@@ -50,13 +50,13 @@ const hintOpen = ref(false)
 const tab = computed(() => {
   if (picked.value) return picked.value
   const asked = prompts.value?.versions.find(version => version.version === chosen.value)
-  return asked?.files[0]?.part ?? tabs.value[0]?.key ?? null
+  return asked?.files[0]?.part ?? (asked ? OTHER : tabs.value[0]?.key ?? null)
 })
 
 function rowsOf(part: string): Row[] {
-  return (prompts.value?.versions ?? []).flatMap(version => version.files
-    .filter(file => (file.part ?? OTHER) === part)
-    .map(file => ({ key: `${version.version}|${file.path}`, version, file })))
+  return (prompts.value?.versions ?? []).flatMap((version): Row[] => (version.files.length
+    ? version.files.filter(file => (file.part ?? OTHER) === part).map(file => ({ key: `${version.version}|${file.path}`, version, file }))
+    : part === OTHER ? [{ key: `${version.version}|`, version, file: null }] : []))
 }
 
 const rows = computed(() => (tab.value ? rowsOf(tab.value) : []))
@@ -73,7 +73,7 @@ function toggle(row: Row): void {
 }
 
 function mode(row: Row): 'change' | 'text' {
-  return showing.value[row.key] ?? (row.file.diff ? 'change' : 'text')
+  return showing.value[row.key] ?? (row.file?.diff ? 'change' : 'text')
 }
 
 onMounted(() => {
@@ -84,7 +84,8 @@ onMounted(() => {
 watch([prompts, chosen], async ([list, wanted]) => {
   if (!list || !wanted) return
   picked.value = null
-  const keys = list.versions.filter(version => version.version === wanted).flatMap(version => version.files.map(file => `${version.version}|${file.path}`))
+  const keys = list.versions.filter(version => version.version === wanted)
+    .flatMap(version => (version.files.length ? version.files.map(file => `${version.version}|${file.path}`) : [`${version.version}|`]))
   opened.value = new Set([...opened.value, ...keys])
   await nextTick()
   document.querySelector(`[data-version="${CSS.escape(wanted)}"]`)?.scrollIntoView?.({ block: 'start' })
@@ -124,6 +125,7 @@ watch([prompts, chosen], async ([list, wanted]) => {
             <th class="col-title">Title</th>
             <th class="col-state">State</th>
             <th class="col-model">Model</th>
+            <th class="col-origin">Written by</th>
             <th class="col-frozen">Frozen</th>
             <th class="col-hash">sha256</th>
             <th>Why</th>
@@ -143,8 +145,10 @@ watch([prompts, chosen], async ([list, wanted]) => {
             <td>{{ row.version.title ?? '' }}</td>
             <td><span class="badge" :class="row.version.state" data-part="state">{{ row.version.state }}</span></td>
             <td class="secondary">{{ row.version.model ?? '' }}</td>
+            <td class="secondary" data-part="written-by">{{ row.version.origin?.author ?? row.version.origin?.author_kind ?? 'not known' }}</td>
             <td class="secondary"><HumanTime :at="row.version.frozen_on" /></td>
-            <td :title="row.file.sha256">
+            <td v-if="!row.file" class="secondary" data-part="no-text">no text</td>
+            <td v-else :title="row.file.sha256">
               <span v-if="row.file.frozen_sha256 === row.file.sha256" class="hash-same" data-part="frozen"><AppIcon name="status-ok" /> as frozen</span>
               <span v-else-if="row.file.frozen_sha256" class="hash-differs" data-part="frozen"><AppIcon name="status-error" /> differs</span>
               <span v-else class="secondary" data-part="frozen">not frozen</span>
@@ -152,8 +156,27 @@ watch([prompts, chosen], async ([list, wanted]) => {
             <td class="why-cell" :title="row.version.why ?? ''"><div class="why-line">{{ row.version.why ?? '' }}</div></td>
           </tr>
           <tr v-if="opened.has(row.key)" class="version-detail">
-            <td colspan="7">
+            <td colspan="8">
               <p v-if="row.version.why" class="why" data-part="why">{{ row.version.why }}</p>
+              <!-- where the version came from (#18): who wrote it, when, its source, and how that is known -->
+              <dl v-if="row.version.origin" class="origin" data-part="origin">
+                <dt>written by</dt>
+                <dd>{{ [row.version.origin.author_kind, row.version.origin.author].filter(Boolean).join(' · ') || 'not known' }}</dd>
+                <template v-if="row.version.origin.written_on">
+                  <dt>written on</dt>
+                  <dd><HumanTime :at="row.version.origin.written_on" /></dd>
+                </template>
+                <template v-if="row.version.origin.source">
+                  <dt>source</dt>
+                  <dd><a :href="row.version.origin.source" target="_blank" rel="noopener noreferrer">{{ row.version.origin.source }}</a></dd>
+                </template>
+                <template v-if="row.version.origin.evidence">
+                  <dt>evidence</dt>
+                  <dd>{{ row.version.origin.evidence }}</dd>
+                </template>
+              </dl>
+              <p v-if="!row.file" class="secondary" data-part="no-text-said">no text: nobody holds this version's prompt</p>
+              <template v-else>
               <p class="file-head">
                 <span class="path">{{ row.file.path }}</span>
                 <span class="hash" :title="row.file.sha256">sha256 {{ row.file.sha256.slice(0, 16) }}</span>
@@ -180,6 +203,7 @@ watch([prompts, chosen], async ([list, wanted]) => {
               >{{ piece.text }}</span></template><template v-else>{{ line.text }}</template>
 </span></pre>
               <pre v-else class="prompt-text" data-part="text">{{ row.file.text }}</pre>
+              </template>
             </td>
           </tr>
         </tbody>
@@ -189,6 +213,22 @@ watch([prompts, chosen], async ([list, wanted]) => {
 </template>
 
 <style scoped>
+/* a version's origin, label and value in two columns, as a hover card's rows */
+.origin {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0 var(--space-md);
+  margin: var(--space-xs) 0;
+}
+
+.origin dt {
+  color: var(--color-text-secondary);
+}
+
+.origin a {
+  color: var(--color-accent);
+}
+
 .view-title {
   margin-bottom: var(--space-sm);
 }

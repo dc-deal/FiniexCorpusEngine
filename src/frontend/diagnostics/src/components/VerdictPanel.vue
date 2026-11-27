@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { giveVerdict, previewTable } from '@/api/api_client'
+import { giveVerdict, previewTable, promoteReading } from '@/api/api_client'
 import { ApiError } from '@/api/api_error'
 import AppButton from '@/components/base/AppButton.vue'
 import LabelledLine from '@/components/base/LabelledLine.vue'
@@ -11,7 +11,7 @@ import RunningMark from '@/components/base/RunningMark.vue'
 import { useElapsed } from '@/use_elapsed'
 import { useVerdictStore } from '@/stores/verdict_store'
 import { canSend, correctionOffered, needsNote, payloadOf, prefillOf, type VerdictDraft } from '@/verdict_rules'
-import type { Cell, PageDetail } from '@/types/api/page_types'
+import type { Cell, FormReading, PageDetail } from '@/types/api/page_types'
 import type { KnowledgeBase } from '@/types/api/source_types'
 import type { Proposal, ProposalRequest, VerdictForm } from '@/types/api/verdict_types'
 import { type Asking, type RecordedVerdict } from '@/stores/verdict_store'
@@ -38,6 +38,11 @@ const props = defineProps<{
   work: string
   form: VerdictForm
   target: string  // the block it opens on, '' for the page as a whole
+  // the same panel promotes a Lab reading (#18): chosen among the ones the core promotes, with a reason and a note
+  mode?: 'verdict' | 'promote'
+  labReadings?: FormReading[]
+  // the judgement the page shows the person (#17): what a verdict answers
+  answersJudgement?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -81,9 +86,14 @@ const judgeOffered = computed(() => (draft.block
   ? Boolean(blockOf(draft.block)?.findings.some(finding => !finding.void))
   : hasFindings.value))
 
+// a promotion (#18): the Lab reading, a reason of the core's list and a note, which the reason `other` needs
+const promotion = reactive({ reading: '', reason: '', note: '' })
+const promoteReady = computed(() => Boolean(promotion.reading && promotion.reason
+  && (promotion.reason !== 'other' || promotion.note.trim())))
+
 // a change a person would lose by closing or pointing the panel elsewhere
 const dirty = computed(() => Boolean(draft.verdict || draft.reason || draft.note.trim() || draft.judgeAssessment)
-  || draft.correction !== prefill.value)
+  || draft.correction !== prefill.value || Boolean(promotion.reading || promotion.reason || promotion.note.trim()))
 const asking = ref<{ kind: 'close' } | { kind: 'retarget', block: string } | null>(null)
 
 /** Shuts the panel, asking first where a change would be lost. */
@@ -201,13 +211,31 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
 })
 
+async function sendPromotion(): Promise<void> {
+  if (!promoteReady.value || sending.value) return
+  sending.value = true
+  failed.value = false
+  said.value = ''
+  try {
+    const given = await promoteReading({ knowledge_base: props.knowledgeBase, work: props.work, pdf_page: props.page.pdf_page,
+      reading_key: promotion.reading, reason: promotion.reason, note: promotion.note.trim() || null })
+    emit('recorded', { block: '', verdict: 'promote', export: given.export })
+  } catch (caught) {
+    failed.value = true
+    said.value = caught instanceof Error ? caught.message : String(caught)
+  } finally {
+    sending.value = false
+  }
+}
+
 async function send(): Promise<void> {
   if (!canSend(draft) || sending.value) return
   sending.value = true
   failed.value = false
   said.value = ''
   try {
-    const given = await giveVerdict(payloadOf(draft, prefill.value, props.knowledgeBase, props.work, props.page.pdf_page))
+    const given = await giveVerdict(payloadOf(draft, prefill.value, props.knowledgeBase, props.work, props.page.pdf_page,
+      props.answersJudgement ?? null))
     // recorded: the panel closes at once, since nothing is lost, and its page says it and follows the export (21 Nov)
     emit('recorded', { block: draft.block, verdict: draft.verdict, export: given.export })
   } catch (caught) {
@@ -222,7 +250,9 @@ async function send(): Promise<void> {
 <template>
   <aside class="verdict-panel" role="dialog" aria-modal="false" aria-labelledby="verdict-title" :aria-busy="proposing" data-part="verdict-panel">
     <header class="panel-head">
-      <p id="verdict-title" class="panel-title">A person's verdict on PDF page {{ page.pdf_page }}</p>
+      <p id="verdict-title" class="panel-title">
+        {{ mode === 'promote' ? `Promote a Lab reading on PDF page ${page.pdf_page}` : `A person's verdict on PDF page ${page.pdf_page}` }}
+      </p>
       <AppButton variant="quiet" size="compact" data-part="close" @click="requestClose">Close</AppButton>
     </header>
     <!-- asked before a change is lost: by closing, or by pointing the panel at another block -->
@@ -231,7 +261,36 @@ async function send(): Promise<void> {
       <AppButton size="compact" data-part="discard" @click="discard">{{ asking.kind === 'close' ? 'Close' : 'Turn' }}</AppButton>
       <AppButton variant="quiet" size="compact" data-part="keep" @click="asking = null">Keep</AppButton>
     </p>
-    <div class="panel-body">
+    <!-- a promotion (#18): which Lab reading becomes the page's, why, and a note; recorded by the core as a person's act -->
+    <div v-if="mode === 'promote'" class="panel-body" data-part="promote-body">
+      <LabelledLines :label-chars="11">
+        <LabelledLine label="Reading">
+          <select v-model="promotion.reading" data-part="promote-reading">
+            <option value="" disabled>choose a Lab reading</option>
+            <option v-for="reading in labReadings ?? []" :key="reading.key" :value="reading.key">
+              {{ [reading.model, reading.version, reading.result_said].filter(Boolean).join(' · ') }}
+            </option>
+          </select>
+        </LabelledLine>
+        <LabelledLine label="Reason">
+          <select v-model="promotion.reason" data-part="promote-reason">
+            <option value="" disabled>choose a reason</option>
+            <option v-for="option in form.promote_reasons ?? []" :key="option.value" :value="option.value">
+              {{ option.short ? `${option.short} — ${option.label}` : option.label }}
+            </option>
+          </select>
+        </LabelledLine>
+        <LabelledLine label="Note">
+          <textarea v-model="promotion.note" rows="3" data-part="promote-note" />
+          <span v-if="promotion.reason === 'other'" class="hint" data-part="promote-note-needed">required: this reason is said in the note</span>
+        </LabelledLine>
+      </LabelledLines>
+      <p class="panel-actions">
+        <AppButton :disabled="!promoteReady || sending" data-part="send-promotion" @click="sendPromotion">Promote the reading</AppButton>
+      </p>
+      <p v-if="said" class="panel-said" :class="{ failed }" role="status" data-part="verdict-said">{{ said }}</p>
+    </div>
+    <div v-else class="panel-body">
       <LabelledLines :label-chars="11">
         <LabelledLine label="Verdict" class="choices">
           <AppButton
@@ -246,7 +305,9 @@ async function send(): Promise<void> {
         <LabelledLine label="Reason">
           <select v-model="draft.reason" data-part="reason">
             <option value="" disabled>choose a reason</option>
-            <option v-for="option in form.reasons" :key="option.value" :value="option.value">{{ option.label }}</option>
+            <option v-for="option in form.reasons" :key="option.value" :value="option.value">
+              {{ option.short ? `${option.short} — ${option.label}` : option.label }}
+            </option>
           </select>
         </LabelledLine>
         <LabelledLine label="About">
@@ -262,7 +323,9 @@ async function send(): Promise<void> {
         <LabelledLine v-if="judgeOffered" label="The judge">
           <select v-model="draft.judgeAssessment" data-part="assessment">
             <option value="">no assessment</option>
-            <option v-for="option in form.assessments" :key="option.value" :value="option.value">{{ option.label }}</option>
+            <option v-for="option in form.assessments" :key="option.value" :value="option.value">
+              {{ option.short ? `${option.short} — ${option.label}` : option.label }}
+            </option>
           </select>
         </LabelledLine>
         <template v-if="correctionOffered(draft.block)">

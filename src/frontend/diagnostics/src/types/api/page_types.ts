@@ -27,8 +27,6 @@ export type PersonMark = Schemas['PersonMark']
 export type Recalled = Schemas['Recalled']
 /** One judge's judgement of one reading, by the version of its prompt (147.a). */
 export type Judgement = Schemas['Judgement']
-/** One reading bought for a page, the pipeline's or a reader prototype's (210.a), with its judgements. */
-export type Attempt = Schemas['Attempt']
 /** A rule a judge proposed for the reader, never applied (202.a). */
 export type ReaderRule = Schemas['ReaderRule']
 export type Segment = Schemas['Segment']
@@ -45,3 +43,7 @@ export type StateCount = Schemas['StateCount']
 export type IssueList = Schemas['IssueList']
 /** A page as a list across works shows it, in the issues and behind a figure of the overview. */
 export type IssueRow = Schemas['IssueRow']
+/** A page's readings and verdicts in one form (#18): Readings, Lab and Verdicts, every word and count served. */
+export type PageForm = Schemas['PageForm']
+/** One reading in the form's Readings or Lab tab. */
+export type FormReading = Schemas['FormReading']

@@ -83,7 +83,9 @@ describe('PromptsView', () => {
     await view.find('[data-tab="judge"]').trigger('click')
     const prototype = view.find('tbody[data-version="judge/2"]')
     const cells = prototype.findAll('.version-row td').map(cell => cell.text())
-    expect(cells.slice(0, 6)).toEqual(['judge/2', 'judge/1 + proper names', 'prototype', 'claude-sonnet-5-5', sayDate('2026-11-09').text, 'differs'])
+    // who wrote it beside the model (#18): an invented list names no origin, so "not known"
+    expect(cells.slice(0, 7)).toEqual(['judge/2', 'judge/1 + proper names', 'prototype', 'claude-sonnet-5-5', 'not known',
+      sayDate('2026-11-09').text, 'differs'])
     expect(prototype.find('.version-detail').exists()).toBe(false)
     await prototype.find('.version-row').trigger('click')
     expect(prototype.find('.changed').text()).toBe('A name is right.')
@@ -106,5 +108,23 @@ describe('PromptsView', () => {
     expect(view.find('tbody[data-version="judge/2"]').classes()).toEqual(expect.arrayContaining(['chosen', 'open']))
     expect(view.find('tbody[data-version="judge/1"]').classes()).not.toContain('chosen')
     expect(view.find('tbody[data-version="judge/1"] .version-detail').exists()).toBe(false)
+  })
+
+  it('stands a version nobody holds the text of, saying "no text", and names each version\'s origin (#18)', async () => {
+    const list = aList()
+    list.versions.push({ role: 'reader', version: 'an-invented/two-step', title: null, model: null, state: 'prototype', frozen_on: null,
+      why: null, previous: null, files: [], origin: { author_kind: 'vendor', author: 'an invented vendor', written_on: '2026-11-20',
+        source: 'https://example.org/an-invented-card', evidence: 'an invented model card names the package' } })
+    vi.mocked(getPrompts).mockResolvedValue(list)
+    const view = mountView()
+    await flushPromises()
+    await view.find('[data-tab="other"]').trigger('click')
+    const row = view.find('tbody[data-version="an-invented/two-step"]')
+    expect(row.find('[data-part="written-by"]').text()).toBe('an invented vendor')
+    expect(row.find('[data-part="no-text"]').text()).toBe('no text')
+    await row.find('.version-row').trigger('click')
+    expect(row.find('[data-part="no-text-said"]').text()).toBe("no text: nobody holds this version's prompt")
+    expect(row.find('[data-part="origin"]').text()).toContain('vendor · an invented vendor')
+    expect(row.find('[data-part="origin"] a').attributes('href')).toBe('https://example.org/an-invented-card')
   })
 })

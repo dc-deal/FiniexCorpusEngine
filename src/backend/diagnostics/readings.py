@@ -29,7 +29,7 @@ from backend.conversion.checks import integrity
 from backend.conversion.contract import page_contract
 from backend.conversion.reading import page_render
 from backend.conversion.store import reading_export, reading_store, served_readings
-from backend.diagnostics import stamps, unread_pages
+from backend.diagnostics import page_form, stamps, unread_pages
 from backend.diagnostics.ladder_types import KnowledgeBase, Ladder, PageLadder
 from backend.diagnostics.unread_pages import Coverage
 from backend.diagnostics.work_editions import Editions
@@ -161,6 +161,29 @@ class WaitingVerdict(BaseModel):
     by_a_person: bool = True
 
 
+class Promotion(BaseModel):
+    """A person's promotion of a Lab reading to the page's reading (#18): which reading, why, by whom and when."""
+
+    reading_key: str | None = None
+    reason: str | None = None
+    reason_short: str | None = None
+    reason_text: str | None = None
+    note: str | None = None
+    given_by: str | None = None
+    given_at: str | None = None
+
+
+class AnsweredJudgementRef(BaseModel):
+    """The judgement a person's verdict answered (#17): its key, version, model, mode, date and verdict."""
+
+    judgement_key: str | None = None
+    version: str | None = None
+    model: str | None = None
+    mode: str | None = None
+    stored_at: str | None = None
+    verdict: str | None = None
+
+
 class PersonVerdict(BaseModel):
     """A person's verdict on a page or one of its blocks (146.a): accept, reject or a note, with the reason given. One
     given on an earlier reading of the page does not apply to the one shown, and says so."""
@@ -193,6 +216,13 @@ class PersonVerdict(BaseModel):
     # 18 Nov: "a person is always manual"): the view names it so wherever it stands, and only a person's protects a page.
     # By the core's own rule (`served_readings.by_a_person`), so an export written before says it by the giver alone
     by_a_person: bool = True
+    # #17: of the verdicts that apply, the latest per block (or per page where the block is none) stands; the short labels of
+    # its reason and its judge assessment; the judgement it answered, and whether the core assigned that by time
+    standing: bool | None = None
+    reason_short: str | None = None
+    judge_assessment_short: str | None = None
+    answers: AnsweredJudgementRef | None = None
+    answers_derived: bool | None = None
 
     @model_validator(mode='before')
     @classmethod
@@ -507,6 +537,14 @@ class ReaderRule(BaseModel):
         return given or None
 
 
+class AgentPrompt(BaseModel):
+    """A session's agent prompt by version and hash (#17); `derived` where the core tied it by the agent's own transcript."""
+
+    version: str | None = None
+    sha256: str | None = None
+    derived: str | bool | None = None
+
+
 class Judgement(BaseModel):
     """One judge's judgement of one reading (147.a), oldest first: by which version of the judge's prompt, in which state
     that version is (a prototype, the active one, retired), whether the judge was asked again, and whether it counts."""
@@ -527,6 +565,11 @@ class Judgement(BaseModel):
     counts: bool = True
     # how to show it on the page (181.a): '<reading key>:<version>:<again>', the value of the page view's `?judgement=`
     recall: str | None = None
+    # #17: the judge record's key (a hover, never a column); true only for the latest counting judgement of the served
+    # reading; a session judge's agent prompt by version and hash
+    judgement_key: str | None = None
+    standing: bool | None = None
+    agent_prompt: AgentPrompt | None = None
 
 
 class Attempt(BaseModel):
@@ -546,6 +589,9 @@ class Attempt(BaseModel):
     # beside the pipeline (decision 210.a): such a reading is never served, chosen or checked, and the view keeps it in the Lab
     reader_version: str | None = None
     prototype: bool | None = None
+    test_reading: bool | None = None  # a local model's test reading (#17), a prototype too, the Lab's
+    promoted: Promotion | None = None  # a Lab reading a person made the page's reading (#18)
+    agent_prompt: AgentPrompt | None = None  # a session's reading: its agent's prompt (#17), a hover, never a column
     retry_of: str | None = None  # the reading a re-read with the judge's findings re-read, by its key
     retry_of_number: int | None = None  # and by its number among the page's readings
     model: str
@@ -653,6 +699,8 @@ class PageDetail(BaseModel):
     attempts: list[Attempt] | None
     chosen: Chosen | None
     human: list[PersonVerdict] = []  # a person's verdicts on this page and its blocks (146.a)
+    # its readings and verdicts in one form (#18): Readings, Lab and Verdicts, every word and count said; None unread
+    form: page_form.PageForm | None = None
     # False for a page no reader has read (V2.a): it shows its image, its ladder and the text served, and nothing of a reading
     read: bool = True
     # the page's own coverage ladder (V2.a), which the app sets from the search, the vector index and the shelf
@@ -916,6 +964,15 @@ def in_lab(judgement: dict) -> bool:
     return not judgement.get('counts', True) and bool(judgement.get('again') or judgement.get('version_state') == 'prototype')
 
 
+def read_by(attempt: dict | None) -> str:
+    """A Lab reading's reader in words: ", read by page/2 (prototype)", ", read by glm-ocr/text (test reading)" (#18: a test
+    reading is named as one); '' for a pipeline reading."""
+    if not (attempt or {}).get('prototype'):
+        return ''
+    kind = 'test reading' if attempt.get('test_reading') else 'prototype'
+    return f", read by {attempt.get('reader_version') or 'a reader'} ({kind})"
+
+
 def recall_said(judgement: dict, number: int, attempt: dict | None = None) -> str:
     """What a recalled judgement is, in one line: 'judge/3 (prototype) on reading 2, never served', and for a reading a
     reader prototype made (210.a) 'judge/4 (prototype) on reading 2, read by page/2 (prototype), never served'."""
@@ -924,9 +981,7 @@ def recall_said(judgement: dict, number: int, attempt: dict | None = None) -> st
         name += f" ({judgement['version_state']})"
     if judgement.get('again'):
         name += ', asked again'
-    on = f'reading {number}'
-    if (attempt or {}).get('prototype'):
-        on += f", read by {attempt.get('reader_version') or 'a reader'} (prototype)"
+    on = f'reading {number}' + read_by(attempt)
     role = 'counts' if judgement.get('counts', True) else 'never served' if in_lab(judgement) or (attempt or {}).get('prototype') else 'not counted'
     return f'{name} on {on}, {role}'
 
@@ -1889,8 +1944,10 @@ class Readings:
         named = sorted((block for block in (reading.blocks if reading else []) if block.findings),
                        key=lambda block: block.decorative is not None)
         said = said_of(row, errors)
+        attempts = attempts_of(row)
+        picked = Chosen(why=chosen['why'], run_id=str(chosen['run_id']), chosen_at=chosen['chosen_at']) if chosen else None
         return PageDetail(
-            attempts=attempts_of(row), said=said, check_said=check_words(said), person=person_mark(row), category=row.get('category'),
+            attempts=attempts, form=page_form.form_of(attempts, people, picked), said=said, check_said=check_words(said), person=person_mark(row), category=row.get('category'),
             page_kind=row.get('page_kind'), category_said=category_said(row),
             route_level=row.get('route_level'), route_source=source, route_reader=reader.split(', ') if reader else None,
             route_why=why, why_line=why_line(row, said, reading.blocks if reading else []),
@@ -1899,7 +1956,7 @@ class Readings:
             findings_at=[FindingsAt(block=block.id, said='void by code' if all(finding.void for finding in block.findings)
                                     else 'stands', severity=gravest(block.findings)) for block in named] or None,
             findings_outcome=findings_outcome(row, said) if named or findings else None,
-            chosen=Chosen(why=chosen['why'], run_id=str(chosen['run_id']), chosen_at=chosen['chosen_at']) if chosen else None,
+            chosen=picked,
             knowledge_base=row['knowledge_base'], source_id=source_id, title=title, pdf_page=pdf_page,
             printed_label=row.get('printed_label'),
             previous_page=(pdf_page - 1 if pdf_page > 1 else None) if count else rows[position - 1]['pdf_page'] if position > 0 else None,
@@ -1924,13 +1981,14 @@ class Readings:
     def recall(self, source_id: str, pdf_page: int, recall: str) -> Recalled | None:
         """One judgement of the page shown as it judged (181.a): None where the page has no judgement by that id."""
         row = self.row(source_id, pdf_page)
-        reading_key, _, rest = recall.partition(':')
+        reading_key, colon, rest = recall.partition(':')
         version, _, again = rest.rpartition(':')
         attempts = (row or {}).get('attempts') or []
         number, attempt = next(((at + 1, one) for at, one in enumerate(attempts) if one['reading_key'] == reading_key),
                                (None, None))
+        # a reading alone, by its key (#18: every reading row has its own "show"), shown without a judge's findings
         found = [judgement for judgement in (attempt or {}).get('judgements') or []
-                 if recall_id(reading_key, judgement) == f'{reading_key}:{version}:{again}']
+                 if recall_id(reading_key, judgement) == f'{reading_key}:{version}:{again}'] if colon else [{}]
         if row is None or attempt is None or not found:
             return None
         judgement = found[-1]
@@ -1950,10 +2008,12 @@ class Readings:
             width, _, height = str(parsed.front.get('image_size', '')).partition('x')
             if width.isdigit() and height.isdigit():
                 size = [int(width), int(height)]
-        return Recalled(recall=recall_id(reading_key, judgement), reading_key=reading_key, reading_number=number,
-                        version=judgement.get('version'), version_state=judgement.get('version_state'),
-                        again=judgement.get('again') or 0, counts=judgement.get('counts', True),
-                        said=recall_said(judgement, number, attempt), reading=reading, raw=text,
+        said = (recall_said(judgement, number, attempt) if colon
+                else f"reading {number}{read_by(attempt)}, {'never served' if attempt.get('prototype') else 'read by the pipeline'}")
+        return Recalled(recall=recall_id(reading_key, judgement) if colon else reading_key, reading_key=reading_key,
+                        reading_number=number, version=judgement.get('version'), version_state=judgement.get('version_state'),
+                        again=judgement.get('again') or 0, counts=judgement.get('counts', True) if colon else False,
+                        said=said, reading=reading, raw=text,
                         why_not=None if text is not None else
                         f"reading {number}'s text is not on this machine: only the reading a page shows is exported",
                         page_findings=[finding for finding in findings if finding.block not in placed], image_size=size)

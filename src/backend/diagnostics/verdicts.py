@@ -14,7 +14,7 @@ import re
 from collections.abc import Callable
 from typing import Literal
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.conversion.checks import human_verdict
 from backend.conversion.judge import correction_proposal
@@ -36,11 +36,25 @@ class VerdictRequest(BaseModel):
     note: str | None = None  # required for the reason `other`
     correction: str | None = None  # the block's text as it should read (188.a), only with a block
     judge_assessment: str | None = None  # a key of the assessments' list
+    # the key of the judgement the page showed the person (#17), which the verdict answers; None where it showed none
+    answers_judgement: str | None = Field(default=None, max_length=128)
+
+
+class PromoteRequest(BaseModel):
+    """A person's promotion of a Lab reading to the page's reading (#18): the page, the reading by its key, the reason."""
+
+    knowledge_base: KnowledgeBase
+    work: str
+    pdf_page: int
+    reading_key: str = Field(max_length=128)
+    reason: str  # a key of the promotion reasons' list
+    note: str | None = None  # required for the reason `other`
 
 
 class Option(BaseModel):
     value: str
-    label: str
+    label: str  # the sentence
+    short: str | None = None  # its short label, for a compact column and the dialog's "short — sentence" (#18)
 
 
 class ExportStatus(BaseModel):
@@ -83,6 +97,7 @@ class VerdictForm(BaseModel):
     assessments: list[Option]
     exports: list[ExportStatus]
     propose: ProposeState = ProposeState(available=False, why_not=SWITCHED_OFF)
+    promote_reasons: list[Option] | None = None  # why a person promotes a Lab reading (#18)
 
 
 class VerdictGiven(BaseModel):
@@ -91,6 +106,13 @@ class VerdictGiven(BaseModel):
     verdict_id: int
     reading_key: str
     route_before: str | None = None
+    export: ExportStatus
+
+
+class PromoteGiven(BaseModel):
+    """A recorded promotion: the reading it promoted and the export it set going."""
+
+    reading_key: str
     export: ExportStatus
 
 
@@ -208,8 +230,12 @@ class VerdictService:
         return VerdictForm(
             enabled=self.enabled, why_not=None if self.enabled else SWITCHED_OFF,
             verdicts=[Option(value=verdict, label=verdict) for verdict in pipeline_db.HUMAN_VERDICTS],
-            reasons=[Option(value=key, label=label) for key, label in pipeline_db.HUMAN_REASONS.items()],
-            assessments=[Option(value=key, label=label) for key, label in pipeline_db.JUDGE_ASSESSMENTS.items()],
+            reasons=[Option(value=key, label=label, short=pipeline_db.HUMAN_REASON_SHORT.get(key))
+                     for key, label in pipeline_db.HUMAN_REASONS.items()],
+            assessments=[Option(value=key, label=label, short=pipeline_db.JUDGE_ASSESSMENT_SHORT.get(key))
+                         for key, label in pipeline_db.JUDGE_ASSESSMENTS.items()],
+            promote_reasons=[Option(value=key, label=label, short=pipeline_db.PROMOTE_REASON_SHORT.get(key))
+                             for key, label in pipeline_db.PROMOTE_REASONS.items()],
             exports=[ExportStatus(**queue.status(), waiting=waiting_in(name, self.bases[name])) for name, queue in self.queues.items()],
             propose=self.propose_state())
 
@@ -270,9 +296,27 @@ class VerdictService:
         made = human_verdict.from_view(reading_export.BASES[asked.knowledge_base], self.queues[asked.knowledge_base], row['work'],
                                        asked.pdf_page, asked.verdict, asked.reason, block=asked.block or None,
                                        note=asked.note or None, correction=asked.correction or None,
-                                       judge_assessment=asked.judge_assessment or None)
+                                       judge_assessment=asked.judge_assessment or None,
+                                       answers_judgement=asked.answers_judgement or None)
         return VerdictGiven(verdict_id=made['verdict_id'], reading_key=made['reading_key'], route_before=made.get('route_before'),
                             export=ExportStatus(**made['export']))
+
+    def promote(self, asked: PromoteRequest) -> PromoteGiven:
+        """Records a person's promotion of a Lab reading and asks for the export (#18). Raises HTTPException 403 when switched
+        off, 404 for a knowledge base or page not served here, and ValueError with the core's own sentence for anything but a
+        valid page/1 Lab reading of that page."""
+        if not self.enabled:
+            raise HTTPException(403, SWITCHED_OFF)
+        store = self.bases.get(asked.knowledge_base)
+        if store is None:
+            raise HTTPException(404, f'no knowledge base {asked.knowledge_base!r} is served here')
+        row = store.row(asked.work, asked.pdf_page)
+        if row is None:
+            raise HTTPException(404, f'{asked.work} has no page {asked.pdf_page} here')
+        made = human_verdict.promote_from_view(reading_export.BASES[asked.knowledge_base], self.queues[asked.knowledge_base],
+                                               row['work'], asked.pdf_page, asked.reading_key, asked.reason,
+                                               note=asked.note or None)
+        return PromoteGiven(reading_key=made.get('reading_key', asked.reading_key), export=ExportStatus(**made['export']))
 
     def preview(self, asked: PreviewRequest) -> TablePreview:
         if not self.enabled:

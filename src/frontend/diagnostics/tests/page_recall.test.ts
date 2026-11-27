@@ -5,7 +5,7 @@ import { getPage, getRecall } from '@/api/api_client'
 import { router } from '@/router'
 import PageView from '@/views/PageView.vue'
 import type { Judgement, PageDetail, Recalled } from '@/types/api/page_types'
-import { aBlock, aPageDetail, KELLY } from './page_fixture'
+import { KELLY, aBlock, aFormReading, aFormVerdict, aPageDetail, aPageForm } from './page_fixture'
 
 vi.mock('@/api/api_client', async importOriginal => ({
   ...await importOriginal<typeof import('@/api/api_client')>(),
@@ -32,6 +32,12 @@ function aPage(): PageDetail {
         aJudgement({}),
         aJudgement({ version: 'judge/3', version_state: 'prototype', counts: false, verdict: 'bad', findings: [VOID], recall: PROTOTYPE }),
       ] }],
+    // the same in the API's form (#18): judge/1 found nothing, so its show is greyed (decision 25); judge/3's shows its finding
+    form: aPageForm({ readings: [aFormReading({ key: KEY, verdicts: [
+      aFormVerdict({ recall: `${KEY}:judge/1:0` }),
+      aFormVerdict({ version: 'judge/3', version_said: 'prototype', verdict_said: 'bad · 1 finding: void', state: 'issue', standing: false,
+        recall: PROTOTYPE, show_why_not: null }),
+    ] })] }),
   })
 }
 
@@ -58,9 +64,10 @@ describe('PageView, a judgement recalled on the page (181.a)', () => {
     await flushPromises()
     expect(view.find('[data-part="recall-chip"]').exists()).toBe(false)
     expect(view.find('[data-part="analysis"]').classes()).not.toContain('overlay')
-    // every judgement row offers it, in the Reading History and in the Lab
-    expect(view.findAll('[data-part="recall"]')).toHaveLength(2)
-    await view.find('.lab tr.judgement [data-part="recall"]').trigger('click')
+    // a judgement row whose findings change what the page shows offers it; one that found nothing is greyed, saying why
+    expect(view.findAll('[data-part="page-form"] [data-part="recall"]')).toHaveLength(1)
+    expect(view.findAll('[data-part="page-form"] [data-part="show-off"]')).toHaveLength(1)
+    await view.find('[data-part="page-form"] [data-part="recall"]').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query.judgement).toBe(PROTOTYPE)
     expect(getRecall).toHaveBeenCalledWith('free', KELLY, 4, PROTOTYPE)
@@ -68,7 +75,7 @@ describe('PageView, a judgement recalled on the page (181.a)', () => {
     expect(view.find('[data-part="recall-chip"]').text()).toContain('Recalled: judge/3 (prototype) on reading 1, never served')
     expect(view.find('[data-part="analysis"]').classes()).toContain('overlay')
     expect(view.find('[data-part="analysis-recalled"]').text()).toContain('recalled, not the standing view')
-    expect(view.find('.lab tr.recalled-source [data-part="recalled-here"]').exists()).toBe(true)
+    expect(view.find('[data-part="page-form"] [data-part="recalled-here"]').exists()).toBe(true)
     expect(view.find('[data-block="b01"] [data-voice="code"]').exists()).toBe(true)
     // the quoted text is the standing view's: no choice of it while a judgement is recalled
     expect(view.findAll('.mode button').map(button => button.text())).toEqual(['readable', 'raw'])

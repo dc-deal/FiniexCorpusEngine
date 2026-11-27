@@ -652,6 +652,16 @@ def create_app(public_only: bool = False, warm_search: bool = False, librarian_c
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
 
+    @app.post('/api/verdict/promote', dependencies=[Depends(local_only.guarded)])
+    def promote_reading(asked: verdicts.PromoteRequest) -> verdicts.PromoteGiven:
+        """A person's promotion of a Lab reading to the page's reading (#18), behind the same switch and guard as a verdict:
+        recorded at once by the core, the export set going. 403 without --allow-verdicts or from elsewhere; 422 with the
+        core's sentence for anything but a valid page/1 Lab reading of that page."""
+        try:
+            return judged.promote(asked)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from error
+
     @app.post('/api/verdict/propose', dependencies=[Depends(local_only.guarded)])
     def propose_correction(asked: verdicts.ProposalRequest) -> verdicts.Proposal:
         """✦ propose (W2.a): a model's correction of one block, asked of the core with the judge's findings on it, kept by

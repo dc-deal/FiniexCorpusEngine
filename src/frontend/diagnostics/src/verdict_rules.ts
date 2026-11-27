@@ -46,7 +46,8 @@ export function canSend(draft: VerdictDraft): boolean {
  * The request the draft sends. A correction goes only with a block, and only where the person changed it from what the
  * field started with: an unchanged field would record the reader's own text, or a correction already given, again.
  */
-export function payloadOf(draft: VerdictDraft, prefill: string, knowledgeBase: KnowledgeBase, work: string, pdfPage: number): VerdictRequest {
+export function payloadOf(draft: VerdictDraft, prefill: string, knowledgeBase: KnowledgeBase, work: string, pdfPage: number,
+  answersJudgement: string | null = null): VerdictRequest {
   const corrected = correctionOffered(draft.block) && draft.correction.trim() !== '' && draft.correction !== prefill
   return {
     knowledge_base: knowledgeBase,
@@ -58,5 +59,7 @@ export function payloadOf(draft: VerdictDraft, prefill: string, knowledgeBase: K
     note: draft.note.trim() || null,
     correction: corrected ? draft.correction : null,
     judge_assessment: draft.judgeAssessment || null,
+    // the judgement the page showed the person (#17), which the verdict answers
+    answers_judgement: answersJudgement,
   }
 }

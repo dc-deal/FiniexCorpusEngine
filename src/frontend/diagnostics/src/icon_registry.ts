@@ -21,8 +21,10 @@ import {
   IconPlayerStop,
   IconQuote,
   IconRobot,
+  IconScale,
   IconSearch,
   IconShieldCheck,
+  IconUser,
   IconUserCheck,
   IconUserEdit,
   IconUserX,
@@ -80,6 +82,11 @@ export const ICONS = {
   'protected': IconShieldCheck,
   // a facet bar's search folded into its button (Y1.a), named for a screen reader
   'action-search': IconSearch,
+  // what a row of a page's form is (#18): a reading, a judge's verdict, a person's, or a review's on the operator's delegation
+  'kind-reading': IconFileText,
+  'kind-judge': IconScale,
+  'kind-person': IconUser,
+  'kind-review': IconRobot,
 } satisfies Record<string, Component>
 
 export type IconName = keyof typeof ICONS

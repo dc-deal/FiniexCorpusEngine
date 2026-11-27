@@ -23,9 +23,11 @@ def given(monkeypatch):
     was asked and asks the queue, as the core's does."""
     asked = []
 
-    def from_view(base, queue, work, pdf_page, verdict, reason, block=None, note=None, correction=None, judge_assessment=None):
+    def from_view(base, queue, work, pdf_page, verdict, reason, block=None, note=None, correction=None, judge_assessment=None,
+                  answers_judgement=None):
         asked.append({'base': base.name, 'work': work, 'pdf_page': pdf_page, 'verdict': verdict, 'reason': reason, 'block': block,
-                      'note': note, 'correction': correction, 'judge_assessment': judge_assessment})
+                      'note': note, 'correction': correction, 'judge_assessment': judge_assessment,
+                      **({'answers_judgement': answers_judgement} if answers_judgement else {})})
         if reason == 'other' and not note:
             raise ValueError('the reason other needs a note')
         return {'verdict_id': 41, 'reading_key': 'k' * 64, 'file': 'f.pdf', 'route_before': 'vision reading', 'export': queue.request()}
@@ -49,7 +51,11 @@ def test_the_form_offers_the_cores_lists_and_each_served_bases_export(given):
     form = client.get('/api/verdict').json()
     assert form['enabled'] is True and form['why_not'] is None
     assert [option['value'] for option in form['verdicts']] == ['accept', 'reject', 'note']
-    assert {'value': 'other', 'label': 'another reason, said in the note'} in form['reasons']
+    assert {'value': 'other', 'label': 'another reason, said in the note', 'short': 'other'} in form['reasons']
+    # each with its short label beside the sentence (#18), and the reasons a person promotes a Lab reading for
+    assert {'value': 'judge_false_alarm', 'short': 'false alarm'}.items() <= next(
+        option for option in form['reasons'] if option['value'] == 'judge_false_alarm').items()
+    assert [option['short'] for option in form['promote_reasons']] == ['better', 'served wrong', 'only one', 'other']
     assert 'false_alarm' in [option['value'] for option in form['assessments']]
     # under --public-only the free base alone, its export idle
     assert [(status['knowledge_base'], status['running'], status['finished']) for status in form['exports']] == [('free', False, 0)]

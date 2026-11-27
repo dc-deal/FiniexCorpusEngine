@@ -13,7 +13,8 @@ import type { IssueList, PageChunks, PageDetail, Recalled, WorkPages } from '@/t
 import type { RunDetail, RunList } from '@/types/api/runs_types'
 import type { Shelf } from '@/types/api/shelf_types'
 import type { KnowledgeBase, Work } from '@/types/api/source_types'
-import type { Proposal, ProposalRequest, TablePreview, VerdictForm, VerdictGiven, VerdictRequest } from '@/types/api/verdict_types'
+import type { PromoteGiven, PromoteRequest, Proposal, ProposalRequest, TablePreview, VerdictForm, VerdictGiven,
+  VerdictRequest } from '@/types/api/verdict_types'
 
 /** Same origin in the build; in development Vite forwards /api to the API process. */
 const http = axios.create({ baseURL: '/api' })
@@ -176,6 +177,12 @@ export async function getVerdictForm(): Promise<VerdictForm> {
 }
 
 /** A person's verdict on the reading a page shows: the one request here that writes, taken only from this machine. */
+/** A person's promotion of a Lab reading (#18), behind the same switch and guard as a verdict. */
+export async function promoteReading(asked: PromoteRequest): Promise<PromoteGiven> {
+  const response = await http.post<PromoteGiven>('/verdict/promote', asked)
+  return response.data
+}
+
 export async function giveVerdict(verdict: VerdictRequest): Promise<VerdictGiven> {
   const response = await http.post<VerdictGiven>('/verdict', verdict)
   return response.data

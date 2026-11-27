@@ -576,6 +576,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/verdict/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Reading
+         * @description A person's promotion of a Lab reading to the page's reading (#18), behind the same switch and guard as a verdict:
+         *     recorded at once by the core, the export set going. 403 without --allow-verdicts or from elsewhere; 422 with the
+         *     core's sentence for anything but a valid page/1 Lab reading of that page.
+         */
+        post: operations["promote_reading"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/verdict/propose": {
         parameters: {
             query?: never;
@@ -623,6 +645,54 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AgentPrompt
+         * @description A session's agent prompt by version and hash (#17); `derived` where the core tied it by the agent's own transcript.
+         */
+        AgentPrompt: {
+            /** Version */
+            version?: string | null;
+            /** Sha256 */
+            sha256?: string | null;
+            /** Derived */
+            derived?: string | boolean | null;
+        };
+        /**
+         * AnsweredJudgement
+         * @description The judgement a person's verdict answered (#17), by its version, model and date; `derived` where the core assigned
+         *     it by time rather than recorded it.
+         */
+        AnsweredJudgement: {
+            /** Version */
+            version?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Stored At */
+            stored_at?: string | null;
+            /**
+             * Derived
+             * @default false
+             */
+            derived: boolean;
+        };
+        /**
+         * AnsweredJudgementRef
+         * @description The judgement a person's verdict answered (#17): its key, version, model, mode, date and verdict.
+         */
+        AnsweredJudgementRef: {
+            /** Judgement Key */
+            judgement_key?: string | null;
+            /** Version */
+            version?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Mode */
+            mode?: string | null;
+            /** Stored At */
+            stored_at?: string | null;
+            /** Verdict */
+            verdict?: string | null;
+        };
         /** AnsweredPage */
         AnsweredPage: {
             /** Knowledge Base */
@@ -680,6 +750,10 @@ export interface components {
             reader_version?: string | null;
             /** Prototype */
             prototype?: boolean | null;
+            /** Test Reading */
+            test_reading?: boolean | null;
+            promoted?: components["schemas"]["Promotion"] | null;
+            agent_prompt?: components["schemas"]["AgentPrompt"] | null;
             /** Retry Of */
             retry_of?: string | null;
             /** Retry Of Number */
@@ -1564,6 +1638,136 @@ export interface components {
             /** Severity */
             severity?: string | null;
         };
+        /**
+         * FormReading
+         * @description One reading of the page, in the Readings or the Lab tab: time · model · cost · version · result · show.
+         */
+        FormReading: {
+            /**
+             * Kind Said
+             * @default reading
+             * @enum {string}
+             */
+            kind_said: "reading" | "judge" | "person" | "review";
+            /** Key */
+            key: string;
+            /** Time */
+            time: string;
+            /** Model */
+            model: string;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Version */
+            version?: string | null;
+            /**
+             * Result State
+             * @enum {string}
+             */
+            result_state: "ok" | "none" | "issue";
+            /** Result Said */
+            result_said: string;
+            /**
+             * Shown
+             * @default false
+             */
+            shown: boolean;
+            /**
+             * Test Reading
+             * @default false
+             */
+            test_reading: boolean;
+            /** Promoted Said */
+            promoted_said?: string | null;
+            /**
+             * Promotable
+             * @default false
+             */
+            promotable: boolean;
+            /** Recall */
+            recall?: string | null;
+            /**
+             * Verdicts
+             * @default []
+             */
+            verdicts: components["schemas"]["FormVerdict"][];
+            /**
+             * Hover
+             * @default []
+             */
+            hover: components["schemas"]["HoverRow"][];
+        };
+        /**
+         * FormRule
+         * @description A rule a judge proposed for the reader (202.a), read-only beneath its verdict, as `ReaderRuleList` shows it.
+         */
+        FormRule: {
+            /** Kind */
+            kind: string;
+            /** Block */
+            block?: string | null;
+            /** Rule */
+            rule?: string | null;
+            /** Block Class */
+            block_class?: string | null;
+            /** Attribute */
+            attribute?: string | null;
+            /** Value */
+            value?: string | null;
+        };
+        /**
+         * FormVerdict
+         * @description One verdict on a reading, in the reading's columns: time · model · cost · version · verdict · show.
+         */
+        FormVerdict: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "judge" | "person";
+            /**
+             * Kind Said
+             * @enum {string}
+             */
+            kind_said: "reading" | "judge" | "person" | "review";
+            /** Time */
+            time?: string | null;
+            /** Model */
+            model: string;
+            /** Cost Usd */
+            cost_usd?: number | null;
+            /** Version */
+            version?: string | null;
+            /** Version Said */
+            version_said?: string | null;
+            /** Verdict Said */
+            verdict_said: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "issue" | "note";
+            /**
+             * Standing
+             * @default false
+             */
+            standing: boolean;
+            /** Recall */
+            recall?: string | null;
+            /** Show Why Not */
+            show_why_not?: string | null;
+            /** Block */
+            block?: string | null;
+            /**
+             * Rules
+             * @default []
+             */
+            rules: components["schemas"]["FormRule"][];
+            /**
+             * Hover
+             * @default []
+             */
+            hover: components["schemas"]["HoverRow"][];
+        };
         /** FoundWork */
         FoundWork: {
             /** Rank */
@@ -1666,6 +1870,13 @@ export interface components {
             more_on_page_said?: string | null;
             /** Keywords Found */
             keywords_found?: string[] | null;
+        };
+        /** HoverRow */
+        HoverRow: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
         };
         /**
          * HtmlArticle
@@ -2016,6 +2227,11 @@ export interface components {
             counts: boolean;
             /** Recall */
             recall?: string | null;
+            /** Judgement Key */
+            judgement_key?: string | null;
+            /** Standing */
+            standing?: boolean | null;
+            agent_prompt?: components["schemas"]["AgentPrompt"] | null;
         };
         /**
          * Ladder
@@ -2257,6 +2473,8 @@ export interface components {
             value: string;
             /** Label */
             label: string;
+            /** Short */
+            short?: string | null;
         };
         /**
          * OutlineUnit
@@ -2418,12 +2636,30 @@ export interface components {
              * @default []
              */
             human: components["schemas"]["PersonVerdict"][];
+            form?: components["schemas"]["PageForm"] | null;
             /**
              * Read
              * @default true
              */
             read: boolean;
             ladder?: components["schemas"]["PageLadder"] | null;
+        };
+        /** PageForm */
+        PageForm: {
+            /** Shown Judgement */
+            shown_judgement?: string | null;
+            /** Readings Count */
+            readings_count: number;
+            /** Lab Count */
+            lab_count: number;
+            /** Verdicts Count */
+            verdicts_count: number;
+            /** Readings */
+            readings: components["schemas"]["FormReading"][];
+            /** Lab */
+            lab: components["schemas"]["FormReading"][];
+            /** Verdicts */
+            verdicts: components["schemas"]["VerdictRow"][];
         };
         /** PageImage */
         PageImage: {
@@ -2660,6 +2896,15 @@ export interface components {
              * @default true
              */
             by_a_person: boolean;
+            /** Standing */
+            standing?: boolean | null;
+            /** Reason Short */
+            reason_short?: string | null;
+            /** Judge Assessment Short */
+            judge_assessment_short?: string | null;
+            answers?: components["schemas"]["AnsweredJudgementRef"] | null;
+            /** Answers Derived */
+            answers_derived?: boolean | null;
         };
         /**
          * Prefill
@@ -2691,6 +2936,56 @@ export interface components {
             /** Text */
             text: string;
         };
+        /**
+         * PromoteGiven
+         * @description A recorded promotion: the reading it promoted and the export it set going.
+         */
+        PromoteGiven: {
+            /** Reading Key */
+            reading_key: string;
+            export: components["schemas"]["ExportStatus"];
+        };
+        /**
+         * PromoteRequest
+         * @description A person's promotion of a Lab reading to the page's reading (#18): the page, the reading by its key, the reason.
+         */
+        PromoteRequest: {
+            /**
+             * Knowledge Base
+             * @enum {string}
+             */
+            knowledge_base: "free" | "licensed";
+            /** Work */
+            work: string;
+            /** Pdf Page */
+            pdf_page: number;
+            /** Reading Key */
+            reading_key: string;
+            /** Reason */
+            reason: string;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * Promotion
+         * @description A person's promotion of a Lab reading to the page's reading (#18): which reading, why, by whom and when.
+         */
+        Promotion: {
+            /** Reading Key */
+            reading_key?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Reason Short */
+            reason_short?: string | null;
+            /** Reason Text */
+            reason_text?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Given By */
+            given_by?: string | null;
+            /** Given At */
+            given_at?: string | null;
+        };
         /** PromptFile */
         PromptFile: {
             /** Path */
@@ -2717,6 +3012,22 @@ export interface components {
             parts: components["schemas"]["PromptPart"][];
             /** Versions */
             versions: components["schemas"]["PromptVersion"][];
+        };
+        /**
+         * PromptOrigin
+         * @description Who wrote a version and when, where it came from and how that is known (#18, the registry's `origin`).
+         */
+        PromptOrigin: {
+            /** Author Kind */
+            author_kind?: string | null;
+            /** Author */
+            author?: string | null;
+            /** Written On */
+            written_on?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Evidence */
+            evidence?: string | null;
         };
         /**
          * PromptPart
@@ -2750,6 +3061,7 @@ export interface components {
             previous: string | null;
             /** Files */
             files: components["schemas"]["PromptFile"][];
+            origin?: components["schemas"]["PromptOrigin"] | null;
         };
         /**
          * Proposal
@@ -3589,6 +3901,8 @@ export interface components {
              *     }
              */
             propose: components["schemas"]["ProposeState"];
+            /** Promote Reasons */
+            promote_reasons?: components["schemas"]["Option"][] | null;
         };
         /**
          * VerdictGiven
@@ -3629,6 +3943,62 @@ export interface components {
             correction?: string | null;
             /** Judge Assessment */
             judge_assessment?: string | null;
+            /** Answers Judgement */
+            answers_judgement?: string | null;
+        };
+        /**
+         * VerdictRow
+         * @description One verdict on the page, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine.
+         */
+        VerdictRow: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "judge" | "person";
+            /**
+             * Kind Said
+             * @enum {string}
+             */
+            kind_said: "reading" | "judge" | "person" | "review";
+            /** Standing */
+            standing: boolean;
+            /**
+             * Standing Said
+             * @enum {string}
+             */
+            standing_said: "standing" | "history";
+            /** Time */
+            time?: string | null;
+            /** Verdict */
+            verdict: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "issue" | "note";
+            /** Reason */
+            reason?: string | null;
+            /** About */
+            about: string;
+            /**
+             * In Lab
+             * @default false
+             */
+            in_lab: boolean;
+            answered?: components["schemas"]["AnsweredJudgement"] | null;
+            /**
+             * Who
+             * @enum {string}
+             */
+            who: "person" | "review" | "machine";
+            /** Who Said */
+            who_said: string;
+            /**
+             * Hover
+             * @default []
+             */
+            hover: components["schemas"]["HoverRow"][];
         };
         /**
          * WaitingVerdict
@@ -4645,6 +5015,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VerdictGiven"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promote_reading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoteGiven"];
                 };
             };
             /** @description Validation Error */

@@ -1423,6 +1423,45 @@
         }
       }
     },
+    "/api/verdict/promote": {
+      "post": {
+        "summary": "Promote Reading",
+        "description": "A person's promotion of a Lab reading to the page's reading (#18), behind the same switch and guard as a verdict:\nrecorded at once by the core, the export set going. 403 without --allow-verdicts or from elsewhere; 422 with the\ncore's sentence for anything but a valid page/1 Lab reading of that page.",
+        "operationId": "promote_reading",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteGiven"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/verdict/propose": {
       "post": {
         "summary": "Propose Correction",
@@ -1504,6 +1543,167 @@
   },
   "components": {
     "schemas": {
+      "AgentPrompt": {
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "derived": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derived"
+          }
+        },
+        "type": "object",
+        "title": "AgentPrompt",
+        "description": "A session's agent prompt by version and hash (#17); `derived` where the core tied it by the agent's own transcript."
+      },
+      "AnsweredJudgement": {
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "stored_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stored At"
+          },
+          "derived": {
+            "type": "boolean",
+            "title": "Derived",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "AnsweredJudgement",
+        "description": "The judgement a person's verdict answered (#17), by its version, model and date; `derived` where the core assigned\nit by time rather than recorded it."
+      },
+      "AnsweredJudgementRef": {
+        "properties": {
+          "judgement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Judgement Key"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "stored_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stored At"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          }
+        },
+        "type": "object",
+        "title": "AnsweredJudgementRef",
+        "description": "The judgement a person's verdict answered (#17): its key, version, model, mode, date and verdict."
+      },
       "AnsweredPage": {
         "properties": {
           "knowledge_base": {
@@ -1711,6 +1911,37 @@
               }
             ],
             "title": "Prototype"
+          },
+          "test_reading": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Reading"
+          },
+          "promoted": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Promotion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agent_prompt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPrompt"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "retry_of": {
             "anyOf": [
@@ -4318,6 +4549,347 @@
         ],
         "title": "FindingsAt"
       },
+      "FormReading": {
+        "properties": {
+          "kind_said": {
+            "type": "string",
+            "enum": [
+              "reading",
+              "judge",
+              "person",
+              "review"
+            ],
+            "title": "Kind Said",
+            "default": "reading"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "result_state": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "none",
+              "issue"
+            ],
+            "title": "Result State"
+          },
+          "result_said": {
+            "type": "string",
+            "title": "Result Said"
+          },
+          "shown": {
+            "type": "boolean",
+            "title": "Shown",
+            "default": false
+          },
+          "test_reading": {
+            "type": "boolean",
+            "title": "Test Reading",
+            "default": false
+          },
+          "promoted_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promoted Said"
+          },
+          "promotable": {
+            "type": "boolean",
+            "title": "Promotable",
+            "default": false
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          },
+          "verdicts": {
+            "items": {
+              "$ref": "#/components/schemas/FormVerdict"
+            },
+            "type": "array",
+            "title": "Verdicts",
+            "default": []
+          },
+          "hover": {
+            "items": {
+              "$ref": "#/components/schemas/HoverRow"
+            },
+            "type": "array",
+            "title": "Hover",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "time",
+          "model",
+          "result_state",
+          "result_said"
+        ],
+        "title": "FormReading",
+        "description": "One reading of the page, in the Readings or the Lab tab: time · model · cost · version · result · show."
+      },
+      "FormRule": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "block": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "block_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Class"
+          },
+          "attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribute"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "FormRule",
+        "description": "A rule a judge proposed for the reader (202.a), read-only beneath its verdict, as `ReaderRuleList` shows it."
+      },
+      "FormVerdict": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "judge",
+              "person"
+            ],
+            "title": "Kind"
+          },
+          "kind_said": {
+            "type": "string",
+            "enum": [
+              "reading",
+              "judge",
+              "person",
+              "review"
+            ],
+            "title": "Kind Said"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "version_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Said"
+          },
+          "verdict_said": {
+            "type": "string",
+            "title": "Verdict Said"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "issue",
+              "note"
+            ],
+            "title": "State"
+          },
+          "standing": {
+            "type": "boolean",
+            "title": "Standing",
+            "default": false
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          },
+          "show_why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Why Not"
+          },
+          "block": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/FormRule"
+            },
+            "type": "array",
+            "title": "Rules",
+            "default": []
+          },
+          "hover": {
+            "items": {
+              "$ref": "#/components/schemas/HoverRow"
+            },
+            "type": "array",
+            "title": "Hover",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "kind_said",
+          "model",
+          "verdict_said",
+          "state"
+        ],
+        "title": "FormVerdict",
+        "description": "One verdict on a reading, in the reading's columns: time · model · cost · version · verdict · show."
+      },
       "FoundWork": {
         "properties": {
           "rank": {
@@ -4798,6 +5370,24 @@
           "rank"
         ],
         "title": "HitCard"
+      },
+      "HoverRow": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "HoverRow"
       },
       "HtmlArticle": {
         "properties": {
@@ -5865,6 +6455,38 @@
               }
             ],
             "title": "Recall"
+          },
+          "judgement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Judgement Key"
+          },
+          "standing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standing"
+          },
+          "agent_prompt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentPrompt"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6643,6 +7265,17 @@
           "label": {
             "type": "string",
             "title": "Label"
+          },
+          "short": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short"
           }
         },
         "type": "object",
@@ -7212,6 +7845,16 @@
             "title": "Human",
             "default": []
           },
+          "form": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PageForm"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "read": {
             "type": "boolean",
             "title": "Read",
@@ -7250,6 +7893,64 @@
           "chosen"
         ],
         "title": "PageDetail"
+      },
+      "PageForm": {
+        "properties": {
+          "shown_judgement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shown Judgement"
+          },
+          "readings_count": {
+            "type": "integer",
+            "title": "Readings Count"
+          },
+          "lab_count": {
+            "type": "integer",
+            "title": "Lab Count"
+          },
+          "verdicts_count": {
+            "type": "integer",
+            "title": "Verdicts Count"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/FormReading"
+            },
+            "type": "array",
+            "title": "Readings"
+          },
+          "lab": {
+            "items": {
+              "$ref": "#/components/schemas/FormReading"
+            },
+            "type": "array",
+            "title": "Lab"
+          },
+          "verdicts": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictRow"
+            },
+            "type": "array",
+            "title": "Verdicts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "readings_count",
+          "lab_count",
+          "verdicts_count",
+          "readings",
+          "lab",
+          "verdicts"
+        ],
+        "title": "PageForm"
       },
       "PageImage": {
         "properties": {
@@ -7987,6 +8688,60 @@
             "type": "boolean",
             "title": "By A Person",
             "default": true
+          },
+          "standing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standing"
+          },
+          "reason_short": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Short"
+          },
+          "judge_assessment_short": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Judge Assessment Short"
+          },
+          "answers": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnsweredJudgementRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answers_derived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answers Derived"
           }
         },
         "type": "object",
@@ -8064,6 +8819,158 @@
           "text"
         ],
         "title": "PreviewRequest"
+      },
+      "PromoteGiven": {
+        "properties": {
+          "reading_key": {
+            "type": "string",
+            "title": "Reading Key"
+          },
+          "export": {
+            "$ref": "#/components/schemas/ExportStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reading_key",
+          "export"
+        ],
+        "title": "PromoteGiven",
+        "description": "A recorded promotion: the reading it promoted and the export it set going."
+      },
+      "PromoteRequest": {
+        "properties": {
+          "knowledge_base": {
+            "type": "string",
+            "enum": [
+              "free",
+              "licensed"
+            ],
+            "title": "Knowledge Base"
+          },
+          "work": {
+            "type": "string",
+            "title": "Work"
+          },
+          "pdf_page": {
+            "type": "integer",
+            "title": "Pdf Page"
+          },
+          "reading_key": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Reading Key"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "knowledge_base",
+          "work",
+          "pdf_page",
+          "reading_key",
+          "reason"
+        ],
+        "title": "PromoteRequest",
+        "description": "A person's promotion of a Lab reading to the page's reading (#18): the page, the reading by its key, the reason."
+      },
+      "Promotion": {
+        "properties": {
+          "reading_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Key"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reason_short": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Short"
+          },
+          "reason_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Text"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "given_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Given By"
+          },
+          "given_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Given At"
+          }
+        },
+        "type": "object",
+        "title": "Promotion",
+        "description": "A person's promotion of a Lab reading to the page's reading (#18): which reading, why, by whom and when."
       },
       "PromptFile": {
         "properties": {
@@ -8161,6 +9068,68 @@
           "versions"
         ],
         "title": "PromptList"
+      },
+      "PromptOrigin": {
+        "properties": {
+          "author_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Kind"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "written_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written On"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          }
+        },
+        "type": "object",
+        "title": "PromptOrigin",
+        "description": "Who wrote a version and when, where it came from and how that is known (#18, the registry's `origin`)."
       },
       "PromptPart": {
         "properties": {
@@ -8268,6 +9237,16 @@
             },
             "type": "array",
             "title": "Files"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromptOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10739,6 +11718,20 @@
               "available": false,
               "why_not": "Verdicts are given here only when the app was started with --allow-verdicts; it is read-only now."
             }
+          },
+          "promote_reasons": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Option"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promote Reasons"
           }
         },
         "type": "object",
@@ -10855,6 +11848,18 @@
               }
             ],
             "title": "Judge Assessment"
+          },
+          "answers_judgement": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answers Judgement"
           }
         },
         "type": "object",
@@ -10867,6 +11872,129 @@
         ],
         "title": "VerdictRequest",
         "description": "A verdict on the reading a page shows: the page by its work's id and PDF page, as the views address it."
+      },
+      "VerdictRow": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "judge",
+              "person"
+            ],
+            "title": "Kind"
+          },
+          "kind_said": {
+            "type": "string",
+            "enum": [
+              "reading",
+              "judge",
+              "person",
+              "review"
+            ],
+            "title": "Kind Said"
+          },
+          "standing": {
+            "type": "boolean",
+            "title": "Standing"
+          },
+          "standing_said": {
+            "type": "string",
+            "enum": [
+              "standing",
+              "history"
+            ],
+            "title": "Standing Said"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "issue",
+              "note"
+            ],
+            "title": "State"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "about": {
+            "type": "string",
+            "title": "About"
+          },
+          "in_lab": {
+            "type": "boolean",
+            "title": "In Lab",
+            "default": false
+          },
+          "answered": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnsweredJudgement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "who": {
+            "type": "string",
+            "enum": [
+              "person",
+              "review",
+              "machine"
+            ],
+            "title": "Who"
+          },
+          "who_said": {
+            "type": "string",
+            "title": "Who Said"
+          },
+          "hover": {
+            "items": {
+              "$ref": "#/components/schemas/HoverRow"
+            },
+            "type": "array",
+            "title": "Hover",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "kind_said",
+          "standing",
+          "standing_said",
+          "verdict",
+          "state",
+          "about",
+          "who",
+          "who_said"
+        ],
+        "title": "VerdictRow",
+        "description": "One verdict on the page, in the Verdicts tab: standing · time · verdict · reason · about · judge · person or machine."
       },
       "WaitingVerdict": {
         "properties": {

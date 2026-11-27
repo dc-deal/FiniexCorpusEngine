@@ -1127,3 +1127,21 @@ The record of how the diagnostics frontend came about, mistakes included.
   coverage, the generation, the passages counted, the catalog's match, the kept editions' reasons, the contents' other matches),
   and per_page false showing none of the per-page words. Over the real index, the ladder's reasons for every unranked page: "a
   table of contents" where the fallback stood before, which no page gives any more.
+- **A page's form, #18** (27 Nov). `page_form.py` builds `PageForm` (readings, lab, verdicts, their counts; each row's kind,
+  result, verdict words, recall, `show_why_not` and card rows) from the parsed attempts and people by their fields alone, so it
+  needs no import of `readings`; `PageDetail.form` carries it. `PageForm.vue` replaces the Reading History and Lab folds and
+  their helpers in `PageView` (`readingOf`, the history's and the Lab's words, their CSS). `recall()` takes a reading key
+  alone. `VerdictRequest.answers_judgement`, `Option.short`, `VerdictForm.promote_reasons`, `POST /api/verdict/promote`;
+  `PromptVersion.origin`, read from `page_judge.prompt_origins()`. What went wrong on the way: the generated types made every
+  new field with a default required, which broke every fixture written before, so the new optional fields default to None; a
+  judgement's state followed its verdict word, so an ok with a minor finding showed in the error role, now its outcome; the Lab
+  said "counts" until the core's export set `counts` false there, after which `judge_role` reads `counts` alone; the recall's
+  head called a test reading a prototype (`read_by`); a reading no judge had judged could not be shown until every reading row
+  had its own show; decision 25 first counted only findings that were not void, so judge/2 on finance p. 5, whose one finding
+  is void, came out greyed, though its recall draws that finding beneath b12: the browser check found it, and a void finding
+  now counts. Main's unpushed history was rewritten under the worktree mid-phase (line 1); `git reset --mixed main`, and the
+  core's nine files taken from main, none of them line 2's. The tests left the old folds: six tests of the history and Lab
+  and three of the readings over time went, replaced by `page_form.test.ts`; the browser checks read the API's form. The full
+  browser run found two more: the prompts check counted no tab for the versions without text (now it does), and the runs table
+  ran 35 px past its box at 800 px, not from #18 but from today's data: a free run's command held a work's key of 62
+  characters with no place to break, so `.command` takes `overflow-wrap: anywhere` in the runs view and in the overview.

@@ -758,6 +758,7 @@ what (the operator on finance p. 5, b12):** each part of a finding is named: "Th
 evidence:" before the judge's own words. Nothing in the reading changes when a finding is void. A person's verdict stands
 as its own line, "A person: accept · the reason · tag ...". **Measured:** finance p. 5 shows judge/1 counting in its
 history, judge/1 asked again and judge/2 and judge/3 in the Lab; 205 unit tests, 34 checks in the browser (one skipped).
+**→ now (#18):** both replaced by the page's form, three tabs (Readings, Lab, Verdicts); see the end of this chapter.
 
 **A work's routes in a table, done** (the operator, 10 Nov: "is this route a faulty one?"). The route chips gave way to a
 table, one row per route: its level as the export gives it (checked, noted or fallback, `route_level`), its source (vision
@@ -2050,3 +2051,32 @@ neighbouring field that passes the floor on meaning alone. The head names the in
 catalog how its query matched. A page's ladder names a table of contents in a work's front as the reason the ranking leaves it
 out, in the core's words, where it said "left out of the ranking" before: on today's data that is every such page. 407 unit
 tests, 95 checks in the browser (3 skipped on today's data), 1,720 Python tests.
+
+**A page's readings and verdicts in one form (#18, 27 Nov, the operator's design).** The Reading History and the Lab, two
+folds with lines and columns of their own, are replaced by one form beneath the record: three tabs, Readings, Lab and
+Verdicts, each with its count, the tabs the prompts view's own. Readings and Lab show one row per reading (kind · time · model
+· cost · version · result · show), and a row folds open to its verdicts in the same columns, a judge's and a person's alike:
+always a reading, then its verdicts, and the difference between the pipeline and the Lab is one flag. Each row says what it is
+in front, a glyph and a word ("reading", "judge", "person"), since by indentation alone a reading and a judge were hard to tell
+apart. Verdicts lists every verdict on the page in time order, the standing ones "● standing", the rest "○ history", a
+person's naming the judgement it answered. A reading's bookkeeping (its key, the reader's attempt, its cell, its purpose, why
+it was chosen, its format check, an agent's prompt) stands in the row's card under the pointer, never in a column. The form is
+the API's (`PageDetail.form`, built by `page_form.py` from the attempts and the people's verdicts): every word, count and state
+is a field. Every reading row has its own "show", the reading alone on the page (a recall by its key,
+`?judgement=<reading key>`), so a Lab reading no judge has judged can be looked at; a test reading's chip says it is one.
+**Decision 25:** a judgement's "show" is active only where it changes what the analysis shows, a judgement with findings (a
+void one included, drawn beneath its block); where it would change nothing it keeps its place, greyed and disabled, its card
+saying why in the operator's words ("no difference: this judgement found nothing; use show on its reading"). A person's
+verdict sent from the page names the judgement it answers (`answers_judgement`), and the dialog's reasons and assessments read
+"short — sentence". A `page/1` Lab reading can be promoted from the page, behind `--allow-verdicts` alone (`POST
+/api/verdict/promote`, the core's `promote_from_view`), and then stands among the readings, "promoted from the Lab: <reason>".
+The prompts tab names each version's origin (written by, written on, source, evidence, from the core's registry), and a
+version whose text nobody holds stands with the rest, saying "no text". **Measured:** Python tests of the form from invented
+attempts (its counts, kinds, cards, Lab and verdicts in time order, the results and decision 25, a promoted reading; the promote
+route refused while verdicts are off, recorded while on, 422 for a reading it cannot promote); unit tests of the tabs, folds,
+kinds, cards, the greyed show and the Verdicts tab; browser checks held to the API's form on finance p. 5 (every verdict
+beneath its reading in its words, the standing marks, a reading's card row for row, a judgement and another reading recalled
+and back), and two new ones, each ending on its own failing case: the tabs and a reading's fold clicked again and again stay
+within a pixel (the picked tab made wider, a moment, and the check sees the next one move), and the greyed show keeps an active
+show's box and column and shows its card (hidden, a moment, and the check finds no box). 409 unit tests, 97 checks
+in the browser (2 skipped on today's data), 1,774 Python tests.

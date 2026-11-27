@@ -300,12 +300,17 @@ a.tile:hover {
   vertical-align: top;
 }
 
-/* one line a run: the number, the time and the cost never wrap; the command wraps only where it must */
+/* one line a run: the number, the time and the cost never wrap; the command wraps only where it must, a word longer than
+   its column (a work's key) too */
 .run-id,
 .when,
 .run-rows .cost {
   white-space: nowrap;
   color: var(--color-text-secondary);
+}
+
+.command {
+  overflow-wrap: anywhere;
 }
 
 /* a run's number opens its own page */
