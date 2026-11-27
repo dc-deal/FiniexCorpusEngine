@@ -305,13 +305,19 @@ def readings_of(cell_names, store: Store) -> list[dict]:
     replicate, batch mode), never by the cell label a record carries: a page another cell bought first under the same question
     is the same reading, and the submit skipped it as already read. Selecting by label left 7 pages out (review, 2026-11-03)."""
     wanted = []
+    labelled = {name for name in cell_names if reading_cells.is_test_cell(name)}  # imported test readings (#17): by their label
     for name in cell_names:
+        if name in labelled:
+            continue
         cell = reading_cells.known_cells()[name]
         system_sha = reader_requests.sha256_text(reader_requests.system_prompt(cell.form, cell.reader_version))
         wanted.append((cell, system_sha, {(page['file'], page['pdf_page']) for page in reading_cells.pages_for(cell)}))
     found = []
     for record in store.readings():
         if record.get('kind', 'reading') != 'reading':
+            continue
+        if record.get('cell') in labelled:
+            found.append(record)
             continue
         if any((record['file'], record['pdf_page']) in pages and record.get('model') == cell.model and record.get('form') == cell.form
                and record.get('system_sha256') == system_sha and record.get('max_tokens') == cell.max_tokens

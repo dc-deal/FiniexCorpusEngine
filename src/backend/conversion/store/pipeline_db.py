@@ -113,6 +113,23 @@ CREATE TRIGGER IF NOT EXISTS page_resets_no_update BEFORE UPDATE ON page_resets
     BEGIN SELECT RAISE(ABORT, 'page_resets is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS page_resets_no_delete BEFORE DELETE ON page_resets
     BEGIN SELECT RAISE(ABORT, 'page_resets is append-only'); END;
+CREATE TABLE IF NOT EXISTS promotions (
+    promotion_id INTEGER PRIMARY KEY,
+    knowledge_base TEXT NOT NULL,
+    file TEXT NOT NULL,
+    pdf_page INTEGER NOT NULL,
+    reading_key TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    note TEXT,
+    given_by TEXT NOT NULL,
+    given_at TEXT NOT NULL,
+    run_id INTEGER REFERENCES runs (run_id)
+);
+CREATE INDEX IF NOT EXISTS promotions_by_page ON promotions (file, pdf_page, promotion_id);
+CREATE TRIGGER IF NOT EXISTS promotions_no_update BEFORE UPDATE ON promotions
+    BEGIN SELECT RAISE(ABORT, 'promotions is append-only: promote again instead'); END;
+CREATE TRIGGER IF NOT EXISTS promotions_no_delete BEFORE DELETE ON promotions
+    BEGIN SELECT RAISE(ABORT, 'promotions is append-only'); END;
 """
 # What a person may give (decision 146.a): accept, the reading is right and a finding of the judge is not; reject, the reading is
 # wrong and the page serves its text layer; note, a remark that changes nothing. A reason from this list; `other` needs a note.
@@ -136,7 +153,26 @@ JUDGE_ASSESSMENTS = {
     'false_alarm': 'the judge reported an error that is not there',
     'missed': 'the judge passed an error that is there',
 }
-ADDED_COLUMNS = {'human_verdicts': ('correction TEXT', 'judge_assessment TEXT')}  # columns a database made before them lacks
+# A short label beside each sentence (#18, the operator, 27 Nov: "muss aber kurzform sein"), for a compact column and the
+# dialog's choice alike; the code stays the key, the sentence the explanation.
+HUMAN_REASON_SHORT = {
+    'judge_contradicts_itself': 'contradicts itself', 'judge_misread_name': 'name misread',
+    'finding_on_unquoted_block': 'unquoted block', 'judge_false_alarm': 'false alarm', 'reading_wrong': 'reading wrong',
+    'not_worth_reading': 'nothing to quote', 'other': 'other',
+}
+JUDGE_ASSESSMENT_SHORT = {'right': 'right', 'right_for_a_wrong_reason': 'right, wrong reason', 'false_alarm': 'false alarm',
+                          'missed': 'missed'}
+# Why a person makes a Lab reading the page's reading (#17, the operator's 12, 27 Nov: "man muss begründen"). The code is the
+# key, the short label the column, the sentence the explanation; `other` needs a note.
+PROMOTE_REASONS = {
+    'better': 'it reads the page better than the reading served now',
+    'served_wrong': 'the reading served now is wrong, and this one is right',
+    'only_one': 'no other reading of the page can be served',
+    'other': 'another reason, said in the note',
+}
+PROMOTE_REASON_SHORT = {'better': 'better', 'served_wrong': 'served wrong', 'only_one': 'only one', 'other': 'other'}
+# columns a database made before them lacks; `answers_judgement` (#17): the key of the judge's record the person answered
+ADDED_COLUMNS = {'human_verdicts': ('correction TEXT', 'judge_assessment TEXT', 'answers_judgement TEXT')}
 PROVIDERS = ('anthropic', 'openrouter')
 
 
@@ -279,9 +315,11 @@ def history(knowledge_base: str, file: str, pdf_page: int, path: Path | None = N
 
 def give_verdict(knowledge_base: str, file: str, pdf_page: int, reading_key: str, verdict: str, reason: str, given_by: str,
                  block: str | None = None, tag: str | None = None, note: str | None = None, run_id: int | None = None,
-                 path: Path | None = None, correction: str | None = None, judge_assessment: str | None = None) -> int:
+                 path: Path | None = None, correction: str | None = None, judge_assessment: str | None = None,
+                 answers_judgement: str | None = None) -> int:
     """Append a person's verdict on one reading of a page (decision 146.a); earlier verdicts stay as the page's history. A
-    correction is the block's text as the person says it reads, beside the reading, never in it (188.a).
+    correction is the block's text as the person says it reads, beside the reading, never in it (188.a). `answers_judgement`
+    is the key of the judge's record the person had before them (#17); without it the export assigns the one that stood then.
 
     Raises:
         ValueError: For a verdict, reason or assessment outside the lists, `other` without a note, or a correction without
@@ -301,9 +339,10 @@ def give_verdict(knowledge_base: str, file: str, pdf_page: int, reading_key: str
         raise ValueError('a correction is the text the block should read, never empty')
     with closing(connect(knowledge_base, path)) as db, db:
         cursor = db.execute('INSERT INTO human_verdicts (knowledge_base, file, pdf_page, reading_key, block, verdict, reason, tag, note, '
-                            'given_by, given_at, run_id, correction, judge_assessment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            'given_by, given_at, run_id, correction, judge_assessment, answers_judgement) '
+                            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             (knowledge_base, file, pdf_page, reading_key, block, verdict, reason, tag, note, given_by, precise_now(),
-                             run_id, correction, judge_assessment))
+                             run_id, correction, judge_assessment, answers_judgement))
         return cursor.lastrowid
 
 
@@ -349,6 +388,42 @@ def page_resets(knowledge_base: str, path: Path | None = None) -> dict[tuple[str
     return found
 
 
+def give_promotion(knowledge_base: str, file: str, pdf_page: int, reading_key: str, reason: str, given_by: str,
+                   note: str | None = None, run_id: int | None = None, path: Path | None = None) -> int:
+    """Append a person's promotion of a Lab reading to the page's reading (#17): the export pins it as it pins a reading a
+    person accepted, and the page is protected. Whether the reading may be promoted (a Lab reading of that page, valid under
+    today's validator) is the caller's to check against the store (`human_verdict.promote`); this keeps the record.
+
+    Raises:
+        ValueError: For a reason outside the list, `other` without a note, or a giver who is no person (a session on the
+            operator's delegation never promotes).
+    """
+    if reason not in PROMOTE_REASONS:
+        raise ValueError(f'a reason is one of {sorted(PROMOTE_REASONS)}, not {reason!r}')
+    if reason == 'other' and not (note or '').strip():
+        raise ValueError('the reason other needs a note that says it')
+    if not by_a_person(given_by):
+        raise ValueError('only a person promotes a Lab reading, never a session on the operator\'s delegation')
+    with closing(connect(knowledge_base, path)) as db, db:
+        cursor = db.execute('INSERT INTO promotions (knowledge_base, file, pdf_page, reading_key, reason, note, given_by, given_at, '
+                            'run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            (knowledge_base, file, pdf_page, reading_key, reason, note, given_by, precise_now(), run_id))
+        return cursor.lastrowid
+
+
+def promotions(knowledge_base: str, path: Path | None = None) -> dict[tuple[str, int], list[dict]]:
+    """Every promotion per page, oldest first; empty where the database does not exist yet."""
+    target = Path(path or PATHS[knowledge_base])
+    if not target.exists():
+        return {}
+    with closing(connect(knowledge_base, target)) as db:
+        rows = db.execute('SELECT * FROM promotions ORDER BY promotion_id').fetchall()
+    found: dict[tuple[str, int], list[dict]] = {}
+    for row in rows:
+        found.setdefault((row['file'], row['pdf_page']), []).append(dict(row))
+    return found
+
+
 def since_last_reset(verdicts: list[dict], resets: list[dict]) -> list[dict]:
     """A page's verdicts given after its latest reset: the ones that still count (the rest are archived)."""
     cut = resets[-1]['given_at'] if resets else ''
@@ -369,13 +444,17 @@ def protected_pages(knowledge_base: str, path: Path | None = None) -> dict[tuple
     """(file, PDF page) -> the latest verdict of a person that still counts: a page a person checked is not read again
     without a reason (decision 191.a, the operator: "pages a human corrected … are valuable, a human has looked them over").
     Only a person's verdict protects (the operator, 18 Nov: a person who signs takes the responsibility, as with a contract);
-    a session's verdict on the operator's delegation does not."""
+    a session's verdict on the operator's delegation does not. A promotion of a Lab reading is a person's act too (#17), so
+    it protects as a verdict does; of the two, the later stands, and a promotion reads as the verdict `promote`."""
     verdicts, resets = human_verdicts(knowledge_base, path), page_resets(knowledge_base, path)
+    promoted = promotions(knowledge_base, path)
     found = {}
-    for page, given in verdicts.items():
-        standing = [verdict for verdict in since_last_reset(given, resets.get(page, [])) if by_a_person(verdict['given_by'])]
-        if standing:
-            found[page] = standing[-1]
+    for page in set(verdicts) | set(promoted):
+        acts = [verdict for verdict in since_last_reset(verdicts.get(page, []), resets.get(page, []))
+                if by_a_person(verdict['given_by'])]
+        acts += [{**promotion, 'verdict': 'promote'} for promotion in since_last_reset(promoted.get(page, []), resets.get(page, []))]
+        if acts:
+            found[page] = max(acts, key=lambda act: act['given_at'])
     return found
 
 

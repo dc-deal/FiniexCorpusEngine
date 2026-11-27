@@ -32,6 +32,10 @@
   "prompts/page_classes_check.txt": "6c204042bb3e358e7249e671be4aee8c3da9935117225b135dfca53efbdb0b29",
   "prompts/correction_page1.txt": "e1cff8c504a41dce4c48c1bd74cfe3ef7955d8a9caa08893a8036a776908159e",
   "prompts/correction_page2.txt": "808e265ad1d15d8f07e939eb0396d1f561bc007b839edd38cd2ccb5fe5eee98a",
+  "prompts/local_paddleocr_vl_ocr.txt": "d715a33c90db45b3c55e06be0210b87cbc9d97c0b84dc5d30edc331f8e65e2ff",
+  "prompts/local_glm_ocr_text.txt": "77e8207573e1b8ba857d25db3a5080ae8651d6ddc2ea79007af5ca7958b80017",
+  "prompts/agent_reader_session.txt": "7544eba9a2eb0cc32dbfa676f7b6b26b570af32a14b3223b2eff530254bff8d4",
+  "prompts/agent_judge_session.txt": "6f0aa6279cab6f52dac782741c6b7311cd426b88a6a53882d935e8ba1c1e5d8f",
   "contract/contract_vocab.json": "e4bbfb9422429a2c0629e556ab20487a3b3f80aaef69e1341ef855eb8b4fbd89",
   "contract/page_contract.py": "f8c736e115a08e5fcd969e16d792ce54b3e18abfa74bfbf420cc0d854d4c44cf"
  }

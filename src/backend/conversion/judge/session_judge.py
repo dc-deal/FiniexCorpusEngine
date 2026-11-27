@@ -27,6 +27,7 @@ from pathlib import Path
 
 from backend.conversion.checks import check_flow, check_run
 from backend.conversion.judge import page_judge
+from backend.conversion.reading import agent_prompts as agent_prompts_module
 from backend.conversion.reading import reader_requests, reading_cells, vision_batches
 from backend.conversion.store.reading_store import open_store
 
@@ -88,7 +89,11 @@ ENTRIES = '_entries'  # the requests themselves, beside the agent's folders, nev
 def folder_name(entry: dict, calibration: bool = False) -> str:
     """A page's folder by its work and page; a calibration request's by its key alone, so neither the name nor the order says
     which copies carry a planted error (judge/1's plan lists the clean readings first)."""
-    return f'cal_{session_key(entry)[:10]}' if calibration else f"{entry['work']}__p{entry['pdf_page']:04d}"
+    if calibration:
+        return f'cal_{session_key(entry)[:10]}'
+    # test readings of one page by several models are judged side by side (#17): their cell keeps their folders apart
+    lab = f"{entry['target_cell']}__" if entry.get('target_cell') else ''
+    return f"{lab}{entry['work']}__p{entry['pdf_page']:04d}"
 
 
 def write_folder(root: Path, entry: dict, store, calibration: bool = False, again: int = 0) -> Path | None:
@@ -122,6 +127,31 @@ def write_instructions(root: Path, version: str) -> None:
         page_judge.system_prompt(version) + '\n\nAnswer with one JSON object only, matching `verdict_schema.json` beside this file, '
         'written to `verdict.json` in the page\'s folder.\n', encoding='utf-8')
     (root / 'verdict_schema.json').write_text(json.dumps(page_judge.schema_of(version), indent=1) + '\n', encoding='utf-8')
+
+
+AGENT_VERSION = 'judge-agent/1'  # the judge agent's prompt, rendered by code (#17, 22.a)
+PER_AGENT = 30  # folders per agent: two agents of 30 pages judged a scanned work on 19 Nov
+AGENT_PROMPT = 'agent_prompt'  # the field of a request, and so of its verdict, that names the agent's prompt
+
+
+def agent_prompts(root: Path, folders: list[Path], store, label: str, per_agent: int = PER_AGENT, notes: str = '') -> list[Path]:
+    """One rendered judge agent prompt per group of folders, written beside them (`agent_<label>_NN.prompt.md`) for the session
+    to hand to one agent each, verbatim; the prompt is kept in the store, and every request of the group records its version,
+    details and sha256, so the verdict it gets names the prompt that asked for it."""
+    written = []
+    for number, start in enumerate(range(0, len(folders), per_agent), start=1):
+        group = folders[start:start + per_agent]
+        text, recorded = agent_prompts_module.kept(store, AGENT_VERSION, base_folder=str(root),
+                                                   folders=', '.join(f'`{folder.name}`' for folder in group), notes=notes)
+        path = root / f'agent_{label}_{number:02d}.prompt.md'
+        path.write_text(text, encoding='utf-8', newline='\n')
+        written.append(path)
+        for folder in group:
+            kept = root / ENTRIES / f'{folder.name}.json'
+            entry = json.loads(kept.read_text(encoding='utf-8'))
+            entry[AGENT_PROMPT] = {**recorded, 'file': path.name}
+            kept.write_text(json.dumps(entry, indent=1) + '\n', encoding='utf-8')
+    return written
 
 
 def stopped_works(root: Path) -> set[str]:
@@ -160,7 +190,10 @@ def prepare(args) -> list[str]:
             folder = write_folder(root, entry, store)
             if folder is not None:
                 made.append(str(folder))
-    print(f"chunk {args.chunk} of {args.chunks}: {len(made)} folders in {root}{f', never judged here: {dict(refused)}' if refused else ''}")
+    prompts = agent_prompts(root, [Path(folder) for folder in made], store, f"{'_'.join(cells)}_c{args.chunk:02d}",
+                            getattr(args, 'per_agent', PER_AGENT))
+    print(f"chunk {args.chunk} of {args.chunks}: {len(made)} folders in {root}{f', never judged here: {dict(refused)}' if refused else ''}"
+          f"; {len(prompts)} agent prompts ({AGENT_VERSION}): {', '.join(path.name for path in prompts)}")
     return made
 
 
@@ -305,7 +338,8 @@ def record_for(entry: dict, text: str) -> dict:
     record.update(kind='judge', request_key=entry['request_key'], adapter=ADAPTER, provider=PROVIDER,
                   stored_at=vision_batches.now(), sdk='claude-code session', result_type='succeeded', error_type=None,
                   error_message=None, stop_reason='end_turn', usage={}, cost_usd=0.0, result_class=result_class, verdict=verdict,
-                  text_sha256=reader_requests.sha256_text(text), text_chars=len(text))
+                  text_sha256=reader_requests.sha256_text(text), text_chars=len(text),
+                  **({AGENT_PROMPT: entry[AGENT_PROMPT]} if entry.get(AGENT_PROMPT) else {}))  # 22.a: the agent's prompt
     return record
 
 
@@ -398,6 +432,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepared.add_argument('--cells', required=True)
     prepared.add_argument('--chunk', type=int, required=True)
     prepared.add_argument('--chunks', type=int, default=6)
+    prepared.add_argument('--per-agent', type=int, default=PER_AGENT, help='folders per agent prompt (judge-agent/1)')
     commands.add_parser('calibrate', help="the active judge's calibration set, as folders")
     stored = commands.add_parser('store', help='store the answered folders')
     stored.add_argument('--knowledge-base', choices=('free', 'licensed'), required=True)

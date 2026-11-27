@@ -172,7 +172,11 @@ def _cells(args) -> list[str]:
 
 
 def plan(args) -> dict:
+    from backend.conversion.reading import reading_cells
+
     cells = _cells(args)
+    if any(reading_cells.is_test_cell(name) for name in cells):  # its plan keeps one reading per page and feeds the sample
+        raise SystemExit('test cells are planned by `local_reader judge-plan`, one cell at a time, never here')
     store = store_of(cells)
     records = latest_per_page(vision_batches.readings_of(cells, store),
                               valid=lambda record: vision_batches.current_class(record, store) == 'ok')  # 174.a
@@ -265,7 +269,12 @@ def judgements_by_target(store) -> dict[str, list[dict]]:
                 # a version that proposes rules for the reader (197.a), shown read-only beside its findings (202.a); '' is not set
                 'reader_rules': [{key: rule.get(key, '') for key in ('kind', 'block', 'rule', 'class', 'attribute', 'value')}
                                  for rule in record['verdict'].get('reader_rules') or []],
-                'cost_usd': record.get('cost_usd'), 'counts': verdicts_counted(record) is not None})
+                'cost_usd': record.get('cost_usd'), 'counts': verdicts_counted(record) is not None,
+                # its own key, which a person's verdict names as the judgement it answered, and the prompt that started its
+                # session agent, where one did (#17, 22.a)
+                'judgement_key': record.get('reading_key'),
+                **({'agent_prompt': {key: record['agent_prompt'][key] for key in ('version', 'sha256')}}
+                   if record.get('agent_prompt') else {})})
     return found
 
 

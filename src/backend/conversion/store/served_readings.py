@@ -79,6 +79,8 @@ def text_layer_why(row: dict | None) -> str | None:
         return 'rejected' if by_a_person(person) else 'rejected_by_review'
     if person is not None and row['class_now'] == 'ok':
         return None  # accepted by a person, over the judge's finding
+    if row.get('promoted') and row['class_now'] == 'ok':
+        return None  # a Lab reading a person promoted (#17): their act, over the judge's finding, as an accept
     if not row.get('check') and row['class_now'] == 'ok':
         return 'unchecked'  # no check reached this reading: never served as if it had passed (found 9 Nov)
     state = (row.get('check') or {}).get('state')
@@ -95,6 +97,11 @@ def route_of(row: dict | None) -> str:
     """The route a free PDF page's text comes by, from its row in corpus/readings/index.json: the same string a hit carries."""
     why = text_layer_why(row)
     person = human_standing(row)
+    if why is None and person is None and row.get('promoted'):  # a person promoted this Lab reading (#17): the route says so
+        promoted = row['promoted']
+        reason = promoted['note'] if promoted.get('reason') == 'other' and promoted.get('note') else promoted['reason_text']
+        return (f"{READING_ROUTE} ({row['model']}, {row['contract']}, validator {row['validator']}): "
+                f"promoted from the Lab by a person: {reason}")
     if why is None and person is not None:  # accepted by a person (146.a), and the route names the reason, or the note it is said in
         reason = person['note'] if person.get('reason') == 'other' and person.get('note') else person['reason_text']
         who = 'a person' if by_a_person(person) else AUTOMATED_REVIEW

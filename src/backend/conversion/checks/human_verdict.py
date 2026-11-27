@@ -39,8 +39,10 @@ def row_of(base: reading_export.KnowledgeBase, work: str, pdf_page: int) -> dict
 
 def record(base: reading_export.KnowledgeBase, work: str, pdf_page: int, verdict: str, reason: str, by: str,
            block: str | None = None, tag: str | None = None, note: str | None = None, reading_key: str | None = None,
-           run_id: int | None = None, correction: str | None = None, judge_assessment: str | None = None) -> dict:
-    """Record one verdict on the reading that stands (or the one named), without writing the export.
+           run_id: int | None = None, correction: str | None = None, judge_assessment: str | None = None,
+           answers_judgement: str | None = None) -> dict:
+    """Record one verdict on the reading that stands (or the one named), without writing the export. `answers_judgement` is
+    the key of the judgement the person had before them (#17), as the page view shows it.
 
     Raises:
         ValueError: For a page the export does not hold, a reading that is not the page's, a block id that is none, or what
@@ -53,16 +55,25 @@ def record(base: reading_export.KnowledgeBase, work: str, pdf_page: int, verdict
     known = {row['reading_key'], *(attempt['reading_key'] for attempt in row.get('attempts') or [])}
     if key not in known:
         raise ValueError(f'{key[:12]} is no reading of {work} p. {pdf_page}')
+    lab = {attempt['reading_key'] for attempt in row.get('attempts') or [] if attempt.get('prototype')}
+    if verdict == 'accept' and key in lab and key != row['reading_key']:
+        # an accept pins the reading it names: on a Lab reading it would serve it past the promotion and its reason (#17)
+        raise ValueError(f'{key[:12]} stands in the Lab: promote it to serve it (`promote`), an accept does not')
     if block is not None and not BLOCK_ID.fullmatch(block):
         raise ValueError(f'a block is named as b01, not {block!r}')
+    if answers_judgement is not None:
+        attempt = next((attempt for attempt in row.get('attempts') or [] if attempt['reading_key'] == key), {})
+        if answers_judgement not in {judgement.get('judgement_key') for judgement in attempt.get('judgements') or []}:
+            raise ValueError(f'{answers_judgement[:12]} is no judgement of reading {key[:12]}')
     verdict_id = pipeline_db.give_verdict(base.name, row['file'], pdf_page, key, verdict, reason, by, block=block, tag=tag,
-                                          note=note, run_id=run_id, correction=correction, judge_assessment=judge_assessment)
+                                          note=note, run_id=run_id, correction=correction, judge_assessment=judge_assessment,
+                                          answers_judgement=answers_judgement)
     return {'verdict_id': verdict_id, 'reading_key': key, 'file': row['file'], 'route_before': row['route']}
 
 
 def from_view(base: reading_export.KnowledgeBase, queue, work: str, pdf_page: int, verdict: str, reason: str,
               block: str | None = None, note: str | None = None, correction: str | None = None,
-              judge_assessment: str | None = None) -> dict:
+              judge_assessment: str | None = None, answers_judgement: str | None = None) -> dict:
     """A person's verdict from the page view (decision 213.b, the operator, 12 Nov): recorded at once as its own run, given by the
     maintainer like one from the command line, and the export requested in the background (`export_queue.ExportQueue`), so
     the person moves on while the views catch up. Raises ValueError for an input the database would refuse."""
@@ -71,7 +82,7 @@ def from_view(base: reading_export.KnowledgeBase, queue, work: str, pdf_page: in
                f"{' --judge-assessment ' + judge_assessment if judge_assessment else ''} (from the page view)")
     with pipeline_db.run([base.name], command) as recorded:
         made = record(base, work, pdf_page, verdict, reason, 'maintainer', block=block, note=note, run_id=recorded.run_id,
-                      correction=correction, judge_assessment=judge_assessment)
+                      correction=correction, judge_assessment=judge_assessment, answers_judgement=answers_judgement)
     return {**made, 'export': queue.request({work})}
 
 
@@ -109,6 +120,52 @@ def reset(base: reading_export.KnowledgeBase, work: str, pdf_page: int, reason: 
         print(f"the route now: {row_of(base, work, pdf_page)['route']}; read it again with "
               f"`python -m backend.conversion.reading.replay reread --work {work} --page {pdf_page} --cap <USD>`")
     return {'reset_id': reset_id, 'reading_key': row['reading_key']}
+
+
+def promote_record(base: reading_export.KnowledgeBase, work: str, pdf_page: int, reading_key: str, reason: str, by: str,
+                   note: str | None = None, run_id: int | None = None) -> dict:
+    """Record a person's promotion of a Lab reading to the page's reading (#17), without writing the export: a reading of
+    that page that stands in the Lab (a test reading's or a prototype's) and is valid under today's validator.
+
+    Raises:
+        ValueError: For a page the export does not hold, a reading that is not one of the page's Lab readings or not valid,
+            or what `pipeline_db.give_promotion` refuses; the page view answers it as the person's input error.
+    """
+    row = _row(base, work, pdf_page)
+    if row is None:
+        raise ValueError(f'{work} has no page {pdf_page} in the {base.name} export')
+    attempt = next((attempt for attempt in row.get('attempts') or [] if attempt['reading_key'] == reading_key), None)
+    if attempt is None or not attempt.get('prototype'):
+        raise ValueError(f'{reading_key[:12]} is no Lab reading of {work} p. {pdf_page}')
+    if attempt.get('class_now') != 'ok':
+        raise ValueError(f"{reading_key[:12]} is {attempt.get('class_now')}: only a valid page/1 reading can be served")
+    promotion_id = pipeline_db.give_promotion(base.name, row['file'], pdf_page, reading_key, reason, by, note=note, run_id=run_id)
+    return {'promotion_id': promotion_id, 'reading_key': reading_key, 'file': row['file'], 'route_before': row['route']}
+
+
+def promote_from_view(base: reading_export.KnowledgeBase, queue, work: str, pdf_page: int, reading_key: str, reason: str,
+                      note: str | None = None) -> dict:
+    """A person's promotion from the page view (#18), recorded at once as its own run, the export requested in the background,
+    as a verdict from the view is. Raises ValueError for an input the core refuses."""
+    command = f'backend.diagnostics: promote --work {work} --page {pdf_page} --reading {reading_key[:12]} --reason {reason} (from the page view)'
+    with pipeline_db.run([base.name], command) as recorded:
+        made = promote_record(base, work, pdf_page, reading_key, reason, 'maintainer', note=note, run_id=recorded.run_id)
+    return {**made, 'export': queue.request({work})}
+
+
+def promote(base: reading_export.KnowledgeBase, work: str, pdf_page: int, reading_key: str, reason: str, by: str,
+            note: str | None = None, run_id: int | None = None, export: bool = True) -> dict:
+    """Promote one Lab reading to the page's reading, and write the export again."""
+    try:
+        made = promote_record(base, work, pdf_page, reading_key, reason, by, note=note, run_id=run_id)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+    print(f"{base.name} {work} p. {pdf_page}: promoted {reading_key[:12]} ({reason}), promotion {made['promotion_id']}; "
+          f"the route before: {made['route_before']}")
+    if export:
+        reading_export.export(base)
+        print(f"the route now: {row_of(base, work, pdf_page)['route']}")
+    return made
 
 
 def listing(base: reading_export.KnowledgeBase, work: str | None = None) -> list[dict]:
@@ -149,7 +206,15 @@ def build_parser() -> argparse.ArgumentParser:
     reset_parser.add_argument('--reason', required=True, help='why the page is reset: a reset always says why')
     reset_parser.add_argument('--by', default='maintainer', help='who resets it (default: maintainer)')
     reset_parser.add_argument('--no-export', action='store_true', help='record only; the export is written later')
-    for command in (given, listed, reset_parser):
+    promoted = commands.add_parser('promote', help="make a Lab reading the page's reading (#17): a person's act, with a reason")
+    promoted.add_argument('--work', required=True)
+    promoted.add_argument('--page', type=int, required=True, help='the PDF page')
+    promoted.add_argument('--reading', required=True, help='the Lab reading, by its key')
+    promoted.add_argument('--reason', required=True, choices=sorted(pipeline_db.PROMOTE_REASONS))
+    promoted.add_argument('--note', help='free text; required with the reason other')
+    promoted.add_argument('--by', default='maintainer', help='who promotes it (default: maintainer); never a delegated session')
+    promoted.add_argument('--no-export', action='store_true', help='record only; the export is written later')
+    for command in (given, listed, reset_parser, promoted):
         command.add_argument('--knowledge-base', choices=sorted(reading_export.BASES), default='free')
     return parser
 
@@ -164,6 +229,11 @@ def main() -> None:
     if args.command == 'reset':
         with pipeline_db.run([base.name], pipeline_db.command_line('backend.conversion.checks.human_verdict')) as recorded:
             reset(base, args.work, args.page, args.reason, args.by, run_id=recorded.run_id, export=not args.no_export)
+        return
+    if args.command == 'promote':
+        with pipeline_db.run([base.name], pipeline_db.command_line('backend.conversion.checks.human_verdict')) as recorded:
+            promote(base, args.work, args.page, args.reading, args.reason, args.by, note=args.note, run_id=recorded.run_id,
+                    export=not args.no_export)
         return
     with pipeline_db.run([base.name], pipeline_db.command_line('backend.conversion.checks.human_verdict')) as recorded:
         give(base, args.work, args.page, args.verdict, args.reason, args.by, block=args.block, tag=args.tag, note=args.note,

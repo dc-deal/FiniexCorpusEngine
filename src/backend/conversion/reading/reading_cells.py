@@ -91,6 +91,27 @@ READER_PROTOTYPE_CELLS = {cell.name: cell for cell in [
 ]}
 
 
+# Test readings (#17, the operator's 8.a, 27 Nov 2026): local models on the bench machine read the mini pilot's 20 free pages
+# on 26/27 Nov. Their readings are imported (`local_reader`), never bought, and like a reader prototype's (210.a) they stand
+# in the Lab: never chosen, checked or served. Qwen got page/1 as Sonnet did; the three document models got their own task
+# prompts, named here as the prompt versions they are registered under. A test cell's readings are found by its label, since
+# no pipeline cell asks their question (`vision_batches.readings_of`).
+LOCAL = 'local'
+TEST_READING_CELLS = {cell.name: cell for cell in [
+    Cell('LAB-QWEN3VL-MP', 'qwen3-vl-30b-a3b-instruct-q4_k_m', 'hi', 'markdown', MINI_PILOT, mode=LOCAL),
+    Cell('LAB-PADDLE-MP', 'paddleocr-vl-1.6', 'hi', 'markdown', MINI_PILOT, max_tokens=4096, mode=LOCAL,
+         reader_version='paddleocr-vl/ocr'),
+    Cell('LAB-MINERU-MP', 'mineru2.5-pro-2605-1.2b', 'hi', 'markdown', MINI_PILOT, max_tokens=0, mode=LOCAL,
+         reader_version='mineru/two-step'),
+    Cell('LAB-GLMOCR-MP', 'glm-ocr', 'hi', 'markdown', MINI_PILOT, max_tokens=8192, mode=LOCAL,
+         reader_version='glm-ocr/text'),
+]}
+
+
+def is_test_cell(name: str | None) -> bool:
+    return (name or '') in TEST_READING_CELLS
+
+
 ROLLOUT = data_paths.LICENSED_WORKING / 'rollout'  # the licensed rounds, written by backend.conversion.reading.rollout
 
 
@@ -170,8 +191,8 @@ def free_planned_pages() -> set[tuple[str, int]]:
 
 def known_cells() -> dict:
     """Every cell whose readings the check flow and the export can find: the batch cells, the second reader's, the replays,
-    the direct readings."""
-    return {**submittable(), **second_reader_cells(), **replay_cells(), **direct_cells()}
+    the direct readings, and the test readings, which nothing buys (#17)."""
+    return {**submittable(), **second_reader_cells(), **replay_cells(), **direct_cells(), **TEST_READING_CELLS}
 
 
 LICENSED_SOURCES = data_paths.LICENSED_WORKING

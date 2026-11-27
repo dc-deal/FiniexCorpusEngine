@@ -91,6 +91,23 @@ def judge_versions() -> list[dict]:
     return [version for version in json.loads(VERSIONS.read_text(encoding='utf-8'))['versions'] if version['role'] == 'judge']
 
 
+def local_origins_path() -> Path:
+    from backend.configuration import data_paths
+
+    return data_paths.WORKING / 'prompt_origins.json'
+
+
+def prompt_origins() -> dict[str, dict]:
+    """Each prompt version's origin (#17): the registry's, with this machine's own laid over it where it holds one. An origin
+    that names a model as an author is kept off the public repository (the operator's 23.a), in a git-ignored file, so a
+    clone shows such a version as "kept on this machine" and this machine shows who wrote it."""
+    origins = {entry['version']: entry.get('origin') for entry in json.loads(VERSIONS.read_text(encoding='utf-8'))['versions']}
+    local = local_origins_path()
+    if local.exists():
+        origins.update(json.loads(local.read_text(encoding='utf-8')).get('origins', {}))
+    return origins
+
+
 def active_version() -> str:
     """The judge version the pipeline judges with: exactly one is active."""
     active = [version['version'] for version in judge_versions() if version['state'] == 'active']

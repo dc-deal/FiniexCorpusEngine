@@ -24,6 +24,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -356,10 +357,17 @@ def replace_file(path: Path, data: bytes) -> None:
 
 
 def prototypes_beside(base: KnowledgeBase) -> tuple[str, ...]:
-    """The reader prototypes' cells of this knowledge base (decision 210.a): their readings stand in a page's history as
-    attempts, marked as a prototype's, and never in its choice, its check states or its route (147.a)."""
-    return tuple(sorted(name for name, cell in reading_cells.READER_PROTOTYPE_CELLS.items()
-                        if reading_cells.knowledge_base_of(cell) == base.name))
+    """The cells of this knowledge base whose readings stand beside the pipeline: the reader prototypes' (decision 210.a) and
+    the test readings' (#17). Their readings stand in a page's history as attempts, marked as such, and never in its choice,
+    its check states or its route (147.a)."""
+    beside = {**reading_cells.READER_PROTOTYPE_CELLS, **reading_cells.TEST_READING_CELLS}
+    return tuple(sorted(name for name, cell in beside.items() if reading_cells.knowledge_base_of(cell) == base.name))
+
+
+def lab_cell_of(record: dict) -> reading_cells.Cell | None:
+    """The reader prototype's or test reading's cell a stored reading belongs to, None for a pipeline reading."""
+    name = record.get('cell') or ''
+    return reading_cells.READER_PROTOTYPE_CELLS.get(name) or reading_cells.TEST_READING_CELLS.get(name)
 
 
 CATEGORY_OF_KIND = {  # the reader's page_kind, as a person sorts pages (decision 172.a, the operator, 10 Nov)
@@ -381,6 +389,9 @@ def category_of(page_kind: str | None, unit_titles: list[str], exercise_titles: 
 def purpose_of(record: dict) -> str:
     """What a reading was, in words, from the fields it was stored with, so a view never has to guess it (line 2's finding of
     10 Nov: four readings of accounting p. 524 read "attempt 2, attempt 0, attempt 1, attempt 0")."""
+    test = reading_cells.TEST_READING_CELLS.get(record.get('cell') or '')
+    if test is not None:
+        return f'a test reading by {test.model} ({test.mode}), never served'
     prototype = reading_cells.READER_PROTOTYPE_CELLS.get(record.get('cell') or '')
     if prototype is not None:
         return f'a reader prototype ({prototype.reader_version}), never served'
@@ -402,17 +413,43 @@ def purpose_of(record: dict) -> str:
     return 'first reading'
 
 
+AGENT_PROMPTS_BACKFILL = 'agent_prompts_backfill.json'  # written by reading.agent_prompt_backfill into each store's reports
+
+
+def backfilled_agent_prompts(store) -> dict[str, dict]:
+    """The session agent's prompt each older session record was made under, by the record's key (#17); empty without the
+    report. A record made since 27 Nov carries its own (`agent_prompt`), which stands over this."""
+    try:
+        path = store.path('reports', AGENT_PROMPTS_BACKFILL)
+    except Exception:  # a test's stand-in store without folders
+        return {}
+    return json.loads(path.read_text(encoding='utf-8'))['records'] if path.exists() else {}
+
+
+def agent_prompt_of(record: dict, backfill: dict[str, dict]) -> dict | None:
+    """A session record's agent prompt in brief: its version and sha256, and how it was tied where it was backfilled."""
+    own = record.get('agent_prompt')
+    if own:
+        return {'version': own['version'], 'sha256': own['sha256']}
+    tied = backfill.get(record.get('reading_key') or '')
+    return {key: tied.get(key) for key in ('version', 'sha256', 'derived')} if tied else None
+
+
 def attempts_of(store, cells: tuple[str, ...]) -> dict[tuple[str, int], list[dict]]:
     """Every reading of each page, oldest first: the default reader's attempts and a second reader's, each with its class under
     today's validator and what it was (`purpose_of`), so a view can show a page's history and which of them stands (decision
     69.a)."""
     found: dict[tuple[str, int], list[dict]] = {}
+    backfill = backfilled_agent_prompts(store)
     for record in sorted(vision_batches.readings_of(cells, store), key=lambda record: record.get('stored_at') or ''):
-        prototype = reading_cells.READER_PROTOTYPE_CELLS.get(record.get('cell') or '')
+        prototype = lab_cell_of(record)
+        agent = agent_prompt_of(record, backfill)
         found.setdefault((record['file'], record['pdf_page']), []).append({
+            **({'agent_prompt': agent} if agent else {}),  # the session agent's prompt it was read under (#17, 22.a)
             'reading_key': record['reading_key'], 'model': record.get('model'), 'mode': record.get('mode'),
             'reader_version': prototype.reader_version if prototype else reader_requests.FIRST_VERSION,
             **({'prototype': True} if prototype else {}),  # decision 210.a: shown beside the served one, never served
+            **({'test_reading': True} if reading_cells.is_test_cell(record.get('cell')) else {}),  # #17: a local model's
             'attempt': record.get('attempt', 0), 'purpose': purpose_of(record), 'cell': record.get('cell'),
             'retry_of': record.get('retry_of'), 'class_now': vision_batches.current_class(record, store),
             'stored_at': record.get('stored_at'), 'deviation': record.get('deviation'),
@@ -457,23 +494,69 @@ def attempt_check(state: dict | None, judgements: list[dict] | None = None) -> d
             'reasons': state.get('reasons') or []}  # why the flow gave that state: "malformed", "judge: bad", a finding's kind
 
 
-def human_of(verdicts: list[dict], reading_key: str, resets: list[dict] | None = None) -> list[dict]:
+def judgements_with_standing(judgements: list[dict], served: bool, lab: bool = False) -> list[dict]:
+    """A reading's judgements, oldest first, the one that stands marked (#18): the latest that counts, on the reading the page
+    serves. Every other is history: an older one, a prototype's, one asked again, any on a reading not served. A Lab reading
+    nobody promoted is never served, so no judgement of it counts, whatever its version (#18, the view's "not counted")."""
+    judgements = [{**judgement, 'counts': False} for judgement in judgements] if lab else judgements
+    counting = [at for at, judgement in enumerate(judgements) if judgement.get('counts')]
+    latest = counting[-1] if counting and served else None
+    return [{**judgement, 'standing': at == latest} for at, judgement in enumerate(judgements)]
+
+
+def _moment(value: str | None) -> datetime:
+    """A stored time; one without a zone is read as UTC, as every store writes it, so no odd stamp stops an export."""
+    moment = datetime.fromisoformat(value) if value else datetime.min
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+def answered_judgement(verdict: dict, judgements: dict[str, list[dict]] | None) -> tuple[dict | None, bool]:
+    """The judge's record a person's verdict answered (#17), and whether that is derived: the one the verdict names, else the
+    latest judgement that counted on its reading when it was given, which is the one the view showed the person."""
+    of_reading = (judgements or {}).get(verdict['reading_key'], [])
+    named = verdict.get('answers_judgement')
+    if named:
+        found = next((judgement for judgement in of_reading if judgement.get('judgement_key') == named), None)
+        return (_judgement_summary(found) if found else {'judgement_key': named}), False
+    before = [judgement for judgement in of_reading
+              if judgement.get('counts') and _moment(judgement.get('stored_at')) <= _moment(verdict.get('given_at'))]
+    return (_judgement_summary(before[-1]) if before else None), True
+
+
+def _judgement_summary(judgement: dict) -> dict:
+    return {key: judgement.get(key) for key in ('judgement_key', 'version', 'model', 'mode', 'stored_at', 'verdict')}
+
+
+def human_of(verdicts: list[dict], reading_key: str, resets: list[dict] | None = None,
+             judgements: dict[str, list[dict]] | None = None) -> list[dict]:
     """A page's verdicts by a person, oldest first, each saying whether it applies to the reading that stands: a verdict was
     given on the reading the person saw, and never carries over to a later one by itself (decision 146.a). A verdict given
-    before the page's latest reset is archived: kept, shown, and no longer applying (decision 191.a)."""
+    before the page's latest reset is archived: kept, shown, and no longer applying (decision 191.a). The verdict that stands
+    is the one the page is served by (#18): the latest accept or reject that applies, on any block; a note changes nothing,
+    so it never stands. Each names the judgement it answered (#17)."""
     from backend.conversion.store import pipeline_db
 
-    standing = {id(verdict) for verdict in pipeline_db.since_last_reset(verdicts, resets or [])}
-    return [{'reading_key': verdict['reading_key'], 'applies': verdict['reading_key'] == reading_key and id(verdict) in standing,
-             'archived': id(verdict) not in standing, 'block': verdict['block'],
-             'verdict': verdict['verdict'], 'reason': verdict['reason'], 'reason_text': pipeline_db.HUMAN_REASONS[verdict['reason']],
-             'tag': verdict['tag'], 'note': verdict['note'], 'given_by': verdict['given_by'], 'given_at': verdict['given_at'],
-             # a person's own, or a session's on the operator's delegation (18 Nov: "a person is always manual")
-             'by_a_person': pipeline_db.by_a_person(verdict['given_by']),
-             # a person's manual parts (188.a), marked as theirs: the block's text as they say it reads, and their rating of the judge
-             'correction': verdict.get('correction'), 'judge_assessment': verdict.get('judge_assessment'),
-             'judge_assessment_text': pipeline_db.JUDGE_ASSESSMENTS.get(verdict.get('judge_assessment') or '')}
-            for verdict in verdicts]
+    current = {id(verdict) for verdict in pipeline_db.since_last_reset(verdicts, resets or [])}
+    applies = [verdict for verdict in verdicts if verdict['reading_key'] == reading_key and id(verdict) in current]
+    deciding = [verdict for verdict in applies if verdict['verdict'] in ('accept', 'reject')]  # served_readings.human_standing
+    standing = {id(deciding[-1])} if deciding else set()
+    shown = []
+    for verdict in verdicts:
+        answers, derived = answered_judgement(verdict, judgements)
+        shown.append({
+            'reading_key': verdict['reading_key'], 'applies': id(verdict) in {id(one) for one in applies},
+            'archived': id(verdict) not in current, 'standing': id(verdict) in standing, 'block': verdict['block'],
+            'verdict': verdict['verdict'], 'reason': verdict['reason'], 'reason_text': pipeline_db.HUMAN_REASONS[verdict['reason']],
+            'reason_short': pipeline_db.HUMAN_REASON_SHORT[verdict['reason']],
+            'tag': verdict['tag'], 'note': verdict['note'], 'given_by': verdict['given_by'], 'given_at': verdict['given_at'],
+            # a person's own, or a session's on the operator's delegation (18 Nov: "a person is always manual")
+            'by_a_person': pipeline_db.by_a_person(verdict['given_by']),
+            # a person's manual parts (188.a), marked as theirs: the block's text as they say it reads, and their rating of the judge
+            'correction': verdict.get('correction'), 'judge_assessment': verdict.get('judge_assessment'),
+            'judge_assessment_text': pipeline_db.JUDGE_ASSESSMENTS.get(verdict.get('judge_assessment') or ''),
+            'judge_assessment_short': pipeline_db.JUDGE_ASSESSMENT_SHORT.get(verdict.get('judge_assessment') or ''),
+            'answers': answers, 'answers_derived': derived})
+    return shown
 
 
 def with_block_classes(state: dict | None, parsed) -> dict | None:
@@ -586,6 +669,19 @@ def previous_texts(base: KnowledgeBase) -> dict[tuple[str, int], tuple[str, str]
     return {(row['file'], row['pdf_page']): (row['text_file'], row['text_sha256']) for row in rows if row.get('text_file')}
 
 
+PROMOTED = 'promoted from the Lab by a person'  # a test reading or a prototype's, made the page's reading (#17)
+
+
+def promotion_of(promotion: dict) -> dict:
+    """A person's promotion as the export shows it: the reason as code, short label and sentence, the note, who and when."""
+    from backend.conversion.store import pipeline_db
+
+    return {'reading_key': promotion['reading_key'], 'reason': promotion['reason'],
+            'reason_short': pipeline_db.PROMOTE_REASON_SHORT[promotion['reason']],
+            'reason_text': pipeline_db.PROMOTE_REASONS[promotion['reason']], 'note': promotion.get('note'),
+            'given_by': promotion['given_by'], 'given_at': promotion['given_at']}
+
+
 def with_people(base: KnowledgeBase, store, records: list[dict]) -> list[dict]:
     """What a person said about a page's reading, applied (decision 191.a): the reading a person accepted stays the page's
     reading, unless a choice made after the accept names another (a replay a person ran over it on purpose); a reading a
@@ -593,18 +689,39 @@ def with_people(base: KnowledgeBase, store, records: list[dict]) -> list[dict]:
     from backend.conversion.store import pipeline_db
 
     verdicts, resets = pipeline_db.human_verdicts(base.name), pipeline_db.page_resets(base.name)
+    promoted = pipeline_db.promotions(base.name)
     out = []
     for record in records:
         page = (record['file'], record['pdf_page'])
         counting = pipeline_db.since_last_reset(verdicts.get(page, []), resets.get(page, []))
-        # only a person's accept holds a reading against a later choice: a session's protects nothing (18 Nov)
+        # only a person's accept holds a reading against a later choice: a session's protects nothing (18 Nov); a person's
+        # promotion of a Lab reading holds it the same way (#17), and of the two the later act stands
         accepts = [verdict for verdict in counting if verdict['verdict'] == 'accept' and pipeline_db.by_a_person(verdict['given_by'])]
-        if accepts and accepts[-1]['reading_key'] != record['reading_key']:
-            chosen_after = (record.get('chosen') or {}).get('chosen_at', '') > accepts[-1]['given_at']
-            pinned = store.reading(accepts[-1]['reading_key'])
+        standing_promotions = pipeline_db.since_last_reset(promoted.get(page, []), resets.get(page, []))
+        holds = sorted([(verdict['given_at'], None, verdict) for verdict in accepts]
+                       + [(promotion['given_at'], promotion_of(promotion), promotion) for promotion in standing_promotions],
+                       key=lambda hold: hold[0])
+        if holds and (holds[-1][2]['reading_key'] != record['reading_key'] or holds[-1][1]):
+            held_at, promotion, held = holds[-1]
+            # an accept given on a reading a person promoted keeps it promoted: the person agreed with it, nothing undone
+            promotion = promotion or next((promotion_of(one) for one in reversed(standing_promotions)
+                                           if one['reading_key'] == held['reading_key']), None)
+            chosen_after = (record.get('chosen') or {}).get('chosen_at', '') > held_at
+            pinned = store.reading(held['reading_key'])
             if pinned is not None and not chosen_after:
-                record = {**pinned, 'pinned_by_a_person': accepts[-1]['given_at']}
-        discarded = [reset for reset in resets.get(page, []) if reset['reading_key'] == record['reading_key']]
+                record = {**pinned, 'pinned_by_a_person': held_at,
+                          **({'promoted': promotion, 'deviation': PROMOTED} if promotion else {})}
+        # a reset discards the reading it names, unless a person pinned that reading again after it (a promotion anew)
+        discarded = [reset for reset in resets.get(page, []) if reset['reading_key'] == record['reading_key']
+                     and reset['given_at'] > (record.get('pinned_by_a_person') or '')]
+        if not discarded and resets.get(page):
+            # the operator's 24.a (27 Nov): what stood before a reset stays down, a reading a person's accept or promotion had
+            # displaced included, until a reading read, chosen or pinned after the reset stands; the text layer serves till then
+            latest = resets[page][-1]
+            since = max(_moment(record.get('stored_at')), _moment((record.get('chosen') or {}).get('chosen_at')),
+                        _moment(record.get('pinned_by_a_person')))
+            if since <= _moment(latest['given_at']):
+                discarded = [latest]
         if discarded:
             record = {**record, 'reset': {key: discarded[-1][key] for key in ('reason', 'given_by', 'given_at')}}
         out.append(record)
@@ -665,10 +782,18 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
     states = check_states(store, cells + cells_beside(base))
     attempts = attempts_of(store, cells + cells_beside(base) + prototypes_beside(base))  # a prototype is listed, never chosen
     judgements = check_run.judgements_by_target(store)  # every verdict of every reading, any version or purpose
+    backfill = backfilled_agent_prompts(store)  # an older session verdict's agent prompt, tied afterwards (#17)
+    judgements = {target: [{**judgement, 'agent_prompt': judgement.get('agent_prompt')
+                            or agent_prompt_of({'reading_key': judgement.get('judgement_key')}, backfill)}
+                           if judgement.get('mode') == 'session' else judgement for judgement in listed]
+                  for target, listed in judgements.items()}
     from backend.conversion.store import pipeline_db
 
     people = pipeline_db.human_verdicts(base.name)
     resets = pipeline_db.page_resets(base.name)
+    promotions = {page: {promotion['reading_key']: promotion_of(promotion)
+                         for promotion in pipeline_db.since_last_reset(given, resets.get(page, []))}
+                  for page, given in pipeline_db.promotions(base.name).items()}
     stopped = stopped_works(store, cells + cells_beside(base))
     for record in records:  # a chosen reading no current report holds keeps the state of its own verdict
         if record['reading_key'] not in states:
@@ -705,17 +830,25 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                'error_type': record.get('error_type'), 'error_message': record.get('error_message'),  # the provider's words, never page text
                'deviation': record.get('deviation'), 'chosen': record.get('chosen'),  # why a reading off the default stands here
                'attempts': [{**attempt, 'check': attempt_check(states.get(attempt['reading_key']), judgements.get(attempt['reading_key'])),
-                             'judgements': judgements.get(attempt['reading_key'], [])}
+                             'judgements': judgements_with_standing(
+                                 judgements.get(attempt['reading_key'], []), attempt['reading_key'] == record['reading_key'],
+                                 lab=bool(attempt.get('prototype')) and attempt['reading_key'] not in
+                                 promotions.get((record['file'], record['pdf_page']), {})),
+                             # a Lab reading a person promoted says so, wherever it stands now (#17)
+                             **({'promoted': promotions[(record['file'], record['pdf_page'])][attempt['reading_key']]}
+                                if attempt['reading_key'] in promotions.get((record['file'], record['pdf_page']), {}) else {})}
                             for attempt in attempts.get((record['file'], record['pdf_page']), [])],
                'check': with_block_classes_from(states.get(record['reading_key']), served_facts and served_facts['classes']),
                'human': human_of(people.get((record['file'], record['pdf_page']), []), record['reading_key'],
-                                 resets.get((record['file'], record['pdf_page']), [])),
+                                 resets.get((record['file'], record['pdf_page']), []), judgements),
                # decision 191.a: a page a person checked is protected from being read again; a reset lifts it and discards.
                # A session's verdict on the operator's delegation protects nothing (18 Nov).
                'protected': any(pipeline_db.by_a_person(verdict['given_by']) for verdict in
                                 pipeline_db.since_last_reset(people.get((record['file'], record['pdf_page']), []),
-                                                             resets.get((record['file'], record['pdf_page']), []))),
-               'reset': record.get('reset'), 'pinned_by_a_person': record.get('pinned_by_a_person')}
+                                                             resets.get((record['file'], record['pdf_page']), [])))
+                            or bool(promotions.get((record['file'], record['pdf_page']))),  # a promotion is a person's act
+               'reset': record.get('reset'), 'pinned_by_a_person': record.get('pinned_by_a_person'),
+               'promoted': record.get('promoted')}
         if succeeded and not facts['empty']:
             relative = f"{record['work']}/p{record['pdf_page']:04d}.md"
             target = base.export / relative

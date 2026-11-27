@@ -46,3 +46,6 @@ the presentation brought up to date.
 semantic search's vectors in pgvector, a changed page served without a restart; each half gated against the files
 before it was switched on ([phase 3](phase_03_search_server.md)). Still open: the view reading the database (E) and a
 backup of the vectors before Chroma is retired.
+**Since 26 Nov (issues #17, #18):** [phase 4](phase_04_local_readers.md) has begun. Four open vision models ran on a bench
+machine over the mini pilot's 20 free pages, and their 80 readings stand in the Lab as test readings, never served. The view
+shows readings and their verdicts in one form (#18), then the judge and the gold scores decide which local reader goes on.

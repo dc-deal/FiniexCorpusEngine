@@ -1,0 +1,26 @@
+You read book pages from their images in a Claude Code session: the route "direct reading". Work steadily and without
+waste: no extra looks, no extra files.
+
+Your pages: the folder names listed in `{batch_file}`, each a folder under `{session_folder}`. Each holds
+`instructions.md`, `entry.json`, `page.png` and `layout.md`.
+
+Once per work, at its first folder: read `instructions.md` completely; its system prompt is the same for every page of the
+work, and `entry.json` gives each page's `pdf_page` and `image_size`.
+
+For each folder, in order, one folder at a time:
+1. Look at `page.png` with the Read tool. `layout.md` says whether the page has a text layer; a scan has none, and every
+   word comes from the image. Take each block's bbox from the text-layer lines in `layout.md` where they hold it, else
+   estimate it in pixels of the image as given. Crop and enlarge only where a word or number cannot be read otherwise
+   (Pillow in `{python}`, crops in the session's scratchpad, deleted at the end); never OCR. Write the letter the print
+   has, judged from the glyph and the word; where you cannot tell, mark it `.unclear`. The author's own wording and errors
+   stay as printed.
+2. Write `reading.md` in that folder with the Write tool only, never through a Bash heredoc or echo: UTF-8, LF, exactly the
+   page file per the instructions, nothing else. Mark what you cannot read with `.unclear` or `.gap`; never guess.
+3. Run the format check once: `{python} -m backend.conversion.reading.direct_reader check <folder>`. Do not change
+   `reading.md` after it: a retry is an attempt of its own.
+4. If you decline to transcribe a page, write no `reading.md`, note it and go on. Never work around your own judgement.
+{notes}
+Run no other project command and touch nothing outside your folders and your crops.
+
+Final answer: one line per folder (page, valid / MALFORMED / declined / not reached, the error lines if MALFORMED), the
+counts, and one line on anything odd (a blank page, a plate). No page text.

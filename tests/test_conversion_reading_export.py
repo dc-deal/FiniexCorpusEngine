@@ -285,7 +285,11 @@ def test_a_person_s_accept_pins_its_reading_and_a_reset_discards_and_archives(tm
     assert pinned['reading_key'] == 'a' * 64 and pinned['pinned_by_a_person']
     pipeline_db.give_reset('free', 'w_book.pdf', 2, 'a' * 64, 'read it again', 'maintainer')
     after = reading_export.with_people(base, store, [newer])[0]
-    assert after['reading_key'] == 'c' * 64 and 'reset' not in after  # the accept is archived; the newer reading stands
+    # the operator's 24.a (27 Nov): the reading the accept had displaced was read before the reset, so it stays down too, and
+    # the page serves its text layer until a reading made after the reset stands (before, the displaced one came back)
+    assert after['reading_key'] == 'c' * 64 and after['reset']['reason'] == 'read it again'
+    fresh = reading_export.with_people(base, store, [record('c' * 64, attempt=1, stored_at='2999-01-01T00:00:00+00:00')])[0]
+    assert 'reset' not in fresh  # read after the reset: it stands
     discarded = reading_export.with_people(base, store, [record('a' * 64)])[0]
     assert discarded['reset']['reason'] == 'read it again'
     verdicts = pipeline_db.human_verdicts('free')[('w_book.pdf', 2)]
@@ -315,7 +319,8 @@ def test_a_reader_prototype_s_readings_are_listed_beside_a_page_never_chosen():
     from backend.conversion.reading import reading_cells
 
     free = reading_export.BASES['free']
-    assert reading_export.prototypes_beside(free) == tuple(sorted(reading_cells.READER_PROTOTYPE_CELLS))
+    assert reading_export.prototypes_beside(free) == tuple(sorted({**reading_cells.READER_PROTOTYPE_CELLS,
+                                                                   **reading_cells.TEST_READING_CELLS}))  # #17 beside them
     assert reading_export.prototypes_beside(reading_export.BASES['licensed']) == ()
     assert not set(reading_export.prototypes_beside(free)) & set(free.cells() + reading_export.cells_beside(free))
     assert reading_export.purpose_of({'cell': 'P2-WALK-SM'}) == 'a reader prototype (page/2), never served'
