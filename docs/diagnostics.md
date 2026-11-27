@@ -2100,3 +2100,20 @@ recalls every judgement worth a show on finance p. 5 and its other reading, twic
 pixel, the one framed row the recalled one and the Verdicts tab equal to the recall's own JSON, ending on its two failing
 cases (the way back set after the words, a moment, moves; a framed row taken out is found missing). 410 unit tests,
 98 checks in the browser (2 skipped on today's data), 1,777 Python tests.
+
+**F5 returns the standing view (decision 30.a, 27 Nov).** The operator found the way back from a recall in its place, but
+not at a glance, and wanted a reload to be the way out of any recall: "when people panic, F5 back to the normal state; it
+is only history after all". A reload in the same tab now always returns the standing view: the recall leaves the address
+and every frame goes with it. A link opened fresh still shows the recall it names, so a recall stays shareable. The two are
+told apart by how the document was loaded (`PerformanceNavigationTiming.type`), read once, and only the first navigation
+after it is touched (`reload_standing.ts`, set on the router). "Show standing" is a real control now, a button with the ↺
+glyph in a new `overlay` shape of `AppButton`: the overlay's role, its border dashed like the frame of the region it leaves.
+**Measured:** unit tests of the rule (a recall dropped from the first address after a reload, and nothing else of it;
+kept after a fresh load, a back or forward, or where the browser does not say; every later navigation the reader's own)
+and of the button's shape; a browser check, shown failing on the build before (the way back a link with no border, and the
+recall surviving F5), that recalls a judgement on finance p. 5, finds the way back a button with its glyph and its dashed
+border, reloads to the standing view with no `?judgement` and no frame anywhere, and opens the recall's link in a new page
+to find the recall framed as before. The same check found the compact button making the analysis's head line 6 px taller,
+so the image and the reading moved down as a recall began; the button now reaches into the space around the line, and the
+check holds them within a pixel. 414 unit tests, 99 checks in the browser (2 skipped on today's data),
+1,777 Python tests.

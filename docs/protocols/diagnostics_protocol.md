@@ -1154,3 +1154,15 @@ The record of how the diagnostics frontend came about, mistakes included.
   wrong: the new browser check first measured the way back while the recall was still loading, the heading's words the
   placeholder in every round, so the way back held its place for no reason; it now waits for the recall's own words and
   counts that they varied.
+- **Decision 30.a** (27 Nov). `reload_standing.ts` (`navigationType`, `standingOnReload`, `returnStandingOnReload`), set on
+  the router once; `AppButton` takes a fourth shape, `overlay` (dashed in the annotation role, the weight of normal text in a
+  heading); the icon `show-standing` (↺). The way back is an `AppButton` now, pushing the standing address. The new browser
+  check was written first and shown failing on the build before, in both halves (the way back a link with no border; the
+  recall surviving F5, run apart in a throwaway spec). It then found the compact button making the analysis head line 6 px
+  taller (20.4 to 26.4), so the image and the reading moved as a recall began: the button's padding and border now reach
+  into the space around the line (`margin-block`), and the check holds the panes' offset within a pixel, shown red at 6 px
+  before the fix. In the full run the check counted the Verdicts tab's frame before the recall had come (the way back
+  stands from the address alone, the tab's frame from the recall's answer); it passed alone and failed among the others,
+  and now waits for the recall's own words before it counts, as the way back's check does. A full run also found an older
+  check racing its image: "every page opens, read or not" read an unread page's `naturalWidth` as soon as the frame stood,
+  before the image had arrived, and now waits for it to be drawn.

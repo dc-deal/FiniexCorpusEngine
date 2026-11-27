@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Every button in the app, in three shapes.
+ * Every button in the app, in four shapes.
  *
  * The four states are the whole point, and each carries TWO channels so none depends on one:
  *
@@ -18,9 +18,11 @@ withDefaults(defineProps<{
    * `solid` is a control with a surface of its own. `quiet` is an action inside a line of text: it
    * has no surface until pointed at, so it does not stamp a box into a sentence. `link` is a jump to
    * another place, worn as a link: no padding and the font of the line it sits in, so its text stays
-   * exactly where text would stand in a table cell.
+   * exactly where text would stand in a table cell. `overlay` is the way back from a view that shows something other than
+   * the standing state (30.a): a solid control in the overlay's role, its border dashed as the region it frames, so it is
+   * found at a glance, at the weight of normal text wherever it stands, a heading's line included.
    */
-  variant?: 'solid' | 'quiet' | 'link'
+  variant?: 'solid' | 'quiet' | 'link' | 'overlay'
   /** `compact` is for a row of controls, such as a facet bar. It changes the padding and nothing else. */
   size?: 'normal' | 'compact'
   /** A toggle currently holding the selection. Distinct from being pressed right now. */
@@ -97,9 +99,19 @@ withDefaults(defineProps<{
   font: inherit;
 }
 
-/* after both variants, because it has to win their padding on source order */
+/* the way back from an overlay: dashed in the annotation's role, as the frame of the region it leaves */
+.app-button.overlay {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px dashed var(--color-annotation);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-annotation);
+  font-weight: normal;
+}
+
+/* after the variants, because it has to win their padding on source order */
 .app-button.solid.compact,
-.app-button.quiet.compact {
+.app-button.quiet.compact,
+.app-button.overlay.compact {
   padding: 2px var(--space-sm);
 }
 

@@ -21,6 +21,7 @@ import {
   IconPlayerStop,
   IconQuote,
   IconRobot,
+  IconRotate,
   IconScale,
   IconSearch,
   IconShieldCheck,
@@ -87,6 +88,8 @@ export const ICONS = {
   'kind-judge': IconScale,
   'kind-person': IconUser,
   'kind-review': IconRobot,
+  // the way back from a recall to the standing view (30.a): the operator's ↺
+  'show-standing': IconRotate,
 } satisfies Record<string, Component>
 
 export type IconName = keyof typeof ICONS

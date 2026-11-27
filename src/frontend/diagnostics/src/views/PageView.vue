@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { pageImageUrl } from '@/api/api_client'
 import ApiFailure from '@/components/ApiFailure.vue'
@@ -95,6 +95,7 @@ const answersJudgement = computed(() => (recallId.value
   : shown.value?.form?.shown_judgement) ?? null)
 const analysis = ref<InstanceType<typeof AnalysisSection> | null>(null)
 const address = useRoute()
+const router = useRouter()
 
 watch(() => [props.kb, props.work, props.page] as const, ([kb, work, page]) => {
   highlight.value = null
@@ -602,7 +603,9 @@ watch(box, async () => {
       <!-- the way back from a recall (27.a): at the head line's start, before words whose length varies, so it stays under
            the pointer from one recall to the next -->
       <template v-if="recallId" #lead>
-        <RouterLink :to="standing" class="show-standing" data-part="show-standing">Show standing</RouterLink>
+        <AppButton variant="overlay" size="compact" class="show-standing" data-part="show-standing" @click="router.push(standing)">
+          <AppIcon name="show-standing" /> Show standing
+        </AppButton>
       </template>
       <template #hint>
         <span v-if="!recallId" class="analysis-hint">the image the reader received, beside its reading</span>
@@ -896,6 +899,12 @@ watch(box, async () => {
 }
 
 /* the original and its reading side by side, each scrolling in a pane of the same height; on a narrow screen one above the other */
+/* the way back (30.a) stands in the head line without making it taller: its padding and border reach into the space around
+   the line, so the image and the reading stay where they stood before the recall */
+.show-standing {
+  margin-block: calc(-2px - 1px);
+}
+
 /* a recalled judgement (181.a): the overlay's role, the annotation colour, always dashed, its glyph and words with it */
 .analysis-recalled {
   display: inline-flex;
@@ -904,12 +913,6 @@ watch(box, async () => {
   color: var(--color-annotation);
 }
 
-/* the way back, a link at the analysis head line's start, at the line's weight for a link (27.a) */
-.show-standing {
-  color: var(--color-accent);
-  font-weight: normal;
-  white-space: nowrap;
-}
 
 .analysis-recalled {
   font-weight: normal;

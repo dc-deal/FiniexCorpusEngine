@@ -688,7 +688,9 @@ test('every page opens, read or not: its own ladder, the text served and, unread
     // the image arrived and was drawn, not a broken frame
     const image = page.locator('.own-image img')
     await expect(image).toBeVisible()
-    expect(await image.evaluate(element => (element as HTMLImageElement).naturalWidth), 'the own image drew nothing').toBeGreaterThan(0)
+    // waited for: the frame stands before the image has arrived (found 27 Nov, once in a full run)
+    await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).naturalWidth), { message: 'the own image drew nothing' })
+      .toBeGreaterThan(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
       `an unread page scrolls sideways at ${width} px`).toBe(true)
     await page.screenshot({ path: `${SHOTS}/page_unread_${width}.png`, fullPage: width === 390 })
@@ -2543,6 +2545,57 @@ test('the way back from a recall stays under the pointer, recall after recall, a
   // and a framed row gone, a moment: the check finds none
   await page.locator('[data-part="page-form"] tr.recalled-source').evaluate(element => element.classList.remove('recalled-source'))
   await expect(page.locator('[data-part="page-form"] tr.recalled-source')).toHaveCount(0)
+})
+
+// 30.a (the operator: "when people panic, F5 back to the normal state; it is only history after all"): a reload in the same tab
+// returns the standing view, the recall gone from the address and every frame with it; the recall's link opened fresh in a new
+// page still shows the recall it names, so it stays shareable. The way back is a real control: a button, its glyph, dashed
+test('a reload after a recall returns the standing view, and the recall\'s link opened fresh still shows it (30.a)', async ({ page, context, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const shown = form.readings.find(reading => reading.shown)!
+  const judgement = shown.verdicts.find(verdict => verdict.recall && !verdict.show_why_not)!
+  const recalled = async (on: Page) => ({
+    address: new URL(on.url()).hash.includes('judgement='),
+    overlay: await on.locator('[data-part="analysis"][data-overlay="yes"]').count(),
+    back: await on.locator('[data-part="show-standing"]').count(),
+    framed: await on.locator('[data-part="page-form"] tr.recalled-source').count(),
+    tab: await on.locator('[data-part="page-form"] [data-tab="verdicts"][data-overlay="yes"]').count(),
+  })
+  const RECALLED = { address: true, overlay: 1, back: 1, framed: 1, tab: 1 }
+  // where the image and the reading start below the analysis's own top: the way back in its head line must not push them
+  const panesAt = () => page.locator('[data-part="analysis"]').evaluate(analysis =>
+    Math.round(analysis.querySelector('.side-by-side')!.getBoundingClientRect().top - analysis.getBoundingClientRect().top))
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const standing = await panesAt()
+  await page.locator(`[data-part="page-form"] tbody[data-reading="${shown.key}"] tr.verdict-row:has(a.version:text-is("${judgement.version}")) [data-part="recall"]`)
+    .first().click()
+  await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${judgement.recall}`)
+  const back = page.locator('[data-part="show-standing"]')
+  await expect(back).toBeVisible()
+  // counted once the recall has come: its own words in the analysis's head (the way back stands from the address alone)
+  const said = `recalled, not the standing view: ${(await recallOf(request, FINANCE, 5, judgement.recall!)).said}`
+  await expect(page.locator('[data-part="analysis-recalled"]')).toHaveText(said)
+  expect(await recalled(page)).toEqual(RECALLED)
+  expect(Math.abs(await panesAt() - standing), 'the image and the reading moved when the way back came').toBeLessThanOrEqual(1)
+  // the way back, found at a glance: a button with its glyph and the overlay's dashed border
+  expect(await back.evaluate(element => [element.tagName, getComputedStyle(element).borderTopStyle])).toEqual(['BUTTON', 'dashed'])
+  await expect(back.locator('svg')).toHaveCount(1)
+  await expect(back).toHaveText('Show standing')
+  const link = page.url()
+  // F5: the standing view, the recall gone from the address, no frame anywhere
+  await page.reload()
+  await settled(page)
+  await expect(page.locator('[data-part="analysis"]')).toBeVisible()
+  expect(await recalled(page)).toEqual({ address: false, overlay: 0, back: 0, framed: 0, tab: 0 })
+  await page.screenshot({ path: `${SHOTS}/page_reloaded_standing.png` })
+  // the link opened fresh in a new page: the recall it names, framed as before
+  const fresh = await context.newPage()
+  await fresh.goto(link)
+  await settled(fresh)
+  await expect(fresh.locator('[data-part="analysis-recalled"]')).toHaveText(said)
+  expect(await recalled(fresh)).toEqual(RECALLED)
+  await fresh.close()
 })
 
 // decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change

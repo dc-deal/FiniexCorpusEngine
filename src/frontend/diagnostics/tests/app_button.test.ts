@@ -13,6 +13,12 @@ describe('AppButton', () => {
     expect(mount(AppButton, { props: { variant: 'link' } }).classes()).not.toContain('solid')
   })
 
+  it('wears the overlay\'s role as the way back from a view that is not the standing one (30.a)', () => {
+    const back = mount(AppButton, { props: { variant: 'overlay', size: 'compact' }, slots: { default: 'Show standing' } })
+    expect([back.element.tagName, back.classes()]).toEqual(['BUTTON', expect.arrayContaining(['overlay', 'compact'])])
+    expect(back.classes()).not.toContain('solid')
+  })
+
   /** `aria-pressed` makes a button a toggle for a screen reader, so only a toggle carries it. */
   it('announces a toggle only where it is one', () => {
     expect(mount(AppButton).attributes('aria-pressed')).toBeUndefined()

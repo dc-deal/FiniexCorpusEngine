@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { returnStandingOnReload } from '@/reload_standing'
 import CallsView from '@/views/CallsView.vue'
 import ErrorClassesView from '@/views/ErrorClassesView.vue'
 import HtmlWorkView from '@/views/HtmlWorkView.vue'
@@ -154,3 +155,6 @@ export const router = createRouter({
     { path: '/bin', redirect: '/issues' },
   ],
 })
+
+// a reload returns the standing view; a link opened fresh keeps the recall it names (30.a)
+returnStandingOnReload(router)
