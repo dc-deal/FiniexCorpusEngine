@@ -78,7 +78,7 @@ describe('PageForm, a page\'s readings and verdicts in one form (#18)', () => {
     const results = form.findAll('.reading-row [data-result]')
     expect(results.map(result => [result.attributes('data-result'), result.text()])).toEqual([['ok', 'ok'], ['issue', '2 issues']])
     expect(results.every(result => result.find('svg').exists())).toBe(true)
-    expect(form.find('tbody[data-reading="k2"] [data-part="shown"]').text()).toBe('● shown')
+    expect(form.find('tbody[data-reading="k2"] [data-part="shown"]').text()).toBe('● served')
     // the other reading shows itself alone, by its key
     expect(form.find('tbody[data-reading="k1"] [data-part="show-reading"]').attributes('href')).toContain('judgement=k1')
   })
@@ -116,6 +116,22 @@ describe('PageForm, a page\'s readings and verdicts in one form (#18)', () => {
     expect(form.find('tbody[data-reading="k3"] .reading-row').text()).not.toContain('a test reading')
     await form.find('tbody[data-reading="k3"] .time-cell .hover-card-host').trigger('focusin')
     expect(form.find('[data-part="hover-card"]').findAll('.card-row').map(row => row.attributes('data-row'))).toEqual(['reading key', 'purpose'])
+  })
+
+  it('greys a reading\'s own show where a judge beneath it shows it with its findings, its card naming that judge (42.a)', async () => {
+    const why = 'show on judge/1: the same reading with its findings'
+    const form = mountForm(aPageForm({ readings: [
+      aFormReading({ key: 'k1' }),
+      aFormReading({ key: 'k0', shown: false, recall: 'k0', show_why_not: why,
+        verdicts: [aFormVerdict({ recall: 'k0:judge/1:0', show_why_not: null })] }),
+    ] }))
+    const row = form.find('tbody[data-reading="k0"] .reading-row')
+    expect(row.find('[data-part="show-reading"]').exists()).toBe(false)
+    const off = row.find('[data-part="show-reading-off"]')
+    expect([off.find('button').attributes('disabled'), off.find('button').attributes('title')]).toEqual(['', undefined])
+    await off.element.closest('.hover-card-host')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    await form.vm.$nextTick()
+    expect(form.find('[data-part="hover-card"] [data-row="why not"] .card-value').text()).toBe(why)
   })
 
   it('says a promoted reading so in its result', () => {

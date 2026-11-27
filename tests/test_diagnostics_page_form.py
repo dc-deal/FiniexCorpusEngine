@@ -193,6 +193,23 @@ def test_a_judgement_s_findings_set_its_result_and_its_show_and_an_ok_with_minor
     assert page_form.form_of([minor], []).readings[0].verdicts[0].verdict_said == 'ok · 1 finding: minor'
 
 
+def test_a_reading_has_one_active_way_in_its_own_show_greyed_where_a_judge_beneath_it_shows_its_findings():
+    struck = SimpleNamespace(kind='wrong_word', block='b12', severity='major', evidence=None, void=True)
+    served = an_attempt('k1', number=3, shown=True, stored_at='2026-11-09T09:00:00+00:00', judgements=[a_judgement()])
+    found = an_attempt('k0', stored_at='2026-11-02T09:00:00+00:00',
+                       judgements=[a_judgement(recall='k0:judge/1:0', standing=False, findings=[struck])])
+    clean = an_attempt('k2', number=2, stored_at='2026-11-05T09:00:00+00:00',
+                       judgements=[a_judgement(recall='k2:judge/1:0', standing=False)])
+    rows = {row.key: row for row in page_form.form_of([found, clean, served], []).readings}
+    # the served one says so (41.a) and has no show of its own
+    assert (rows['k1'].served_said, rows['k1'].recall, rows['k1'].show_why_not) == ('served', None, None)
+    # a struck finding is drawn when recalled, so its judge's show is the way in and the reading's own is greyed (42.a)
+    assert (rows['k0'].served_said, rows['k0'].show_why_not) == (None, 'show on judge/1: the same reading with its findings')
+    assert rows['k0'].verdicts[0].show_why_not is None
+    # a judge that found nothing: the reading's own show is the way in, the judge's greyed (decision 25), never both
+    assert (rows['k2'].show_why_not, rows['k2'].verdicts[0].show_why_not) == (None, page_form.NOTHING_TO_SHOW)
+
+
 def test_a_promoted_reading_stands_among_the_readings_saying_where_it_came_from():
     promoted = an_attempt('k2', prototype=True, shown=True, promoted=SimpleNamespace(reason='better', reason_short='better'))
     form = page_form.form_of([an_attempt('k1'), promoted], [])

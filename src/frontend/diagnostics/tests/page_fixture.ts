@@ -217,8 +217,10 @@ export function aFormVerdict(overrides: Partial<FormVerdict> = {}): FormVerdict 
 
 /** A reading as the form's row says it (#18): the one shown, read and judged ok, unless told otherwise. */
 export function aFormReading(overrides: Partial<FormReading> = {}): FormReading {
+  // the served one says so (41.a), unless told it is not
+  const served = overrides.shown === false ? null : 'served'
   return { kind_said: 'reading', key: 'k1', time: '2026-11-02T14:46:20+00:00', model: 'an-invented-reader', cost_usd: 0.016,
-    version: 'page/1', result_state: 'ok', result_said: 'ok', shown: true, test_reading: false, promoted_said: null,
+    version: 'page/1', result_state: 'ok', result_said: 'ok', shown: true, served_said: served, test_reading: false, promoted_said: null,
     promotable: false, recall: null, verdicts: [aFormVerdict()], hover: [{ label: 'reading key', value: 'k1' }], ...overrides }
 }
 

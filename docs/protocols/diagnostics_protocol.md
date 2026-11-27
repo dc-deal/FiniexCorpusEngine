@@ -1195,3 +1195,9 @@ The record of how the diagnostics frontend came about, mistakes included.
       the slash as they are.
     - The way back's check saw a move of 77 px as its recalls crossed tabs: the form above is as tall as its tab, which
       moves the whole analysis. The check now measures the way back within the analysis, where it is meant to hold.
+- **Decisions 41.a and 42.a** (27 Nov). `FormReading.served_said` ("served" on the served reading) and
+  `FormReading.show_why_not` from `reading_why_not` (the first judge beneath it with an active show, newest first, by its
+  version); the view's greyed reading show is `show-reading-off`, a disabled link in a card, as decision 25's. Three older
+  browser checks clicked reading 1's show, greyed now: the recall check reaches that reading by its address instead,
+  which a recall keeps; the way back's check takes every active way in, a judge's on reading 1 among them, its fold
+  opened first; the Lab reading check takes only a reading whose show is active.

@@ -228,7 +228,7 @@ const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', '
 type FormVerdictJson = { kind: string, kind_said: string, version: string | null, version_said: string | null, verdict_said: string,
   overruled?: string | null, recall: string | null, show_why_not: string | null, block: string | null, rules: { rule: string | null }[] }
 type FormReadingJson = { key: string, kind_said: string, version: string | null, result_said: string, shown: boolean, test_reading: boolean,
-  recall: string | null, verdicts: FormVerdictJson[], hover: { label: string, value: string }[] }
+  recall: string | null, show_why_not?: string | null, verdicts: FormVerdictJson[], hover: { label: string, value: string }[] }
 // the verdicts as shown (decision 26): the served reading's on the page, a recalled one's on its recall
 type ShownJson = { said: string, said_at?: string | null, recalled: boolean, count: number | null, why_not?: string | null,
   rows: { kind_said: string, standing: boolean, recall: string | null }[] }
@@ -1434,11 +1434,13 @@ test('a judgement from the page\'s form is shown on the page as it judged, marke
   await page.locator('[data-part="analysis"] [data-block="b12"]').hover()
   await expect(page.locator('.block-box.recalled')).toHaveCount(1)
   await page.screenshot({ path: `${SHOTS}/page_recalled.png` })
-  // another reading shown alone by its own show: no judge's findings on its blocks
+  // another reading shown alone: by its own show, or by its address where its show is greyed for its judge's (42.a); no
+  // judge's findings on its blocks
   const other = form.readings.find(reading => !reading.shown && reading.recall)
   if (other) {
     await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
-    await page.locator(`[data-part="page-form"] tbody[data-reading="${other.key}"] [data-part="show-reading"]`).click()
+    if (other.show_why_not) await page.goto(`/#/free/sources/${FINANCE}/page/5?judgement=${encodeURIComponent(other.recall!)}`)
+    else await page.locator(`[data-part="page-form"] tbody[data-reading="${other.key}"] [data-part="show-reading"]`).click()
     await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${other.recall}`)
     await settled(page)
     await recalled(true)
@@ -1897,8 +1899,11 @@ test('a page that was read again lists its readings, the one shown marked, its b
   await expect(readings.locator('.reading-row .result')).toHaveText(form.readings.map(one => one.result_said))
   // the one shown marked by a glyph and a word, every other a show of its own
   const shown = form.readings.find(one => one.shown)!
-  await expect(page.locator(`tbody[data-reading="${shown.key}"] [data-part="shown"]`)).toHaveText('● shown')
-  await expect(page.locator('[data-part="page-form"] [data-part="show-reading"]')).toHaveCount(form.readings.filter(one => !one.shown && one.recall).length)
+  await expect(page.locator(`tbody[data-reading="${shown.key}"] [data-part="shown"]`)).toHaveText('● served')
+  // every other reading a show of its own: active, or greyed where a judge beneath it shows it with its findings (42.a)
+  const others = form.readings.filter(one => !one.shown && one.recall)
+  await expect(page.locator('[data-part="page-form"] [data-part="show-reading"]')).toHaveCount(others.filter(one => !one.show_why_not).length)
+  await expect(page.locator('[data-part="page-form"] [data-part="show-reading-off"]')).toHaveCount(others.filter(one => one.show_why_not).length)
   // its card holds the API's rows, label for label and value for value
   await page.locator(`tbody[data-reading="${shown.key}"] .reading-row .time-cell .hover-card-host`).focus()
   const card = page.locator('[data-part="hover-card"]')
@@ -2430,7 +2435,7 @@ test('a reading read beside the pipeline stands in the Lab, never among the read
   for (const row of issues) {
     const form = await formOf(request, row.source_id, row.pdf_page)
     const pipeline = new Set(form.readings.map(one => one.key))
-    const reading = form.lab.find(one => one.recall && !pipeline.has(one.key))
+    const reading = form.lab.find(one => one.recall && !one.show_why_not && !pipeline.has(one.key))
     if (reading) {
       found = { work: row.source_id, page: row.pdf_page, reading }
       break
@@ -2493,11 +2498,12 @@ test('a page\'s form keeps its tabs and its folds under the pointer, tab after t
 // own verdicts, the tab framed as the analysis is, and the row shown is framed in whichever tab holds it
 test('the way back from a recall stays under the pointer, recall after recall, and the row framed is the one shown (26, 27.a)', async ({ page, request }) => {
   const form = await formOf(request, FINANCE, 5)
-  const other = form.readings.find(reading => !reading.shown && reading.recall)
-  const held = (tab: 'readings' | 'lab') => form[tab].filter(reading => reading.shown).flatMap(reading => reading.verdicts
+  // every active way in (42.a): the judges' shows with findings, in Readings and in the Lab, and a reading's own where active
+  const other = form.readings.find(reading => !reading.shown && reading.recall && !reading.show_why_not)
+  const held = (tab: 'readings' | 'lab') => form[tab].flatMap(reading => reading.verdicts
     .filter(verdict => verdict.recall && !verdict.show_why_not).map(verdict => ({ tab, key: reading.key, verdict })))
   const judgements = [...held('readings'), ...held('lab')]
-  test.skip(judgements.length < 2 || !other, 'finance p. 5 holds no two judgements to recall and no other reading today')
+  test.skip(judgements.length < 2, 'finance p. 5 holds no two judgements to recall today')
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
@@ -2513,14 +2519,17 @@ test('the way back from a recall stays under the pointer, recall after recall, a
   const recalls: { recall: string, click: () => Promise<void> }[] = [
     ...judgements.map(({ tab, key, verdict }) => ({ recall: verdict.recall!, click: async () => {
       await page.locator(`[data-part="page-form"] [data-tab="${tab}"]`).click()
+      // a reading other than the served one is folded until opened
+      const mark = page.locator(`[data-part="page-form"] tbody[data-reading="${key}"] [data-part="fold-reading"]`)
+      if (await mark.getAttribute('aria-expanded') === 'false') await mark.click()
       await page.locator(`[data-part="page-form"] tbody[data-reading="${key}"] tr.verdict-row:has(a.version:text-is("${verdict.version}"))`)
         .filter({ has: page.locator(`[data-part="recall"][href*="${verdict.recall!}"]`) })
         .locator('[data-part="recall"]').first().click()
     } })),
-    { recall: other!.recall!, click: async () => {
+    ...(other ? [{ recall: other.recall!, click: async () => {
       await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
-      await page.locator(`[data-part="page-form"] tbody[data-reading="${other!.key}"] [data-part="show-reading"]`).click()
-    } },
+      await page.locator(`[data-part="page-form"] tbody[data-reading="${other.key}"] [data-part="show-reading"]`).click()
+    } }] : []),
   ]
   let at: Box | null = null
   const said = new Set<string>()
@@ -2678,6 +2687,45 @@ test('finance p. 5 as then: Verdicts 2, judge/1 recalled with 1 and no person be
   // and the check sees a greyed tab that moves: made wider, a moment
   await page.addStyleTag({ content: '[data-part="page-form"] [data-off="yes"] { padding-left: 3rem !important; }' })
   expect(Math.abs((await tab('verdicts').boundingBox())!.width - at[2]!.width)).toBeGreaterThan(1)
+})
+
+// 42.a (the operator, 27 Nov): a reading has exactly one active way in. Its own show is greyed where a judge beneath it, in the
+// same tab, shows the same reading with its findings (a finding struck by code among them, 178.a), its card naming that judge;
+// where none has, the judges' shows are the greyed ones (decision 25); never both. Finance p. 5: reading 1's show is greyed
+// for its judge/1 of 4 Nov. The served one says "served" (41.a). Ends on its failing case: a judge's way in taken out
+test('a reading has one active way in: its show greyed for a judge with findings beneath it, never both (41.a, 42.a)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const earlier = form.readings.find(reading => !reading.shown && reading.recall)
+  test.skip(!earlier, 'finance p. 5 holds no earlier reading today')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const tab = (name: string) => page.locator(`[data-part="page-form"] [data-tab="${name}"]`)
+  // every reading's way in, in every tab, its verdicts folded open: a greyed reading show beside no active judge's is two greys
+  const bothGrey = () => page.locator('[data-part="page-form"] tbody[data-reading]').evaluateAll(bodies => bodies
+    .filter(body => body.querySelector('[data-part="show-reading-off"]') && !body.querySelector('[data-part="recall"]'))
+    .map(body => body.getAttribute('data-reading')))
+  const at = await Promise.all(['readings', 'lab', 'verdicts'].map(name => tab(name).boundingBox()))
+  for (const name of ['readings', 'lab']) {
+    await tab(name).click()
+    for (const mark of await page.locator('[data-part="fold-reading"][aria-expanded="false"]:not([disabled])').all()) await mark.click()
+    await expect(page.locator('[data-part="page-form"] [data-part="shown"]')).toHaveText(['● served'])
+    expect(await bothGrey(), `a reading in ${name} with no active way in`).toEqual([])
+    const now = await Promise.all(['readings', 'lab', 'verdicts'].map(one => tab(one).boundingBox()))
+    now.forEach((box, index) => inPlace(box, at[index]!, `tab ${index} after ${name}`))
+  }
+  // reading 1: its own show greyed, its card naming the judge whose show takes it there
+  await tab('readings').click()
+  const body = page.locator(`[data-part="page-form"] tbody[data-reading="${earlier!.key}"]`)
+  const off = body.locator('.reading-row [data-part="show-reading-off"]')
+  await expect(off.locator('button')).toBeDisabled()
+  await expect(body.locator('[data-part="recall"]')).toHaveCount(1)
+  await off.hover()
+  await expect(page.locator('[data-part="hover-card"] [data-row="why not"] .card-value')).toHaveText(earlier!.show_why_not!)
+  await page.screenshot({ path: `${SHOTS}/page_one_way_in.png` })
+  // and the check sees a reading left with no way in: its judge's show taken out, a moment
+  await body.locator('[data-part="recall"]').evaluate(element => element.remove())
+  expect(await bothGrey()).toEqual([earlier!.key])
 })
 
 // decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change

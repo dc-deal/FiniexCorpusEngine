@@ -2160,3 +2160,17 @@ A time in a hover card is now said as a person reads it (`CardRow.at`, `HoverRow
   not. It ends on its failing case, the greyed tab made wider, a moment.
 - The older checks follow the trials into the Lab.
 417 unit tests, 100 checks in the browser (2 skipped on today's data), 1,781 Python tests.
+
+**One way into a reading, and "served" (decisions 41.a and 42.a, 27 Nov).** The served reading's mark said "● shown",
+which read wrong while another reading or a judge was recalled. It now says "● served", the head's own word ("the served
+one", "served before"), served by the API (`FormReading.served_said`). And every reading has exactly one active way in: a
+reading's own show is greyed where a judge beneath it, in the same tab, has an active show, one that draws its findings on
+that reading (a finding struck by code among them, as it is drawn, 178.a). The greyed show keeps its place, and its card
+names that judge ("show on judge/1: the same reading with its findings"). Where no judge beneath it has a finding, the
+reading's own show stays active and the judges' shows are the greyed ones (decision 25), so never both. On finance p. 5,
+reading 1's show is greyed for its judge/1 of 4 Nov. **Measured:** a Python test of the three cases (the served reading,
+one whose judge has a struck finding, one whose judge found nothing); a unit test of the greyed show and its card; a
+browser check on finance p. 5 that opens every reading in Readings and in the Lab and finds none without an active way in,
+reading 1's show greyed with its card, "● served" as the mark and the tabs in place. It ends on its failing case: the
+judge's way in taken out, a moment, and the check names the reading left with none. 418 unit tests, 101 checks in
+the browser (2 skipped on today's data), 1,782 Python tests.

@@ -4614,6 +4614,17 @@
             "title": "Shown",
             "default": false
           },
+          "served_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Served Said"
+          },
           "test_reading": {
             "type": "boolean",
             "title": "Test Reading",
@@ -4645,6 +4656,17 @@
               }
             ],
             "title": "Recall"
+          },
+          "show_why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Why Not"
           },
           "verdicts": {
             "items": {

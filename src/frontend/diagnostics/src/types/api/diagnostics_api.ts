@@ -1671,6 +1671,8 @@ export interface components {
              * @default false
              */
             shown: boolean;
+            /** Served Said */
+            served_said?: string | null;
             /**
              * Test Reading
              * @default false
@@ -1685,6 +1687,8 @@ export interface components {
             promotable: boolean;
             /** Recall */
             recall?: string | null;
+            /** Show Why Not */
+            show_why_not?: string | null;
             /**
              * Verdicts
              * @default []

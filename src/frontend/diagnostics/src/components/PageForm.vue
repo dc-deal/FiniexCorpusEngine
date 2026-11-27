@@ -160,8 +160,12 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
             <span v-if="reading.promoted_said" class="promoted" data-part="promoted">· {{ reading.promoted_said }}</span>
           </td>
           <td>
-            <span v-if="reading.shown" class="shown-mark" data-part="shown">● shown</span>
+            <span v-if="reading.served_said" class="shown-mark" data-part="shown">● {{ reading.served_said }}</span>
             <span v-else-if="reading.recall && reading.recall === recallId" class="on-page" data-part="recalled-here"><AppIcon name="recalled" /> on the page</span>
+            <!-- one active way into a reading (42.a): where a judge beneath it shows it with its findings, its own show is greyed -->
+            <HoverCard v-else-if="reading.show_why_not" title="Show" :rows="[{ label: 'why not', value: reading.show_why_not }]">
+              <span class="show-off" data-part="show-reading-off"><AppButton variant="link" disabled>show</AppButton></span>
+            </HoverCard>
             <RouterLink v-else-if="reading.recall" :to="recallTo(reading.recall)" data-part="show-reading">show</RouterLink>
           </td>
         </tr>

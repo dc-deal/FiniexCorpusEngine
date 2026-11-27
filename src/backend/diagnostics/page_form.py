@@ -87,10 +87,15 @@ class FormReading(BaseModel):
     result_state: Literal['ok', 'none', 'issue']
     result_said: str  # "ok", "no judge", "3 issues", "malformed"
     shown: bool = False  # the reading the page shows and serves
+    # its mark, in the head's word (41.a): "served", where "shown" read wrong while another reading or a judge is recalled
+    served_said: str | None = None
     test_reading: bool = False  # a local model's test reading (#17), the Lab's
     promoted_said: str | None = None  # "promoted from the Lab: better", where a person made it the page's reading (#18)
     promotable: bool = False  # a page/1 Lab reading nobody promoted: the one kind the core promotes
     recall: str | None = None  # its own "show": the reading alone on the page, by its key; None for the reading shown
+    # where a judge beneath it in the same tab shows the same reading with its findings (42.a), that way in, in words: its own
+    # show then stays in place, greyed, so a reading has exactly one active way in
+    show_why_not: str | None = None
     verdicts: list[FormVerdict] = []
     hover: list[HoverRow] = []
 
@@ -369,8 +374,18 @@ def reading_row(attempt: Any, people: list[Any], chosen: Any = None, trials: boo
                        promoted_said=promoted_said(attempt),
                        promotable=prototype and attempt.reader_version == 'page/1' and not getattr(attempt, 'promoted', None),
                        recall=None if attempt.shown else attempt.reading_key,
+                       served_said='served' if attempt.shown else None,
+                       show_why_not=reading_why_not(verdicts) if not attempt.shown else None,
                        verdicts=verdicts,
                        hover=reading_hover(attempt, chosen))
+
+
+def reading_why_not(verdicts: list[FormVerdict]) -> str | None:
+    """Why a reading's own show is greyed (42.a): a judge beneath it whose show is active, its findings drawn on the same
+    reading (a finding struck by code among them, 178.a), named by its version; None where no judge beneath it has one, so
+    the judges' shows are the greyed ones (decision 25) and never both."""
+    active = next((verdict for verdict in verdicts if verdict.kind == 'judge' and verdict.recall and not verdict.show_why_not), None)
+    return f"show on {active.version or 'its judge'}: the same reading with its findings" if active else None
 
 
 def in_lab(attempt: Any) -> bool:
