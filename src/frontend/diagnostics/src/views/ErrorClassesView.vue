@@ -41,7 +41,7 @@ const voided = computed(() => judged.value.filter(one => one.void))
 const layer = computed(() => (errors.value?.classes ?? []).filter(one => one.stage === 'stage 2'))
 const tables = computed(() => [
   { key: 'judge', title: "The judge's findings that count", note: 'by kind, block class and work', rows: countingFindings.value, classes: true },
-  { key: 'void', title: 'Void: findings that name no difference', note: 'kept apart, never counted', rows: voided.value, classes: true },
+  { key: 'void', title: 'Struck by code: findings that name no difference', note: 'kept apart, never counted', rows: voided.value, classes: true },
   { key: 'stage2', title: 'Stage 2, the reading against the text layer', note: 'by kind and work', rows: layer.value, classes: false },
 ])
 </script>

@@ -120,7 +120,7 @@ describe('PageView, the check in stages and its judges (146.a, 147.a)', () => {
     expect(voices.map(voice => voice.attributes('data-voice'))).toEqual(['judge', 'code', 'evidence', 'person'])
     expect(voices.map(voice => voice.find('.part-label').text()))
       .toEqual(["The judge's finding:", "The code's ruling:", "The judge's evidence:", "A person's verdict:"])
-    expect(finding.find('[data-part="void"]').text()).toBe("void: the judge's evidence names no difference")
+    expect(finding.find('[data-part="void"]').text()).toBe("struck: the judge's evidence names no difference")
     // the rule in the library's card, no browser tooltip (203.a)
     expect(finding.find('[data-part="void"]').attributes('title')).toBeUndefined()
     await finding.find('[data-voice="code"] .hover-card-host').trigger('mouseenter')

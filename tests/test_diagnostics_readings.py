@@ -9,7 +9,7 @@ import shutil
 import pytest
 
 from backend.conversion.store import served_readings
-from backend.diagnostics import readings
+from backend.diagnostics import page_form, readings
 
 KELLY = 'carta_conversano_kelly_criterion_2020'  # a free paper of 15 pages whose PDF is tracked
 store = readings.Readings()
@@ -746,7 +746,7 @@ def test_a_judgement_is_recalled_on_the_reading_it_judged_with_its_own_findings_
     shown = next(attempt for attempt in page.attempts if attempt.shown)
     by_version = {judgement.version: judgement.recall for judgement in shown.judgements if not judgement.again}
     found = store.recall(FINANCE, 5, by_version['judge/2'])
-    assert found.said == f'judge/2 (prototype) on reading {shown.number}, never served'
+    assert found.said == f'judge/2 (prototype, never counts) on reading {shown.number}, the served one'
     b12 = next(block for block in found.reading.blocks if block.id == 'b12')
     assert [(finding.kind, finding.void) for finding in b12.findings] == [('wrong_word', True)]
     none = store.recall(FINANCE, 5, by_version['judge/3'])
@@ -833,7 +833,7 @@ def test_a_pages_head_says_its_route_in_parts_and_what_its_findings_come_to_and_
 
     assert (page.route_level, page.route_source, page.route_reader) == (
         'noted', 'vision reading', ['claude-sonnet-5-5', 'page/1', f"validator {reading_export.FROZEN['validator']}"])
-    assert [(one.block, one.said, one.severity) for one in page.findings_at] == [('b12', 'void by code', None)]
+    assert [(one.block, one.said, one.severity) for one in page.findings_at] == [('b12', 'struck by code', None)]
     # a person's line says what the findings come to, so the findings line does not say it again (the operator, 11 Nov)
     assert page.findings_outcome is None and page.focus == 'b12'
     # a standing finding on a page served from its text layer, invented, since a person's walk changes the real pages:
@@ -1028,6 +1028,24 @@ def test_the_correction_that_stands_for_a_block_is_the_latest_that_applies_to_th
 
 
 @pytest.mark.readings
+def test_a_recall_shows_the_page_as_then_its_verdicts_and_its_blocks_and_a_trial_none():
+    # finance p. 5 (29.d, 39.a, 38.a): the served reading's judge/1 recalled shows itself alone, as no person had judged by
+    # then, and b12 carries no person's verdict; judge/4, a prototype's trial, has no verdicts and says why
+    page = store.page(FINANCE, 5, 'Finance')
+    shown = next(attempt for attempt in page.attempts if attempt.shown)
+    counting = next(judgement for judgement in shown.judgements if judgement.counts)
+    trial = next(judgement for judgement in shown.judgements if judgement.version == 'judge/4')
+    assert page.form.verdicts.count == 2
+    then = store.recall(FINANCE, 5, counting.recall)
+    assert (then.verdicts.count, then.verdicts.said, then.verdicts.said_at) == (1, f'as then: the verdicts on reading {shown.number} on',
+                                                                               page_form.moment(counting.stored_at).isoformat())
+    b12 = next(block for block in then.reading.blocks if block.id == 'b12')
+    assert (b12.people, b12.correction) == ([], None)
+    tried = store.recall(FINANCE, 5, trial.recall)
+    assert (tried.verdicts.count, tried.verdicts.why_not) == (None, page_form.TRIAL)
+
+
+@pytest.mark.readings
 def test_a_reader_prototypes_reading_is_an_attempt_of_its_own_and_a_recall_names_the_reader(tmp_path):
     # invented over Kelly (210.a): a reading by the reader prototype page/2 beside the served one, judged by judge/4
     row = copy.deepcopy(next(row for row in kelly_rows() if row.get('text_file') and row['check']['state'] == 'ok'))
@@ -1043,9 +1061,13 @@ def test_a_reader_prototypes_reading_is_an_attempt_of_its_own_and_a_recall_names
     assert [(one.number, one.reader_version, bool(one.prototype), one.shown) for one in attempts] == [
         (1, 'page/1', False, True), (2, 'page/2', True, False)]
     recalled = corpus.recall(KELLY, row['pdf_page'], readings.recall_id('ab' * 32, judge4))
-    assert recalled.said == 'judge/4 (prototype) on reading 2, read by page/2 (prototype), never served'
-    # a judgement that counts, on the pipeline's own reading, says nothing of a reader
-    assert readings.recall_said({'version': 'judge/1', 'version_state': 'active', 'counts': True}, 1, served) == 'judge/1 (active) on reading 1, counts'
+    assert recalled.said == 'judge/4 (prototype, never counts) on reading 2, read by page/2 (prototype), never served'
+    # a judgement that counts, on the pipeline's own reading, says nothing of a reader; a reading replaced was served before
+    assert readings.recall_said({'version': 'judge/1', 'version_state': 'active', 'counts': True}, 1, {**served, 'shown': True}) == (
+        'judge/1 (counts) on reading 1, the served one')
+    assert readings.reading_said(1, served) == 'reading 1, served before'
+    assert readings.recall_said({'version': 'judge/1', 'counts': False, 'again': 1}, 1, served) == (
+        'judge/1 (asked again, never counts) on reading 1, served before')
 
 
 @pytest.mark.readings

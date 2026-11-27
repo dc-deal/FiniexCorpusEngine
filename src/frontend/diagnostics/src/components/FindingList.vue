@@ -7,7 +7,8 @@ import type { Finding, PersonVerdict, StandingCorrection } from '@/types/api/pag
 
 /**
  * The judge's findings, each speaking with up to three voices, one labelled line each (decision 178.a, the operator on finance p. 5:
- * "who said what?"): the judge's finding, its kind and severity, struck through where void; the code's ruling, only
+ * "who said what?"): the judge's finding, its kind and severity, struck through where void ("struck by code" in the
+ * view's words, 32.a); the code's ruling, only
  * where the core voided it as naming no difference (146.a, 147.a), the rule in its hover; the judge's evidence, its label
  * on a line of its own and the evidence beneath. After the findings a person's verdict on this block, or on the page as a
  * whole, stands as a fourth voice: accepted, rejected or noted, its reason and its note. A void finding is never hidden,
@@ -53,7 +54,7 @@ function reasonOf(person: PersonVerdict): string {
         <span class="part-label">The code's ruling:</span>
         <!-- the rule in the library's card (203.a), where a browser tooltip stood -->
         <HoverCard title="The code's ruling" :rows="[{ label: 'rule', value: VOID_RULE }]">
-          <span class="void-mark" data-part="void">void: the judge's evidence names no difference</span>
+          <span class="void-mark" data-part="void">struck: the judge's evidence names no difference</span>
         </HoverCard>
       </p>
       <template v-if="finding.evidence">

@@ -719,7 +719,7 @@ class QuotedText(BaseModel):
 
 class FindingsAt(BaseModel):
     block: str
-    said: str  # 'void by code' where code voided every finding on it, else 'stands'
+    said: str  # 'struck by code' where code voided every finding on it (the view's words, 32.a), else 'stands'
     # the gravest severity among its findings that stand, as the head shows it with a finding's own look (the operator, 12 Nov, on
     # accounting p. 524); None where code voided them all
     severity: str | None = None
@@ -973,17 +973,30 @@ def read_by(attempt: dict | None) -> str:
     return f", read by {attempt.get('reader_version') or 'a reader'} ({kind})"
 
 
+def reading_said(number: int, attempt: dict | None) -> str:
+    """A recalled reading in words (35.a): 'reading 2, the served one', 'reading 1, served before', and a Lab reading
+    'reading 3, read by page/2 (prototype), never served'; a pipeline reading whose format failed was never served."""
+    attempt = attempt or {}
+    if attempt.get('prototype'):
+        return f'reading {number}{read_by(attempt)}, never served'
+    if attempt.get('shown'):
+        return f'reading {number}, the served one'
+    return f"reading {number}, {'served before' if attempt.get('class_now', 'ok') == 'ok' else 'never served'}"
+
+
 def recall_said(judgement: dict, number: int, attempt: dict | None = None) -> str:
-    """What a recalled judgement is, in one line: 'judge/3 (prototype) on reading 2, never served', and for a reading a
-    reader prototype made (210.a) 'judge/4 (prototype) on reading 2, read by page/2 (prototype), never served'."""
+    """What a recalled judgement is, in one line (35.a): its version and its role, then its reading:
+    'judge/1 (counts) on reading 2, the served one', 'judge/4 (prototype, never counts) on reading 2, the served one',
+    'judge/1 (asked again, never counts) on reading 1, served before', 'judge/1 (not counted) on reading 3, read by page/2
+    (prototype), never served'."""
     name = judgement.get('version') or 'judge'
-    if judgement.get('version_state'):
-        name += f" ({judgement['version_state']})"
-    if judgement.get('again'):
-        name += ', asked again'
-    on = f'reading {number}' + read_by(attempt)
-    role = 'counts' if judgement.get('counts', True) else 'never served' if in_lab(judgement) or (attempt or {}).get('prototype') else 'not counted'
-    return f'{name} on {on}, {role}'
+    if judgement.get('counts', True):
+        role = 'counts'
+    elif in_lab(judgement):
+        role = f"{'asked again' if judgement.get('again') else 'prototype'}, never counts"
+    else:
+        role = 'not counted'
+    return f'{name} ({role}) on {reading_said(number, attempt)}'
 
 
 class Recalled(BaseModel):
@@ -1955,7 +1968,7 @@ class Readings:
             route_why=why, why_line=why_line(row, said, reading.blocks if reading else []),
             focus=named[0].id if named else None, protected=row.get('protected'), listed_state=listed_state(row),
             reset=PageReset.model_validate(reset) if reset else None,
-            findings_at=[FindingsAt(block=block.id, said='void by code' if all(finding.void for finding in block.findings)
+            findings_at=[FindingsAt(block=block.id, said='struck by code' if all(finding.void for finding in block.findings)
                                     else 'stands', severity=gravest(block.findings)) for block in named] or None,
             findings_outcome=findings_outcome(row, said) if named or findings else None,
             chosen=picked,
@@ -1998,20 +2011,29 @@ class Readings:
         # a person's verdicts on that reading apply to it, whichever reading the page shows now
         people = [PersonVerdict.model_validate({**person, 'applies': True, 'assessed': assessed_judge(person, attempts)})
                   for person in row.get('human') or [] if person.get('reading_key') == reading_key]
+        # as then (29.d, 39.a): the moment it shows, a judgement's own or a reading's until the next replaced it; its blocks
+        # carry the verdicts as they stood then, nothing given later, and one archived only after then still applying
+        parsed_attempts = attempts_of(row) or []
+        parsed_attempt = next(one for one in parsed_attempts if one.reading_key == reading_key)
+        parsed_judgement = next((one for one in parsed_attempt.judgements if one.recall == recall), None) if colon else None
+        then = page_form.then_of(parsed_attempts, parsed_attempt, parsed_judgement)
+        then_people = [person.model_copy(update={'archived': False}) if person.archived else person
+                       for person in page_form.at_then(people, then)] if then is not None else people
         text, form = self.stored_reading(row, reading_key)
         reading, size, placed = None, row.get('image_size'), set()
         if text is not None:
             parsed = page_contract.parse(text, form)
-            blocks = with_corrections(with_notes([block_of(block, findings, people, row.get('page_kind')) for block in parsed.blocks]))
+            blocks = with_corrections(with_notes([block_of(block, findings, then_people, row.get('page_kind')) for block in parsed.blocks]))
             placed = {block.id for block in blocks}
             reading = Reading(front={name: str(value) for name, value in parsed.front.items()}, blocks=blocks,
                               errors=parsed.errors, warnings=parsed.warnings,
-                              error_places=errors_placed(parsed.errors, blocks, people, text))
+                              error_places=errors_placed(parsed.errors, blocks, then_people, text))
             width, _, height = str(parsed.front.get('image_size', '')).partition('x')
             if width.isdigit() and height.isdigit():
                 size = [int(width), int(height)]
-        said = (recall_said(judgement, number, attempt) if colon
-                else f"reading {number}{read_by(attempt)}, {'never served' if attempt.get('prototype') else 'read by the pipeline'}")
+        # the reading in words by whether the page serves it now, which the export's attempt does not carry (35.a)
+        seen = {**attempt, 'shown': parsed_attempt.shown}
+        said = recall_said(judgement, number, seen) if colon else reading_said(number, seen)
         return Recalled(recall=recall_id(reading_key, judgement) if colon else reading_key, reading_key=reading_key,
                         reading_number=number, version=judgement.get('version'), version_state=judgement.get('version_state'),
                         again=judgement.get('again') or 0, counts=judgement.get('counts', True) if colon else False,
@@ -2019,4 +2041,4 @@ class Readings:
                         why_not=None if text is not None else
                         f"reading {number}'s text is not on this machine: only the reading a page shows is exported",
                         page_findings=[finding for finding in findings if finding.block not in placed], image_size=size,
-                        verdicts=page_form.shown_verdicts(attempts_of(row) or [], people, reading_key, number))
+                        verdicts=page_form.shown_verdicts(parsed_attempts, people, reading_key, number, parsed_judgement))

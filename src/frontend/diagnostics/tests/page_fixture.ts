@@ -224,8 +224,8 @@ export function aFormReading(overrides: Partial<FormReading> = {}): FormReading 
 
 /** A verdict as the Verdicts tab shows it (#18, decision 26): the served reading's standing judgement, unless told otherwise. */
 export function aVerdictRow(overrides: Partial<VerdictRow> = {}): VerdictRow {
-  return { kind: 'judge', kind_said: 'judge', standing: true, standing_said: 'standing', time: '2026-11-05T08:29:30+00:00',
-    verdict: 'ok', state: 'ok', reason: null, about: 'the page', recall: 'k1:judge/1:0', answered: null, who: 'machine',
+  return { kind: 'judge', kind_said: 'judge', standing: true, standing_said: 'standing', recalled: false, time: '2026-11-05T08:29:30+00:00',
+    verdict: 'ok', state: 'ok', reason: null, about: 'the page', recall: 'k1:judge/1:0', judge_said: '—', answered: null, who: 'machine',
     who_said: 'judge/1 · an-invented-judge', hover: [], ...overrides }
 }
 

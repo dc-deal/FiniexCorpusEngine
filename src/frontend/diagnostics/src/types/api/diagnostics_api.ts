@@ -1741,6 +1741,8 @@ export interface components {
             version_said?: string | null;
             /** Verdict Said */
             verdict_said: string;
+            /** Overruled */
+            overruled?: string | null;
             /**
              * State
              * @enum {string}
@@ -1877,6 +1879,8 @@ export interface components {
             label: string;
             /** Value */
             value: string;
+            /** At */
+            at?: string | null;
         };
         /**
          * HtmlArticle
@@ -3632,21 +3636,25 @@ export interface components {
         };
         /**
          * ShownVerdicts
-         * @description The Verdicts tab's rows (decision 26): the verdicts that apply now to the reading the analysis shows, what that
-         *     reading is said in a caption above them, and their count, the tab's.
+         * @description The Verdicts tab's rows (decision 26): the verdicts that apply to the reading the analysis shows, what that reading
+         *     is said in a caption above them, and their count, the tab's; for a recalled trial none, and why (38.a).
          */
         ShownVerdicts: {
             /** Said */
             said: string;
+            /** Said At */
+            said_at?: string | null;
             /**
              * Recalled
              * @default false
              */
             recalled: boolean;
             /** Count */
-            count: number;
+            count: number | null;
             /** Rows */
             rows: components["schemas"]["VerdictRow"][];
+            /** Why Not */
+            why_not?: string | null;
         };
         /**
          * Splitter
@@ -3983,11 +3991,18 @@ export interface components {
              * Standing Said
              * @enum {string}
              */
-            standing_said: "standing" | "replaced" | "not counted";
+            standing_said: "standing" | "recalled" | "counted then";
+            /**
+             * Recalled
+             * @default false
+             */
+            recalled: boolean;
             /** Time */
             time?: string | null;
             /** Verdict */
             verdict: string;
+            /** Overruled */
+            overruled?: string | null;
             /**
              * State
              * @enum {string}
@@ -3997,6 +4012,11 @@ export interface components {
             reason?: string | null;
             /** About */
             about: string;
+            /**
+             * Judge Said
+             * @default —
+             */
+            judge_said: string;
             /** Recall */
             recall?: string | null;
             answered?: components["schemas"]["AnsweredJudgement"] | null;

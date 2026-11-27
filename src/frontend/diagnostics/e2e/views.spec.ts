@@ -226,11 +226,15 @@ const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', '
 
 // a page's form as the API serves it (#18): the view's readings, Lab and verdicts are held to it, word for word
 type FormVerdictJson = { kind: string, kind_said: string, version: string | null, version_said: string | null, verdict_said: string,
-  recall: string | null, show_why_not: string | null, block: string | null, rules: { rule: string | null }[] }
+  overruled?: string | null, recall: string | null, show_why_not: string | null, block: string | null, rules: { rule: string | null }[] }
 type FormReadingJson = { key: string, kind_said: string, version: string | null, result_said: string, shown: boolean, test_reading: boolean,
   recall: string | null, verdicts: FormVerdictJson[], hover: { label: string, value: string }[] }
 // the verdicts as shown (decision 26): the served reading's on the page, a recalled one's on its recall
-type ShownJson = { said: string, recalled: boolean, count: number, rows: { kind_said: string, standing: boolean, recall: string | null }[] }
+type ShownJson = { said: string, said_at?: string | null, recalled: boolean, count: number | null, why_not?: string | null,
+  rows: { kind_said: string, standing: boolean, recall: string | null }[] }
+
+// a verdict's words as its cell shows them: the result, and the judge's own word struck beside it where code overruled it (32.a)
+const verdictText = (verdict: FormVerdictJson) => [verdict.verdict_said, verdict.overruled].filter(Boolean).join(' ')
 type FormJson = { readings_count: number, lab_count: number, readings: FormReadingJson[], lab: FormReadingJson[], verdicts: ShownJson }
 
 async function recallOf(request: APIRequestContext, work: string, pdfPage: number, recall: string): Promise<{ said: string, verdicts: ShownJson }> {
@@ -1397,7 +1401,7 @@ test('the frame takes its name from the app config, names the page on show, and 
 // #18 from its row in the page's form, beneath the reading it judged, and a reading other than the one shown by its own show
 test('a judgement from the page\'s form is shown on the page as it judged, marked as recalled, and the standing view comes back', async ({ page, request }) => {
   const form = await formOf(request, FINANCE, 5)
-  const shown = form.readings.find(reading => reading.shown)!
+  const shown = form.lab.find(reading => reading.shown)!
   const judge2 = shown.verdicts.find(one => one.version === 'judge/2' && !one.show_why_not)!
   expect(judge2.recall).toBeTruthy()
   const recalled = async (on: boolean) => {
@@ -1412,14 +1416,15 @@ test('a judgement from the page\'s form is shown on the page as it judged, marke
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
   await recalled(false)
-  // judge/2, a prototype: its void finding on b12, in the three voices, the code's ruling among them
+  // judge/2, a prototype's trial in the Lab: its finding on b12 struck by code, in the three voices, the code's ruling among them
+  await page.locator('[data-part="page-form"] [data-tab="lab"]').click()
   await page.locator(`[data-part="page-form"] tbody[data-reading="${shown.key}"] tr.verdict-row:has(a.version:text-is("judge/2")) [data-part="recall"]`)
     .first().click()
   // the address names it, so it can be sent: the router keeps its colons and its slash as they are
   await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${judge2.recall}`)
   await settled(page)
   await recalled(true)
-  await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('recalled, not the standing view: judge/2 (prototype) on reading')
+  await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('recalled, not the standing view: judge/2 (prototype, never counts) on reading')
   // the row it came from framed, dashed, saying it is on the page
   const source = page.locator('[data-part="page-form"] tr.recalled-source')
   await expect(source).toHaveCount(1)
@@ -1432,11 +1437,12 @@ test('a judgement from the page\'s form is shown on the page as it judged, marke
   // another reading shown alone by its own show: no judge's findings on its blocks
   const other = form.readings.find(reading => !reading.shown && reading.recall)
   if (other) {
+    await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
     await page.locator(`[data-part="page-form"] tbody[data-reading="${other.key}"] [data-part="show-reading"]`).click()
     await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${other.recall}`)
     await settled(page)
     await recalled(true)
-    await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('read by the pipeline')
+    await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('served before')
     await expect(page.locator('[data-part="analysis"] .block-findings [data-finding]')).toHaveCount(0)
   }
   // and back: the standing view, unmarked
@@ -1644,22 +1650,27 @@ test('a page lists its judgements beneath their readings in its form, and its de
     form: FormJson, check: { verdict: { findings: { void: boolean }[] } | null }
   }
   const verdicts = detail.form.readings.flatMap(reading => reading.verdicts)
-  test.skip(verdicts.length < 2, 'the export holds no page judged more than once')
+  const trials = detail.form.lab.flatMap(reading => reading.verdicts)
+  test.skip(verdicts.length + trials.length < 2, 'the export holds no page judged more than once')
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
   const form = page.locator('[data-part="page-form"]')
   await expect(form.locator('[role="tab"]')).toHaveText([`Readings ${detail.form.readings_count}`, `Lab ${detail.form.lab_count}`,
     `Verdicts ${detail.form.verdicts.count}`])
-  // every reading folded open: each verdict once, beneath its reading, its kind and its verdict the API's
-  for (const mark of await form.locator('[data-part="fold-reading"][aria-expanded="false"]:not([disabled])').all()) await mark.click()
-  await expect(form.locator('tr.verdict-row')).toHaveCount(verdicts.length)
-  await expect(form.locator('tr.verdict-row > td:first-child [data-kind]')).toHaveText(verdicts.map(one => one.kind_said))
-  await expect(form.locator('tr.verdict-row .result')).toHaveText(verdicts.map(one => one.verdict_said))
-  await page.screenshot({ path: `${SHOTS}/page_judgements.png` })
+  // every reading folded open, in Readings and in the Lab: each verdict once, beneath its reading, newest first, its kind and
+  // its words the API's, a judge's own word struck where code overruled it
+  for (const [tab, held] of [['readings', verdicts], ['lab', trials]] as const) {
+    await form.locator(`[data-tab="${tab}"]`).click()
+    for (const mark of await form.locator('[data-part="fold-reading"][aria-expanded="false"]:not([disabled])').all()) await mark.click()
+    await expect(form.locator('tr.verdict-row')).toHaveCount(held.length)
+    await expect(form.locator('tr.verdict-row > td:first-child [data-kind]')).toHaveText(held.map(one => one.kind_said))
+    await expect(form.locator('tr.verdict-row .result')).toHaveText(held.map(verdictText))
+    await page.screenshot({ path: `${SHOTS}/page_judgements_${tab}.png` })
+  }
   // the Verdicts tab: the verdicts as shown, on the served reading (decision 26), its caption the API's, the standing marked
   await form.locator('[data-tab="verdicts"]').click()
-  await expect(form.locator('[data-part="verdicts-said"]')).toHaveText(detail.form.verdicts.said)
-  await expect(form.locator('tr[data-verdict-row]')).toHaveCount(detail.form.verdicts.count)
+  await expect(form.locator('[data-part="verdicts-said"]')).toContainText(detail.form.verdicts.said)
+  await expect(form.locator('tr[data-verdict-row]')).toHaveCount(detail.form.verdicts.rows.length)
   expect(await form.locator('tr[data-verdict-row]').evaluateAll(rows => rows.map(row => row.getAttribute('data-standing'))))
     .toEqual(detail.form.verdicts.rows.map(one => String(one.standing)))
   await page.screenshot({ path: `${SHOTS}/page_verdicts.png` })
@@ -1668,7 +1679,7 @@ test('a page lists its judgements beneath their readings in its form, and its de
   if (detail.check.verdict?.findings.some(finding => finding.void)) {
     await page.locator('.found-at button').first().click()
     const mark = page.locator('.blocks [data-part="void"]').first()
-    await expect(mark).toHaveText("void: the judge's evidence names no difference")
+    await expect(mark).toHaveText("struck: the judge's evidence names no difference")
     // the rule in the library's card (203.a)
     await mark.hover()
     await expect(page.locator('[data-part="hover-card"] [data-row="rule"]')).toContainText('strings it quotes stand in the block and in the PDF\'s text layer')
@@ -2417,7 +2428,9 @@ test('a reading read beside the pipeline stands in the Lab, never among the read
   const issues = (await (await request.get('/api/issues')).json() as { rows: { source_id: string, pdf_page: number }[] }).rows
   let found: { work: string, page: number, reading: FormReadingJson } | null = null
   for (const row of issues) {
-    const reading = (await formOf(request, row.source_id, row.pdf_page)).lab.find(one => one.recall)
+    const form = await formOf(request, row.source_id, row.pdf_page)
+    const pipeline = new Set(form.readings.map(one => one.key))
+    const reading = form.lab.find(one => one.recall && !pipeline.has(one.key))
     if (reading) {
       found = { work: row.source_id, page: row.pdf_page, reading }
       break
@@ -2480,29 +2493,39 @@ test('a page\'s form keeps its tabs and its folds under the pointer, tab after t
 // own verdicts, the tab framed as the analysis is, and the row shown is framed in whichever tab holds it
 test('the way back from a recall stays under the pointer, recall after recall, and the row framed is the one shown (26, 27.a)', async ({ page, request }) => {
   const form = await formOf(request, FINANCE, 5)
-  const shown = form.readings.find(reading => reading.shown)!
   const other = form.readings.find(reading => !reading.shown && reading.recall)
-  const judgements = shown.verdicts.filter(verdict => verdict.recall && !verdict.show_why_not)
+  const held = (tab: 'readings' | 'lab') => form[tab].filter(reading => reading.shown).flatMap(reading => reading.verdicts
+    .filter(verdict => verdict.recall && !verdict.show_why_not).map(verdict => ({ tab, key: reading.key, verdict })))
+  const judgements = [...held('readings'), ...held('lab')]
   test.skip(judgements.length < 2 || !other, 'finance p. 5 holds no two judgements to recall and no other reading today')
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
   const back = page.locator('[data-part="analysis"] h2 [data-part="show-standing"]')
-  // in the document's own coordinates: a recall link clicked above may scroll the window
+  // in the analysis's own coordinates: a recall link clicked above may scroll the window, and the form above is as tall as
+  // its tab (the trials stand in the Lab since 37.a, so the recalls here cross tabs), which moves the whole analysis, not
+  // the way back within its head line
   const placeOf = () => back.evaluate(element => {
     const box = element.getBoundingClientRect()
-    return { x: box.x + window.scrollX, y: box.y + window.scrollY, width: box.width, height: box.height }
+    const analysis = element.closest('[data-part="analysis"]')!.getBoundingClientRect()
+    return { x: box.x - analysis.x, y: box.y - analysis.y, width: box.width, height: box.height }
   })
   const recalls: { recall: string, click: () => Promise<void> }[] = [
-    ...judgements.map(verdict => ({ recall: verdict.recall!, click: () => page.locator(
-      `[data-part="page-form"] tbody[data-reading="${shown.key}"] tr.verdict-row:has(a.version:text-is("${verdict.version}")) [data-part="recall"]`).first().click() })),
-    { recall: other!.recall!, click: () => page.locator(`[data-part="page-form"] tbody[data-reading="${other!.key}"] [data-part="show-reading"]`).click() },
+    ...judgements.map(({ tab, key, verdict }) => ({ recall: verdict.recall!, click: async () => {
+      await page.locator(`[data-part="page-form"] [data-tab="${tab}"]`).click()
+      await page.locator(`[data-part="page-form"] tbody[data-reading="${key}"] tr.verdict-row:has(a.version:text-is("${verdict.version}"))`)
+        .filter({ has: page.locator(`[data-part="recall"][href*="${verdict.recall!}"]`) })
+        .locator('[data-part="recall"]').first().click()
+    } })),
+    { recall: other!.recall!, click: async () => {
+      await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
+      await page.locator(`[data-part="page-form"] tbody[data-reading="${other!.key}"] [data-part="show-reading"]`).click()
+    } },
   ]
   let at: Box | null = null
   const said = new Set<string>()
   for (const one of [...recalls, ...recalls]) {
     const api = await recallOf(request, FINANCE, 5, one.recall)
-    await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
     await one.click()
     await expect.poll(() => decodeURIComponent(page.url())).toContain(`judgement=${one.recall}`)
     await settled(page)
@@ -2517,13 +2540,19 @@ test('the way back from a recall stays under the pointer, recall after recall, a
     await expect(framed).toHaveCount(1)
     await expect(framed.locator('[data-part="recalled-here"]')).toHaveCount(1)
     expect(await framed.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('dashed')
-    // the Verdicts tab: the recall's own verdicts, its caption and count the API's, the tab and its table framed
+    // the Verdicts tab: the recall's own verdicts, its caption and count the API's, the tab and its table framed; for a
+    // trial none, the tab greyed in its place (38.a)
     const tab = page.locator('[data-part="page-form"] [data-tab="verdicts"]')
+    if (api.verdicts.why_not) {
+      await expect(tab).toHaveText('Verdicts –')
+      await expect(tab).toBeDisabled()
+      continue
+    }
     await expect(tab).toHaveText(`Verdicts ${api.verdicts.count}`)
     await expect(tab).toHaveAttribute('data-overlay', 'yes')
     await tab.click()
-    await expect(page.locator('[data-part="verdicts-said"]')).toHaveText(api.verdicts.said)
-    await expect(page.locator('tr[data-verdict-row]')).toHaveCount(api.verdicts.count)
+    await expect(page.locator('[data-part="verdicts-said"]')).toContainText(api.verdicts.said)
+    await expect(page.locator('tr[data-verdict-row]')).toHaveCount(api.verdicts.rows.length)
     expect(await page.locator('[data-part="verdicts-panel"]').evaluate(element => getComputedStyle(element).outlineStyle)).toBe('dashed')
     // a verdict row framed only where it is the judgement shown
     await expect(page.locator('tr[data-verdict-row].recalled-source')).toHaveCount(api.verdicts.rows.filter(row => row.recall === one.recall).length)
@@ -2536,7 +2565,6 @@ test('the way back from a recall stays under the pointer, recall after recall, a
   const places = []
   for (const one of recalls) {
     const api = await recallOf(request, FINANCE, 5, one.recall)
-    await page.locator('[data-part="page-form"] [data-tab="readings"]').click()
     await one.click()
     await expect(page.locator('[data-part="analysis-recalled"]')).toHaveText(`recalled, not the standing view: ${api.said}`)
     places.push((await placeOf()).x)
@@ -2598,16 +2626,73 @@ test('a reload after a recall returns the standing view, and the recall\'s link 
   await fresh.close()
 })
 
+// The operator's 29.d, 31.a to 39.a on finance p. 5 (27 Nov, line 1's four points): the Verdicts tab holds 2 as shown; judge/1
+// recalled shows the page as it was then, 1 verdict and no person's beneath b12, as no person had judged yet; judge/4, a
+// prototype's trial, has none, the tab greyed in its place and the Lab open; and the tabs stay under the pointer, greyed or not.
+// Each point beside its own failing case: the standing view holds the person's verdicts the recall must not, and an active tab
+test('finance p. 5 as then: Verdicts 2, judge/1 recalled with 1 and no person beneath b12, judge/4 greyed in the Lab (29.d-39.a)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const served = form.readings.find(reading => reading.shown)!
+  const counting = served.verdicts.find(verdict => verdict.kind === 'judge' && verdict.version === 'judge/1')!
+  const trial = form.lab.find(reading => reading.shown)!.verdicts.find(verdict => verdict.version === 'judge/4')!
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const tab = (name: string) => page.locator(`[data-part="page-form"] [data-tab="${name}"]`)
+  const persons = page.locator('[data-part="analysis"] [data-block="b12"] [data-voice="person"]')
+  await expect(tab('verdicts')).toHaveText('Verdicts 2')
+  await expect(tab('lab')).toHaveText('Lab 4')
+  // the standing view: the person's verdicts stand beneath b12, which the recall of judge/1 must not show
+  await expect(persons).not.toHaveCount(0)
+  await tab('verdicts').click()
+  await expect(page.locator('tr[data-verdict-row]')).toHaveCount(2)
+  // judge/1 recalled: as then, at its own moment
+  await tab('readings').click()
+  await page.locator(`[data-part="page-form"] tbody[data-reading="${served.key}"] tr.verdict-row [data-part="recall"][href*="${counting.recall!}"]`).click()
+  await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('judge/1 (counts) on reading 2, the served one')
+  await expect(tab('verdicts')).toHaveText('Verdicts 1')
+  await expect(persons).toHaveCount(0)
+  await tab('verdicts').click()
+  await expect(page.locator('[data-part="verdicts-said"]')).toContainText('as then: the verdicts on reading 2 on')
+  await expect(page.locator('tr[data-verdict-row] .standing-mark')).toHaveText(['↺ recalled'])
+  await page.screenshot({ path: `${SHOTS}/page_as_then.png` })
+  // judge/4 recalled from the Lab: no verdict applies, the tab greyed and "–", its card saying why; the Lab stays open
+  await tab('lab').click()
+  const at = await Promise.all(['readings', 'lab', 'verdicts'].map(name => tab(name).boundingBox()))
+  await page.locator(`[data-part="page-form"] tr.verdict-row [data-part="recall"][href*="${trial.recall!}"]`).click()
+  await expect(page.locator('[data-part="analysis-recalled"]')).toContainText('judge/4 (prototype, never counts) on reading 2, the served one')
+  await expect(tab('verdicts')).toHaveText('Verdicts –')
+  await expect(tab('verdicts')).toBeDisabled()
+  await expect(tab('lab')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-part="page-form"] [data-panel="lab"] tr.recalled-source')).toHaveCount(1)
+  await tab('verdicts').locator('xpath=..').hover()
+  await expect(page.locator('[data-part="hover-card"] [data-row="why not"]')).toContainText('a trial in the Lab: no verdict applies to it')
+  await page.mouse.move(0, 0)
+  // the tabs, greyed or not, stay under the pointer, clicked again and again
+  for (const name of ['readings', 'lab', 'readings', 'lab']) {
+    await tab(name).click()
+    const now = await Promise.all(['readings', 'lab', 'verdicts'].map(one => tab(one).boundingBox()))
+    now.forEach((box, index) => inPlace(box, at[index]!, `tab ${index} after ${name}`))
+  }
+  await page.screenshot({ path: `${SHOTS}/page_trial_recalled.png` })
+  // and the check sees a greyed tab that moves: made wider, a moment
+  await page.addStyleTag({ content: '[data-part="page-form"] [data-off="yes"] { padding-left: 3rem !important; }' })
+  expect(Math.abs((await tab('verdicts').boundingBox())!.width - at[2]!.width)).toBeGreaterThan(1)
+})
+
 // decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change
 // nothing keeps its place and its box in the column, greyed and disabled, and the card under the pointer says why in the API's words
 test('a show that would change nothing keeps its box, greyed, its card saying why (decision 25)', async ({ page, request }) => {
   const form = await formOf(request, FINANCE, 5)
-  const reading = form.readings.find(one => one.verdicts.some(verdict => verdict.show_why_not) && one.verdicts.some(verdict => verdict.recall && !verdict.show_why_not))
+  const holds = (one: FormReadingJson) => one.verdicts.some(verdict => verdict.show_why_not) && one.verdicts.some(verdict => verdict.recall && !verdict.show_why_not)
+  const tab = form.readings.some(holds) ? 'readings' : 'lab'
+  const reading = form[tab].find(holds)
   test.skip(!reading, 'no reading on the page holds a judgement that found nothing beside one that found something')
   const why = reading!.verdicts.find(verdict => verdict.show_why_not)!.show_why_not!
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto(`/#/free/sources/${FINANCE}/page/5`)
   await settled(page)
+  await page.locator(`[data-part="page-form"] [data-tab="${tab}"]`).click()
   const body = page.locator(`[data-part="page-form"] tbody[data-reading="${reading!.key}"]`)
   const mark = body.locator('[data-part="fold-reading"]')
   if (await mark.getAttribute('aria-expanded') === 'false') await mark.click()
@@ -2650,7 +2735,7 @@ test('a page says its record in the rows every page has, each thing once, a pers
   await expect(facts.locator('[data-part="check-line"] > *').first()).toHaveAttribute('data-part', 'person-verdict')
   const findings = facts.locator('[data-label="Findings"]')
   await expect(findings.locator('[data-jump="b12"]')).toBeVisible()
-  await expect(findings.locator('[data-said]')).toHaveText('void by code')
+  await expect(findings.locator('[data-said]')).toHaveText('struck by code')
   // a block whose findings code voided keeps the flag, receding with the ruling (the operator, 12 Nov)
   await expect(findings.locator('[data-finding-at="b12"]')).toHaveClass(/void/)
   await expect(findings.locator('[data-part="findings-outcome"]')).toHaveCount(0)

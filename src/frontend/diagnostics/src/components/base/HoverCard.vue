@@ -2,6 +2,7 @@
 import { autoUpdate, computePosition, flip, hide as hidden, offset, shift, size } from '@floating-ui/dom'
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import type { CardRow } from '@/components/base/card_row'
+import HumanTime from '@/components/base/HumanTime.vue'
 import { HOVER_DELAY } from '@/hover_delay'
 
 /**
@@ -130,7 +131,7 @@ function close(): void {
 
 onBeforeUnmount(close)
 
-const filled = computed(() => props.rows.filter(row => row.value))
+const filled = computed(() => props.rows.filter(row => row.value || row.at))
 
 /** Whether a shown row opens a new group, below a rule: the first only where a lead stands above it. */
 function opensGroup(index: number): boolean {
@@ -161,7 +162,7 @@ function opensGroup(index: number): boolean {
         </template>
         <span class="card-row" :data-row="row.label" :data-indent="row.indent || undefined">
           <span class="card-label">{{ row.label }}</span>
-          <span class="card-value">{{ row.value }}</span>
+          <span class="card-value"><HumanTime v-if="row.at" :at="row.at" /><template v-else>{{ row.value }}</template></span>
         </span>
       </template>
     </span>

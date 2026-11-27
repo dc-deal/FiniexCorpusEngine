@@ -22,7 +22,8 @@ function aForm(): Form {
     shown_judgement: 'k2:judge/3:0',
     readings: [
       aFormReading({ key: 'k2', time: '2026-11-06T10:00:00+00:00', verdicts: [
-        aFormVerdict({ version: 'judge/3', recall: 'k2:judge/3:0', verdict_said: 'ok · 1 finding', show_why_not: null, block: null }),
+        aFormVerdict({ version: 'judge/3', recall: 'k2:judge/3:0', verdict_said: 'ok · 1 finding struck by code', overruled: 'bad',
+          show_why_not: null, block: null }),
         aFormVerdict({ kind: 'person', kind_said: 'person', model: '', cost_usd: null, version: null, version_said: null,
           verdict_said: 'agree · the judge was right', state: 'note', recall: null, show_why_not: null, block: 'b03' }),
       ] }),
@@ -34,12 +35,9 @@ function aForm(): Form {
       result_state: 'none', result_said: 'no judge', verdicts: [],
       hover: [{ label: 'reading key', value: 'k3' }, { label: 'purpose', value: 'a test reading' }] })],
     verdicts: shownVerdicts([
-      aVerdictRow({ kind: 'person', kind_said: 'person', standing: false, standing_said: 'replaced', verdict: 'reject', state: 'issue',
-        about: 'b03', recall: null, who: 'person', who_said: 'the operator' }),
-      aVerdictRow({ recall: 'k2:judge/3:0' }),
       aVerdictRow({ kind: 'person', kind_said: 'person', verdict: 'agree', state: 'note', reason: 'the judge was right',
-        about: 'b03', recall: null, answered: { version: 'judge/3', model: 'an-invented-judge', stored_at: null, derived: true },
-        who: 'person', who_said: 'the operator' }),
+        about: 'b03', recall: null, judge_said: 'judge/3', who: 'person', who_said: 'the operator' }),
+      aVerdictRow({ recall: 'k2:judge/3:0', overruled: 'bad', reason: 'wrong word, struck by code', about: 'b12' }),
     ]),
   })
 }
@@ -48,13 +46,13 @@ describe('PageForm, a page\'s readings and verdicts in one form (#18)', () => {
   it('names its three tabs with the API\'s counts, the readings first, and a click shows the tab\'s own rows', async () => {
     const form = mountForm(aForm())
     expect(form.findAll('[role="tab"]').map(tab => [tab.attributes('data-tab'), tab.text()]))
-      .toEqual([['readings', 'Readings 2'], ['lab', 'Lab 1'], ['verdicts', 'Verdicts 3']])
+      .toEqual([['readings', 'Readings 2'], ['lab', 'Lab 1'], ['verdicts', 'Verdicts 2']])
     expect(form.find('[data-tab="readings"]').attributes('aria-selected')).toBe('true')
     expect(form.findAll('[data-panel="readings"] tbody[data-reading]').map(body => body.attributes('data-reading'))).toEqual(['k2', 'k1'])
     await form.find('[data-tab="lab"]').trigger('click')
     expect(form.findAll('[data-panel="lab"] tbody[data-reading]').map(body => body.attributes('data-reading'))).toEqual(['k3'])
     await form.find('[data-tab="verdicts"]').trigger('click')
-    expect(form.findAll('[data-panel="verdicts"] tr[data-verdict-row]')).toHaveLength(3)
+    expect(form.findAll('[data-panel="verdicts"] tr[data-verdict-row]')).toHaveLength(2)
   })
 
   it('says each row\'s kind in front, a glyph and a word, and folds the reading shown open to its verdicts', async () => {
@@ -132,13 +130,50 @@ describe('PageForm, a page\'s readings and verdicts in one form (#18)', () => {
     expect(form.find('[data-tab="verdicts"]').classes()).not.toContain('overlay')
     const rows = form.findAll('tr[data-verdict-row]')
     expect(rows.map(row => [row.attributes('data-standing'), row.find('.standing-mark').text()]))
-      .toEqual([['false', '○ replaced'], ['true', '● standing'], ['true', '● standing']])
-    expect(rows[0]!.classes()).toContain('history')
-    const person = rows[2]!
+      .toEqual([['true', '● standing'], ['true', '● standing']])
+    // a person's row names the judge it answers, in short; a judge's says "—" there
+    const [person, judge] = [rows[0]!, rows[1]!]
     expect(person.find('[data-kind]').text()).toBe('person')
     expect(person.text()).toContain('the judge was right')
-    expect(person.text().replace(/\s+/g, ' ')).toContain('judge/3 · an-invented-judge · by time')
+    expect([person.find('[data-part="judge-said"]').text(), judge.find('[data-part="judge-said"]').text()]).toEqual(['judge/3', '—'])
     expect(person.text()).toContain('the operator')
+    // a judge's word is the result that counts, its own beside it, struck (32.a), its finding in short (33.a)
+    expect(judge.find('.result').text().replace(/\s+/g, ' ')).toBe('ok bad')
+    expect([judge.find('s[data-part="overruled"]').text(), judge.text()]).toEqual(['bad', expect.stringContaining('wrong word, struck by code')])
+  })
+
+  it('strikes a judge\'s own word beside the result that counts in a reading\'s fold too (32.a)', () => {
+    const form = mountForm(aForm())
+    const verdict = form.find('tbody[data-reading="k2"] tr.verdict-row[data-verdict="k2/0"]')
+    expect(verdict.find('.result').text().replace(/\s+/g, ' ')).toBe('ok · 1 finding struck by code bad')
+    expect(verdict.find('s[data-part="overruled"]').text()).toBe('bad')
+  })
+
+  it('shows the verdicts as then in focus, the recalled one marked ↺, its caption the API\'s with its moment in words (29.d)', async () => {
+    const then = shownVerdicts([aVerdictRow({ recall: 'k1:judge/1:0', standing_said: 'recalled', recalled: true })],
+      { said: 'as then: the verdicts on reading 2 on', said_at: '2026-11-09T10:56:48+00:00', recalled: true })
+    const form = mountForm(aForm(), 'k1:judge/1:0', then)
+    await form.find('[data-tab="verdicts"]').trigger('click')
+    const said = form.find('[data-part="verdicts-said"]')
+    expect(said.text()).toMatch(/^as then: the verdicts on reading 2 on \d{1,2} Nov, \d{2}:\d{2}$/)
+    expect(said.find('time').attributes('datetime')).toBe('2026-11-09T10:56:48+00:00')
+    expect(form.find('tr[data-verdict-row] .standing-mark').text()).toBe('↺ recalled')
+  })
+
+  it('keeps the Verdicts tab in its place for a recalled trial, greyed, "–", its card saying why, and opens the Lab (38.a)', async () => {
+    const why = 'a trial in the Lab: no verdict applies to it; a person judges only what counts'
+    const trial = shownVerdicts([], { said: 'in the Lab: no verdict applies', count: null, recalled: true, why_not: why })
+    const form = mountForm(aForm(), null, null)
+    await form.find('[data-tab="verdicts"]').trigger('click')
+    expect(form.find('[data-panel="verdicts"]').exists()).toBe(true)
+    // the trial recalled while Verdicts was open: the Lab is shown instead, the tab greyed in its place
+    await form.setProps({ recallId: 'k3', recalledVerdicts: trial })
+    expect(form.find('[data-panel="lab"]').exists()).toBe(true)
+    const tab = form.find('[data-tab="verdicts"]')
+    expect([tab.text(), tab.attributes('disabled'), tab.attributes('title')]).toEqual(['Verdicts –', '', undefined])
+    await tab.element.closest('.hover-card-host')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    await form.vm.$nextTick()
+    expect(form.find('[data-part="hover-card"] [data-row="why not"] .card-value').text()).toBe(why)
   })
 
   it('shows a recalled reading\'s verdicts in their place, the tab and its table framed as the analysis is, the row shown framed (26, 27.a)', async () => {

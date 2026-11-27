@@ -1166,3 +1166,32 @@ The record of how the diagnostics frontend came about, mistakes included.
   and now waits for the recall's own words before it counts, as the way back's check does. A full run also found an older
   check racing its image: "every page opens, read or not" read an unread page's `naturalWidth` as soon as the frame stood,
   before the image had arrived, and now waits for it to be drawn.
+- **Decisions 29.d, 31.a to 39.a** (27 Nov).
+  - `page_form`:
+    - `judge_word` (the result that counts, and `overruled`);
+    - `finding_reason`, `finding_blocks`;
+    - `STRUCK`;
+    - `moment`, `superseded_at`, `then_of`, `at_then`, `latest_per_block`;
+    - `TRIAL`;
+    - `reading_row(trials=)`;
+    - `shown_verdicts(judgement=)` in three branches: the standing view, a trial, and as then.
+  - `ShownVerdicts` takes `said_at`, `why_not` and a `count` that may be None. `VerdictRow` takes `recalled`, `overruled`,
+    `judge_said`, and `standing_said` standing, recalled or counted then. `FormVerdict` takes `overruled`, and
+    `HoverRow` takes `at`.
+  - `readings`:
+    - `reading_said` and the new `recall_said`;
+    - the recall cuts the people on its reading to the moment before it builds its blocks, a verdict archived only
+      later taken as not archived, and hands the parsed judgement to `shown_verdicts`;
+    - `FindingsAt.said` is "struck by code".
+  - The view:
+    - `CardRow.at` and `HoverCard` say a time;
+    - `PageForm` keeps its folds per tab, since a pipeline reading stands in Readings and in the Lab;
+    - the greyed Verdicts tab is a disabled button in a card, and a trial's recall moves the view to the Lab;
+    - `FindingList`'s and the errors view's "void" words are "struck".
+  - What went wrong:
+    - The recall's line called the served reading "served before": the export's attempt carries no `shown`, so the
+      recall now takes it from the parsed attempt.
+    - The new browser check's recall links were looked for by their encoded id, while the router keeps the colons and
+      the slash as they are.
+    - The way back's check saw a move of 77 px as its recalls crossed tabs: the form above is as tall as its tab, which
+      moves the whole analysis. The check now measures the way back within the analysis, where it is meant to hold.

@@ -2117,3 +2117,46 @@ to find the recall framed as before. The same check found the compact button mak
 so the image and the reading moved down as a recall began; the button now reaches into the space around the line, and the
 check holds them within a pixel. 414 unit tests, 99 checks in the browser (2 skipped on today's data),
 1,777 Python tests.
+
+**The form as then, and what counts apart from what was tried (decisions 29.d, 31.a to 39.a, 27 Nov, on finance p. 5).**
+The operator looked at the form with real verdicts and asked for these changes:
+- The newest verdict stands on top everywhere.
+- A judge's row says the result that counts. On finance p. 5, judge/1 said "bad", but code struck its one finding, so the
+  page counts as "ok": the row reads "ok", and the judge's own word stands beside it, struck through. A real "bad", with
+  a finding that stands, stays a "bad" in the error role.
+- A finding that code voided is said "struck by code" wherever the view says it ("1 finding struck by code", "b12 struck
+  by code" in the head, "struck: the judge's evidence names no difference" beneath the block); the core's field stays
+  `void`.
+- In the Verdicts tab, a judge's row gives its finding in short ("wrong word, struck by code", "invented, minor") and
+  the blocks it names ("b09, b12"). A person's row names the judge it answers ("judge/1"); that judge's model and moment,
+  and "assigned by time" where the core tied it so, stand in the row's card. A verdict that a later one on the same
+  block replaced is left out of the tab and stays in the reading's fold.
+- A recall's line names the judge's role and the reading's place: "judge/4 (prototype, never counts) on reading 2, the
+  served one", "reading 1, served before".
+- A person's row in Readings says "answers judge/1".
+- What was tried beside the pipeline moved to the Lab: a prototype's judgement or a judge asked again stands there,
+  beneath the pipeline reading's own row, beside the test readings. Readings keeps only the judgements that count and
+  the person's verdicts. The Lab's count counts the trials, so finance p. 5 shows "Readings 2", "Lab 4".
+- A recalled trial has no verdict that applies to it. The Verdicts tab keeps its place, greyed, with "–" as its count,
+  and its card says why ("a trial in the Lab: no verdict applies to it; a person judges only what counts"); the view
+  opens the Lab, where the trial's row is framed.
+- A recalled pipeline judgement or reading shows the page as it was then. The moment is the judgement's own, or for a
+  reading the moment the next pipeline reading replaced it. The Verdicts tab then holds the judgement recalled (marked
+  ↺), the one that counted at that moment where that is another, and the person's verdicts given by then and not yet
+  archived by a reset, the latest per block. The caption says the moment in words ("as then: the verdicts on reading 2
+  on 9 Nov, 11:56").
+- The analysis takes the same cut: on finance p. 5, judge/1 recalled shows no person's verdict beneath b12, since both
+  came later. "The code's ruling" stays, as a rule of today, and the head above the tabs stays the state of now.
+A time in a hover card is now said as a person reads it (`CardRow.at`, `HoverRow.at`).
+**Measured:**
+- Python tests of the order, the struck word, the short reason and blocks, the replaced verdict left out, the Lab with its
+  trials and its count, a trial's empty Verdicts, the time cut (a judgement's moment, a reading's until it was replaced,
+  a verdict archived only after the moment still applying), and the recall over finance p. 5 (1 verdict and no person
+  beneath b12 for judge/1; none for judge/4).
+- Unit tests of the struck word in both places, the caption with its moment, the ↺ row and the greyed tab, which opens
+  the Lab.
+- A browser check of line 1's four points on finance p. 5: Verdicts 2; judge/1 with 1 and no person beneath b12, against
+  the standing view, which holds them; judge/4 greyed in the Lab, its card saying why; and the tabs in place, greyed or
+  not. It ends on its failing case, the greyed tab made wider, a moment.
+- The older checks follow the trials into the Lab.
+417 unit tests, 100 checks in the browser (2 skipped on today's data), 1,781 Python tests.

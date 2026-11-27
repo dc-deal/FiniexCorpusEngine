@@ -4815,6 +4815,17 @@
             "type": "string",
             "title": "Verdict Said"
           },
+          "overruled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overruled"
+          },
           "state": {
             "type": "string",
             "enum": [
@@ -5380,6 +5391,17 @@
           "value": {
             "type": "string",
             "title": "Value"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
           }
         },
         "type": "object",
@@ -10993,13 +11015,31 @@
             "type": "string",
             "title": "Said"
           },
+          "said_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Said At"
+          },
           "recalled": {
             "type": "boolean",
             "title": "Recalled",
             "default": false
           },
           "count": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Count"
           },
           "rows": {
@@ -11008,6 +11048,17 @@
             },
             "type": "array",
             "title": "Rows"
+          },
+          "why_not": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why Not"
           }
         },
         "type": "object",
@@ -11017,7 +11068,7 @@
           "rows"
         ],
         "title": "ShownVerdicts",
-        "description": "The Verdicts tab's rows (decision 26): the verdicts that apply now to the reading the analysis shows, what that\nreading is said in a caption above them, and their count, the tab's."
+        "description": "The Verdicts tab's rows (decision 26): the verdicts that apply to the reading the analysis shows, what that reading\nis said in a caption above them, and their count, the tab's; for a recalled trial none, and why (38.a)."
       },
       "Splitter": {
         "properties": {
@@ -11934,10 +11985,15 @@
             "type": "string",
             "enum": [
               "standing",
-              "replaced",
-              "not counted"
+              "recalled",
+              "counted then"
             ],
             "title": "Standing Said"
+          },
+          "recalled": {
+            "type": "boolean",
+            "title": "Recalled",
+            "default": false
           },
           "time": {
             "anyOf": [
@@ -11953,6 +12009,17 @@
           "verdict": {
             "type": "string",
             "title": "Verdict"
+          },
+          "overruled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overruled"
           },
           "state": {
             "type": "string",
@@ -11977,6 +12044,11 @@
           "about": {
             "type": "string",
             "title": "About"
+          },
+          "judge_said": {
+            "type": "string",
+            "title": "Judge Said",
+            "default": "—"
           },
           "recall": {
             "anyOf": [
