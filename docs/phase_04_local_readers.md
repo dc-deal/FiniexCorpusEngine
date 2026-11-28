@@ -91,5 +91,43 @@ readings). How many answers fit `page/1` without repair:
 Qwen was given the rule and did not keep it; the document models were never given it. Their answers are stored as they
 came, and the count is a measurement of its own: how much repair a model needs before its output fits the contract.
 
-**Next:** the judge on the 80 readings, the gold scores, and the comparison report, once the view shows readings and their
-verdicts in one form (#18).
+**The comparison (27–28 Nov).** Publisher gold on the 14 pages that have it, over every reading that parses; the session's
+judge (judge/1, `judge-agent/1`) on every reading that parses, malformed ones included, its verdicts never counted
+(`python -m backend.conversion.reading.local_reader report`):
+
+| | default reader | MinerU2.5-Pro | PaddleOCR-VL-1.6 | GLM-OCR | Qwen3-VL-30B-A3B |
+|---|---|---|---|---|---|
+| formulas exact, of 112 | 112 | 93 | 69 | 41 | 30 |
+| table cells exact, of 224 | 221 | 218 | 21 | 44 | 217 |
+| prose similarity, median | 1.00 | 0.94 | 0.85 | 0.93 | 0.96 |
+| judge: ok / bad | 17 / 0, 3 not judged | 12 / 8 | 11 / 8, 1 not judged | 10 / 10 | 20 / 0 |
+
+Qwen's 30 formulas become 69 when its `$…$` inline math is read as math. What the pages showed, looked at in the view's
+Lab by the operator:
+
+- MinerU reads the dollar sign as `\mathbb{S}` and drops it from formulas (finance p. 343: the judge's four findings, all
+  real). In a finance corpus a lost currency sign changes what a quote says.
+- PaddleOCR-VL and GLM-OCR lose tables (accounting p. 192: the body of Table 3.18 is missing). **→ now (28 Nov):** both
+  were given the whole page with one prompt ("OCR:", "Text Recognition:"), without the layout stage they are built on and
+  without their table and formula prompts; only MinerU ran in its own two-step pipeline. Their table losses measure our
+  harness as much as the models, and PaddleOCR-VL scores 96.34 on OmniDocBench v1.6.
+- Qwen keeps the content and breaks the format.
+- The judge was uneven: Qwen 20 ok with 8 of its readings malformed, MinerU 8 bad with the best gold scores. The judge
+  weighs content against the page; form is the validator's.
+- The three document models give no coordinates; the converter gives each of their blocks the whole page as its box.
+
+**A known limit of the measurement:** MinerU writes an equation's printed number the way LaTeX does, `\tag{11.26}`, on 11
+of its 20 pages. The converter (`markdown-to-page1/1`) passed it into the formula instead of `label=`, so gold counts those
+formulas as wrong and the view drew the number into the fraction. MinerU's 93 is a floor. The readings were not imported
+again, since the verdict below makes the measurement final as it stands.
+
+**Validator `page/1.5`** (the operator, 49.a): an equation number inside a formula's LaTeX is an error; it belongs in
+`label=`. It slipped past the validator, the converter and the judge. Before the rule, every stored reading of both
+knowledge bases was searched: 12 held one, all of them test readings (11 of MinerU's, 1 of PaddleOCR-VL's), none a
+reading of the pipeline; under `page/1.5` those 12 count as malformed.
+
+**The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked
+until stronger local readers exist. The bench machine keeps its other uses (embeddings, small models, the IDE's
+benchmarks), and the 80 test readings stay in the Lab as the record of this measurement. **→ now (28 Nov, the same
+day):** the verdict rests on an unfair measurement for PaddleOCR-VL and GLM-OCR (above); whether they are measured again
+in their own pipelines is open with the operator.

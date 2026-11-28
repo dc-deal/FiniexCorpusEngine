@@ -56,6 +56,10 @@ HTML_IN_PROSE = re.compile(r'</?(?:sup|sub|b|i|em|strong|u|br|span|div|p)\b[^<>]
 BARE_DOLLAR = re.compile(r'(?<!\\)\$')  # KaTeX refuses it, and a reader that was told once writes \$
 DOLLAR_MATH = re.compile(r'\$[^$\n]*[\\^_{}][^$\n]*\$')  # '$100,000 of the $120,000' must not trip this
 ESCAPED_DOLLAR = re.compile(r'\\\$')
+# page/1.5 (2026-11-28, the operator, 49.a): an equation's printed number belongs in label=, never in its LaTeX. MinerU wrote
+# \tag{11.26} on 11 of its 20 test pages, LaTeX's own place for it; it passed the validator, our converter and the judge, and
+# the view drew (11.26) into the fraction (finance p. 343). No served reading held one when the rule came.
+FORMULA_TAG = re.compile(r'\\tag\*?\s*\{')
 INLINE_MARK_ATTRIBUTES = re.compile(r'\]\{[^}\n]*\}')  # the '{.fn}' of '[1]{.fn}'
 CODE_SPAN = re.compile(r'`[^`]*`')
 INLINE_MATH = re.compile(r'\\\(.*?\\\)', re.S)
@@ -529,6 +533,8 @@ def _check_body(block: Block, where: str, spec: dict, errors: list[str], warning
             errors.append(f'{where}: a formula label comes without brackets')
         if BARE_DOLLAR.search(block.body):
             errors.append(f'{where}: a dollar sign inside math must be \\$')
+        if FORMULA_TAG.search(block.body):
+            errors.append(f'{where}: an equation number inside the formula (\\tag); it belongs in label=')
 
 
 def _check_block(block: Block, where: str, spec: dict, size: tuple[int, int] | None, errors: list[str], warnings: list[str],

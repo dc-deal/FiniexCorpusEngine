@@ -85,6 +85,9 @@ def test_a_code_body_stays_byte_identical():
     (changed('<td>80,000</td>', '<td>80,000<div>x</div></td>'), 'unexpected tag <div>'),
     (changed('Based on the information provided', 'Based on<sup>8</sup> the information'), 'HTML in prose'),
     (changed(r'\$20{,}000', r'$20{,}000'), 'dollar sign inside math'),
+    # page/1.5 (49.a): the number belongs in label=; MinerU's test readings wrote it as LaTeX's \tag (finance p. 343)
+    (changed(r'= \$25{,}000', r'= \$25{,}000 \tag{6.3}'), 'equation number inside the formula'),
+    (changed(r'= \$25{,}000', r'= \$25{,}000 \tag*{6.3}'), 'equation number inside the formula'),
 ])
 def test_a_planted_defect_is_caught(broken, expected):
     assert expected in errors_of(broken)

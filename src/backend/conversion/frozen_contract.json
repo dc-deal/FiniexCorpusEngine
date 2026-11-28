@@ -2,7 +2,7 @@
  "about": "What the mini pilot measured and the batches of phase 2 read with. tests/contracts/test_the_contract_is_frozen.py holds it.",
  "contract": "page/1",
  "frozen_on": "2026-10-30",
- "validator": "page/1.4",
+ "validator": "page/1.5",
  "validator_changes": [
   {"version": "page/1.1", "on": "2026-11-02", "page_contract.py was": "c59b7208d89edb04c42272acc53f6e2686b90da1fb98b35a7fc869bbabd8bd2b",
    "why": "The dollar-math check took a prose dollar amount followed on its line by an inline mark such as [1]{.fn} or by an escaped \\$ for $...$ math. Prompt, vocabulary and reading keys are unchanged; stored readings are checked again for free."},
@@ -15,7 +15,10 @@
    "why": "8 of the free corpus's 9 malformed accounting pages had one cause: a numbered answer or an option whose whole content is the journal table (or figure, formula, listing) printed right after it, written as a list item with its marker and an empty body, then the table. Nothing is lost, so it is a warning, as page/1.2 made what loses no text. The prompt and the vocabulary are unchanged, so no reading key changes; stored readings are checked again for free. In the same version the inline segments keep a footnote marker, a superscript and a subscript apart (decision 205.a), which changes no verdict."},
   {"version": "page/1.4", "on": "2026-11-18", "decided_by": "the operator, F4.a",
    "page_contract.py was": "4e19a4ea9ad1606485c30034feef0e5e247e46de9fca59938911b65489f13841",
-   "why": "A page that prints a backslash as text (a table head whose rows are rates and columns terms) failed every reader: the check for a stray LaTeX command outside math read the text after markdown-it and html.parser had decoded it, so neither the entity &#92; nor an escaped backslash could pass. The check now reads the source as written, where &#92; is still an entity; a bare or escaped backslash before letters still fails, since a reader that escapes LaTeX twice writes the same. Its message, and those of possible $...$ math and HTML in prose, now names the page line the fault stands on beside the block. The prompt and the vocabulary are unchanged, so no reading key changes; the stored readings were checked again for free first, and no error changed beyond its line."}
+   "why": "A page that prints a backslash as text (a table head whose rows are rates and columns terms) failed every reader: the check for a stray LaTeX command outside math read the text after markdown-it and html.parser had decoded it, so neither the entity &#92; nor an escaped backslash could pass. The check now reads the source as written, where &#92; is still an entity; a bare or escaped backslash before letters still fails, since a reader that escapes LaTeX twice writes the same. Its message, and those of possible $...$ math and HTML in prose, now names the page line the fault stands on beside the block. The prompt and the vocabulary are unchanged, so no reading key changes; the stored readings were checked again for free first, and no error changed beyond its line."},
+  {"version": "page/1.5", "on": "2026-11-28", "decided_by": "the operator, 49.a",
+   "page_contract.py was": "f8c736e115a08e5fcd969e16d792ce54b3e18abfa74bfbf420cc0d854d4c44cf",
+   "why": "An equation's printed number written into the formula's LaTeX as \\tag{...} is an error: the contract keeps it in label=. MinerU's test readings (#17) wrote \\tag{11.26}, LaTeX's own place for it, on 11 of 20 pages; it passed the validator, the converter and the judge, and the view drew the number into the fraction (finance p. 343). The prompt and the vocabulary are unchanged, so no reading key changes; the stored readings were checked again for free first."}
  ],
  "form": "markdown",
  "reader_for_structure_pages": "claude-sonnet-5-5",
@@ -37,6 +40,6 @@
   "prompts/agent_reader_session.txt": "7544eba9a2eb0cc32dbfa676f7b6b26b570af32a14b3223b2eff530254bff8d4",
   "prompts/agent_judge_session.txt": "6f0aa6279cab6f52dac782741c6b7311cd426b88a6a53882d935e8ba1c1e5d8f",
   "contract/contract_vocab.json": "e4bbfb9422429a2c0629e556ab20487a3b3f80aaef69e1341ef855eb8b4fbd89",
-  "contract/page_contract.py": "f8c736e115a08e5fcd969e16d792ce54b3e18abfa74bfbf420cc0d854d4c44cf"
+  "contract/page_contract.py": "22608cdda380fe6689ab50eaf9d81a352d0ce8e64fa128094a8700ae86227fab"
  }
 }

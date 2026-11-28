@@ -48,4 +48,7 @@ before it was switched on ([phase 3](phase_03_search_server.md)). Still open: th
 backup of the vectors before Chroma is retired.
 **Since 26 Nov (issues #17, #18):** [phase 4](phase_04_local_readers.md) has begun. Four open vision models ran on a bench
 machine over the mini pilot's 20 free pages, and their 80 readings stand in the Lab as test readings, never served. The view
-shows readings and their verdicts in one form (#18), then the judge and the gold scores decide which local reader goes on.
+shows readings and their verdicts in one form (#18). **28 Nov:** judged and scored against publisher gold, none of the four
+is strong enough for the pipeline, and the bake-off is parked until stronger local readers exist; a form fault the pages
+showed is now caught by the validator (`page/1.5`). Two of the four were measured without their own layout pipeline, so a
+second, fair measurement is open.

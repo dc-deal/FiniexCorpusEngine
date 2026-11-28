@@ -68,3 +68,26 @@ The record of how this phase came about, mistakes included.
 - **The reader agents too:** `night_run batch` now writes each batch's agent prompt from `reader-agent/1` beside the
   batch file (`batch_NN.prompt.md`); every page of the batch names it, and the reading stored from it keeps it. A
   licensed run's note is added by code, a run's own note with `--notes`.
+
+## 2026-11-28, the pages looked at, and the verdict
+
+- **The operator looked at the test readings in the Lab** (#18's form, page by page, each reading with its judgement
+  beneath). On finance p. 343 MinerU's formula showed "(11.26)" drawn into the fraction. Nobody had flagged it: not the
+  validator, not the converter, not the judge, and gold only as a low score (1 of 5 formulas exact) that nobody had
+  opened. The cause was ours: MinerU wrote `\tag{11.26}`, LaTeX's own place for an equation number, and the converter
+  passed it into the formula instead of `label=`. The served readings never held one; the default reader writes `label=`.
+- **Why the judge missed it:** the number is printed and stands in the reading, only in the wrong field. That is form,
+  not content, and form belongs to a check by code, which runs on every reading and before any model. Hence validator
+  `page/1.5` (49.a), not a line in the judge's prompt.
+- **Not imported again (48.b):** with the verdict below, a fairer MinerU score changes no decision; the gap is written into
+  the report as a limit of the measurement.
+- **The verdict (50.a):** none of the four is strong enough for the pipeline. MinerU, nearest on formulas and tables,
+  loses currency signs; the two small document models lose tables; Qwen breaks the format and fills the GPU. The
+  bake-off is parked until stronger local readers exist.
+- **A mistake of ours, found the same day:** asked whether a larger GPU would help, we compared the night's numbers with
+  OmniDocBench v1.6, where PaddleOCR-VL-1.6 scores 96.34 and the leaders are all small (0.8 to 1.2B). PaddleOCR-VL had
+  found 21 of 224 table cells here. The night had given PaddleOCR-VL and GLM-OCR the whole page with a single OCR prompt;
+  both are built as a layout model that cuts the page into regions, each then read with its own task prompt (text,
+  table, formula). They never got their table prompt, and the boxes the layout stage gives were never there to keep.
+  MinerU, the one model run in its own pipeline, came out best. The verdict above is therefore unfair to those two; the
+  report says so, and a second measurement in their own pipelines is the operator's to decide.
