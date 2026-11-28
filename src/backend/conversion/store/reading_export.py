@@ -32,7 +32,7 @@ from backend.configuration import data_paths
 from backend.constants.reading_constants import DIRECT_DEVIATION
 from backend.conversion.checks import check_flow, check_run
 from backend.conversion.judge import page_judge
-from backend.conversion.reading import reader_requests, reading_cells, vision_batches
+from backend.conversion.reading import parameter_sets, reader_requests, reading_cells, vision_batches
 from backend.conversion.store import reading_store
 from backend.conversion.store.reading_store import REPO, open_store
 
@@ -444,8 +444,10 @@ def attempts_of(store, cells: tuple[str, ...]) -> dict[tuple[str, int], list[dic
     for record in sorted(vision_batches.readings_of(cells, store), key=lambda record: record.get('stored_at') or ''):
         prototype = lab_cell_of(record)
         agent = agent_prompt_of(record, backfill)
+        parameters = parameter_sets.of_record(record)
         found.setdefault((record['file'], record['pdf_page']), []).append({
             **({'agent_prompt': agent} if agent else {}),  # the session agent's prompt it was read under (#17, 22.a)
+            **({'parameter_set': parameters} if parameters else {}),  # where and how it ran (53.a)
             'reading_key': record['reading_key'], 'model': record.get('model'), 'mode': record.get('mode'),
             'reader_version': prototype.reader_version if prototype else reader_requests.FIRST_VERSION,
             **({'prototype': True} if prototype else {}),  # decision 210.a: shown beside the served one, never served
@@ -791,6 +793,7 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
 
     people = pipeline_db.human_verdicts(base.name)
     resets = pipeline_db.page_resets(base.name)
+    grouped = pipeline_db.groups_of_readings(base.name)  # a reading in no group is the root's (52.a)
     promotions = {page: {promotion['reading_key']: promotion_of(promotion)
                          for promotion in pipeline_db.since_last_reset(given, resets.get(page, []))}
                   for page, given in pipeline_db.promotions(base.name).items()}
@@ -836,7 +839,9 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
                                  promotions.get((record['file'], record['pdf_page']), {})),
                              # a Lab reading a person promoted says so, wherever it stands now (#17)
                              **({'promoted': promotions[(record['file'], record['pdf_page'])][attempt['reading_key']]}
-                                if attempt['reading_key'] in promotions.get((record['file'], record['pdf_page']), {}) else {})}
+                                if attempt['reading_key'] in promotions.get((record['file'], record['pdf_page']), {}) else {}),
+                             # the groups it was kept in (52.a); none for the root's
+                             **({'groups': grouped[attempt['reading_key']]} if attempt['reading_key'] in grouped else {})}
                             for attempt in attempts.get((record['file'], record['pdf_page']), [])],
                'check': with_block_classes_from(states.get(record['reading_key']), served_facts and served_facts['classes']),
                'human': human_of(people.get((record['file'], record['pdf_page']), []), record['reading_key'],
@@ -891,7 +896,8 @@ def export(base: KnowledgeBase = FREE, store=None) -> dict:
         titles = {unit['id']: unit['title'] for unit in (outline or {}).get('units') or []}
         row['category'] = category_of(row['page_kind'], [titles[unit] for unit in row['units'] or [] if unit in titles],
                                       exercise_titles)
-    index = {'about': ABOUT[base.name], 'knowledge_base': base.name, 'cells': list(cells), 'works': works, 'pages': rows}
+    index = {'about': ABOUT[base.name], 'knowledge_base': base.name, 'cells': list(cells), 'works': works,
+             'groups': pipeline_db.reading_groups(base.name), 'pages': rows}
     replace_file(base.export / 'index.json', (json.dumps(index, indent=1, ensure_ascii=False) + '\n').encode('utf-8'))
     if base.tracked:
         replace_file(base.export / 'README.md', readme(sorted({row['file'] for row in rows})).encode('utf-8'))

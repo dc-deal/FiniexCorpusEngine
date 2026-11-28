@@ -130,7 +130,31 @@ CREATE TRIGGER IF NOT EXISTS promotions_no_update BEFORE UPDATE ON promotions
     BEGIN SELECT RAISE(ABORT, 'promotions is append-only: promote again instead'); END;
 CREATE TRIGGER IF NOT EXISTS promotions_no_delete BEFORE DELETE ON promotions
     BEGIN SELECT RAISE(ABORT, 'promotions is append-only'); END;
+CREATE TABLE IF NOT EXISTS reading_groups (
+    group_id TEXT PRIMARY KEY,
+    knowledge_base TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    document TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS reading_groups_no_update BEFORE UPDATE ON reading_groups
+    BEGIN SELECT RAISE(ABORT, 'reading_groups is append-only: make a new group instead'); END;
+CREATE TRIGGER IF NOT EXISTS reading_groups_no_delete BEFORE DELETE ON reading_groups
+    BEGIN SELECT RAISE(ABORT, 'reading_groups is append-only'); END;
+CREATE TABLE IF NOT EXISTS reading_group_members (
+    group_id TEXT NOT NULL REFERENCES reading_groups (group_id),
+    reading_key TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (group_id, reading_key)
+);
+CREATE TRIGGER IF NOT EXISTS reading_group_members_no_update BEFORE UPDATE ON reading_group_members
+    BEGIN SELECT RAISE(ABORT, 'reading_group_members is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS reading_group_members_no_delete BEFORE DELETE ON reading_group_members
+    BEGIN SELECT RAISE(ABORT, 'reading_group_members is append-only'); END;
 """
+GROUP_ID = re.compile(r'^[a-z0-9][a-z0-9-]{2,79}$')  # a slug: it names the group in a link and in its document's file
 # What a person may give (decision 146.a): accept, the reading is right and a finding of the judge is not; reject, the reading is
 # wrong and the page serves its text layer; note, a remark that changes nothing. A reason from this list; `other` needs a note.
 HUMAN_VERDICTS = ('accept', 'reject', 'note')
@@ -421,6 +445,68 @@ def promotions(knowledge_base: str, path: Path | None = None) -> dict[tuple[str,
     found: dict[tuple[str, int], list[dict]] = {}
     for row in rows:
         found.setdefault((row['file'], row['pdf_page']), []).append(dict(row))
+    return found
+
+
+def create_group(knowledge_base: str, group_id: str, name: str, description: str, created_by: str,
+                 document: str | None = None, path: Path | None = None) -> dict:
+    """A new reading group (issue: reading groups, the operator's 52.a, 28 Nov): a run kept together with its name, a short
+    description and the path of its document. A group is never changed or removed; a reading in no group is the root's.
+
+    Raises:
+        ValueError: For an id that is no slug, an empty name or description, or an id already taken.
+    """
+    if not GROUP_ID.match(group_id or ''):
+        raise ValueError(f'a group id is a slug of 3 to 80 lower-case letters, digits and dashes, not {group_id!r}')
+    if not (name or '').strip() or not (description or '').strip():
+        raise ValueError('a group needs a name and a description')
+    row = {'group_id': group_id, 'knowledge_base': knowledge_base, 'name': name.strip(), 'description': description.strip(),
+           'document': document, 'created_by': created_by, 'created_at': precise_now()}
+    with closing(connect(knowledge_base, path)) as db, db:
+        if db.execute('SELECT 1 FROM reading_groups WHERE group_id = ?', (group_id,)).fetchone():
+            raise ValueError(f'the group {group_id!r} exists already')
+        db.execute('INSERT INTO reading_groups (group_id, knowledge_base, name, description, document, created_by, created_at) '
+                   'VALUES (:group_id, :knowledge_base, :name, :description, :document, :created_by, :created_at)', row)
+    return row
+
+
+def add_to_group(knowledge_base: str, group_id: str, reading_keys: list[str], path: Path | None = None) -> int:
+    """Readings put into a group; a reading already in it stays as it was. Returns how many were added.
+
+    Raises:
+        ValueError: For a group that does not exist.
+    """
+    with closing(connect(knowledge_base, path)) as db, db:
+        if not db.execute('SELECT 1 FROM reading_groups WHERE group_id = ?', (group_id,)).fetchone():
+            raise ValueError(f'no group {group_id!r}')
+        before = db.total_changes
+        db.executemany('INSERT OR IGNORE INTO reading_group_members (group_id, reading_key, added_at) VALUES (?, ?, ?)',
+                       [(group_id, key, precise_now()) for key in dict.fromkeys(reading_keys)])
+        return db.total_changes - before
+
+
+def reading_groups(knowledge_base: str, path: Path | None = None) -> list[dict]:
+    """Every group, oldest first, each with its member count; empty where the database does not exist yet."""
+    target = Path(path or PATHS[knowledge_base])
+    if not target.exists():
+        return []
+    with closing(connect(knowledge_base, target)) as db:
+        rows = db.execute('SELECT g.*, (SELECT COUNT(*) FROM reading_group_members m WHERE m.group_id = g.group_id) AS readings '
+                          'FROM reading_groups g ORDER BY created_at').fetchall()
+    return [dict(row) for row in rows]
+
+
+def groups_of_readings(knowledge_base: str, path: Path | None = None) -> dict[str, list[str]]:
+    """Each grouped reading's groups by its key, in the order they were made; a reading in no group is absent (the root)."""
+    target = Path(path or PATHS[knowledge_base])
+    if not target.exists():
+        return {}
+    with closing(connect(knowledge_base, target)) as db:
+        rows = db.execute('SELECT m.reading_key, m.group_id FROM reading_group_members m JOIN reading_groups g '
+                          'ON g.group_id = m.group_id ORDER BY g.created_at, m.added_at').fetchall()
+    found: dict[str, list[str]] = {}
+    for row in rows:
+        found.setdefault(row['reading_key'], []).append(row['group_id'])
     return found
 
 

@@ -126,6 +126,12 @@ again, since the verdict below makes the measurement final as it stands.
 knowledge bases was searched: 12 held one, all of them test readings (11 of MinerU's, 1 of PaddleOCR-VL's), none a
 reading of the pipeline; under `page/1.5` those 12 count as malformed.
 
+**Groups and a registry of parameters (28 Nov, the tables' basis; the view follows):** a run is kept as a reading group
+(two append-only tables of the pipeline database; `python -m backend.conversion.store.reading_groups`), and where and how
+a reader ran is registered in `conversion/models_and_parameters.json`: the host, the model with its weights, and every
+parameter as a versioned set, with the limits known while running. The export names each reading's groups and parameter
+set; the night's four sets are registered as retired, PaddleOCR-VL's with its two limits.
+
 **The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked
 until stronger local readers exist. The bench machine keeps its other uses (embeddings, small models, the IDE's
 benchmarks), and the 80 test readings stay in the Lab as the record of this measurement. **→ now (28 Nov, the same
