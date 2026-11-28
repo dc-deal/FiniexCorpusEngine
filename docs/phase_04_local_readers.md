@@ -132,6 +132,27 @@ a reader ran is registered in `conversion/models_and_parameters.json`: the host,
 parameter as a versioned set, with the limits known while running. The export names each reading's groups and parameter
 set; the night's four sets are registered as retired, PaddleOCR-VL's with its two limits.
 
+**PaddleOCR-VL in its own pipeline (28 Nov, decision 51):** the vendor's pipeline (PaddleOCR 3.7, v1.6, engine
+transformers on ROCm: the layout model, then each region read with its own prompt), the same 20 pages, the parameter set
+`paddleocr-vl-pipeline/1`, the test cell `LAB-PADDLE-PIPE-MP`, the group `paddle-pipeline-2026-11-28`. Each block's raw
+answer was taken before the pipeline removes `$` from blocks with math (`pipeline.py` 579–593, confirmed in the installed
+code), and tables were made HTML from that raw answer by the vendor's own converter. The converter into page/1
+(`paddle-blocks-to-page1/1`) was built on the 6 pages without gold and committed (d5da55d) before the 14 were scored.
+
+| | default reader | PaddleOCR-VL, night (whole page) | PaddleOCR-VL, own pipeline |
+|---|---|---|---|
+| formulas exact, of 112 | 112 | 69 | 86 |
+| table cells exact, of 224 | 221 | 21 | 221 |
+| prose similarity, median | 1.00 | 0.85 | 0.99 |
+| pages clean against gold, of 14 | 13 | 0 | 5 |
+| valid without repair, of 20 | 20 | 15 | 12 |
+| seconds per page, median | | 17.9 | 8.5 |
+| GPU memory | | 1.9 GiB | 2.6 GiB |
+
+The 8 malformed readings are the model's own form (a bare `$` inside a formula, inline math as `$…$`), counted raw.
+The judge saw 3 pages only (the week's tokens): all 3 ok, one minor finding (finance p. 343, an equation number not
+bound). Not yet: the judge on the other pages, the scores after a form repair, the group's document.
+
 **The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked
 until stronger local readers exist. The bench machine keeps its other uses (embeddings, small models, the IDE's
 benchmarks), and the 80 test readings stay in the Lab as the record of this measurement. **→ now (28 Nov, the same

@@ -376,11 +376,12 @@ def import_run(run: Path, store=None) -> Counter:
 JUDGEABLE = ('ok', 'malformed')  # judged on what it says; the format check is a measure of its own in the Lab (#17)
 
 
-def judge_plan(cell_name: str, store=None) -> dict:
+def judge_plan(cell_name: str, store=None, pages: set[str] | None = None) -> dict:
     """The judge's requests on a test cell's readings: each page's latest that the page/1 parser cuts into blocks, valid or
     malformed. A reading with a stray `$` is still judged on what it says, and its format is counted apart. Written as the
     check flow's plan for the cell, which the session judge reads (`session_judge prepare --cells <cell>`); a test cell is
-    planned alone, since a plan keeps one reading per page. Stage 2 and the pipeline's kept sample are left alone."""
+    planned alone, since a plan keeps one reading per page. Stage 2 and the pipeline's kept sample are left alone. `pages`
+    (`work:p0009`) limits the plan to those pages (the operator, 28 Nov: three pages while the week's tokens run short)."""
     from backend.conversion.checks import check_run
     from backend.conversion.contract.page_contract import Expected, parse
     from backend.conversion.judge import page_judge
@@ -394,6 +395,9 @@ def judge_plan(cell_name: str, store=None) -> dict:
     records = check_run.latest_per_page(newest_first,
                                         valid=lambda record: vision_batches.current_class(record, store) in JUDGEABLE)
     for record in sorted(records, key=lambda record: (record['file'], record['pdf_page'])):
+        if pages is not None and f"{record['work']}:p{record['pdf_page']:04d}" not in pages:
+            skipped['not chosen'] += 1
+            continue
         result_class = vision_batches.current_class(record, store)
         if result_class not in JUDGEABLE:
             skipped[result_class] += 1
@@ -488,6 +492,7 @@ def main(argv: list[str] | None = None) -> int:
     importing.add_argument('--run', required=True, help='the run folder under _work/free/local_readers/')
     planning = commands.add_parser('judge-plan', help="the judge's requests on test cells, one plan per cell")
     planning.add_argument('--cells', required=True, help='test cells, comma-separated (LAB-QWEN3VL-MP,...)')
+    planning.add_argument('--pages', help='only these pages, comma-separated (deep-walk-forward-2025:p0009,...)')
     commands.add_parser('report', help='every test cell beside the served readings of the same pages')
     args = parser.parse_args(argv)
     if args.command == 'import':
@@ -501,7 +506,7 @@ def main(argv: list[str] | None = None) -> int:
                   f"s/page {side['seconds_median']} MiB {side['memory_mib_max']}")
     else:
         for name in [name.strip() for name in args.cells.split(',') if name.strip()]:
-            plan = judge_plan(name)
+            plan = judge_plan(name, pages={page.strip() for page in args.pages.split(',')} if args.pages else None)
             print(f"{name}: {len(plan['entries'])} judge requests, skipped {plan['skipped']}")
     return 0
 

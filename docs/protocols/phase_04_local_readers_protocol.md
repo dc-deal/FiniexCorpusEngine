@@ -91,3 +91,11 @@ The record of how this phase came about, mistakes included.
   table, formula). They never got their table prompt, and the boxes the layout stage gives were never there to keep.
   MinerU, the one model run in its own pipeline, came out best. The verdict above is therefore unfair to those two; the
   report says so, and a second measurement in their own pipelines is the operator's to decide.
+- **The second measurement (51), the same afternoon, cut to save the week's tokens:** an independent review of the plan
+  first (an agent given the code and the vendor's sources, not our conclusions). Its three critical findings held where
+  we could check them: the vendor ships the whole pipeline without PaddlePaddle on the GPU; that pipeline strips every
+  `$` from a block with math (seen in the installed code); the night had shown the page at 868×1120 and our importer had
+  turned tables into prose. On the machine: Python 3.13 through uv (PaddlePaddle has no 3.14 wheels), OpenCV's headless
+  build (no libGL on the server; the run script answers PaddleX's check for the desktop build's name). Table cells rose
+  from 21 to 221 of 224, the default reader's own count. The review of the finished script (56.a), the judge on 17 more
+  pages and the view wait until the tokens are back.
