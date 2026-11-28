@@ -105,6 +105,9 @@ TEST_READING_CELLS = {cell.name: cell for cell in [
          reader_version='mineru/two-step'),
     Cell('LAB-GLMOCR-MP', 'glm-ocr', 'hi', 'markdown', MINI_PILOT, max_tokens=8192, mode=LOCAL,
          reader_version='glm-ocr/text'),
+    # decision 51 (28 Nov): PaddleOCR-VL again, in its vendor's own pipeline (layout, then each region with its prompt)
+    Cell('LAB-PADDLE-PIPE-MP', 'paddleocr-vl-1.6', 'hi', 'markdown', MINI_PILOT, max_tokens=4096, mode=LOCAL,
+         reader_version='paddleocr-vl/pipeline'),
 ]}
 
 

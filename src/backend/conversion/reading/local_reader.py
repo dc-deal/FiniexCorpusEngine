@@ -32,7 +32,7 @@ from html import escape
 from pathlib import Path
 
 from backend.configuration import data_paths
-from backend.conversion.reading import reader_requests, reading_cells, vision_batches
+from backend.conversion.reading import parameter_sets, reader_requests, reading_cells, vision_batches
 from backend.conversion.store.reading_store import open_store
 
 RUNS = data_paths.FREE_WORKING / 'local_readers'
@@ -45,11 +45,17 @@ QWEN_SCALE = 1000
 # document models' prompts are their vendors' task prompts, as their model cards give them; MinerU's two-step extraction
 # asks with the package's own prompts, which were not copied off the bench machine, so its prompt is None.
 MODELS = {
-    'qwen3-vl-30b-a3b-q4km': {'cell': 'LAB-QWEN3VL-MP', 'adapter': 'llama.cpp server', 'answer': 'page1', 'prompt': None},
-    'paddleocr-vl-1.6': {'cell': 'LAB-PADDLE-MP', 'adapter': 'transformers', 'answer': 'markdown', 'prompt': 'OCR:'},
+    'qwen3-vl-30b-a3b-q4km': {'cell': 'LAB-QWEN3VL-MP', 'adapter': 'llama.cpp server', 'answer': 'page1', 'prompt': None,
+                              'parameter_set': 'qwen3vl-llamacpp/1'},
+    'paddleocr-vl-1.6': {'cell': 'LAB-PADDLE-MP', 'adapter': 'transformers', 'answer': 'markdown', 'prompt': 'OCR:',
+                         'parameter_set': 'paddleocr-vl-page/1'},
     'mineru2.5-pro-2605': {'cell': 'LAB-MINERU-MP', 'adapter': 'mineru-vl-utils on transformers', 'answer': 'markdown',
-                           'prompt': None},
-    'glm-ocr': {'cell': 'LAB-GLMOCR-MP', 'adapter': 'transformers', 'answer': 'markdown', 'prompt': 'Text Recognition:'},
+                           'prompt': None, 'parameter_set': 'mineru-two-step/1'},
+    'glm-ocr': {'cell': 'LAB-GLMOCR-MP', 'adapter': 'transformers', 'answer': 'markdown', 'prompt': 'Text Recognition:',
+                'parameter_set': 'glm-ocr-page/1'},
+    # decision 51: the vendor's pipeline; its answer is the blocks with their raw model output (`blocks_page`)
+    'paddleocr-vl-pipeline': {'cell': 'LAB-PADDLE-PIPE-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6 (transformers)',
+                              'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/1'},
 }
 STOP_REASONS = {'stop': 'end_turn', 'length': 'max_tokens', None: 'end_turn'}
 BOX = re.compile(r'bbox="(\d+) (\d+) (\d+) (\d+)"')
@@ -158,16 +164,132 @@ def markdown_page(raw: str, page: dict) -> tuple[str, dict]:
     return '\n'.join(front) + '\n'.join(blocks), notes
 
 
+# ---------------------------------------------------------------- a pipeline's blocks into page/1 (51, 28 Nov)
+
+BLOCKS_CONVERTER = 'paddle-blocks-to-page1/1'
+# The layout model's labels as page/1 classes. Read as text: every label the vendor reads with "OCR:". A label not listed
+# becomes `other`, its label said in why=, so nothing is dropped unseen.
+PROSE_LABELS = {'text', 'content', 'abstract', 'reference', 'reference_content', 'algorithm', 'vertical_text', 'aside_text',
+                'vision_footnote'}
+HEADING_LABELS = {'doc_title', 'paragraph_title'}
+FORMULA_LABELS = {'display_formula', 'formula', 'inline_formula'}
+FLOAT_LABELS = {'image': 'photo', 'chart': 'chart', 'figure': 'diagram', 'seal': 'other'}
+CAPTION_LABELS = {'figure_title', 'table_title', 'chart_title'}
+FURNITURE = {'header': 'page_header', 'footer': 'page_footer', 'number': 'page_number'}
+DECORATION_LABELS = {'header_image', 'footer_image'}
+TAG = re.compile(r'\\tag\*?\s*\{([^{}]*)\}')
+MARKER = re.compile(r'^\s*(\d{1,3}|[*†‡§¶])\s+')
+
+
+def _strip_display(raw: str) -> str:
+    text = raw.strip()
+    for opener, closer in (('\\[', '\\]'), ('$$', '$$')):
+        if text.startswith(opener) and text.endswith(closer) and len(text) > len(opener) + len(closer):
+            return text[len(opener):-len(closer)].strip()
+    return text
+
+
+def _overlap(a: list[float], b: list[float]) -> float:
+    """How far two boxes share their height, in pixels: an equation number stands on its formula's row."""
+    return max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+
+
+def _box(box: list[float], width: int, height: int) -> str:
+    x0, y0, x1, y1 = (round(value) for value in box)
+    x0, x1 = max(0, min(x0, width)), max(0, min(x1, width))
+    y0, y1 = max(0, min(y0, height)), max(0, min(y1, height))
+    return f'{x0} {y0} {max(x1, x0 + 1)} {max(y1, y0 + 1)}'
+
+
+def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
+    """A document pipeline's blocks, in its reading order, as a page/1 file (`BLOCKS_CONVERTER`): each block's raw model
+    output, its box as the layout model drew it, its label as a page/1 class. An equation number joins the formula whose
+    row it shares most, as label= without brackets (a \\tag{…} inside a formula's LaTeX is taken out the same way); a
+    caption names the float nearest above or below it; the page's number becomes the printed label. A table is its raw
+    OTSL answer made HTML by the vendor's own converter, never the pipeline's HTML, which lost its `$` first."""
+    width, height = page['width'], page['height']
+    blocks = [block for block in result['blocks'] if (block.get('raw') or '').strip() or block['label'] in FLOAT_LABELS
+              or block['label'] in DECORATION_LABELS]
+    numbers = [block for block in blocks if block['label'] == 'formula_number']
+    formulas = [block for block in blocks if block['label'] in FORMULA_LABELS]
+    labels: dict[int, str] = {}
+    for number in numbers:
+        rows = sorted(formulas, key=lambda formula: -_overlap(number['box'], formula['box']))
+        if rows and _overlap(number['box'], rows[0]['box']) > 0 and id(rows[0]) not in labels:
+            labels[id(rows[0])] = number['raw'].strip().strip('()').strip()
+    bound = {id(number) for number in numbers if any(labels.get(id(f)) == number['raw'].strip().strip('()').strip()
+                                                      for f in formulas)}
+    floats = [block for block in blocks if block['label'] in FLOAT_LABELS or block['label'] == 'table']
+    printed, position, out, counts = None, 'none', [], Counter()
+    written = [block for block in blocks if id(block) not in bound]  # a bound number lives on in its formula's label
+    ids = {id(block): f'b{at:02d}' for at, block in enumerate(written, 1)}
+    for block in written:
+        label, raw, bid = block['label'], (block.get('raw') or '').strip(), ids[id(block)]
+        attrs, body = [], raw
+        if label in FURNITURE:
+            cls = FURNITURE[label]
+            if label == 'number':
+                printed, position = raw, 'header' if block['box'][1] < height / 2 else 'footer'
+        elif label in HEADING_LABELS:
+            cls, body = 'heading', re.sub(r'^#+\s*', '', ' '.join(raw.split()))
+        elif label in PROSE_LABELS:
+            cls, body = 'paragraph', ' '.join(raw.split())
+        elif label in FORMULA_LABELS:
+            cls, body = 'formula', _strip_display(raw)
+            tag = TAG.search(body)
+            if tag:
+                labels.setdefault(id(block), tag.group(1).strip().strip('()').strip())
+                body = TAG.sub('', body).strip()
+            if id(block) in labels:
+                attrs.append(f'label="{labels[id(block)]}"')
+        elif label == 'formula_number':  # one no formula's row took: kept as text, never lost
+            cls, body = 'paragraph', raw
+        elif label == 'table':  # the vendor's OTSL converter run on the raw answer (`html_from_raw`, tables_from_raw.py)
+            content = (block.get('html_from_raw') or '').strip()
+            cls, body = ('table', content) if content.lower().startswith('<table') else ('other', raw)
+            if cls == 'other':
+                attrs.append('why="a table the pipeline could not convert"')
+        elif label in FLOAT_LABELS:
+            cls, body = 'figure', ''
+            attrs.append(f'kind={FLOAT_LABELS[label]}')
+        elif label in CAPTION_LABELS and floats:
+            nearest = min(floats, key=lambda other: min(abs(other['box'][1] - block['box'][3]),
+                                                        abs(block['box'][1] - other['box'][3])))
+            cls, body = 'caption', ' '.join(raw.split())
+            attrs.append(f'of={ids[id(nearest)]}')
+        elif label == 'footnote' and MARKER.match(raw):
+            marker = MARKER.match(raw).group(1)
+            cls, body = 'footnote', MARKER.sub('', raw, count=1).strip()
+            attrs.append(f'marker="{marker}"')
+        elif label in DECORATION_LABELS:
+            cls, body = 'decoration', ''
+            attrs.append('kind=logo')
+        else:
+            cls, body = 'other', ' '.join(raw.split())
+            attrs.append(f'why="layout label {label}"')
+        counts[cls] += 1
+        fence = ':' * max(3, 1 + max((len(run) for run in re.findall(r'^(:{3,})', body, re.M)), default=0))
+        head = ' '.join([f'#{bid}', f'.{cls}', *attrs, f'bbox="{_box(block["box"], width, height)}"'])
+        out.append(f'{fence} {{{head}}}\n{body}\n{fence}\n' if body else f'{fence} {{{head}}}\n{fence}\n')
+    front = ['---', 'contract: page/1', f"work: {page['work']}", f"pdf_page: {page['pdf_page']}",
+             f'image_size: "{width}x{height}"', f'printed_label: "{printed}"' if printed else 'printed_label: null',
+             f'label_position: {position}', 'page_kind: body', '---', '']
+    notes = {'converter': BLOCKS_CONVERTER, 'boxes': "the layout model's", 'front_filled': ['page_kind'],
+             'blocks': dict(counts), 'numbers_bound': len(bound), 'layout_labels': dict(Counter(b['label'] for b in blocks))}
+    return '\n'.join(front) + '\n'.join(out), notes
+
+
 # ---------------------------------------------------------------- a run into the store
 
-def answers(model_dir: Path) -> dict[str, dict]:
-    """Each page's latest answered record of a model's run, by page id: a failed attempt or a load line is no answer."""
+def answers(model_dir: Path, suffix: str = '.md') -> dict[str, dict]:
+    """Each page's latest answered record of a model's run, by page id: a failed attempt or a load line is no answer. A
+    Markdown answer's line counts its characters; a pipeline's blocks (`.json`) are an answer by their file alone."""
     found = {}
     log = model_dir / 'results.jsonl'
     for line in log.read_text(encoding='utf-8').splitlines() if log.exists() else []:
         record = json.loads(line)
-        if record.get('id') and not record.get('error') and record.get('chars') is not None \
-                and (model_dir / f"{record['id']}.md").exists():
+        if record.get('id') and not record.get('error') and (record.get('chars') is not None or suffix == '.json') \
+                and (model_dir / f"{record['id']}{suffix}").exists():
             found[record['id']] = record
     return found
 
@@ -197,14 +319,20 @@ def import_run(run: Path, store=None) -> Counter:
         if not model_dir.is_dir():
             continue
         cell = reading_cells.TEST_READING_CELLS[model['cell']]
-        for page_id, said in sorted(answers(model_dir).items()):
+        parameters = parameter_sets.require(model['parameter_set'])  # refused before anything is stored (53.a)
+        suffix = '.json' if model['answer'] == 'blocks' else '.md'
+        for page_id, said in sorted(answers(model_dir, suffix).items()):
             page, listed = manifest[page_id], pilot[page_id]
-            raw = (model_dir / f'{page_id}.md').read_bytes().decode('utf-8')
+            raw = (model_dir / f'{page_id}{suffix}').read_bytes().decode('utf-8')
             image_sha = store.put_input((gold / f'{page_id}.png').read_bytes(), '.png')
             if image_sha != page['image_sha256']:
                 raise ValueError(f'{page_id}: the stored image is not the one the manifest names')
-            answer_sha = store.put_input(raw.encode('utf-8'), '.md')
-            if model['answer'] == 'page1':
+            answer_sha = store.put_input(raw.encode('utf-8'), suffix)
+            if model['answer'] == 'blocks':
+                text, notes = blocks_page(json.loads(raw), page)
+                system_sha = user_sha = None
+                converter = BLOCKS_CONVERTER
+            elif model['answer'] == 'page1':
                 text, notes = rescale_boxes(raw, page['width'], page['height'])
                 system_sha = store.put_prompt(system_text)
                 user_sha = store.put_prompt((gold / f'{page_id}.user.txt').read_bytes().decode('utf-8'))
@@ -234,7 +362,8 @@ def import_run(run: Path, store=None) -> Counter:
                       'usage': said.get('usage') or {key_: said[key_] for key_ in ('input_tokens', 'output_tokens')
                                                          if key_ in said},
                       'cost_usd': 0.0, 'seconds': said.get('seconds'), 'vram_used_mib': said.get('vram_used_mib'),
-                      'torch_peak_mib': said.get('torch_peak_mib'), 'run': run.name, 'answer_sha256': answer_sha,
+                      'torch_peak_mib': said.get('torch_peak_mib') or said.get('peak_mib'), 'run': run.name,
+                      'answer_sha256': answer_sha, 'parameter_set': parameters, 'device': said.get('device'),
                       'conversion': notes, 'result_class': result_class,
                       'text_sha256': reader_requests.sha256_text(text), 'text_chars': len(text), 'contract': checked}
             store.save_reading(key, record, text)
