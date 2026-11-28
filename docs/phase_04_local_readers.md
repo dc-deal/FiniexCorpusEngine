@@ -171,6 +171,31 @@ verdicts. The form repair is a score apart, never a stored reading (the review's
 | pages clean against gold, of 14 | 5 | 5 | 7 | 13 |
 | table cells exact, of 224 | 221 | 221 | 221 | 221 |
 
+**An optimisation in three iterations (decision 61.a, the same afternoon; group `paddle-optimisation-2026-11-28`).** A
+step was kept only where it gained at least two formulas or one clean page and lost nothing; every variant stands here.
+
+| variant | formulas exact, of 112 | valid, of 20 | clean, of 14 | judge ok / bad |
+|---|---|---|---|---|
+| v2: the vendor's defaults, our assembly | 91 | 12 | 5 | 13 / 7 |
+| V3: formula crops upscaled 4× | 89 | 12 | 4 | |
+| V4: V3 and a repetition penalty of 1.05 | 89 | 12 | 4 | |
+| V5: v2 with the form repaired in the assembly | 100 | 19 | 7 | |
+| V6: V5 and Qwen describing figure regions | 100 | 19 | 7 | |
+| V7: V6 and Qwen reading again the formulas a judge flagged | 101 | 19 | 7 or 8 | **15 / 5** |
+| default reader | 112 | 20 | 13 | 17 / 0, 3 not judged |
+
+- **Iteration 1 gained nothing:** larger formula crops lost two formulas; the vendor's defaults stay.
+- **Iteration 2, the form repair,** made 7 more readings valid and 9 more formulas exact. The first repair paired dollars
+  wrongly and turned a table head's "Value ($)" into math (finance p. 405); found when a second repair changed a
+  repaired page, fixed (assemblies /5 and /6), and the two pages it had touched judged again.
+- **Iteration 3, Qwen as a second stage:** KaTeX renders every formula the first reader wrote, broken ones included
+  (an exponent that swallows `= $1,000 x` is valid LaTeX), so it cannot choose them; the formulas a judge flagged were
+  read again instead, a re-injection. All three pages so read are now ok (finance p. 179, 204, 486; all three were bad).
+  Qwen's one figure description invented an axis label (finance p. 405, bad): describing figures is not trusted yet.
+- The 5 pages still bad are the first reader's: a journal table's rows merged, a sentence read twice, a code output's
+  order, a dropped line, and Qwen's description. Judged by text identity: a page whose text did not change keeps the
+  verdict of the reading with the same text.
+
 Not yet: the group's document.
 
 **The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked

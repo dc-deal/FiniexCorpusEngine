@@ -75,6 +75,17 @@ def test_the_form_repair_mends_only_dollars_in_math_and_dollar_math_in_prose():
     assert local_reader.form_repaired(mended) == mended  # mended once, nothing left to mend
 
 
+def test_the_repair_pairs_dollars_from_the_left_and_leaves_money_and_written_math_alone():
+    # found 28 Nov: the stretch between two `$f$` was made math once a `\( \)` stood in it (carta p. 5), and a table head's
+    # "Value ($)" became "Value (\(" (finance p. 405)
+    prose = ('::: {#b01 .paragraph bbox="0 0 1 1"}\nThe fraction $f$ maximises \\(g_{x}(f)\\), w.r.t $f$, and $h^2$.\n:::\n'
+             '::: {#b02 .table bbox="0 0 1 1"}\n<table><tr><td>Value ($)</td><td>\\(\\frac{1}{2}\\)</td></tr></table>\n:::\n')
+    mended = local_reader.form_repaired(prose)
+    assert 'The fraction $f$ maximises \\(g_{x}(f)\\), w.r.t $f$, and \\(h^2\\).' in mended
+    assert '<td>Value ($)</td>' in mended
+    assert local_reader.form_repaired(mended) == mended
+
+
 def test_prose_keeps_its_money_sign_and_an_unknown_label_is_kept_as_other():
     text, _ = local_reader.blocks_page(RESULT, PAGE)
     page = parse(text, 'markdown', Expected('w', 3, (1000, 1400)))

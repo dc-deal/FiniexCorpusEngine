@@ -37,6 +37,8 @@
   "prompts/correction_page2.txt": "808e265ad1d15d8f07e939eb0396d1f561bc007b839edd38cd2ccb5fe5eee98a",
   "prompts/local_paddleocr_vl_ocr.txt": "d715a33c90db45b3c55e06be0210b87cbc9d97c0b84dc5d30edc331f8e65e2ff",
   "prompts/local_glm_ocr_text.txt": "77e8207573e1b8ba857d25db3a5080ae8651d6ddc2ea79007af5ca7958b80017",
+  "prompts/local_qwen3vl_figure_description.txt": "9ba58b4640cbe1922d36f1923852bcfeb60a4ea5a1eefb08d75eef0462040b15",
+  "prompts/local_qwen3vl_formula_reread.txt": "a8e1d15b5f0f0c399d158bc2675f8a88aeba8bbdcd97af16b7116e87b3298ca6",
   "prompts/agent_reader_session.txt": "7544eba9a2eb0cc32dbfa676f7b6b26b570af32a14b3223b2eff530254bff8d4",
   "prompts/agent_judge_session.txt": "6f0aa6279cab6f52dac782741c6b7311cd426b88a6a53882d935e8ba1c1e5d8f",
   "contract/contract_vocab.json": "e4bbfb9422429a2c0629e556ab20487a3b3f80aaef69e1341ef855eb8b4fbd89",

@@ -108,6 +108,9 @@ TEST_READING_CELLS = {cell.name: cell for cell in [
     # decision 51 (28 Nov): PaddleOCR-VL again, in its vendor's own pipeline (layout, then each region with its prompt)
     Cell('LAB-PADDLE-PIPE-MP', 'paddleocr-vl-1.6', 'hi', 'markdown', MINI_PILOT, max_tokens=4096, mode=LOCAL,
          reader_version='paddleocr-vl/pipeline'),
+    # decision 61.a (28 Nov): the optimisation's variants, one cell each so none displaces another (parameter sets /3 on)
+    *[Cell(f'LAB-PADDLE-V{number}-MP', 'paddleocr-vl-1.6', 'hi', 'markdown', MINI_PILOT, max_tokens=4096, mode=LOCAL,
+           reader_version='paddleocr-vl/pipeline') for number in (3, 4, 5, 6, 7)],
 ]}
 
 

@@ -56,6 +56,22 @@ MODELS = {
     # decision 51: the vendor's pipeline; its answer is the blocks with their raw model output (`blocks_page`)
     'paddleocr-vl-pipeline': {'cell': 'LAB-PADDLE-PIPE-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6 (transformers)',
                               'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/2'},
+    # decision 61.a: the optimisation's variants of the reader's settings (iteration 1)
+    'paddleocr-vl-v3': {'cell': 'LAB-PADDLE-V3-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6 (transformers)',
+                        'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/3'},
+    'paddleocr-vl-v4': {'cell': 'LAB-PADDLE-V4-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6 (transformers)',
+                        'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/4'},
+    # iteration 2: the vendor's defaults (iteration 1 gained nothing), the form repaired in the assembly
+    'paddleocr-vl-v5': {'cell': 'LAB-PADDLE-V5-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6 (transformers)',
+                        'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/8',
+                        'folder': 'paddleocr-vl-pipeline', 'repair': True},
+    # iteration 3: Qwen3-VL as a second stage on V5: figures described (V6), and formulas a judge flagged read again (V7)
+    'paddleocr-vl-v6': {'cell': 'LAB-PADDLE-V6-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6, then Qwen3-VL (llama.cpp)',
+                        'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-qwen/9', 'repair': True,
+                        'second': True},
+    'paddleocr-vl-v7': {'cell': 'LAB-PADDLE-V7-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6, then Qwen3-VL (llama.cpp)',
+                        'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-qwen/10', 'repair': True,
+                        'second': True},
 }
 STOP_REASONS = {'stop': 'end_turn', 'length': 'max_tokens', None: 'end_turn'}
 BOX = re.compile(r'bbox="(\d+) (\d+) (\d+) (\d+)"')
@@ -167,6 +183,13 @@ def markdown_page(raw: str, page: dict) -> tuple[str, dict]:
 # ---------------------------------------------------------------- a pipeline's blocks into page/1 (51, 28 Nov)
 
 BLOCKS_CONVERTER = 'paddle-blocks-to-page1/2'  # /1 on 28 Nov: equation numbers by row overlap alone
+# The optimisation's assemblies (61.a): /3 mends the form (`form_repaired`, declared as a repair); /4 also takes what a
+# second reader added to the blocks: a figure's description (`qwen_description`, derived, never quoted) and a formula read
+# again where KaTeX could not render the first reader's (`qwen_latex`).
+# /3 and /4 (28 Nov) paired dollars wrongly and turned a table head's "Value ($)" into math (finance p. 405); /5 and /6
+# pair them from the left (`DOLLAR_PAIR`).
+ASSEMBLIES = {(False, False): 'paddle-blocks-to-page1/2', (True, False): 'paddle-blocks-to-page1/5',
+              (True, True): 'paddle-blocks-to-page1/6'}
 # The layout model's labels as page/1 classes. Read as text: every label the vendor reads with "OCR:". A label not listed
 # becomes `other`, its label said in why=, so nothing is dropped unseen.
 PROSE_LABELS = {'text', 'content', 'abstract', 'reference', 'reference_content', 'algorithm', 'vertical_text', 'aside_text',
@@ -201,7 +224,7 @@ def _box(box: list[float], width: int, height: int) -> str:
     return f'{x0} {y0} {max(x1, x0 + 1)} {max(y1, y0 + 1)}'
 
 
-def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
+def blocks_page(result: dict, page: dict, repair: bool = False, second: bool = False) -> tuple[str, dict]:
     """A document pipeline's blocks, in its reading order, as a page/1 file (`BLOCKS_CONVERTER`): each block's raw model
     output, its box as the layout model drew it, its label as a page/1 class. An equation number joins the formula just
     before it in reading order where the two share a row, as the vendor's own pipeline joins them; only where that one
@@ -209,7 +232,8 @@ def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
     close one above the other, bound (6) to the formula printed as (10), carta-conversano p. 5). As label= without
     brackets; a \\tag{…} inside a formula's LaTeX is taken out the same way. A caption names the float nearest above or
     below it; the page's number becomes the printed label. A table is its raw OTSL answer made HTML by the vendor's own
-    converter, never the pipeline's HTML, which lost its `$` first."""
+    converter, never the pipeline's HTML, which lost its `$` first. `repair` and `second` are the optimisation's
+    assemblies (`ASSEMBLIES`): the form mended, and a second reader's descriptions and formulas taken in."""
     width, height = page['width'], page['height']
     blocks = [block for block in result['blocks'] if (block.get('raw') or '').strip() or block['label'] in FLOAT_LABELS
               or block['label'] in DECORATION_LABELS]
@@ -231,11 +255,23 @@ def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
             bound.add(id(number))
     floats = [block for block in blocks if block['label'] in FLOAT_LABELS or block['label'] == 'table']
     printed, position, out, counts = None, 'none', [], Counter()
-    written = [block for block in blocks if id(block) not in bound]  # a bound number lives on in its formula's label
+    written = []
+    for block in blocks:
+        if id(block) in bound:  # a bound number lives on in its formula's label
+            continue
+        written.append(block)
+        if second and block['label'] in FLOAT_LABELS and (block.get('qwen_description') or '').strip():
+            written.append({'label': '_description', 'of': block, 'raw': block['qwen_description'], 'box': block['box']})
     ids = {id(block): f'b{at:02d}' for at, block in enumerate(written, 1)}
     for block in written:
         label, raw, bid = block['label'], (block.get('raw') or '').strip(), ids[id(block)]
         attrs, body = [], raw
+        if label == '_description':  # a second reader's words about a figure: derived, never quoted (OC-9.a)
+            cls, body = 'description', ' '.join(raw.split())
+            attrs += [f"of={ids[id(block['of'])]}", 'form=prose']
+            counts[cls] += 1
+            out.append(f"::: {{#{bid} .description {' '.join(attrs)}}}\n{body}\n:::\n")
+            continue
         if label in FURNITURE:
             cls = FURNITURE[label]
             if label == 'number':
@@ -245,7 +281,10 @@ def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
         elif label in PROSE_LABELS:
             cls, body = 'paragraph', ' '.join(raw.split())
         elif label in FORMULA_LABELS:
-            cls, body = 'formula', _strip_display(raw)
+            again = (block.get('qwen_latex') or '').strip() if second else ''
+            cls, body = 'formula', _strip_display(again or raw)
+            if again:
+                counts['formula read again'] += 1
             tag = TAG.search(body)
             if tag:
                 labels.setdefault(id(block), tag.group(1).strip().strip('()').strip())
@@ -284,9 +323,13 @@ def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
     front = ['---', 'contract: page/1', f"work: {page['work']}", f"pdf_page: {page['pdf_page']}",
              f'image_size: "{width}x{height}"', f'printed_label: "{printed}"' if printed else 'printed_label: null',
              f'label_position: {position}', 'page_kind: body', '---', '']
-    notes = {'converter': BLOCKS_CONVERTER, 'boxes': "the layout model's", 'front_filled': ['page_kind'],
-             'blocks': dict(counts), 'numbers_bound': len(bound), 'layout_labels': dict(Counter(b['label'] for b in blocks))}
-    return '\n'.join(front) + '\n'.join(out), notes
+    notes = {'converter': ASSEMBLIES[(repair, second)], 'boxes': "the layout model's", 'front_filled': ['page_kind'],
+             'blocks': dict(counts), 'numbers_bound': len(bound), 'layout_labels': dict(Counter(b['label'] for b in blocks)),
+             # each written block's region in the pipeline's answer, so a judge's finding on a block finds its region
+             'source_index': {ids[id(block)]: block.get('index') for block in written if block['label'] != '_description'},
+             **({'repaired': 'the form mended: a bare $ in a formula, $…$ math in prose'} if repair else {})}
+    text = '\n'.join(front) + '\n'.join(out)
+    return (form_repaired(text) if repair else text), notes
 
 
 # ---------------------------------------------------------------- a run into the store
@@ -325,7 +368,7 @@ def import_run(run: Path, store=None) -> Counter:
              for page in json.loads(reading_cells.MINI_PILOT.read_text(encoding='utf-8'))['pages']}
     outcome = Counter()
     for folder, model in MODELS.items():
-        model_dir = run / 'results' / folder
+        model_dir = run / 'results' / model.get('folder', folder)  # a variant may assemble another's answers
         if not model_dir.is_dir():
             continue
         cell = reading_cells.TEST_READING_CELLS[model['cell']]
@@ -339,9 +382,9 @@ def import_run(run: Path, store=None) -> Counter:
                 raise ValueError(f'{page_id}: the stored image is not the one the manifest names')
             answer_sha = store.put_input(raw.encode('utf-8'), suffix)
             if model['answer'] == 'blocks':
-                text, notes = blocks_page(json.loads(raw), page)
+                text, notes = blocks_page(json.loads(raw), page, model.get('repair', False), model.get('second', False))
                 system_sha = user_sha = None
-                converter = BLOCKS_CONVERTER
+                converter = notes['converter']
             elif model['answer'] == 'page1':
                 text, notes = rescale_boxes(raw, page['width'], page['height'])
                 system_sha = store.put_prompt(system_text)
@@ -433,7 +476,18 @@ REFERENCE = 'served'  # the reading each page serves today: Sonnet's page/1, jud
 
 OPENER = re.compile(r'^(:{3,})\s*\{[^}\n]*\.([a-z_]+)')
 BARE_DOLLAR_IN_MATH = re.compile(r'(?<!\\)\$')
-DOLLAR_MATH = re.compile(r'\$([^$\n]*[\\^_{}][^$\n]*)\$')  # page_contract's own test for `$…$` math in prose
+# Dollars taken pairwise from the left, so the stretch between two pairs is never read as math: `$f$ … \(g_x\) … $f$` once
+# had its middle made math on a second pass (carta-conversano p. 5, 28 Nov). A pair is math by the validator's own test
+# (a LaTeX character inside), and never where it already holds `\( \)`; a pair of money amounts stays as it is.
+DOLLAR_PAIR = re.compile(r'(?<!\\)\$([^$\n]*?)(?<!\\)\$')
+MATH_CHARACTER = re.compile(r'[\\^_{}]')
+
+
+def _math_pair(match: re.Match) -> str:
+    inside = match.group(1)
+    if MATH_CHARACTER.search(inside) and '\\(' not in inside and '\\)' not in inside:
+        return f'\\({inside}\\)'
+    return match.group(0)
 
 
 def form_repaired(text: str) -> str:
@@ -450,7 +504,7 @@ def form_repaired(text: str) -> str:
         elif cls == 'formula':
             line = BARE_DOLLAR_IN_MATH.sub(r'\\$', line)
         elif cls is not None:
-            line = DOLLAR_MATH.sub(lambda match: f'\\({match.group(1)}\\)', line)
+            line = DOLLAR_PAIR.sub(_math_pair, line)
         lines.append(line)
     return '\n'.join(lines)
 

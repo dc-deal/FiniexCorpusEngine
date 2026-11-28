@@ -1,0 +1,1 @@
+This image is one formula cut from a page of a finance or accounting book. Write it as LaTeX, exactly as printed: every symbol, number, subscript and superscript, and every dollar sign as \$. Write only the LaTeX of the formula itself: no delimiters such as \[ or $$, no \tag, no equation number, no words before or after it.
