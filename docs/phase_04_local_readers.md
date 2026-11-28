@@ -196,6 +196,21 @@ step was kept only where it gained at least two formulas or one clean page and l
   order, a dropped line, and Qwen's description. Judged by text identity: a page whose text did not change keeps the
   verdict of the reading with the same text.
 
+**Six software levers tried for feasibility (the same afternoon; hints from a side session, each tested here):**
+
+| lever | test | result |
+|---|---|---|
+| parallel slots | Qwen's 7 regions one by one, then four at once | wall time 6.4 s → 2.9 s; one answer of 7 changed (a figure's description) |
+| a smaller KV cache | Qwen with 16k context, flash attention, q8_0 cache, against the night's settings | GPU memory 22.1 → 19.9 GiB; 2 answers of 7 changed even one by one |
+| crop size | the pipeline with half the maximum pixels for text and table crops | the same gold scores on every measure; median 8.5 → 6.1 s per page, the run 197 → 141 s |
+| a loop stop | the night's looping page with a stop when 24 tokens repeat four times | 221 s and 4,096 tokens → 6 s and 156; the text up to the stop equals the night's |
+| vLLM | what PyPI would install | a CUDA build replacing the ROCm one; AMD's route is its Docker image, and the machine has no Docker |
+| a larger second reader | llama.cpp and the weights | our build reads GLM-4.5V's vision part (`tools/mtmd/models/glm4v.cpp`); `ggml-org/GLM-4.5V-GGUF` Q4_K_M is 59.3 GiB with a 0.9 GiB projector; 184 GB free on the models volume; not downloaded |
+
+The night's settings are reproducible: the same server settings gave every answer byte for byte again. Any change to
+the server's numerics changes some answers, so it belongs in the parameter set. A loop stop must allow a table's
+honestly repeated rows (that page prints fifteen equal coupons); four repeats is a test, not a setting.
+
 Not yet: the group's document.
 
 **The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked
