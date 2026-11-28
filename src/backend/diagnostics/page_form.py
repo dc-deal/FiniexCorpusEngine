@@ -62,7 +62,8 @@ class FormVerdict(BaseModel):
     cost_usd: float | None = None
     version: str | None = None  # the judge's version, linked to its prompt; None for a person's
     version_said: str | None = None  # "counts", "prototype", "asked again", "not counted"; a person's "answers judge/1"
-    verdict_said: str  # "ok · 1 finding struck by code", "bad · 2 findings: 1 major, 1 minor", "accept · false alarm"
+    verdict_said: str  # the result, one word (47.a): "ok", "bad", "accept"
+    reason_said: str | None = None  # why: a judge's findings in short ("wrong word, struck by code"), a person's reason
     # the judge's own word where it is not the result that counts, code having struck its findings (32.a): shown struck
     overruled: str | None = None
     state: Literal['ok', 'issue', 'note']  # its look: a verdict that passes, one that finds fault, a note
@@ -85,7 +86,8 @@ class FormReading(BaseModel):
     cost_usd: float | None = None
     version: str | None = None  # the reader's version ("page/1", "paddleocr-vl/ocr"), linked to its prompt
     result_state: Literal['ok', 'none', 'issue']
-    result_said: str  # "ok", "no judge", "3 issues", "malformed"
+    result_said: str  # the result, one word (47.a): "ok", "no judge", "3 issues", "malformed"
+    reason_said: str | None = None  # what it adds: "1 finding" beneath an ok; None where there is nothing to add
     shown: bool = False  # the reading the page shows and serves
     # its mark, in the head's word (41.a): "served", where "shown" read wrong while another reading or a judge is recalled
     served_said: str | None = None
@@ -252,17 +254,18 @@ def judge_hover(judgement: Any) -> list[HoverRow]:
 
 
 NOTHING_TO_SHOW = 'no difference: this judgement found nothing; use show on its reading'
+# 46.a: the standing judgement's moment on the served reading, where nothing came after it, is the page as it stands now
+SAME_AS_NOW = 'no difference: this is what the page shows now'
 
 
 def judge_verdict(judgement: Any) -> FormVerdict:
     """A judge's verdict as its row says it; its "show" is active only where its findings change what the page shows
     (decision 25, the operator: a judgement that found nothing shows its reading alone, which the reading's own row shows).
     A void finding counts: the recall draws it beneath its block, receding (178.a)."""
-    said = findings_said(judgement)
     word, overruled = judge_word(judgement)
     return FormVerdict(kind='judge', kind_said='judge', time=judgement.stored_at, model=judgement.model or 'a judge', cost_usd=judgement.cost_usd,
                        version=judgement.version, version_said=judge_role(judgement),
-                       verdict_said=' · '.join(part for part in (word, said) if part), overruled=overruled,
+                       verdict_said=word, reason_said=finding_reason(judgement), overruled=overruled,
                        state=judge_state(judgement), standing=bool(judgement.standing), recall=judgement.recall,
                        show_why_not=None if judgement.findings else NOTHING_TO_SHOW,
                        rules=[FormRule(kind=rule.kind, block=rule.block, rule=rule.rule, block_class=rule.block_class,
@@ -312,28 +315,29 @@ def person_verdict(person: Any) -> FormVerdict:
     answers = answers_said(person)
     return FormVerdict(kind='person', kind_said=who, time=person.given_at, model=said,
                        version_said=f'answers {answers}' if answers else 'verdict',
-                       verdict_said=' · '.join(part for part in (person.verdict, reason) if part), state=person_state(person),
+                       verdict_said=person.verdict, reason_said=reason, state=person_state(person),
                        standing=bool(person.standing), block=person.block, hover=person_hover(person))
 
 
-def result_of(attempt: Any, prototype: bool) -> tuple[Literal['ok', 'none', 'issue'], str]:
-    """What the reading came to, in a word: its class where its format failed, "no judge" where none judged it, else the
-    standing judgement's (on a Lab reading the latest one's): "ok", or how many of its findings stand."""
+def result_of(attempt: Any, prototype: bool) -> tuple[Literal['ok', 'none', 'issue'], str, str | None]:
+    """What the reading came to, in a word (47.a): its class where its format failed, "no judge" where none judged it, else
+    the standing judgement's (on a Lab reading the latest one's): "ok", or how many of its findings stand; and beside it,
+    as its reason, how many findings stand beneath an ok, else nothing."""
     if attempt.class_now and attempt.class_now != 'ok':
-        return 'issue', attempt.class_now
+        return 'issue', attempt.class_now, None
     judgements = list(attempt.judgements or [])
     if not judgements:
-        return 'none', 'no judge'
+        return 'none', 'no judge', None
     standing = [judgement for judgement in judgements if judgement.standing]
     counting = [judgement for judgement in judgements if judgement.counts]
     latest = sorted(standing or counting or (judgements if prototype else []), key=lambda one: one.stored_at or '')
     if not latest:
-        return 'none', 'no judge'
+        return 'none', 'no judge', None
     judgement = latest[-1]
     issues = len(standing_findings(judgement))
     if judgement.outcome == 'ok':  # by the outcome that counts; minor findings under an ok are said beside it
-        return 'ok', 'ok' + (f" · {counted(issues, 'finding')}" if issues else '')
-    return 'issue', counted(issues, 'issue') if issues else (judgement.outcome or judgement.verdict or 'judged')
+        return 'ok', 'ok', counted(issues, 'finding') if issues else None
+    return 'issue', counted(issues, 'issue') if issues else (judgement.outcome or judgement.verdict or 'judged'), None
 
 
 def reading_hover(attempt: Any, chosen: Any = None) -> list[HoverRow]:
@@ -358,7 +362,7 @@ def reading_row(attempt: Any, people: list[Any], chosen: Any = None, trials: boo
     """A reading's row and its verdicts, newest first (31.a): a pipeline reading's judgements that count and the person's
     verdicts in Readings; in the Lab its trials alone (`trials`, 37.a); a Lab reading's every judgement and verdict."""
     prototype = bool(attempt.prototype)
-    state, said = result_of(attempt, prototype)
+    state, said, why = result_of(attempt, prototype)
     judgements = attempt.judgements or []
     if trials:
         judgements = [judgement for judgement in judgements if not judgement.counts]
@@ -368,8 +372,14 @@ def reading_row(attempt: Any, people: list[Any], chosen: Any = None, trials: boo
     if not trials:
         verdicts += [person_verdict(person) for person in people if person.reading_key == attempt.reading_key]
     verdicts.sort(key=lambda one: moment(one.time) or EARLIEST, reverse=True)
+    if attempt.shown and not trials:
+        standing = next((judgement for judgement in judgements if judgement.standing), None)
+        if standing is not None and not changed_since(people, attempt.reading_key, moment(standing.stored_at)):
+            for verdict in verdicts:
+                if verdict.kind == 'judge' and verdict.recall == standing.recall and verdict.show_why_not is None:
+                    verdict.show_why_not = SAME_AS_NOW
     return FormReading(key=attempt.reading_key, time=attempt.stored_at, model=attempt.model, cost_usd=attempt.cost_usd,
-                       version=attempt.reader_version, result_state=state, result_said=said, shown=bool(attempt.shown),
+                       version=attempt.reader_version, result_state=state, result_said=said, reason_said=why, shown=bool(attempt.shown),
                        test_reading=bool(getattr(attempt, 'test_reading', False)),
                        promoted_said=promoted_said(attempt),
                        promotable=prototype and attempt.reader_version == 'page/1' and not getattr(attempt, 'promoted', None),
@@ -378,6 +388,16 @@ def reading_row(attempt: Any, people: list[Any], chosen: Any = None, trials: boo
                        show_why_not=reading_why_not(verdicts) if not attempt.shown else None,
                        verdicts=verdicts,
                        hover=reading_hover(attempt, chosen))
+
+
+def changed_since(people: list[Any], reading_key: str, then: datetime | None) -> bool:
+    """Whether a reading's verdicts by people changed after a moment (46.a): one given later, a correction among them, or
+    one archived by a reset later; where none did, the page as then (29.d, 39.a) is the page as now."""
+    if then is None:
+        return True
+    mine = [person for person in people if person.reading_key == reading_key]
+    return any((moment(person.given_at) or EARLIEST) > then
+               or (person.archived and (moment(getattr(person, 'archived_at', None)) or EARLIEST) > then) for person in mine)
 
 
 def reading_why_not(verdicts: list[FormVerdict]) -> str | None:

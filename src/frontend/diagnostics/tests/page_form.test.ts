@@ -22,13 +22,13 @@ function aForm(): Form {
     shown_judgement: 'k2:judge/3:0',
     readings: [
       aFormReading({ key: 'k2', time: '2026-11-06T10:00:00+00:00', verdicts: [
-        aFormVerdict({ version: 'judge/3', recall: 'k2:judge/3:0', verdict_said: 'ok · 1 finding struck by code', overruled: 'bad',
+        aFormVerdict({ version: 'judge/3', recall: 'k2:judge/3:0', verdict_said: 'ok', reason_said: 'wrong word, struck by code', overruled: 'bad',
           show_why_not: null, block: null }),
         aFormVerdict({ kind: 'person', kind_said: 'person', model: '', cost_usd: null, version: null, version_said: null,
-          verdict_said: 'agree · the judge was right', state: 'note', recall: null, show_why_not: null, block: 'b03' }),
+          verdict_said: 'agree', reason_said: 'the judge was right', state: 'note', recall: null, show_why_not: null, block: 'b03' }),
       ] }),
       aFormReading({ key: 'k1', shown: false, recall: 'k1', result_state: 'issue', result_said: '2 issues',
-        verdicts: [aFormVerdict({ recall: 'k1:judge/1:0', state: 'issue', verdict_said: 'bad · 2 findings', show_why_not: null,
+        verdicts: [aFormVerdict({ recall: 'k1:judge/1:0', state: 'issue', verdict_said: 'bad', reason_said: '2 findings: 2 major', show_why_not: null,
           rules: [{ kind: 'vocabulary', block_class: 'note', attribute: 'marker', value: 'superscript' }] })] }),
     ],
     lab: [aFormReading({ key: 'k3', shown: false, recall: 'k3', version: 'page/2', test_reading: true,
@@ -158,11 +158,17 @@ describe('PageForm, a page\'s readings and verdicts in one form (#18)', () => {
     expect([judge.find('s[data-part="overruled"]').text(), judge.text()]).toEqual(['bad', expect.stringContaining('wrong word, struck by code')])
   })
 
-  it('strikes a judge\'s own word beside the result that counts in a reading\'s fold too (32.a)', () => {
+  it('strikes a judge\'s own word right behind the result that counts, its reason a column apart (32.a, 47.a)', () => {
     const form = mountForm(aForm())
     const verdict = form.find('tbody[data-reading="k2"] tr.verdict-row[data-verdict="k2/0"]')
-    expect(verdict.find('.result').text().replace(/\s+/g, ' ')).toBe('ok · 1 finding struck by code bad')
+    expect(verdict.find('.result').text().replace(/\s+/g, ' ')).toBe('ok bad')
     expect(verdict.find('s[data-part="overruled"]').text()).toBe('bad')
+    expect(verdict.find('[data-part="reason"]').text()).toBe('wrong word, struck by code')
+    // a person's reason in the same column; the reading's own empty where it adds nothing
+    expect(form.find('tbody[data-reading="k2"] tr.verdict-row[data-verdict="k2/1"] [data-part="reason"]').text()).toBe('the judge was right')
+    expect(form.find('tbody[data-reading="k2"] .reading-row [data-part="reason"]').text()).toBe('')
+    expect(form.findAll('[data-panel="readings"] thead th').map(head => head.text())).toEqual(
+      ['Kind', 'Time', 'Model', 'Cost', 'Version', 'Result', 'Reason', 'Show'])
   })
 
   it('shows the verdicts as then in focus, the recalled one marked ↺, its caption the API\'s with its moment in words (29.d)', async () => {

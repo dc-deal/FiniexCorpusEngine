@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppIcon from '@/components/base/AppIcon.vue'
 import HoverCard from '@/components/base/HoverCard.vue'
+import HumanTime from '@/components/base/HumanTime.vue'
 import ReadingTable from '@/components/reading/ReadingTable.vue'
 import { assessmentLabel, correctionLabel, STANDING, verdictLabel } from '@/person_words'
 import type { Finding, PersonVerdict, StandingCorrection } from '@/types/api/page_types'
@@ -11,7 +12,10 @@ import type { Finding, PersonVerdict, StandingCorrection } from '@/types/api/pag
  * view's words, 32.a); the code's ruling, only
  * where the core voided it as naming no difference (146.a, 147.a), the rule in its hover; the judge's evidence, its label
  * on a line of its own and the evidence beneath. After the findings a person's verdict on this block, or on the page as a
- * whole, stands as a fourth voice: accepted, rejected or noted, its reason and its note. A void finding is never hidden,
+ * whole, stands as a fourth voice: accepted, rejected or noted, its reason and its note. Several are told apart (45.a): each
+ * says its moment first, the newest on top as the API orders them, one a later verdict on the block replaced says
+ * "replaced" (the API's word) and recedes as a struck finding does, never hidden; its note, its correction and its
+ * assessment of the judge stand indented beneath it, so each is seen to be its own. A void finding is never hidden,
  * and nothing in the reading was changed by it. Beside the block a finding names, the block is not named again; among the
  * page's own findings, one that names a block the reading lacks says so.
  */
@@ -62,11 +66,14 @@ function reasonOf(person: PersonVerdict): string {
         <p class="evidence">{{ finding.evidence }}</p>
       </template>
     </li>
-    <li v-for="(person, at) in people" :key="`person-${at}`" class="person" :class="person.verdict" :data-person="at">
+    <li v-for="(person, at) in people" :key="`person-${at}`" class="person" :class="[person.verdict, { replaced: person.replaced_said }]" :data-person="at">
       <!-- a verdict on the page as a whole speaks for a finding whose block no verdict names (the operator on finance p. 408); one run
            of text, its parting dot bound to the word before it, so a long reason never begins a line with the dot -->
       <p class="voice flow" data-voice="person">
-        <span class="part-label">{{ `${verdictLabel(person, !person.block)}:` }}</span>{{ ' ' }}<span
+        <!-- who, when, and whether it still stands (45.a); the giver's name will stand after the label once the API serves one -->
+        <span class="part-label" data-part="person-head">{{ verdictLabel(person, !person.block) }}<template v-if="person.given_at">, <HumanTime
+          :at="person.given_at" /></template><template v-if="person.replaced_said">, <span class="replaced-said"
+          data-part="replaced">{{ person.replaced_said }}</span></template>:</span>{{ ' ' }}<span
           class="person-standing">{{ STANDING[person.verdict] ?? person.verdict }}</span><span
           v-if="reasonOf(person)" class="person-part">{{ ` · ${reasonOf(person)}` }}</span>
       </p>
@@ -104,6 +111,19 @@ function reasonOf(person: PersonVerdict): string {
   flex-direction: column;
   gap: 2px;
   max-width: 100ch;
+}
+
+/* a person's verdict a later one on the same block replaced (45.a): it recedes as a struck finding does, all its voices */
+.person.replaced {
+  color: var(--color-text-secondary);
+}
+
+/* what belongs to one verdict stands a step further in beneath it: its note, its correction, its assessment of the judge */
+.person .person-note,
+.person [data-voice='correction'],
+.person [data-voice='assessment'],
+.person .person-correction {
+  margin-left: calc(1em + var(--space-sm));
 }
 
 /* each voice a line of its own, the lines after the judge's set in under its glyph */

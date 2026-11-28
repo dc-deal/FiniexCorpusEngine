@@ -2191,3 +2191,36 @@ failing first on the build before ("the window stood still", the analysis 520 px
 twice and finds each time: the window at the analysis; b12 in view in both panes; the flash come and gone; the link where
 it stood in the page; and with reduced motion no animation but a 4 px frame. 418 unit tests, 102 checks in the
 browser (2 skipped on today's data), 1,782 Python tests.
+
+**A block's verdicts told apart, and a judge whose then is now (decisions 45.a and 46.a, 28 Nov).** Beneath b12 on finance
+p. 5 a person's two verdicts read alike. Each now begins with its moment, as a person reads it, the full time on hover ("A
+person's verdict, 12 Nov, 12:49: accepted · …"); the giver's name will stand after the label once the API serves one. The
+newest stands on top. Its note, its correction and its assessment of the judge stand a step further in, beneath it, so
+each is seen to be its own. A verdict that a later one on the same block replaced says "replaced" and recedes as a struck
+finding does, never hidden, as the link from its own row lands there. The order and the word are the API's
+(`readings.with_replaced`, `PersonVerdict.replaced_said`), over the verdicts the page or the recall passes, so in focus the
+moment's cut holds (39.a). And the show of the standing judgement on the served reading is greyed where its moment is the
+page now: no person's verdict or correction on that reading came after it, and none was archived after it. Its card says
+"no difference: this is what the page shows now" (`SAME_AS_NOW`). Once the history grows, the show turns active again of
+itself, as it is on finance p. 5, where the person judged after judge/1. **Measured:**
+- Python tests of the order and the word (an archived verdict and one on another reading never "replaced"; copies, so the
+  page's own list keeps no word of a block's) and of the moment against now in both directions (nothing after it, a
+  verdict before it, a verdict after it, one archived after it, one on another reading).
+- A test over finance p. 5 (b12's two told apart; judge/1's show active).
+- A unit test of the head, the order, the word and the assessment beneath its own verdict.
+- A browser check on finance p. 5: b12's two verdicts with their moments, newest on top; the replaced one receding; the
+  assessment beneath and further in; judge/1's show active. It ends on its failing case, the replaced word taken out. It
+  then finds a free page at run time whose standing judge's show is greyed with that card, the tabs in place.
+
+**Result and Reason apart (decision 47.a, 28 Nov).** In Readings and the Lab the result is one word now, what counts ("ok",
+"bad", "accept", "1 issue", "malformed"), a judge's own overruled word struck right behind it ("✓ ok ~~bad~~"), and a column
+of its own says why. For a judge that is the Verdicts tab's own short form (`finding_reason`: "wrong word, struck by code",
+"invented, minor", "N findings: …"), for a person their reason, and for a reading what its findings add beneath an ok ("1
+finding"), else nothing. The table is no wider: the half-empty Result column parted into two, and the columns beside it
+gave up what they did not use (the time keeps 8rem, which "12 Nov, 12:49" needs). On finance p. 5 Reason has 296 px at a
+window of 1280 px and 416 px at 1400. **Measured:** Python tests of the parting (a judge's reason the Verdicts tab's own,
+the reading's "1 finding" beneath an ok and nothing beside "2 issues"); a unit test of the columns, the struck word and
+the reasons. A browser check on finance p. 5 at 1280 and 1400 px holds every verdict's reason to the API's and the struck
+word within 12 px of its result, in Readings and in the Lab. It finds every row on one line, the table no wider than its
+box and the tabs in place, and ends on its failing case: the reason held to a narrow box, a moment, and the rows wrap.
+419 unit tests, 104 checks in the browser (2 skipped on today's data), 1,785 Python tests.

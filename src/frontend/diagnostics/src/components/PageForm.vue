@@ -14,7 +14,8 @@ import type { PageForm, ShownVerdicts } from '@/types/api/page_types'
 /**
  * A page's readings and verdicts in one form (issue #18, the operator's design): three tabs, Readings, Lab and Verdicts, each
  * with its count. Readings and Lab show one row per reading, time · model · cost · version · result · show, and a row folds
- * open to its verdicts in the same columns, a judge's and a person's alike; Verdicts shows the verdicts as shown (decision 26):
+ * open to its verdicts in the same columns, a judge's and a person's alike, the result one word and its reason beside it as
+ * the Verdicts tab parts them (47.a); Verdicts shows the verdicts as shown (decision 26):
  * those that apply now to the reading the analysis shows, the served one's from the page, a recalled one's from the recall,
  * a caption saying which, and the tab and its table framed as the analysis is while recalled; in focus as then, at the
  * recall's moment (29.d), and for a recalled trial none at all: the tab stays in its place, greyed, "–", its card saying
@@ -116,7 +117,8 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
       v-if="picked !== 'verdicts'"
       role="tabpanel"
       table-class="form-readings ruled"
-      :columns="[{ width: '9rem' }, { width: '10rem' }, { width: '15rem' }, { width: '11rem' }, { width: '14rem' }, {}, { width: '7rem' }]"
+      :columns="[{ width: '8rem' }, { width: '8rem' }, { width: '11rem' }, { width: '7rem' }, { width: '11rem' }, { width: '7.5rem' }, {},
+                 { width: '7rem' }]"
       min-width="70rem"
       fixed
       :data-panel="picked"
@@ -129,11 +131,12 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
           <th>Cost</th>
           <th>Version</th>
           <th>Result</th>
+          <th>Reason</th>
           <th>Show</th>
         </tr>
       </template>
       <tbody v-if="!rows.length">
-        <tr><td colspan="7" class="none">none</td></tr>
+        <tr><td colspan="8" class="none">none</td></tr>
       </tbody>
       <tbody v-for="reading in rows" :key="reading.key" :data-reading="reading.key" :class="{ shown: reading.shown }">
         <tr class="reading-row" :class="{ 'recalled-source': reading.recall && reading.recall === recallId }">
@@ -157,6 +160,9 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
           </td>
           <td class="result" :class="reading.result_state" :data-result="reading.result_state">
             <AppIcon :name="ICON[reading.result_state]" /> {{ reading.result_said }}
+          </td>
+          <td class="reason" data-part="reason">
+            {{ reading.reason_said ?? '' }}
             <span v-if="reading.promoted_said" class="promoted" data-part="promoted">· {{ reading.promoted_said }}</span>
           </td>
           <td>
@@ -194,6 +200,7 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
                 <AppIcon :name="ICON[verdict.state]" /> {{ verdict.verdict_said }}
                 <s v-if="verdict.overruled" class="overruled" data-part="overruled">{{ verdict.overruled }}</s>
               </td>
+              <td class="reason" data-part="reason">{{ verdict.reason_said ?? '' }}</td>
               <td>
                 <span v-if="verdict.recall && verdict.recall === recallId" class="on-page" data-part="recalled-here"><AppIcon name="recalled" /> on the page</span>
                 <!-- a show that would change nothing stays in place, greyed, its card saying why (decision 25) -->
@@ -206,7 +213,7 @@ const ICON: Record<'ok' | 'issue' | 'none' | 'note', IconName> = { ok: 'status-o
             </tr>
             <!-- the rules a judge proposed for the reader (202.a), right beneath its verdict, read-only -->
             <tr v-if="verdict.rules?.length" class="verdict-rules" :data-rules="`${reading.key}/${at}`">
-              <td colspan="7"><ReaderRuleList :rules="verdict.rules" /></td>
+              <td colspan="8"><ReaderRuleList :rules="verdict.rules" /></td>
             </tr>
           </template>
         </template>

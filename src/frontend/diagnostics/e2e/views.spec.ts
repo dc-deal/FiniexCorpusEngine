@@ -226,12 +226,13 @@ const RECORD_ROWS = ['Check:', 'Route:', 'Reading:', 'Findings:', 'Coverage:', '
 
 // a page's form as the API serves it (#18): the view's readings, Lab and verdicts are held to it, word for word
 type FormVerdictJson = { kind: string, kind_said: string, version: string | null, version_said: string | null, verdict_said: string,
+  reason_said?: string | null,
   overruled?: string | null, recall: string | null, show_why_not: string | null, block: string | null, rules: { rule: string | null }[] }
 type FormReadingJson = { key: string, kind_said: string, version: string | null, result_said: string, shown: boolean, test_reading: boolean,
   recall: string | null, show_why_not?: string | null, verdicts: FormVerdictJson[], hover: { label: string, value: string }[] }
 // the verdicts as shown (decision 26): the served reading's on the page, a recalled one's on its recall
 type ShownJson = { said: string, said_at?: string | null, recalled: boolean, count: number | null, why_not?: string | null,
-  rows: { kind_said: string, standing: boolean, recall: string | null }[] }
+  rows: { kind_said: string, standing: boolean, recall: string | null, reason?: string | null }[] }
 
 // a verdict's words as its cell shows them: the result, and the judge's own word struck beside it where code overruled it (32.a)
 const verdictText = (verdict: FormVerdictJson) => [verdict.verdict_said, verdict.overruled].filter(Boolean).join(' ')
@@ -1667,6 +1668,8 @@ test('a page lists its judgements beneath their readings in its form, and its de
     await expect(form.locator('tr.verdict-row')).toHaveCount(held.length)
     await expect(form.locator('tr.verdict-row > td:first-child [data-kind]')).toHaveText(held.map(one => one.kind_said))
     await expect(form.locator('tr.verdict-row .result')).toHaveText(held.map(verdictText))
+    // and the reason a column apart, the Verdicts tab's own short form for a judge, a person's reason (47.a)
+    await expect(form.locator('tr.verdict-row [data-part="reason"]')).toHaveText(held.map(one => one.reason_said ?? ''))
     await page.screenshot({ path: `${SHOTS}/page_judgements_${tab}.png` })
   }
   // the Verdicts tab: the verdicts as shown, on the served reading (decision 26), its caption the API's, the standing marked
@@ -1972,7 +1975,9 @@ test('a person\'s verdict stands beside the state in the page, its work, the Iss
 test('a finding speaks one voice a line: the judge, the code, the judge\'s evidence, then a person', async ({ page, request }) => {
   // a person's two manual parts (188.a) follow their verdict where they gave them; the assessment names the judge it rates
   const LABELS: Record<string, RegExp> = { judge: /^The judge's finding:$/, code: /^The code's ruling:$/, evidence: /^The judge's evidence:$/,
-    person: /^A person's verdict:$/, correction: /^Manual correction by a person:$/, assessment: /^A person's assessment of (the judge|judge\/\d+):$/ }
+    // a person's verdict says its moment, and "replaced" where a later one replaced it (45.a)
+    person: /^A person's verdict, \d{1,2} Nov, \d{2}:\d{2}(, replaced)?:$/, correction: /^Manual correction by a person:$/,
+    assessment: /^A person's assessment of (the judge|judge\/\d+):$/ }
   type Person = { applies: boolean, correction: string | null, judge_assessment: string | null, given_at: string | null }
   type Block = { id: string, findings: { void: boolean, evidence: string | null }[], people: Person[],
     correction: { text: string, given_at: string | null } | null }
@@ -2783,6 +2788,133 @@ test('a click on a block link brings the analysis, the block in both panes, and 
   expect(await box.evaluate(element => [getComputedStyle(element).animationName, getComputedStyle(element).outlineWidth])).toEqual(['none', '4px'])
 })
 
+// 45.a (the operator on finance p. 5, b12): a block's verdicts by people are told apart: each says its moment first, the
+// newest on top, its assessment of the judge indented beneath it, and one a later verdict replaced says "replaced" and recedes,
+// never hidden. 46.a: the standing judgement's show on the served reading is greyed where its moment is the page now, active
+// where people judged after it (judge/1 on finance p. 5); a free page of the first kind is found at run time
+test('a block\'s verdicts by people say their moment, newest first, a replaced one receding; a judge whose then is now is greyed (45.a, 46.a)', async ({ page, request }) => {
+  type Person = { given_at: string, replaced_said?: string | null, applies: boolean }
+  const detail = await (await request.get(`/api/free/works/${FINANCE}/pages/5`)).json() as {
+    reading: { blocks: { id: string, people: Person[] }[] }, form: FormJson
+  }
+  const people = detail.reading.blocks.find(block => block.id === 'b12')!.people.filter(person => person.applies)
+  test.skip(people.length < 2, 'finance p. 5 holds fewer than two verdicts on b12 today')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+  await settled(page)
+  const voices = page.locator('[data-part="analysis"] .reading [data-block="b12"] li.person')
+  await expect(voices).toHaveCount(people.length)
+  // each says its moment first, the API's, newest on top, a person's time in words
+  expect(await voices.locator('[data-part="person-head"] time').evaluateAll(times => times.map(one => one.getAttribute('datetime'))))
+    .toEqual(people.map(person => person.given_at))
+  await expect(voices.first().locator('[data-part="person-head"]')).toContainText(/^A person's verdict, \d{1,2} Nov, \d{2}:\d{2}:$/)
+  // the replaced one says so, the API's word, and recedes; the one that stands does not
+  expect(await voices.evaluateAll(items => items.map(item => item.querySelector('[data-part="replaced"]')?.textContent ?? null)))
+    .toEqual(people.map(person => person.replaced_said ?? null))
+  const ink = (at: number) => voices.nth(at).locator('[data-voice="person"]').evaluate(element => getComputedStyle(element).color)
+  expect(await ink(1)).not.toBe(await ink(0))
+  // the assessment of the judge beneath its own verdict, a step further in
+  const head = (await voices.first().locator('[data-voice="person"]').boundingBox())!
+  const assessment = voices.first().locator('[data-voice="assessment"]')
+  if (await assessment.count()) {
+    const below = (await assessment.boundingBox())!
+    expect(below.y).toBeGreaterThan(head.y)
+    expect(below.x).toBeGreaterThan(head.x + 4)
+  }
+  await voices.first().scrollIntoViewIfNeeded()
+  await page.screenshot({ path: `${SHOTS}/page_b12_verdicts.png` })
+  // judge/1 on the served reading: people judged after it, so its moment is not now and its show is active
+  const served = detail.form.readings.find(reading => reading.shown)!
+  const judge = served.verdicts.find(verdict => verdict.kind === 'judge')!
+  expect(judge.show_why_not ?? null).toBeNull()
+  await expect(page.locator(`[data-part="page-form"] tbody[data-reading="${served.key}"] tr.verdict-row [data-part="recall"]`)).toHaveCount(1)
+  // and the check sees a replaced verdict left unsaid: its word taken out, a moment
+  await voices.nth(1).locator('[data-part="replaced"]').evaluate(element => element.remove())
+  expect(await voices.evaluateAll(items => items.map(item => item.querySelector('[data-part="replaced"]')?.textContent ?? null)))
+    .not.toEqual(people.map(person => person.replaced_said ?? null))
+
+  // a free page whose standing judgement's moment is the page now: its show greyed, its card saying so, the tabs in place
+  const SAME = 'no difference: this is what the page shows now'
+  const { classes } = await (await request.get('/api/error-classes')).json() as { classes: { stage: string, source_id: string, pages: number[] }[] }
+  let now: { work: string, page: number, key: string } | null = null
+  for (const [work, pdfPage] of classes.filter(one => one.stage === 'judge').flatMap(one => one.pages.map(at => [one.source_id, at] as const))) {
+    const form = await formOf(request, work, pdfPage)
+    const reading = form?.readings.find(one => one.shown && one.verdicts.some(verdict => verdict.show_why_not === SAME))
+    if (reading) {
+      now = { work, page: pdfPage, key: reading.key }
+      break
+    }
+  }
+  test.skip(!now, 'no free page holds a standing judgement whose moment is the page now today')
+  await page.goto(`/#/free/sources/${now!.work}/page/${now!.page}`)
+  await settled(page)
+  const tab = (name: string) => page.locator(`[data-part="page-form"] [data-tab="${name}"]`)
+  const at = await Promise.all(['readings', 'lab', 'verdicts'].map(name => tab(name).boundingBox()))
+  const off = page.locator(`[data-part="page-form"] tbody[data-reading="${now!.key}"] tr.verdict-row [data-part="show-off"]`).first()
+  await expect(off.locator('button')).toBeDisabled()
+  await off.hover()
+  await expect(page.locator('[data-part="hover-card"] [data-row="why not"] .card-value')).toHaveText(SAME)
+  await page.mouse.move(0, 0)
+  for (const name of ['lab', 'verdicts', 'readings', 'lab', 'readings']) {
+    await tab(name).click()
+    const boxes = await Promise.all(['readings', 'lab', 'verdicts'].map(one => tab(one).boundingBox()))
+    boxes.forEach((box, index) => inPlace(box, at[index]!, `tab ${index} after ${name}`))
+  }
+  await page.screenshot({ path: `${SHOTS}/page_judge_as_now.png` })
+})
+
+// 47.a (the operator): in Readings and Lab the result is one word, a judge's own struck right behind it, and its reason a
+// column of its own, as the Verdicts tab parts them; the table no wider, nothing wrapping, the tabs in place. Finance p. 5:
+// judge/1 "ok bad" and "wrong word, struck by code", the persons "accept" and "name misread", judge/4 "ok" and "invented, minor"
+test('Readings and Lab part a result from its reason, the struck word right behind it, nothing wrapping (47.a)', async ({ page, request }) => {
+  const form = await formOf(request, FINANCE, 5)
+  const verdicts = await (await request.get(`/api/free/works/${FINANCE}/pages/5`)).json() as { form: FormJson }
+  for (const width of [1280, 1400]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(`/#/free/sources/${FINANCE}/page/5`)
+    await settled(page)
+    const tab = (name: string) => page.locator(`[data-part="page-form"] [data-tab="${name}"]`)
+    const at = await Promise.all(['readings', 'lab', 'verdicts'].map(name => tab(name).boundingBox()))
+    for (const name of ['readings', 'lab'] as const) {
+      await tab(name).click()
+      for (const mark of await page.locator('[data-part="fold-reading"][aria-expanded="false"]:not([disabled])').all()) await mark.click()
+      const panel = page.locator(`[data-part="page-form"] [data-panel="${name}"]`)
+      await expect(panel.locator('thead th')).toHaveText(['Kind', 'Time', 'Model', 'Cost', 'Version', 'Result', 'Reason', 'Show'])
+      const held = form[name].flatMap(reading => reading.verdicts)
+      // the struck word right behind the result, in its own cell: the gap from the word's end to the struck word's start
+      for (const row of await panel.locator('tr.verdict-row:has(s[data-part="overruled"])').all()) {
+        await expect(row.locator('.result s[data-part="overruled"]')).toHaveCount(1)
+        const gap = await row.locator('.result').evaluate(cell => {
+          const text = [...cell.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent!.trim())!
+          const range = document.createRange()
+          range.selectNodeContents(text)
+          return cell.querySelector('s')!.getBoundingClientRect().left - range.getBoundingClientRect().right
+        })
+        expect(gap, 'the struck word stands right behind the result').toBeGreaterThanOrEqual(0)
+        expect(gap, 'the struck word stands right behind the result').toBeLessThanOrEqual(12)
+      }
+      await expect(panel.locator('tr.verdict-row [data-part="reason"]')).toHaveText(held.map(one => one.reason_said ?? ''))
+      // nothing wraps: every row of a reading and its verdicts one line, the table no wider than its box
+      const heights = await panel.locator('tr.reading-row, tr.verdict-row').evaluateAll(rows => rows.map(row => Math.round(row.getBoundingClientRect().height)))
+      expect(Math.max(...heights) - Math.min(...heights), `a row wraps at ${width} px in ${name}`).toBeLessThanOrEqual(2)
+      expect(await panel.evaluate(element => {
+        const scroller = element.closest('.data-scroll') ?? element.querySelector('.data-scroll') ?? element
+        return scroller.scrollWidth - scroller.clientWidth
+      })).toBeLessThanOrEqual(0)
+      const now = await Promise.all(['readings', 'lab', 'verdicts'].map(one => tab(one).boundingBox()))
+      now.forEach((box, index) => inPlace(box, at[index]!, `tab ${index} after ${name} at ${width} px`))
+    }
+  }
+  // the reason is the Verdicts tab's own: judge/1's in both places
+  const judge = form.readings.find(reading => reading.shown)!.verdicts.find(one => one.kind === 'judge')!
+  expect(verdicts.form.verdicts.rows.find(row => row.recall === judge.recall)!.reason ?? null).toBe(judge.reason_said ?? null)
+  await page.screenshot({ path: `${SHOTS}/page_result_reason.png` })
+  // and the check sees a row that wraps: the reason held to a narrow box, a moment
+  await page.addStyleTag({ content: '[data-part="page-form"] [data-part="reason"] { display: block; max-width: 3rem; }' })
+  const narrow = await page.locator('[data-part="page-form"] [data-panel] tr.verdict-row').evaluateAll(rows => rows.map(row => Math.round(row.getBoundingClientRect().height)))
+  expect(Math.max(...narrow) - Math.min(...narrow)).toBeGreaterThan(2)
+})
+
 // decision 25 (the operator: "no difference: this judgement found nothing; use show on its reading"): a show that would change
 // nothing keeps its place and its box in the column, greyed and disabled, and the card under the pointer says why in the API's words
 test('a show that would change nothing keeps its box, greyed, its card saying why (decision 25)', async ({ page, request }) => {
@@ -2919,9 +3051,10 @@ test('a page verdict speaks for a finding no verdict names, and the head says th
   await page.locator('.mode button', { hasText: 'readable' }).click()
   const voice = (block: string) => page.locator(`[data-block="${block}"] .block-findings [data-voice="person"]`)
   await expect(voice('b05').locator('.person-standing')).toHaveText('accepted')
-  await expect(voice('b05').locator('.part-label')).toHaveText("A person's verdict:")
+  // each with its moment (45.a)
+  await expect(voice('b05').locator('.part-label')).toHaveText(/^A person's verdict, \d{1,2} Nov, \d{2}:\d{2}:$/)
   await expect(voice('b10').locator('.person-standing')).toHaveText('accepted')
-  await expect(voice('b10').locator('.part-label')).toHaveText("A person's verdict on the page:")
+  await expect(voice('b10').locator('.part-label')).toHaveText(/^A person's verdict on the page, \d{1,2} Nov, \d{2}:\d{2}:$/)
   // the note stands once: the Check line says the accept by the person's mark (H1.a: no sentence above the record, no words
   // that say it again), the note stands beneath the block the verdict speaks for, and the route says no why of its own
   const check = page.locator('[data-label="Check"] [data-part="check-line"]')

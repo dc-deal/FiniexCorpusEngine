@@ -4609,6 +4609,17 @@
             "type": "string",
             "title": "Result Said"
           },
+          "reason_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Said"
+          },
           "shown": {
             "type": "boolean",
             "title": "Shown",
@@ -4836,6 +4847,17 @@
           "verdict_said": {
             "type": "string",
             "title": "Verdict Said"
+          },
+          "reason_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Said"
           },
           "overruled": {
             "anyOf": [
@@ -8777,6 +8799,17 @@
               }
             ],
             "title": "Answers Derived"
+          },
+          "replaced_said": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced Said"
           }
         },
         "type": "object",

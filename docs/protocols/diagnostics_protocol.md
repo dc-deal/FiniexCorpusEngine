@@ -1213,3 +1213,26 @@ The record of how the diagnostics frontend came about, mistakes included.
   window still (the rule of 4 Nov); 43.a names every `data-jump`, so that check now asserts the window at the analysis,
   marked → now. The same full run had one Python test red for a moment, a section of the private search index (the
   ladder's keyword rung), green on its rerun and in the full rerun: the index on this machine was being written.
+- **Decisions 45.a and 46.a** (28 Nov).
+  - `readings.with_replaced`, after `with_corrections`, in the page and in the recall: a block's people newest first, as
+    copies, `replaced_said` "replaced" on every one that applies and stands no more (`latest_standing` gives the one that
+    does).
+  - `FindingList`'s verdict head is label, moment (`HumanTime`), "replaced" where said. The note, the correction and the
+    assessment are indented a step beneath.
+  - `page_form.changed_since` (a verdict given, or archived, after the moment, on that reading) and `SAME_AS_NOW`, set by
+    `reading_row` on the served reading's standing judgement where decision 25 leaves its show active.
+  - What went wrong: two Python tests built their cases wrongly.
+    - One picked the last row of a fold that now runs newest first.
+    - The older decision 25 test meant "a judge with findings keeps its show" on a page with no person, where 46.a now
+      greys it; it now gives that page a later verdict.
+  - Free pages whose standing judge's moment is now: two among the free pages with findings (accounting p. 360, finance
+    p. 229). None among the free issues, each of which a person has judged.
+  - Two older browser checks held a person's label beneath a block to "A person's verdict:"; they take its moment now.
+- **Decision 47.a** (28 Nov).
+  - `FormVerdict.verdict_said` is one word, and `FormVerdict.reason_said` is the judge's `finding_reason` or the person's
+    reason.
+  - `result_of` returns the reading's word and its reason; `FormReading.reason_said` holds the reason.
+  - `PageForm` gains a Reason column (colspans 8), with widths 8 · 8 · 11 · 7 · 11 · 7.5 · rest · 7 rem.
+  - The first parting gave Reason 176 px at 1280 px, so "wrong word, struck by code" wrapped. A probe then found a time of
+    13 characters ("12 Nov, 12:49") wrapping at 7rem. Both were measured by the rows' heights; a count of text rects per
+    cell had been fooled by the icons.

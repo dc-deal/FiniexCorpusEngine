@@ -1666,6 +1666,8 @@ export interface components {
             result_state: "ok" | "none" | "issue";
             /** Result Said */
             result_said: string;
+            /** Reason Said */
+            reason_said?: string | null;
             /**
              * Shown
              * @default false
@@ -1745,6 +1747,8 @@ export interface components {
             version_said?: string | null;
             /** Verdict Said */
             verdict_said: string;
+            /** Reason Said */
+            reason_said?: string | null;
             /** Overruled */
             overruled?: string | null;
             /**
@@ -2910,6 +2914,8 @@ export interface components {
             answers?: components["schemas"]["AnsweredJudgementRef"] | null;
             /** Answers Derived */
             answers_derived?: boolean | null;
+            /** Replaced Said */
+            replaced_said?: string | null;
         };
         /**
          * Prefill

@@ -1027,6 +1027,33 @@ def test_the_correction_that_stands_for_a_block_is_the_latest_that_applies_to_th
     assert item.segments[0].content == 'A. <table>...</table>'
 
 
+def test_a_block_s_verdicts_by_people_stand_newest_first_the_replaced_ones_said_so():
+    def person(at, **fields):
+        return readings.PersonVerdict.model_validate({'verdict': 'accept', 'block': 'b12', 'given_at': at, **fields})
+    block = readings.Block.model_construct(people=[person('2026-11-10T19:20:00+00:00'), person('2026-11-12T11:49:00+00:00'),
+                                                  person('2026-11-11T08:00:00+00:00', archived=True),
+                                                  person('2026-11-09T08:00:00+00:00', applies=False)])
+    [told] = readings.with_replaced([block])
+    # 45.a: newest first; the one a later verdict replaced said so; one archived by a reset, or on another reading, is not
+    # replaced, it never stood here
+    assert [(one.given_at[:10], one.replaced_said) for one in told.people] == [
+        ('2026-11-12', None), ('2026-11-11', None), ('2026-11-10', 'replaced'), ('2026-11-09', None)]
+    # on copies: the verdicts the page holds elsewhere keep no word of the block's
+    assert block.people == told.people and all(one.replaced_said is None for one in [person('2026-11-10T19:20:00+00:00')])
+
+
+@pytest.mark.readings
+def test_finance_p5_tells_its_b12_verdicts_apart_and_keeps_judge1_s_show_active():
+    page = store.page(FINANCE, 5, 'Finance')
+    b12 = next(block for block in page.reading.blocks if block.id == 'b12')
+    assert [one.replaced_said for one in b12.people] == [None, 'replaced']
+    assert b12.people[0].given_at > b12.people[1].given_at
+    served = next(reading for reading in page.form.readings if reading.shown)
+    judge = next(verdict for verdict in served.verdicts if verdict.kind == 'judge')
+    # the person's verdicts came after judge/1: as then is not as now, so its show stays active (46.a)
+    assert judge.show_why_not is None
+
+
 @pytest.mark.readings
 def test_a_recall_shows_the_page_as_then_its_verdicts_and_its_blocks_and_a_trial_none():
     # finance p. 5 (29.d, 39.a, 38.a): the served reading's judge/1 recalled shows itself alone, as no person had judged by

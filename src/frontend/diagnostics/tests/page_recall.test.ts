@@ -35,7 +35,7 @@ function aPage(): PageDetail {
     // the same in the API's form (#18): judge/1 found nothing, so its show is greyed (decision 25); judge/3's shows its finding
     form: aPageForm({ readings: [aFormReading({ key: KEY, verdicts: [
       aFormVerdict({ recall: `${KEY}:judge/1:0` }),
-      aFormVerdict({ version: 'judge/3', version_said: 'prototype', verdict_said: 'bad · 1 finding: void', state: 'issue', standing: false,
+      aFormVerdict({ version: 'judge/3', version_said: 'prototype', verdict_said: 'bad', reason_said: 'void, major', state: 'issue', standing: false,
         recall: PROTOTYPE, show_why_not: null }),
     ] })] }),
   })

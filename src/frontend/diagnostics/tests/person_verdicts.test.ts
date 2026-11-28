@@ -16,10 +16,28 @@ describe('a person\'s verdicts beside the findings and in the history (191.a, 40
   it('says a page-level verdict as the page\'s under a finding no verdict names, and never the placeholder of `other`', () => {
     const list = mount(FindingList, { props: { findings: [FINDING], people: [aVerdict({ block: null })] } })
     const person = list.find('[data-voice="person"]')
-    expect(person.find('.part-label').text()).toBe("A person's verdict on the page:")
+    // its moment first, as a person reads it (45.a)
+    expect(person.find('.part-label').text()).toMatch(/^A person's verdict on the page, \d{1,2} Nov, \d{2}:\d{2}:$/)
+    expect(person.find('.part-label time').attributes('datetime')).toBe('2026-11-10T22:03:55+00:00')
     // the reason `other` has no words of its own: none beside the verdict, the note a line of its own beneath (the operator, 11 Nov)
     expect(person.findAll('.person-part')).toEqual([])
     expect(list.find('[data-part="person-note"]').text()).toBe('all values match the text layer')
+  })
+
+  it('tells several verdicts on a block apart: each its moment, as the API orders them, a replaced one said so and receding (45.a)', () => {
+    const list = mount(FindingList, { props: { findings: [FINDING], people: [
+      aVerdict({ given_at: '2026-11-12T11:49:33+00:00', judge_assessment: 'false_alarm', judge_assessment_text: 'a false alarm' }),
+      aVerdict({ given_at: '2026-11-10T19:20:16+00:00', replaced_said: 'replaced' }),
+    ] } })
+    const people = list.findAll('li.person')
+    expect(people.map(one => one.find('[data-part="person-head"] time').attributes('datetime')))
+      .toEqual(['2026-11-12T11:49:33+00:00', '2026-11-10T19:20:16+00:00'])
+    expect(people.map(one => [one.classes('replaced'), one.find('[data-part="replaced"]').exists() ? one.find('[data-part="replaced"]').text() : null]))
+      .toEqual([[false, null], [true, 'replaced']])
+    expect(people[1]!.find('[data-part="person-head"]').text()).toMatch(/^A person's verdict, \d{1,2} Nov, \d{2}:\d{2}, replaced:$/)
+    // the assessment beneath its own verdict, in the same item, after its line
+    const first = people[0]!.findAll('[data-voice]').map(voice => voice.attributes('data-voice'))
+    expect(first).toEqual(['person', 'assessment'])
   })
 
   it('says a named reason beside the verdict and the note beneath it, never parted by a dot at a line\'s start', () => {
@@ -52,7 +70,8 @@ describe('a person\'s verdicts beside the findings and in the history (191.a, 40
     // the note a line of its own, never begun by the dot that parts the line's fields
     expect(list.find('[data-part="person-note"]').text()).toBe('the lines cross about 2012')
     const finding = mount(FindingList, { props: { findings: [FINDING], people: [aVerdict({ block: 'b03' })] } })
-    expect(finding.find('[data-voice="person"] .part-label').text()).toBe(line.find('.part-label').text())
+    // the same label, beneath a block followed by its moment (45.a)
+    expect(finding.find('[data-voice="person"] .part-label').text().startsWith(line.find('.part-label').text().replace(/:$/, ''))).toBe(true)
     expect(finding.find('.person-standing').text()).toBe(line.find('.person-verdict').text())
   })
 

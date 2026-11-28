@@ -223,6 +223,9 @@ class PersonVerdict(BaseModel):
     judge_assessment_short: str | None = None
     answers: AnsweredJudgementRef | None = None
     answers_derived: bool | None = None
+    # beneath a block (45.a): "replaced" where a later verdict on the same block replaced it, said so and receding, never
+    # hidden, as a link to it lands there; None for the one that stands
+    replaced_said: str | None = None
 
     @model_validator(mode='before')
     @classmethod
@@ -1304,6 +1307,20 @@ def with_corrections(blocks: list[Block]) -> list[Block]:
     return blocks
 
 
+def with_replaced(blocks: list[Block]) -> list[Block]:
+    """A block's verdicts by people as they are told apart beneath it (45.a): newest first, and every one that applies but
+    a later verdict on the same block replaced said "replaced"; the latest stands, as `latest_standing` finds it. In place,
+    on copies, so a verdict's word beneath its block never reaches the page's own list. Over the verdicts a recall passes,
+    so in focus the moment's cut holds (39.a)."""
+    for block in blocks:
+        standing = latest_standing(block.people)
+        ordered = sorted(enumerate(block.people), key=lambda one: (one[1].given_at or '', one[0]), reverse=True)
+        block.people = [person.model_copy(update={'replaced_said': 'replaced' if person.applies and not person.archived
+                                                  and standing is not None and person is not standing else None})
+                        for _, person in ordered]
+    return blocks
+
+
 def latest_standing(people: list[PersonVerdict], chosen=lambda person: True) -> PersonVerdict | None:
     """The latest person's verdict that applies to the reading shown and was not archived by a reset, among those chosen;
     by its time, then by its place in the list. None where there is none."""
@@ -1941,7 +1958,7 @@ class Readings:
         if state in ('whole', 'tampered'):  # a tampered file is shown as it now reads: the mark says it is not what was checked
             raw = (self.export / row['text_file']).read_text(encoding='utf-8')
             parsed = page_contract.parse(raw, row['form'])
-            blocks = with_corrections(with_notes([block_of(block, findings, people, row.get('page_kind')) for block in parsed.blocks]))
+            blocks = with_replaced(with_corrections(with_notes([block_of(block, findings, people, row.get('page_kind')) for block in parsed.blocks])))
             # a finding whose block no verdict names takes the latest page-level verdict that applies, with its assessment
             # of the judge (the operator on finance p. 408): a person who rated every finding of the page rated this one too
             whole = [person for person in people if person.applies and not person.archived and person.block is None]
@@ -2023,7 +2040,7 @@ class Readings:
         reading, size, placed = None, row.get('image_size'), set()
         if text is not None:
             parsed = page_contract.parse(text, form)
-            blocks = with_corrections(with_notes([block_of(block, findings, then_people, row.get('page_kind')) for block in parsed.blocks]))
+            blocks = with_replaced(with_corrections(with_notes([block_of(block, findings, then_people, row.get('page_kind')) for block in parsed.blocks])))
             placed = {block.id for block in blocks}
             reading = Reading(front={name: str(value) for name, value in parsed.front.items()}, blocks=blocks,
                               errors=parsed.errors, warnings=parsed.warnings,

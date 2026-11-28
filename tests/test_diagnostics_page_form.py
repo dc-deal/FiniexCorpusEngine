@@ -58,8 +58,8 @@ def test_a_page_s_form_holds_its_readings_its_lab_and_every_verdict_each_counted
     # judge it answers (36.a), above the judge's
     assert (reading.kind_said, reading.result_state, reading.result_said, reading.shown, reading.recall) == ('reading', 'ok', 'ok',
                                                                                                              True, None)
-    assert [(one.kind_said, one.version_said, one.verdict_said) for one in reading.verdicts] == [
-        ('person', 'answers judge/1', 'accept · false alarm'), ('judge', 'counts', 'ok')]
+    assert [(one.kind_said, one.version_said, one.verdict_said, one.reason_said) for one in reading.verdicts] == [
+        ('person', 'answers judge/1', 'accept', 'false alarm'), ('judge', 'counts', 'ok', None)]
     # the judge it answers by its model and its moment in the person's card, a time the card says as a person reads it
     card = {row.label: row for row in reading.verdicts[0].hover}
     assert (card['answers'].value, card['judged'].at, 'assigned' in card) == ('judge/1 · an-invented-judge', '2026-11-05T08:29:30+00:00',
@@ -85,9 +85,11 @@ def test_a_judge_s_word_is_the_result_that_counts_its_own_struck_beside_it_and_i
     minor = a_judgement(findings=[SimpleNamespace(kind='invented', block='b09', severity='minor', evidence=None, void=False)])
     rows = [page_form.judge_verdict(one) for one in (struck, real, minor)]
     # 32.a: "ok" where code struck what made the judge say "bad", its own word beside it to be struck; a real bad stays bad
-    assert [(row.verdict_said, row.overruled, row.state) for row in rows] == [
-        ('ok · 1 finding struck by code', 'bad', 'ok'), ('bad · 2 findings: 1 major, 1 struck by code', None, 'issue'),
-        ('ok · 1 finding: minor', None, 'ok')]
+    # 47.a: the result one word, the judge's own struck beside it, and the reason apart, the Verdicts tab's own short form
+    assert [(row.verdict_said, row.overruled, row.reason_said, row.state) for row in rows] == [
+        ('ok', 'bad', 'wrong word, struck by code', 'ok'), ('bad', None, '2 findings: 1 major, 1 struck by code', 'issue'),
+        ('ok', None, 'invented, minor', 'ok')]
+    assert [row.reason_said for row in rows] == [page_form.judge_row(an_attempt('k1'), one).reason for one in (struck, real, minor)]
     # 33.a: in the Verdicts tab, a finding by its kind and its severity or its striking, about the blocks it names
     tab = [page_form.judge_row(an_attempt('k1'), one) for one in (struck, real, minor, a_judgement())]
     assert [(row.verdict, row.overruled, row.reason, row.about, row.judge_said) for row in tab] == [
@@ -181,16 +183,20 @@ def test_a_judgement_s_findings_set_its_result_and_its_show_and_an_ok_with_minor
     minor = an_attempt('k2', shown=True, judgements=[a_judgement(findings=[a_finding('minor')])])
     clean = an_attempt('k3', shown=True, judgements=[a_judgement()])
     none = an_attempt('k4', shown=True)
-    said = [(row.readings[0].result_state, row.readings[0].result_said) for row in
+    said = [(row.readings[0].result_state, row.readings[0].result_said, row.readings[0].reason_said) for row in
             (page_form.form_of([one], []) for one in (major, minor, clean, none))]
-    assert said == [('issue', '2 issues'), ('ok', 'ok · 1 finding'), ('ok', 'ok'), ('none', 'no judge')]
+    # 47.a: a reading's result one word; what an ok's findings add stands as its reason, nothing where there is nothing
+    assert said == [('issue', '2 issues', None), ('ok', 'ok', '1 finding'), ('ok', 'ok', None), ('none', 'no judge', None)]
     # decision 25: a judgement that found nothing shows nothing more than its reading: its show greyed, saying why
     assert page_form.form_of([clean], []).readings[0].verdicts[0].show_why_not == page_form.NOTHING_TO_SHOW
-    assert page_form.form_of([major], []).readings[0].verdicts[0].show_why_not is None
+    # (a person's later verdict beside it, so its moment is not the page now, 46.a)
+    later = [a_person(given_at='2026-11-30T09:00:00+00:00')]
+    assert page_form.form_of([major], later).readings[0].verdicts[-1].show_why_not is None
     # a void finding is drawn beneath its block when recalled, so it changes what the page shows (178.a)
     voided = an_attempt('k5', shown=True, judgements=[a_judgement(findings=[a_finding(void=True)])])
-    assert page_form.form_of([voided], []).readings[0].verdicts[0].show_why_not is None
-    assert page_form.form_of([minor], []).readings[0].verdicts[0].verdict_said == 'ok · 1 finding: minor'
+    assert page_form.form_of([voided], [a_person(reading_key='k5', given_at='2026-11-30T09:00:00+00:00')]).readings[0].verdicts[-1].show_why_not is None
+    minor_row = page_form.form_of([minor], []).readings[0].verdicts[0]
+    assert (minor_row.verdict_said, minor_row.reason_said) == ('ok', 'omission, minor')
 
 
 def test_a_reading_has_one_active_way_in_its_own_show_greyed_where_a_judge_beneath_it_shows_its_findings():
@@ -208,6 +214,28 @@ def test_a_reading_has_one_active_way_in_its_own_show_greyed_where_a_judge_benea
     assert rows['k0'].verdicts[0].show_why_not is None
     # a judge that found nothing: the reading's own show is the way in, the judge's greyed (decision 25), never both
     assert (rows['k2'].show_why_not, rows['k2'].verdicts[0].show_why_not) == (None, page_form.NOTHING_TO_SHOW)
+
+
+def test_the_standing_judgement_s_show_is_greyed_where_its_moment_is_the_page_as_now():
+    struck = SimpleNamespace(kind='wrong_word', block='b12', severity='major', evidence=None, void=True)
+    judge = a_judgement(verdict='bad', outcome='ok', findings=[struck], stored_at='2026-11-09T10:56:00+00:00')
+    served = an_attempt('k1', shown=True, judgements=[judge])
+
+    def show(people):
+        return next(one for one in page_form.form_of([served], people).readings[0].verdicts if one.kind == 'judge').show_why_not
+    # nothing came after it: its moment is the page now (46.a); a person's verdict before it changes nothing
+    assert show([]) == page_form.SAME_AS_NOW
+    assert show([a_person(given_at='2026-11-08T09:00:00+00:00')]) == page_form.SAME_AS_NOW
+    # a verdict given after it, or one archived by a reset after it: as then differs from now, the show is active
+    assert show([a_person(given_at='2026-11-10T19:20:00+00:00')]) is None
+    assert show([a_person(given_at='2026-11-08T09:00:00+00:00', archived=True, archived_at='2026-11-11T00:00:00+00:00')]) is None
+    # a verdict on another reading is not this reading's history
+    assert show([a_person(reading_key='k0', given_at='2026-11-10T19:20:00+00:00')]) == page_form.SAME_AS_NOW
+    # a judgement that found nothing says so first (decision 25); a reading not served keeps its judge's show (42.a)
+    clean = an_attempt('k1', shown=True, judgements=[a_judgement()])
+    assert page_form.form_of([clean], []).readings[0].verdicts[0].show_why_not == page_form.NOTHING_TO_SHOW
+    earlier = an_attempt('k0', judgements=[a_judgement(recall='k0:judge/1:0', standing=False, findings=[struck])])
+    assert page_form.form_of([earlier, served], []).readings[1].verdicts[0].show_why_not is None
 
 
 def test_a_promoted_reading_stands_among_the_readings_saying_where_it_came_from():
