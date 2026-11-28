@@ -150,8 +150,12 @@ code), and tables were made HTML from that raw answer by the vendor's own conver
 | GPU memory | | 1.9 GiB | 2.6 GiB |
 
 The 8 malformed readings are the model's own form (a bare `$` inside a formula, inline math as `$…$`), counted raw.
-The judge saw 3 pages only (the week's tokens): all 3 ok, one minor finding (finance p. 343, an equation number not
-bound). Not yet: the judge on the other pages, the scores after a form repair, the group's document.
+The judge on all 20: **12 ok, 8 bad**, as many as MinerU's in the night. Of the 8, one is our converter's: on
+carta-conversano p. 5 it bound equation numbers to the wrong formulas, where several formulas stand close one above the
+other (row overlap alone decides badly there). The other 7 are the model's or its pipeline's: formulas that do not
+render (broken braces, a bare `$`), a journal table whose rows merged and lost two dates, a sentence read twice, a code
+output's line order, a dropped line, a missing word and missing dollar signs. Not yet: the binding fixed and the scores
+after a form repair, the group's document.
 
 **The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked
 until stronger local readers exist. The bench machine keeps its other uses (embeddings, small models, the IDE's
