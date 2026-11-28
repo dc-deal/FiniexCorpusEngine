@@ -66,6 +66,14 @@
               {"stage": "read", "model": "paddleocr-vl-1.6", "what": "each region cropped from the page, read with its label's prompt"},
               {"stage": "assemble", "model": null, "what": "our converter paddle-blocks-to-page1/1, built on the 6 pages without gold and frozen before the 14 gold pages are scored"}],
    "limits": [],
+   "used_by_cells": ["LAB-PADDLE-PIPE-MP"], "run": "paddle_pipeline_2026-11-28"},
+  {"version": "paddleocr-vl-pipeline/2", "state": "prototype", "model": "paddleocr-vl-1.6", "host": "finiex-compute",
+   "runtime": "as paddleocr-vl-pipeline/1: the same run's raw answers, assembled again",
+   "parameters": {"as": "paddleocr-vl-pipeline/1"},
+   "stages": [{"stage": "layout", "model": "pp-doclayoutv3", "what": "as paddleocr-vl-pipeline/1"},
+              {"stage": "read", "model": "paddleocr-vl-1.6", "what": "as paddleocr-vl-pipeline/1"},
+              {"stage": "assemble", "model": null, "what": "our converter paddle-blocks-to-page1/2: an equation number joins the formula just before it in reading order where they share a row (v1 bound by row overlap alone and misbound carta-conversano p. 5)"}],
+   "limits": [],
    "used_by_cells": ["LAB-PADDLE-PIPE-MP"], "run": "paddle_pipeline_2026-11-28"}
  ]
 }

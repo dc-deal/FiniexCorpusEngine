@@ -154,8 +154,24 @@ The judge on all 20: **12 ok, 8 bad**, as many as MinerU's in the night. Of the 
 carta-conversano p. 5 it bound equation numbers to the wrong formulas, where several formulas stand close one above the
 other (row overlap alone decides badly there). The other 7 are the model's or its pipeline's: formulas that do not
 render (broken braces, a bare `$`), a journal table whose rows merged and lost two dates, a sentence read twice, a code
-output's line order, a dropped line, a missing word and missing dollar signs. Not yet: the binding fixed and the scores
-after a form repair, the group's document.
+output's line order, a dropped line, a missing word and missing dollar signs.
+
+**The converter's binding fixed, and the form repaired (the same afternoon, 60.a):** `paddle-blocks-to-page1/2` binds an
+equation number to the formula just before it in reading order where they share a row, as the vendor's pipeline does,
+and falls back to the most-shared row only where that one does not (parameter set `paddleocr-vl-pipeline/2`, the same
+raw answers assembled again, stored beside v1). It changed 2 of the 20 pages; both judged again, both ok, carta p. 5
+among them. The judge stands at 13 ok and 7 bad: the 18 unchanged readings are the same text as v1's and keep its
+verdicts. The form repair is a score apart, never a stored reading (the review's I7): a bare `$` in a formula made `\$`,
+`$…$` math in prose made `\( \)`.
+
+| PaddleOCR-VL, own pipeline | v1 raw | v2 raw | v2, form repaired | default reader |
+|---|---|---|---|---|
+| formulas exact, of 112 | 86 | 91 | 99 | 112 |
+| valid, of 20 | 12 | 12 | 18 | 20 |
+| pages clean against gold, of 14 | 5 | 5 | 7 | 13 |
+| table cells exact, of 224 | 221 | 221 | 221 | 221 |
+
+Not yet: the group's document.
 
 **The verdict** (the operator, 28 Nov 2026): none of the four is strong enough for the pipeline; the bake-off is parked
 until stronger local readers exist. The bench machine keeps its other uses (embeddings, small models, the IDE's

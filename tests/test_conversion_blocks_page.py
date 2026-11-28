@@ -54,6 +54,27 @@ def test_a_table_comes_from_its_raw_answer_and_its_caption_names_it():
     assert caption.attrs['of'] == table.id
 
 
+def test_a_number_joins_the_formula_before_it_in_reading_order_even_where_another_row_overlaps_it_more():
+    # v1 took the most-shared row alone: (2) shares more height with the first formula than with its own (carta p. 5)
+    close = {'blocks': [
+        block('display_formula', [300, 100, 700, 160], '\\[a = b\\]'),
+        block('formula_number', [880, 110, 920, 150], '(1)'),
+        block('display_formula', [300, 150, 700, 175], '\\[c = d\\]'),
+        block('formula_number', [880, 140, 920, 170], '(2)'),
+    ]}
+    text, _ = local_reader.blocks_page(close, PAGE)
+    page = parse(text, 'markdown')
+    assert [one.attrs.get('label') for one in page.blocks if one.cls == 'formula'] == ['1', '2']
+
+
+def test_the_form_repair_mends_only_dollars_in_math_and_dollar_math_in_prose():
+    text = ('::: {#b01 .formula bbox="0 0 1 1"}\nPV = $1,000 \\times 2\n:::\n'
+            '::: {#b02 .paragraph bbox="0 0 1 1"}\nA rate $r^2$ on $1.60 and $2.\n:::\n')
+    mended = local_reader.form_repaired(text)
+    assert 'PV = \\$1,000' in mended and 'A rate \\(r^2\\) on $1.60 and $2.' in mended
+    assert local_reader.form_repaired(mended) == mended  # mended once, nothing left to mend
+
+
 def test_prose_keeps_its_money_sign_and_an_unknown_label_is_kept_as_other():
     text, _ = local_reader.blocks_page(RESULT, PAGE)
     page = parse(text, 'markdown', Expected('w', 3, (1000, 1400)))

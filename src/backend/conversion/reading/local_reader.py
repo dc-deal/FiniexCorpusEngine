@@ -55,7 +55,7 @@ MODELS = {
                 'parameter_set': 'glm-ocr-page/1'},
     # decision 51: the vendor's pipeline; its answer is the blocks with their raw model output (`blocks_page`)
     'paddleocr-vl-pipeline': {'cell': 'LAB-PADDLE-PIPE-MP', 'adapter': 'PaddleOCR 3.7 pipeline v1.6 (transformers)',
-                              'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/1'},
+                              'answer': 'blocks', 'prompt': None, 'parameter_set': 'paddleocr-vl-pipeline/2'},
 }
 STOP_REASONS = {'stop': 'end_turn', 'length': 'max_tokens', None: 'end_turn'}
 BOX = re.compile(r'bbox="(\d+) (\d+) (\d+) (\d+)"')
@@ -166,7 +166,7 @@ def markdown_page(raw: str, page: dict) -> tuple[str, dict]:
 
 # ---------------------------------------------------------------- a pipeline's blocks into page/1 (51, 28 Nov)
 
-BLOCKS_CONVERTER = 'paddle-blocks-to-page1/1'
+BLOCKS_CONVERTER = 'paddle-blocks-to-page1/2'  # /1 on 28 Nov: equation numbers by row overlap alone
 # The layout model's labels as page/1 classes. Read as text: every label the vendor reads with "OCR:". A label not listed
 # becomes `other`, its label said in why=, so nothing is dropped unseen.
 PROSE_LABELS = {'text', 'content', 'abstract', 'reference', 'reference_content', 'algorithm', 'vertical_text', 'aside_text',
@@ -203,22 +203,32 @@ def _box(box: list[float], width: int, height: int) -> str:
 
 def blocks_page(result: dict, page: dict) -> tuple[str, dict]:
     """A document pipeline's blocks, in its reading order, as a page/1 file (`BLOCKS_CONVERTER`): each block's raw model
-    output, its box as the layout model drew it, its label as a page/1 class. An equation number joins the formula whose
-    row it shares most, as label= without brackets (a \\tag{…} inside a formula's LaTeX is taken out the same way); a
-    caption names the float nearest above or below it; the page's number becomes the printed label. A table is its raw
-    OTSL answer made HTML by the vendor's own converter, never the pipeline's HTML, which lost its `$` first."""
+    output, its box as the layout model drew it, its label as a page/1 class. An equation number joins the formula just
+    before it in reading order where the two share a row, as the vendor's own pipeline joins them; only where that one
+    does not, the free formula whose row it shares most (v2, 28 Nov: v1 took the most-shared row alone and, with formulas
+    close one above the other, bound (6) to the formula printed as (10), carta-conversano p. 5). As label= without
+    brackets; a \\tag{…} inside a formula's LaTeX is taken out the same way. A caption names the float nearest above or
+    below it; the page's number becomes the printed label. A table is its raw OTSL answer made HTML by the vendor's own
+    converter, never the pipeline's HTML, which lost its `$` first."""
     width, height = page['width'], page['height']
     blocks = [block for block in result['blocks'] if (block.get('raw') or '').strip() or block['label'] in FLOAT_LABELS
               or block['label'] in DECORATION_LABELS]
-    numbers = [block for block in blocks if block['label'] == 'formula_number']
-    formulas = [block for block in blocks if block['label'] in FORMULA_LABELS]
     labels: dict[int, str] = {}
-    for number in numbers:
-        rows = sorted(formulas, key=lambda formula: -_overlap(number['box'], formula['box']))
-        if rows and _overlap(number['box'], rows[0]['box']) > 0 and id(rows[0]) not in labels:
-            labels[id(rows[0])] = number['raw'].strip().strip('()').strip()
-    bound = {id(number) for number in numbers if any(labels.get(id(f)) == number['raw'].strip().strip('()').strip()
-                                                      for f in formulas)}
+    bound: set[int] = set()
+    for at, number in enumerate(blocks):
+        if number['label'] != 'formula_number':
+            continue
+        before = next((block for block in reversed(blocks[:at]) if block['label'] in FORMULA_LABELS), None)
+        free = [block for block in blocks if block['label'] in FORMULA_LABELS and id(block) not in labels]
+        if before is not None and id(before) not in labels and _overlap(number['box'], before['box']) > 0:
+            chosen = before
+        else:
+            sharing = sorted((block for block in free if _overlap(number['box'], block['box']) > 0),
+                             key=lambda block: -_overlap(number['box'], block['box']))
+            chosen = sharing[0] if sharing else None
+        if chosen is not None:
+            labels[id(chosen)] = number['raw'].strip().strip('()').strip()
+            bound.add(id(number))
     floats = [block for block in blocks if block['label'] in FLOAT_LABELS or block['label'] == 'table']
     printed, position, out, counts = None, 'none', [], Counter()
     written = [block for block in blocks if id(block) not in bound]  # a bound number lives on in its formula's label
@@ -421,9 +431,33 @@ REPORT = 'local_readers_report.json'
 REFERENCE = 'served'  # the reading each page serves today: Sonnet's page/1, judged, the bar a local reader must reach
 
 
-def _side(store, records: list[dict], judgements: dict) -> dict:
+OPENER = re.compile(r'^(:{3,})\s*\{[^}\n]*\.([a-z_]+)')
+BARE_DOLLAR_IN_MATH = re.compile(r'(?<!\\)\$')
+DOLLAR_MATH = re.compile(r'\$([^$\n]*[\\^_{}][^$\n]*)\$')  # page_contract's own test for `$…$` math in prose
+
+
+def form_repaired(text: str) -> str:
+    """A reading with the two form faults a local model makes most mended, for a score counted apart from the raw one
+    (the review's I7, 28 Nov): a bare `$` inside a formula becomes `\\$`, and `$…$` math in any other block becomes
+    `\\( \\)`, as the page/1 validator's own pattern finds it. Nothing else is touched, and the stored reading stays as read."""
+    lines, cls, fence = [], None, None
+    for line in text.split('\n'):
+        opener = OPENER.match(line)
+        if cls is None and opener:
+            cls, fence = opener.group(2), opener.group(1)
+        elif cls is not None and line.strip() == fence:
+            cls = fence = None
+        elif cls == 'formula':
+            line = BARE_DOLLAR_IN_MATH.sub(r'\\$', line)
+        elif cls is not None:
+            line = DOLLAR_MATH.sub(lambda match: f'\\({match.group(1)}\\)', line)
+        lines.append(line)
+    return '\n'.join(lines)
+
+
+def _side(store, records: list[dict], judgements: dict, repair: bool = False) -> dict:
     """One reader's measures over its pages: format, publisher gold (content, scored on every reading that parses, valid or
-    not), the judge's verdicts, and its seconds and memory where it ran locally."""
+    not), the judge's verdicts, and its seconds and memory where it ran locally. With `repair`, on `form_repaired` text."""
     from statistics import median
 
     from backend.conversion.contract.page_contract import parse
@@ -432,6 +466,7 @@ def _side(store, records: list[dict], judgements: dict) -> dict:
     rows = []
     for record in records:
         text = store.reading_text(record['reading_key']) or ''
+        text = form_repaired(text) if repair else text
         rows.append(mini_pilot.Reading(record, text, parse(text, record['form'], mini_pilot.expected_of(record))))
     mini_pilot.measure(rows)
     scored = [row for row in rows if row.score]
@@ -476,6 +511,9 @@ def report(store=None) -> dict:
         pages |= {(record['file'], record['pdf_page']) for record in records}
         if records:
             sides[name] = _side(store, records, judgements)
+            mended = _side(store, records, judgements, repair=True)  # the form repaired, counted apart (I7)
+            sides[name]['repaired'] = {key: mended[key] for key in ('valid', 'formulas_exact', 'cells_exact',
+                                                                     'prose_similarity_median', 'clean_pages')}
     reference = [store.reading(served[page]) for page in sorted(pages) if page in served and store.reading(served[page])]
     sides[REFERENCE] = _side(store, reference, judgements)
     result = {'about': 'Test readings by local models beside the reading each page serves (#17); content scored by '
@@ -504,6 +542,11 @@ def main(argv: list[str] | None = None) -> int:
                   f"cells {side['cells_exact']:>4}/{side['cells']:<4} prose {side['prose_similarity_median']} "
                   f"clean {side['clean_pages']:>2}/{side['gold_pages']:<2} judge {side['judge']} "
                   f"s/page {side['seconds_median']} MiB {side['memory_mib_max']}")
+            if 'repaired' in side:
+                mended = side['repaired']
+                print(f"{'  form repaired':16} valid {mended['valid']:>2}/{side['pages']:<2} formulas "
+                      f"{mended['formulas_exact']:>3}/{side['formulas']:<3} cells {mended['cells_exact']:>4}/{side['cells']:<4} "
+                      f"prose {mended['prose_similarity_median']} clean {mended['clean_pages']:>2}/{side['gold_pages']:<2}")
     else:
         for name in [name.strip() for name in args.cells.split(',') if name.strip()]:
             plan = judge_plan(name, pages={page.strip() for page in args.pages.split(',')} if args.pages else None)
